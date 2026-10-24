@@ -73,10 +73,10 @@ begin
 end;
 $$;
 
+-- Security invoker on purpose. Postgres rejects SET ROLE inside a security-definer function.
 create or replace function tests._assume(identifier text)
 returns void
 language plpgsql
-security definer
 set search_path = auth, public, pg_temp
 as $$
 declare
@@ -94,14 +94,13 @@ begin
     true
   );
   perform set_config('request.jwt.claim.sub', uid::text, true);
-  execute 'set local role authenticated';
+  perform set_config('role', 'authenticated', true);
 end;
 $$;
 
 create or replace function tests.visible_count(identifier text)
 returns bigint
 language plpgsql
-security definer
 set search_path = public, auth, pg_temp
 as $$
 declare
@@ -117,7 +116,6 @@ $$;
 create or replace function tests.current_uid(identifier text)
 returns uuid
 language plpgsql
-security definer
 set search_path = public, auth, pg_temp
 as $$
 declare
@@ -133,7 +131,6 @@ $$;
 create or replace function tests.try_insert_weight(identifier text, weight_id uuid, kilos numeric)
 returns void
 language plpgsql
-security definer
 set search_path = public, auth, pg_temp
 as $$
 begin
@@ -147,7 +144,6 @@ $$;
 create or replace function tests.try_update_weight(identifier text, weight_id uuid, kilos numeric)
 returns bigint
 language plpgsql
-security definer
 set search_path = public, auth, pg_temp
 as $$
 declare
@@ -164,7 +160,6 @@ $$;
 create or replace function tests.try_delete_weight(identifier text, weight_id uuid)
 returns bigint
 language plpgsql
-security definer
 set search_path = public, auth, pg_temp
 as $$
 declare
