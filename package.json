@@ -1,0 +1,50 @@
+{
+  "name": "viastela",
+  "version": "1.0.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "expo start",
+    "web": "expo start --web",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "jest",
+    "test:rls": "supabase db start && supabase test db --local",
+    "test:e2e": "playwright test",
+    "export:web": "expo export --platform web",
+    "prepare": "node scripts/install-hooks.mjs"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@supabase/supabase-js": "^2.81.1",
+    "expo": "~58.0.19",
+    "expo-constants": "~58.0.13",
+    "expo-linking": "~58.0.14",
+    "expo-router": "~58.0.26",
+    "expo-splash-screen": "~58.0.11",
+    "expo-status-bar": "~58.0.4",
+    "expo-system-ui": "~58.0.6",
+    "expo-updates": "~58.0.18",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-gesture-handler": "~3.3.0",
+    "react-native-safe-area-context": "~5.10.1",
+    "react-native-screens": "~4.30.0",
+    "react-native-web": "~0.21.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@types/react": "~19.3.0",
+    "eslint": "^9.39.1",
+    "eslint-config-expo": "~58.0.4",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.5",
+    "typescript": "~6.0.3"
+  }
+}
