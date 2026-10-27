@@ -32,8 +32,20 @@ function nightLine(daySwitch: string): string {
 }
 
 export function TodayScreen() {
-  const { ready, loadError, records, failedIds, saving, daySwitch, timeZone, reload, retry, dismiss, removeRecord } =
-    useWeight();
+  const {
+    ready,
+    loadError,
+    records,
+    failedIds,
+    saving,
+    daySwitch,
+    timeZone,
+    reload,
+    retry,
+    dismiss,
+    scheduleDelete,
+    pendingDeleteIds,
+  } = useWeight();
   const inset = useShellInset();
   const [now, setNow] = useState(() => new Date());
 
@@ -88,10 +100,16 @@ export function TodayScreen() {
             />
           ) : null}
           {today.map((record, index) => {
+            if (pendingDeleteIds.has(record.id)) return null;
             const failed = failedIds.has(record.id);
             return (
               <Card key={record.id}>
-                <Text variant="muted">{weighInLabel(index)}</Text>
+                <Row justify="between" align="center">
+                  <Text variant="muted">{weighInLabel(index)}</Text>
+                  {failed ? null : (
+                    <Button label="删除" variant="ghost" onPress={() => scheduleDelete(record.id)} />
+                  )}
+                </Row>
                 <Text variant="heading">
                   {formatKg(record.weightKg)} kg · {formatClock(record.recordedAt, record.tz)}
                 </Text>
@@ -103,9 +121,7 @@ export function TodayScreen() {
                     <Button label="重试" onPress={() => void retry(record.id)} loading={saving} />
                     <Button label="放弃" variant="ghost" onPress={() => dismiss(record.id)} />
                   </Row>
-                ) : (
-                  <Button label="删除" variant="danger" onPress={() => void removeRecord(record.id)} />
-                )}
+                ) : null}
               </Card>
             );
           })}

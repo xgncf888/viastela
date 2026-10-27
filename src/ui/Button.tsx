@@ -92,6 +92,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: baseTheme.space.md,
     paddingVertical: baseTheme.space.sm,
+    minWidth: baseTheme.layout.control,
   },
   label: { fontWeight: '500' },
   inactive: { opacity: 0.55 },

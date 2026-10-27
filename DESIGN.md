@@ -69,7 +69,7 @@ Screens use these primitives. Do not add a `StyleSheet` or a raw color in a scre
 - `ScreenHeader` — kicker, one title (the accessible heading), optional detail, optional note.
 - `Card` — one idea. Lists are a stack of cards, not a dense table.
 - `Field` — label, value, optional hint. `TextField` — label, input, error or helper.
-- `Button` — `primary` (clay, dark label), `secondary` (hairline), `ghost` (`accentText`), `danger` (`dangerFill` with light `onToast` text). Every irreversible action uses `danger`, including 删除 and, later, deleting an account.
+- `Button` — `primary` (clay, dark label), `secondary` (hairline), `ghost` (`accentText`), `danger` (`dangerFill` with light `onToast` text). Solid `danger` is reserved for irreversible actions that have their own confirmation page, for example deleting an account. Deleting a list item uses a ghost text button, `删除`, in the card’s top-right, with a hit area of at least 44pt. The tap hides that row immediately and shows the toast `已删除 · 撤销` for 5 seconds. Undo writes nothing. When the 5 seconds pass with no undo, the app soft-deletes through the existing path. There is no confirm dialog.
 - `Chip` — single-select, 44pt, selected fill `accentSoft` and label `accentText`.
 - `Sheet` — centered on web, bottom sheet on native. One heading, an explicit close, an explicit save.
 - `EmptyState` — title, description, and one button. No second button repeating the same action. 今日 shows it only after `ready`. While the list is loading, the page shows `读取中` and nothing else.
@@ -87,4 +87,4 @@ The first row of a local day is `晨重`. A later row that same day is `复测`,
 
 Between midnight and the day switch (default 04:00), 今日 titles the accounting day, for example `10月23日 周五`, and adds the note `凌晨 4 点前的记录算作前一天`. After the switch, the title is that same accounting day and the note is hidden.
 
-`再记 73.7 kg` opens the record sheet with that value filled in and the type set to 体重. Nothing is written until the person presses 保存. `+ 记录` opens the same sheet empty.
+`再记 73.7 kg` opens the record sheet with that value filled in, the weight field focused, and a decimal keypad. `填入上次` stays hidden while the sheet is already filled. Nothing is written until the person presses 保存. `+ 记录` opens the same sheet empty; `填入上次` is shown then, when a previous weight exists.

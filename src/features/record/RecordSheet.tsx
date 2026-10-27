@@ -92,10 +92,11 @@ function RecordForm({ prefillKg }: { prefillKg: number | null }) {
             onChangeText={setValue}
             placeholder="例如 72.4"
             keyboardType="decimal-pad"
+            autoFocus
             error={error}
             helper={hint ?? undefined}
           />
-          {last ? (
+          {last && prefillKg == null ? (
             <Button
               label={`填入上次 ${formatKg(last.weightKg)}`}
               variant="secondary"

@@ -66,7 +66,7 @@ const cors = {
 
 export async function installApi(
   page: Page,
-  options: { weights: WeightRow[]; onWrite?: (route: Route) => Promise<void> },
+  options: { weights: WeightRow[]; onWrite?: (route: Route) => Promise<void>; onSoftDelete?: () => void },
 ): Promise<void> {
   await page.route('**/*', async (route) => {
     const request = route.request();
@@ -106,6 +106,11 @@ export async function installApi(
     }
     if (url.includes('/auth/v1/token')) {
       await route.fulfill({ status: 200, headers: cors, body: JSON.stringify(authSession()) });
+      return;
+    }
+    if (url.includes('soft_delete_weight_record')) {
+      options.onSoftDelete?.();
+      await route.fulfill({ status: 200, headers: cors, body: 'null' });
       return;
     }
     await route.fulfill({ status: 200, headers: cors, body: '{}' });

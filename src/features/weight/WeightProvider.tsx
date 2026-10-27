@@ -17,6 +17,7 @@ type WeightContextValue = {
   loadError: string | null;
   records: WeightRecord[];
   failedIds: ReadonlySet<string>;
+  pendingDeleteIds: ReadonlySet<string>;
   deletedNotice: boolean;
   saving: boolean;
   daySwitch: string;
@@ -27,8 +28,11 @@ type WeightContextValue = {
   dismiss: (id: string) => void;
   dismissDeletedNotice: () => void;
   removeRecord: (id: string) => Promise<void>;
+  scheduleDelete: (id: string) => void;
   saveDaySwitch: (value: string) => Promise<void>;
 };
+
+const DELETE_UNDO_MS = 5000;
 
 const WeightContext = createContext<WeightContextValue | null>(null);
 
@@ -43,6 +47,8 @@ export function WeightProvider({ children }: { children: ReactNode }) {
   const [deletedNotice, setDeletedNotice] = useState(false);
   const creating = useRef(false);
   const inFlight = useRef(new Set<string>());
+  const pendingDeletes = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<ReadonlySet<string>>(new Set());
 
   const loadSaved = useCallback(async (switchTime: string) => {
     const endDay = computeLocalDay(new Date(), currentTimeZone(), switchTime);
@@ -185,11 +191,21 @@ export function WeightProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const revealPending = useCallback((id: string) => {
+    setPendingDeleteIds((current) => {
+      if (!current.has(id)) return current;
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
   const removeRecord = useCallback(
     async (id: string) => {
       const isSaved = saveState.saved.some((row) => row.id === id);
       if (!isSaved) {
         dismiss(id);
+        revealPending(id);
         return;
       }
       try {
@@ -198,12 +214,66 @@ export function WeightProvider({ children }: { children: ReactNode }) {
           saved: current.saved.filter((row) => row.id !== id),
           pending: current.pending.filter((row) => row.id !== id),
         }));
+        revealPending(id);
       } catch {
+        revealPending(id);
         showToast({ text: '删除失败，请重试', tone: 'error' });
       }
     },
-    [dismiss, saveState.saved],
+    [dismiss, revealPending, saveState.saved],
   );
+
+  const removeRecordRef = useRef(removeRecord);
+  useEffect(() => {
+    removeRecordRef.current = removeRecord;
+  }, [removeRecord]);
+
+  const undoDelete = useCallback(
+    (id: string) => {
+      const timer = pendingDeletes.current.get(id);
+      if (timer) clearTimeout(timer);
+      pendingDeletes.current.delete(id);
+      revealPending(id);
+    },
+    [revealPending],
+  );
+
+  const scheduleDelete = useCallback(
+    (id: string) => {
+      if (pendingDeletes.current.has(id)) return;
+      setPendingDeleteIds((current) => {
+        const next = new Set(current);
+        next.add(id);
+        return next;
+      });
+      showToast({
+        text: '已删除',
+        duration: DELETE_UNDO_MS,
+        action: { label: '撤销', onPress: () => undoDelete(id) },
+      });
+      const timer = setTimeout(() => {
+        if (!pendingDeletes.current.has(id)) return;
+        pendingDeletes.current.delete(id);
+        void removeRecordRef.current(id);
+      }, DELETE_UNDO_MS);
+      pendingDeletes.current.set(id, timer);
+    },
+    [undoDelete],
+  );
+
+  useEffect(() => {
+    if (session) return;
+    for (const timer of pendingDeletes.current.values()) clearTimeout(timer);
+    pendingDeletes.current.clear();
+  }, [session]);
+
+  useEffect(() => {
+    const pending = pendingDeletes.current;
+    return () => {
+      for (const timer of pending.values()) clearTimeout(timer);
+      pending.clear();
+    };
+  }, []);
 
   const saveDaySwitch = useCallback(async (value: string) => {
     const normalized = value.trim();
@@ -228,6 +298,7 @@ export function WeightProvider({ children }: { children: ReactNode }) {
       loadError,
       records,
       failedIds,
+      pendingDeleteIds,
       deletedNotice,
       saving,
       daySwitch,
@@ -238,9 +309,10 @@ export function WeightProvider({ children }: { children: ReactNode }) {
       dismiss,
       dismissDeletedNotice,
       removeRecord,
+      scheduleDelete,
       saveDaySwitch,
     }),
-    [ready, loadError, records, failedIds, deletedNotice, saving, daySwitch, reload, saveWeight, retry, dismiss, dismissDeletedNotice, removeRecord, saveDaySwitch],
+    [ready, loadError, records, failedIds, pendingDeleteIds, deletedNotice, saving, daySwitch, reload, saveWeight, retry, dismiss, dismissDeletedNotice, removeRecord, scheduleDelete, saveDaySwitch],
   );
 
   return <WeightContext.Provider value={value}>{children}</WeightContext.Provider>;

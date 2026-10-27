@@ -13,6 +13,7 @@ export function TextField({
   keyboardType = 'default',
   autoCapitalize = 'none',
   autoComplete,
+  autoFocus = false,
   error,
   helper,
 }: {
@@ -23,6 +24,7 @@ export function TextField({
   keyboardType?: 'default' | 'email-address' | 'number-pad' | 'decimal-pad';
   autoCapitalize?: 'none' | 'sentences';
   autoComplete?: 'email' | 'one-time-code' | 'off';
+  autoFocus?: boolean;
   error?: string | null;
   helper?: string;
 }) {
@@ -41,6 +43,7 @@ export function TextField({
         autoCapitalize={autoCapitalize}
         autoCorrect={false}
         autoComplete={autoComplete}
+        autoFocus={autoFocus}
         selectionColor={theme.color.accent}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
