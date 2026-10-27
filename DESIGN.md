@@ -1,4 +1,4 @@
-# Viastela design system
+# Design system
 
 Inspired by Claude.ai’s warm editorial minimalism. **Inspired by, not affiliated with Anthropic.** No Anthropic logos, wordmarks, or proprietary font files.
 
