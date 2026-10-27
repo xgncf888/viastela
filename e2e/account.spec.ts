@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import { reauthBeforeDeleteMessage } from '../src/core/account-policy';
 import { brand } from '../src/config/brand';
 
 const userId = '11111111-1111-4111-8111-111111111111';
@@ -9,13 +10,14 @@ function unsignedJwt(payload: Record<string, unknown>): string {
   return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.sig`;
 }
 
-async function signedIn(page: Page) {
-  const session = {
+function session(amrTimestamp: number) {
+  return {
     access_token: unsignedJwt({
       sub: userId,
       email: 'yifeng@example.com',
       role: 'authenticated',
       exp: 4_000_000_000,
+      amr: [{ method: 'otp', timestamp: amrTimestamp }],
     }),
     refresh_token: 'refresh-token',
     expires_at: 4_000_000_000,
@@ -30,9 +32,12 @@ async function signedIn(page: Page) {
       created_at: '2026-10-24T00:00:00.000Z',
     },
   };
+}
+
+async function signedIn(page: Page, amrTimestamp = Math.floor(Date.now() / 1000)) {
   await page.addInitScript((stored) => {
     localStorage.setItem('sb-127-auth-token', JSON.stringify(stored));
-  }, session);
+  }, session(amrTimestamp));
 }
 
 async function columnMaxWidth(page: Page, heading: string): Promise<number | null> {
@@ -145,4 +150,73 @@ test('a failed account deletion returns to the explanation', async ({ page }) =>
   await expect(page.getByRole('heading', { name: '删除账号' })).toBeVisible();
   await expect(page.getByText('删除失败，请重试')).toBeVisible();
   await expect(page.getByRole('textbox', { name: '确认' })).toHaveValue('删除');
+});
+
+test('a stale sign-in explains reauth, and re-login returns to confirmation without deleting', async ({ page }) => {
+  await signedIn(page, Math.floor(Date.now() / 1000) - 11 * 60);
+  let deletes = 0;
+  await page.route('**/functions/v1/delete-account', (route) => {
+    deletes += 1;
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+  });
+  await page.route('**/auth/v1/otp**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }),
+  );
+  await page.route('**/auth/v1/verify**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(session(Math.floor(Date.now() / 1000))),
+    }),
+  );
+
+  await page.goto('/');
+  await page.getByRole('button', { name: '我的' }).click();
+  await page.getByRole('button', { name: '删除账号' }).click();
+  await expect(page.getByText(reauthBeforeDeleteMessage)).toBeVisible();
+  await expect(page.getByRole('button', { name: '重新登录' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '取消' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: '确认' })).toHaveCount(0);
+  await expect(page.getByText('删除失败，请重试')).toHaveCount(0);
+
+  await page.getByRole('button', { name: '重新登录' }).click();
+  await expect(page.getByText('验证码已发送至 yifeng@example.com')).toBeVisible();
+  await page.getByRole('textbox', { name: '验证码' }).fill('123456');
+  await page.getByRole('button', { name: '验证并进入' }).click();
+
+  await expect(page.getByRole('textbox', { name: '确认' })).toBeVisible();
+  await expect(page.getByText('将删除你的体重记录。')).toBeVisible();
+  await expect(page.getByText(reauthBeforeDeleteMessage)).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '正在删除账号' })).toHaveCount(0);
+  expect(deletes).toBe(0);
+});
+
+test('cancelling reauth keeps the person signed in', async ({ page }) => {
+  await signedIn(page, Math.floor(Date.now() / 1000) - 11 * 60);
+  await page.goto('/');
+  await page.getByRole('button', { name: '我的' }).click();
+  await page.getByRole('button', { name: '删除账号' }).click();
+  await page.getByRole('button', { name: '取消' }).click();
+  await expect(page.getByRole('heading', { name: brand.displayName })).toBeVisible();
+  await expect(page.getByRole('button', { name: '退出登录' })).toBeVisible();
+  await expect(page.getByText(reauthBeforeDeleteMessage)).toHaveCount(0);
+});
+
+test('a server reauth_required response shows the same explanation', async ({ page }) => {
+  await signedIn(page);
+  await page.route('**/functions/v1/delete-account', (route) =>
+    route.fulfill({
+      status: 403,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'reauth_required' }),
+    }),
+  );
+
+  await page.goto('/');
+  await page.getByRole('button', { name: '我的' }).click();
+  await page.getByRole('button', { name: '删除账号' }).click();
+  await page.getByRole('textbox', { name: '确认' }).fill('删除');
+  await page.getByRole('button', { name: '删除账号' }).click();
+  await expect(page.getByText(reauthBeforeDeleteMessage)).toBeVisible();
+  await expect(page.getByText('删除失败，请重试')).toHaveCount(0);
 });

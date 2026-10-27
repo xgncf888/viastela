@@ -3,11 +3,30 @@ import { readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { expect, test } from '@jest/globals';
 import { extname, join, resolve } from 'path';
 
-import { handleDeleteAccount, type DeleteAccountDependencies } from '../../supabase/functions/delete-account/handler';
+import {
+  deleteAccountAllowedOriginsEnv,
+  deleteAccountLocalOrigins,
+  deleteAccountPreviewExample,
+  deleteAccountProductionOrigin,
+} from './delete-account-origin';
+import {
+  handleDeleteAccount,
+  unavailableDeleteAccountResponse,
+  type DeleteAccountDependencies,
+} from '../../supabase/functions/delete-account/handler';
 
 const caller = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const other = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const nowMs = 1_700_000_000_000;
 const root = resolve(process.cwd());
+
+function freshAmr(at = nowMs): { method: string; timestamp: number }[] {
+  return [{ method: 'otp', timestamp: Math.floor(at / 1000) }];
+}
+
+function staleAmr(): { method: string; timestamp: number }[] {
+  return [{ method: 'otp', timestamp: Math.floor((nowMs - 10 * 60 * 1000 - 1000) / 1000) }];
+}
 
 declare const process: { cwd(): string };
 const roleName = ['service', 'role'].join('_');
@@ -32,9 +51,11 @@ function deps(overrides: Partial<DeleteAccountDependencies> = {}): {
     deleted,
     seenTokens,
     dependencies: {
+      now: () => nowMs,
+      allowedOrigins: [deleteAccountProductionOrigin],
       async getUser(jwt) {
         seenTokens.push(jwt);
-        return { id: caller };
+        return { id: caller, amr: freshAmr() };
       },
       async deleteUser(userId) {
         deleted.push(userId);
@@ -104,6 +125,237 @@ test('user A cannot delete user B', async () => {
   expect(deleted).not.toContain(other);
   expect(logs).not.toContain(roleName);
   expect(logs).not.toContain(envName);
+});
+
+test('empty, forged, and expired tokens are 401 and do not delete', async () => {
+  const empty = deps();
+  const emptyResponse = await handleDeleteAccount(request({ Authorization: 'Bearer ' }), empty.dependencies);
+  expect(emptyResponse.status).toBe(401);
+  expect(empty.deleted).toEqual([]);
+
+  const forged = deps({
+    async getUser() {
+      throw new Error('bad signature');
+    },
+  });
+  const forgedResponse = await handleDeleteAccount(
+    request({ Authorization: 'Bearer forged-token' }),
+    forged.dependencies,
+  );
+  expect(forgedResponse.status).toBe(401);
+  expect(forged.deleted).toEqual([]);
+  expect(await forgedResponse.text()).not.toContain('forged-token');
+
+  const expired = deps({
+    async getUser() {
+      return null;
+    },
+  });
+  const expiredResponse = await handleDeleteAccount(
+    request({ Authorization: 'Bearer expired-token' }),
+    expired.dependencies,
+  );
+  expect(expiredResponse.status).toBe(401);
+  expect(expired.deleted).toEqual([]);
+  expect(await expiredResponse.text()).not.toContain('expired-token');
+});
+
+test('a fresh amr deletes and a stale amr returns reauth_required without deleting', async () => {
+  const fresh = deps();
+  const freshResponse = await handleDeleteAccount(
+    request({ Authorization: 'Bearer caller-token', Origin: deleteAccountProductionOrigin }),
+    fresh.dependencies,
+  );
+  expect(freshResponse.status).toBe(200);
+  expect(fresh.deleted).toEqual([caller]);
+  expect(freshResponse.headers.get('access-control-allow-origin')).toBe(deleteAccountProductionOrigin);
+  expect(freshResponse.headers.get('vary')).toBe('Origin');
+
+  const stale = deps({
+    async getUser(jwt) {
+      expect(jwt).toBe('caller-token');
+      return { id: caller, amr: staleAmr() };
+    },
+  });
+  const staleResponse = await handleDeleteAccount(
+    request({ Authorization: 'Bearer caller-token' }),
+    stale.dependencies,
+  );
+  expect(staleResponse.status).toBe(403);
+  expect(await staleResponse.json()).toEqual({ error: 'reauth_required' });
+  expect(stale.deleted).toEqual([]);
+});
+
+test('a refresh-token entry does not make an older sign-in recent', async () => {
+  const { dependencies, deleted } = deps({
+    async getUser() {
+      return {
+        id: caller,
+        amr: [
+          { method: 'otp', timestamp: Math.floor((nowMs - 11 * 60 * 1000) / 1000) },
+          { method: 'token_refresh', timestamp: Math.floor(nowMs / 1000) },
+        ],
+      };
+    },
+  });
+  const response = await handleDeleteAccount(request({ Authorization: 'Bearer caller-token' }), dependencies);
+  expect(response.status).toBe(403);
+  expect(await response.json()).toEqual({ error: 'reauth_required' });
+  expect(deleted).toEqual([]);
+});
+
+test('an allowed origin is echoed and a missing Origin still deletes without an allow header', async () => {
+  const preview = deps({ allowedOrigins: [] });
+  const previewResponse = await handleDeleteAccount(
+    request({ Authorization: 'Bearer caller-token', Origin: deleteAccountPreviewExample }),
+    preview.dependencies,
+  );
+  expect(previewResponse.status).toBe(200);
+  expect(preview.deleted).toEqual([caller]);
+  expect(previewResponse.headers.get('access-control-allow-origin')).toBe(deleteAccountPreviewExample);
+  expect(previewResponse.headers.get('vary')).toBe('Origin');
+
+  const native = deps();
+  const nativeResponse = await handleDeleteAccount(
+    request({ Authorization: 'Bearer caller-token' }),
+    native.dependencies,
+  );
+  expect(nativeResponse.status).toBe(200);
+  expect(native.deleted).toEqual([caller]);
+  expect(nativeResponse.headers.get('access-control-allow-origin')).toBeNull();
+  expect(nativeResponse.headers.get('vary')).toBe('Origin');
+});
+
+test('a rejected Origin, including the literal null, gets no allow header and does not delete', async () => {
+  for (const origin of ['https://evil.example', 'null']) {
+    const { dependencies, deleted, seenTokens } = deps();
+    const response = await handleDeleteAccount(
+      request({ Authorization: 'Bearer caller-token', Origin: origin }),
+      dependencies,
+    );
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: 'origin_not_allowed' });
+    expect(response.headers.get('access-control-allow-origin')).toBeNull();
+    expect(response.headers.get('vary')).toBe('Origin');
+    expect(deleted).toEqual([]);
+    expect(seenTokens).toEqual([]);
+  }
+
+  const sneaky = deps();
+  const sneakyResponse = await handleDeleteAccount(
+    request({
+      Authorization: 'Bearer caller-token',
+      Origin: 'https://viastela.vercel.app.evil.example',
+    }),
+    sneaky.dependencies,
+  );
+  expect(sneakyResponse.headers.get('access-control-allow-origin')).toBeNull();
+  expect(sneaky.deleted).toEqual([]);
+
+  const commitPreview = deps({ allowedOrigins: [] });
+  const commitResponse = await handleDeleteAccount(
+    request({
+      Authorization: 'Bearer caller-token',
+      Origin: 'https://viastela-9f3a1c2-xgncf888.vercel.app',
+    }),
+    commitPreview.dependencies,
+  );
+  expect(commitResponse.status).toBe(403);
+  expect(commitPreview.deleted).toEqual([]);
+});
+
+test('localhost is allowed only when the env list includes it', async () => {
+  const blocked = deps({ allowedOrigins: [deleteAccountProductionOrigin] });
+  const blockedResponse = await handleDeleteAccount(
+    request({ Authorization: 'Bearer caller-token', Origin: deleteAccountLocalOrigins[0] }),
+    blocked.dependencies,
+  );
+  expect(blockedResponse.status).toBe(403);
+  expect(blocked.deleted).toEqual([]);
+  expect(blockedResponse.headers.get('access-control-allow-origin')).toBeNull();
+
+  const local = deps({ allowedOrigins: deleteAccountLocalOrigins });
+  const localResponse = await handleDeleteAccount(
+    request({ Authorization: 'Bearer caller-token', Origin: deleteAccountLocalOrigins[1] }),
+    local.dependencies,
+  );
+  expect(localResponse.status).toBe(200);
+  expect(localResponse.headers.get('access-control-allow-origin')).toBe(deleteAccountLocalOrigins[1]);
+  expect(local.deleted).toEqual([caller]);
+});
+
+test('preflight echoes an allowed origin and rejects a disallowed one', async () => {
+  const allowed = await handleDeleteAccount(
+    new Request('https://example.test/delete-account', {
+      method: 'OPTIONS',
+      headers: { Origin: deleteAccountProductionOrigin },
+    }),
+    deps().dependencies,
+  );
+  expect(allowed.status).toBe(204);
+  expect(allowed.headers.get('access-control-allow-origin')).toBe(deleteAccountProductionOrigin);
+  expect(allowed.headers.get('vary')).toBe('Origin');
+  expect(allowed.headers.get('access-control-allow-methods')).toContain('POST');
+
+  const { dependencies, deleted } = deps();
+  const rejected = await handleDeleteAccount(
+    new Request('https://example.test/delete-account', {
+      method: 'OPTIONS',
+      headers: { Origin: 'https://evil.example' },
+    }),
+    dependencies,
+  );
+  expect(rejected.status).toBe(403);
+  expect(rejected.headers.get('access-control-allow-origin')).toBeNull();
+  expect(rejected.headers.get('vary')).toBe('Origin');
+  expect(deleted).toEqual([]);
+
+  const native = await handleDeleteAccount(
+    new Request('https://example.test/delete-account', { method: 'OPTIONS' }),
+    deps().dependencies,
+  );
+  expect(native.status).toBe(204);
+  expect(native.headers.get('access-control-allow-origin')).toBeNull();
+});
+
+test('a missing runtime env still uses the same CORS rules', async () => {
+  const allowed = unavailableDeleteAccountResponse(
+    new Request('https://example.test/delete-account', {
+      method: 'POST',
+      headers: { Origin: deleteAccountPreviewExample },
+    }),
+    [],
+  );
+  expect(allowed.status).toBe(500);
+  expect(await allowed.json()).toEqual({ error: 'unavailable' });
+  expect(allowed.headers.get('access-control-allow-origin')).toBe(deleteAccountPreviewExample);
+  expect(allowed.headers.get('vary')).toBe('Origin');
+
+  const rejected = unavailableDeleteAccountResponse(
+    new Request('https://example.test/delete-account', {
+      method: 'POST',
+      headers: { Origin: 'https://evil.example' },
+    }),
+    [deleteAccountProductionOrigin],
+  );
+  expect(rejected.status).toBe(500);
+  expect(rejected.headers.get('access-control-allow-origin')).toBeNull();
+
+  const native = unavailableDeleteAccountResponse(new Request('https://example.test/delete-account'), []);
+  expect(native.headers.get('access-control-allow-origin')).toBeNull();
+  expect(native.headers.get('vary')).toBe('Origin');
+});
+
+test('index reads the allowlist env and attaches amr only after getUser', () => {
+  const indexSource = readFileSync(join(root, 'supabase/functions/delete-account/index.ts'), 'utf8');
+  expect(deleteAccountAllowedOriginsEnv).toBe('DELETE_ACCOUNT_ALLOWED_ORIGINS');
+  expect(indexSource).toContain('Deno.env.get(deleteAccountAllowedOriginsEnv)');
+  const verified = indexSource.indexOf('auth.getUser');
+  const claim = indexSource.indexOf('amrClaim(');
+  expect(verified).toBeGreaterThan(-1);
+  expect(claim).toBeGreaterThan(verified);
+  expect(indexSource).toContain('unavailableDeleteAccountResponse');
+  expect(indexSource).not.toContain("access-control-allow-origin': '*'");
 });
 
 const textExtensions = new Set([

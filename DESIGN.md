@@ -77,6 +77,16 @@ Screens use these primitives. Do not add a `StyleSheet` or a raw color in a scre
 - `LineChart` — domain-free. The feature passes positions from 0 to 1.
 - `ShellFrame`, `SidebarFrame`, `TabBar`, `NavItem`, `RecordButton` — app chrome.
 
+## Account
+
+`/account/delete` checks the session before it shows the confirmation page. The check matches the Edge Function: the newest `amr` timestamp, skipping `token_refresh`. Exactly 10:00 passes. Anything older, and a missing, empty, or invalid `amr`, is stale.
+
+A stale session does not show the confirmation field or the danger button. It shows a normal `Callout` (not `tone="danger"`): `为了确认是你本人，删除账号前请重新登录一次。` Under that card, a primary button `重新登录` and a ghost button `取消`.
+
+`重新登录` follows the newest `amr` method. `otp` and any non-OAuth method ask for the email code. `oauth` returns to Google or GitHub. Native always asks for the email code, including when the session came from OAuth. The current session is not signed out. `取消` leaves the page and the person stays signed in.
+
+After that sign-in, the confirmation page is shown again. Nothing is deleted until the person presses the `variant="danger"` button. A server `403` `{ error: 'reauth_required' }` returns to this same explanation. It does not show `删除失败，请重试`.
+
 ## Weight
 
 The headline number is the **7 日均重**, from `sevenDayAverageView`. It is the mean of each day’s earliest row inside seven local days, and only once at least 4 of those days have a row. Below that, the headline is `数据不足` and the line is `近 7 天有 N 天记录，满 4 天后显示均重`. Days with no row are left out of both the sum and the count. The figure uses the display style and the clay `accent` color.

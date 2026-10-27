@@ -75,13 +75,13 @@ npm run export:web && npm run test:e2e
 4. Put the project URL and the anon key in `.env.local`.
 5. Add `http://localhost:8081` to the auth redirect allow list if you also use magic links. The app signs in with the 6-digit code, so a redirect is not required for the OTP form.
 
-The anon key is public. The service role key stays on the server and out of this repo. The `delete-account` Edge Function reads `SUPABASE_SERVICE_ROLE_KEY` from the runtime environment and is the only place that uses it. Do not deploy that function from CI. Deploy it after review. Do not apply new migrations to the hosted project from this repository.
+The anon key is public. The service role key stays on the server and out of this repo. The `delete-account` Edge Function reads `SUPABASE_SERVICE_ROLE_KEY` from the runtime environment and is the only place that uses it. It is already deployed on the hosted project (since merge `97c2810`). This repository does not deploy it; the coordinator redeploys through the connector after review. Set the hosted function env var `DELETE_ACCOUNT_ALLOWED_ORIGINS` to `https://viastela.vercel.app`. Do not add localhost to that hosted value. Do not apply new migrations to the hosted project from this repository.
 
 ## Account and privacy
 
 `/privacy` lists the stored data: weight, training sets, study records, and the account email, name, and avatar. It says the data is not sold, not used for advertising, and not sent to an AI service in this version. The contact address is xgncf888@gmail.com.
 
-`/account/delete` explains that weight records, training sets, study records, and the profile are deleted, and that this cannot be undone. Both pages use `backupPurgeDays` for the backup purge window. The button stays off until the person types 删除. A failure returns to that explanation. Success opens 账号已删除, and 好的 returns to login.
+`/account/delete` explains that weight records, training sets, study records, and the profile are deleted, and that this cannot be undone. Both pages use `backupPurgeDays` for the backup purge window. The button stays off until the person types 删除. A failure returns to that explanation. A sign-in older than 10 minutes, or a `reauth_required` response, asks the person to sign in again and does not show 删除失败，请重试. Success opens 账号已删除, and 好的 returns to login.
 
 `profiles.user_id` and `weight_records.user_id` already reference `auth.users` with `on delete cascade`. pgTAP checks that catalog rule and that deleting a test user leaves no `user_id` row in `public`.
 

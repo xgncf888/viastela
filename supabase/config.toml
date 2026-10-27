@@ -162,7 +162,7 @@ site_url = "http://localhost:8081"
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 # Keep the custom scheme in sync with `scheme` in src/config/brand.ts.
-additional_redirect_urls = ["http://localhost:8081", "http://127.0.0.1:8081", "viastela://"]
+additional_redirect_urls = ["http://localhost:8081", "http://localhost:8081/account/delete", "http://127.0.0.1:8081", "http://127.0.0.1:8081/account/delete", "http://localhost:19006", "http://localhost:19006/account/delete", "viastela://"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -374,10 +374,30 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
-# delete-account requires the caller's user JWT and deletes only that user.
-# Deploy it separately after review. This repository does not deploy it.
+# delete-account is deployed on the hosted project (since merge 97c2810).
+# This repository does not deploy it. The coordinator redeploys through the
+# connector after review and the owner's approval.
+#
+# verify_jwt is off so a browser OPTIONS preflight reaches this function.
+# The function still returns 401 unless getUser accepts the caller's JWT.
+# An allowed Origin is echoed. A rejected Origin, including the literal
+# "null", gets no Access-Control-Allow-Origin and does not delete. A request
+# with no Origin header (native) proceeds without that header. Every response
+# sets Vary: Origin. The function never sends Access-Control-Allow-Origin: *.
+#
+# DELETE_ACCOUNT_ALLOWED_ORIGINS is a comma-separated list of exact origins.
+# index.ts is the only file that reads it.
+# Hosted value (set by the coordinator; do not add localhost):
+#   https://viastela.vercel.app
+# Local `supabase functions serve` may add the dev origins in a gitignored
+# supabase/functions/.env file:
+#   https://viastela.vercel.app,http://localhost:8081,http://localhost:19006
+# Branch previews are not listed in the variable. The function allows only
+# ^https://viastela-git-[a-z0-9-]+-xgncf888\.vercel\.app$
+# (https://viastela-git-<branch>-xgncf888.vercel.app). Per-commit hash URLs
+# are not allowed.
 [functions.delete-account]
-verify_jwt = true
+verify_jwt = false
 
 [edge_runtime]
 enabled = true

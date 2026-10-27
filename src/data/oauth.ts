@@ -1,9 +1,16 @@
 export type OAuthProvider = 'google' | 'github';
 
-/** Web sends the person back to this origin. Native leaves the redirect to the client. */
-export function oauthRedirectTo(origin: string | null | undefined): string | undefined {
+/**
+ * Web sends the person back to this origin.
+ * `returnPath` (for example `/account/delete`) stays on that origin after OAuth.
+ * Native leaves the redirect to the client.
+ */
+export function oauthRedirectTo(origin: string | null | undefined, returnPath?: string): string | undefined {
   if (!origin) return undefined;
-  return origin;
+  if (!returnPath) return origin;
+  const base = origin.endsWith('/') ? origin : `${origin}/`;
+  const path = returnPath.replace(/^\//, '');
+  return new URL(path, base).toString();
 }
 
 export function currentOrigin(): string | null {

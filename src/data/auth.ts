@@ -56,8 +56,14 @@ export async function verifyEmailOtp(email: string, token: string): Promise<void
   if (error) throw error;
 }
 
-export async function signInWithProvider(provider: OAuthProvider): Promise<void> {
-  const redirectTo = oauthRedirectTo(currentOrigin());
+export async function currentAccessToken(): Promise<string | null> {
+  const { data, error } = await getSupabase().auth.getSession();
+  if (error || !data.session?.access_token) return null;
+  return data.session.access_token;
+}
+
+export async function signInWithProvider(provider: OAuthProvider, returnPath?: string): Promise<void> {
+  const redirectTo = oauthRedirectTo(currentOrigin(), returnPath);
   const { error } = await getSupabase().auth.signInWithOAuth({
     provider,
     options: redirectTo ? { redirectTo } : undefined,

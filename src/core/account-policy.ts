@@ -14,6 +14,9 @@ export const privacyUpdatedOn = '2026-10-27';
 /** The account-deletion field must match this phrase before the button enables. */
 export const accountDeletionPhrase = '删除';
 
+/** Shown instead of the confirmation form when the session sign-in is stale. */
+export const reauthBeforeDeleteMessage = '为了确认是你本人，删除账号前请重新登录一次。';
+
 export function privacyUpdatedLabel(isoDate = privacyUpdatedOn): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
   if (!match) throw new Error('privacy date must be YYYY-MM-DD');

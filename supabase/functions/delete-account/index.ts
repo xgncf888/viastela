@@ -1,27 +1,32 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.118.0';
 
-import { handleDeleteAccount } from './handler.ts';
+// Deno requires the .ts specifier. The app typecheck rejects that extension.
+// @ts-ignore TS5097
+import { deleteAccountAllowedOriginsEnv, parseAllowedOrigins } from '../../../src/core/delete-account-origin.ts';
+// @ts-ignore TS5097
+import { amrClaim } from '../../../src/core/recent-sign-in.ts';
+import { handleDeleteAccount, unavailableDeleteAccountResponse } from './handler.ts';
 
 Deno.serve((request) => {
+  const allowedOrigins = parseAllowedOrigins(Deno.env.get(deleteAccountAllowedOriginsEnv));
   const url = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!url || !anonKey || !serviceKey) {
-    return new Response(JSON.stringify({ error: 'unavailable' }), {
-      status: 500,
-      headers: { 'content-type': 'application/json; charset=utf-8' },
-    });
+    return unavailableDeleteAccountResponse(request, allowedOrigins);
   }
 
   return handleDeleteAccount(request, {
+    allowedOrigins,
     async getUser(jwt) {
       const client = createClient(url, anonKey, {
         auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
         global: { headers: { Authorization: `Bearer ${jwt}` } },
       });
       const { data, error } = await client.auth.getUser(jwt);
-      if (error || !data.user) return null;
-      return { id: data.user.id };
+      if (error || !data.user?.id) return null;
+      // The signature is already accepted. Read `amr` from this token, not `iat`.
+      return { id: data.user.id, amr: amrClaim(jwt) };
     },
     async deleteUser(userId) {
       const admin = createClient(url, serviceKey, {

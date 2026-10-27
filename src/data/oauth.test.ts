@@ -4,6 +4,9 @@ import { captureOAuthFailure, clearOAuthFailureMessage, oauthFailedOnReturn, oau
 
 test('web OAuth returns to the current origin and native does not invent one', () => {
   expect(oauthRedirectTo('https://app.example')).toBe('https://app.example');
+  expect(oauthRedirectTo('https://viastela.vercel.app', '/account/delete')).toBe(
+    'https://viastela.vercel.app/account/delete',
+  );
   expect(oauthRedirectTo(null)).toBeUndefined();
   expect(oauthRedirectTo(undefined)).toBeUndefined();
   expect(oauthRedirectTo('')).toBeUndefined();
