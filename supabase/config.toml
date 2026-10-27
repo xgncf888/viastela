@@ -397,6 +397,28 @@ allow_dynamic_registration = false
 [functions.delete-account]
 verify_jwt = true
 
+# quotes is not deployed by this repository. The coordinator deploys it
+# through the connector after review. verify_jwt stays on: the platform
+# rejects a missing, expired, or tampered caller JWT before the function runs,
+# and the function checks the same JWT again before it reads holdings.
+#
+# Runtime environment, names only (values are never committed):
+#   SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
+#     injected by the platform. The service role key is used only to read
+#     and write quote_cache and fx_rates.
+#   FINNHUB_API_KEY
+#     live quotes. When it is unset the function estimates from cost basis
+#     and does not call Finnhub.
+#   QUOTES_ALLOWED_ORIGINS
+#     comma-separated exact browser origins. Read only in
+#     supabase/functions/quotes/index.ts. Hosted value (no localhost):
+#       https://viastela.vercel.app
+#     Local `supabase functions serve` may add dev origins in a gitignored
+#     supabase/functions/.env file. Branch previews use the same fixed
+#     pattern as delete-account.
+[functions.quotes]
+verify_jwt = true
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

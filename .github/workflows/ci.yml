@@ -63,3 +63,14 @@ jobs:
           done
           exit 1
       - run: supabase --yes test db --local
+
+  quotes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      # Fake providers only. This job does not call Finnhub or a hosted project.
+      - run: deno check --config supabase/functions/deno.json supabase/functions/quotes/index.ts
+      - run: deno test --config supabase/functions/deno.json --allow-read supabase/functions/quotes

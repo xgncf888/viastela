@@ -129,6 +129,7 @@ test('no undo writes one deleted_at for the training set at 5s', async ({ page }
   const writes = trackTraining();
   await openPausedToday(page, writes);
   await saveSet(page, '卧推', '8', { weight: '40' });
+  await expect.poll(() => writes.posts.length).toBe(1);
   const created = JSON.parse(writes.posts[0] ?? '{}') as { id?: string };
   expect(created.id).toBeTruthy();
   await openSetDetail(page, '卧推 1 组');
