@@ -150,9 +150,10 @@ create table public.push_subscriptions (
   auth text not null,
   tz text not null,
   month_end_time time not null default time '21:30',
+  month_end_enabled boolean not null default false,
   training_time time not null default time '08:00',
-  training_days smallint[] default '{}',
-  enabled boolean not null default true,
+  training_days smallint[] not null default '{}',
+  training_enabled boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   deleted_at timestamptz,
@@ -164,11 +165,8 @@ create table public.push_subscriptions (
   constraint push_auth_present check (char_length(btrim(auth)) between 1 and 200),
   constraint push_tz_present check (char_length(tz) between 1 and 80),
   constraint push_training_days_range check (
-    training_days is null
-    or (
-      array_position(training_days, null::smallint) is null
-      and training_days <@ array[1, 2, 3, 4, 5, 6, 7]::smallint[]
-    )
+    array_position(training_days, null::smallint) is null
+    and training_days <@ array[1, 2, 3, 4, 5, 6, 7]::smallint[]
   )
 );
 
@@ -186,12 +184,14 @@ comment on column public.push_subscriptions.tz is
   'IANA timezone the reminder times belong to.';
 comment on column public.push_subscriptions.month_end_time is
   'Local time of the month-end reminder. Default 21:30.';
+comment on column public.push_subscriptions.month_end_enabled is
+  'Month-end reminder switch. Default false.';
 comment on column public.push_subscriptions.training_time is
   'Local time of the training reminder. Default 08:00.';
 comment on column public.push_subscriptions.training_days is
-  'Weekday numbers from 1 to 7. Empty means no weekday is selected. Null is kept when the client sends null.';
-comment on column public.push_subscriptions.enabled is
-  'When false, reminders for this subscription stay off. Default true.';
+  'Weekday numbers from 1 to 7. Empty means no weekday is selected. Null is not allowed.';
+comment on column public.push_subscriptions.training_enabled is
+  'Training reminder switch. Default false.';
 comment on column public.push_subscriptions.deleted_at is
   'Soft delete. Null means live. The same endpoint can be stored again after a soft delete.';
 

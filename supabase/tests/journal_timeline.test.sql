@@ -64,7 +64,7 @@ begin
 end;
 $$;
 
-select plan(101);
+select plan(112);
 
 do $$
 declare
@@ -139,6 +139,43 @@ select ok(
       and indexdef ilike '%WHERE (deleted_at IS NULL)%'
   ),
   'live push subscriptions are unique per user and endpoint'
+);
+
+select has_column(
+  'public',
+  'push_subscriptions',
+  'training_enabled',
+  'push_subscriptions.training_enabled exists'
+);
+
+select col_default_is(
+  'public',
+  'push_subscriptions',
+  'training_enabled',
+  'false',
+  'training_enabled defaults to false'
+);
+
+select has_column(
+  'public',
+  'push_subscriptions',
+  'month_end_enabled',
+  'push_subscriptions.month_end_enabled exists'
+);
+
+select col_default_is(
+  'public',
+  'push_subscriptions',
+  'month_end_enabled',
+  'false',
+  'month_end_enabled defaults to false'
+);
+
+select hasnt_column(
+  'public',
+  'push_subscriptions',
+  'enabled',
+  'push_subscriptions.enabled does not exist'
 );
 
 select ok(
@@ -335,7 +372,7 @@ select throws_ok(
   'anon cannot insert push subscriptions'
 );
 select throws_ok(
-  $$update public.push_subscriptions set enabled = false where id = 'f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f101'$$,
+  $$update public.push_subscriptions set training_enabled = true where id = 'f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f101'$$,
   '42501',
   NULL::text,
   'anon cannot update push subscriptions'
@@ -1018,10 +1055,84 @@ select is(
   'training reminder defaults to 08:00'
 );
 
+select is(
+  (
+    select training_enabled
+    from public.push_subscriptions
+    where id = 'f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f102'
+  ),
+  false,
+  'training reminder defaults to off'
+);
+
+select is(
+  (
+    select month_end_enabled
+    from public.push_subscriptions
+    where id = 'f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f102'
+  ),
+  false,
+  'month-end reminder defaults to off'
+);
+
+select throws_ok(
+  $$
+    insert into public.push_subscriptions (id, endpoint, p256dh, auth, tz, training_days)
+    values (
+      'f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f106',
+      'https://push.example.test/1106',
+      'k1106',
+      's1106',
+      'Asia/Singapore',
+      null
+    )
+  $$,
+  '23502',
+  NULL::text,
+  'a null training_days value is rejected'
+);
+
 select lives_ok(
   $$
     insert into public.push_subscriptions (
-      id, endpoint, p256dh, auth, tz, month_end_time, training_time, training_days, enabled
+      id, endpoint, p256dh, auth, tz, training_enabled
+    )
+    values (
+      'f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f107',
+      'https://push.example.test/1107',
+      'k1107',
+      's1107',
+      'Asia/Singapore',
+      true
+    )
+  $$,
+  'user A can turn on only the training reminder'
+);
+
+select is(
+  (
+    select training_enabled
+    from public.push_subscriptions
+    where id = 'f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f107'
+  ),
+  true,
+  'the training reminder flag that was written is on'
+);
+
+select is(
+  (
+    select month_end_enabled
+    from public.push_subscriptions
+    where id = 'f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f107'
+  ),
+  false,
+  'writing only the training flag leaves the month-end flag off'
+);
+
+select lives_ok(
+  $$
+    insert into public.push_subscriptions (
+      id, endpoint, p256dh, auth, tz, month_end_time, training_time, training_days
     )
     values (
       'f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f103',
@@ -1031,8 +1142,7 @@ select lives_ok(
       'Asia/Singapore',
       time '22:15',
       time '07:05',
-      array[1, 3, 5]::smallint[],
-      false
+      array[1, 3, 5]::smallint[]
     )
   $$,
   'user A can insert explicit reminder times'
