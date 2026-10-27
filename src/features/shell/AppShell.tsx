@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { brand } from '@/config/brand';
 import { RecordSheet } from '@/features/record/RecordSheet';
 import { openRecordSheet } from '@/features/record/record-sheet-store';
+import { useWeight } from '@/features/weight/WeightProvider';
+import { DeletedRecordNotice } from '@/ui/deleted-record';
 import { Text } from '@/ui/Text';
 import { theme } from '@/ui/theme';
 import { ToastHost } from '@/ui/toast';
@@ -43,12 +45,14 @@ function go(href: '/' | '/trend' | '/me') {
 export function AppShell({ children }: { children: ReactNode }) {
   const wide = useWideWeb();
   const current = currentTab(usePathname());
+  const { deletedNotice, dismissDeletedNotice } = useWeight();
   return (
     <View style={styles.root}>
       {wide ? <Sidebar current={current} /> : null}
       <View style={styles.main}>{children}</View>
       {wide ? null : <BottomBar current={current} />}
       <RecordSheet />
+      <DeletedRecordNotice visible={deletedNotice} onClose={dismissDeletedNotice} />
       <ToastHost />
     </View>
   );

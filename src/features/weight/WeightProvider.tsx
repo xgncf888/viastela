@@ -10,18 +10,22 @@ import { getDaySwitch, updateDaySwitch } from '@/data/profile';
 import { latestWeightRecord, listWeightRecords, softDeleteWeightRecord, upsertWeightRecord } from '@/data/weights';
 import { showToast } from '@/ui/toast';
 
+export type WeightSaveResult = 'saved' | 'retry' | 'deleted';
+
 type WeightContextValue = {
   ready: boolean;
   loadError: string | null;
   records: WeightRecord[];
   failedIds: ReadonlySet<string>;
+  deletedNotice: boolean;
   saving: boolean;
   daySwitch: string;
   timeZone: string;
   reload: () => Promise<void>;
-  saveWeight: (weightKg: number, existingId?: string) => Promise<boolean>;
+  saveWeight: (weightKg: number, existingId?: string) => Promise<WeightSaveResult>;
   retry: (id: string) => Promise<void>;
   dismiss: (id: string) => void;
+  dismissDeletedNotice: () => void;
   removeRecord: (id: string) => Promise<void>;
   saveDaySwitch: (value: string) => Promise<void>;
 };
@@ -36,6 +40,7 @@ export function WeightProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [deletedNotice, setDeletedNotice] = useState(false);
   const creating = useRef(false);
   const inFlight = useRef(new Set<string>());
 
@@ -94,9 +99,9 @@ export function WeightProvider({ children }: { children: ReactNode }) {
   }, [applyRows, loadSaved, session]);
 
   const saveWeight = useCallback(async (weightKg: number, existingId?: string) => {
-    if (!existingId && creating.current) return false;
+    if (!existingId && creating.current) return 'retry';
     const id = existingId ?? createId();
-    if (inFlight.current.has(id)) return false;
+    if (inFlight.current.has(id)) return 'retry';
     if (!existingId) creating.current = true;
     const existing = existingId ? saveState.pending.find((item) => item.id === existingId) : undefined;
     const recordedAt = existing ? new Date(existing.recordedAt) : new Date();
@@ -130,7 +135,7 @@ export function WeightProvider({ children }: { children: ReactNode }) {
         setSaveState((current) => confirmSave(current, record));
       }
       showToast({ text: saveToastMessage(recordedAt, tz, switchTime) });
-      return true;
+      return 'saved';
     } catch (error) {
       if (weightSaveOutcome(error) === RECORD_DELETED) {
         setSaveState((current) => ({
@@ -142,12 +147,12 @@ export function WeightProvider({ children }: { children: ReactNode }) {
           next.delete(id);
           return next;
         });
-        showToast({ text: RECORD_DELETED, tone: 'error' });
-        return false;
+        setDeletedNotice(true);
+        return 'deleted';
       }
       setFailedIds((current) => new Set(current).add(id));
       showToast({ text: '保存失败，请重试', tone: 'error' });
-      return false;
+      return 'retry';
     } finally {
       inFlight.current.delete(id);
       if (!existingId) creating.current = false;
@@ -163,6 +168,10 @@ export function WeightProvider({ children }: { children: ReactNode }) {
     },
     [saveState.pending, saveWeight],
   );
+
+  const dismissDeletedNotice = useCallback(() => {
+    setDeletedNotice(false);
+  }, []);
 
   const dismiss = useCallback((id: string) => {
     setSaveState((current) => ({
@@ -219,6 +228,7 @@ export function WeightProvider({ children }: { children: ReactNode }) {
       loadError,
       records,
       failedIds,
+      deletedNotice,
       saving,
       daySwitch,
       timeZone: currentTimeZone(),
@@ -226,10 +236,11 @@ export function WeightProvider({ children }: { children: ReactNode }) {
       saveWeight,
       retry,
       dismiss,
+      dismissDeletedNotice,
       removeRecord,
       saveDaySwitch,
     }),
-    [ready, loadError, records, failedIds, saving, daySwitch, reload, saveWeight, retry, dismiss, removeRecord, saveDaySwitch],
+    [ready, loadError, records, failedIds, deletedNotice, saving, daySwitch, reload, saveWeight, retry, dismiss, dismissDeletedNotice, removeRecord, saveDaySwitch],
   );
 
   return <WeightContext.Provider value={value}>{children}</WeightContext.Provider>;

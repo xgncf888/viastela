@@ -9,14 +9,15 @@ if (!match) {
 }
 
 const name = match[1];
+// DECISIONS.md records the naming decision, including the product name.
 const result = spawnSync(
   'git',
-  ['grep', '-n', '-I', '-F', name, '--', '.', ':!src/config/brand.ts'],
+  ['grep', '-n', '-I', '-F', name, '--', '.', ':!src/config/brand.ts', ':!DECISIONS.md'],
   { encoding: 'utf8' },
 );
 
 if (result.status === 0) {
-  console.error(`Display name ${name} must appear only in src/config/brand.ts`);
+  console.error(`Display name ${name} must appear only in src/config/brand.ts or the naming line in DECISIONS.md`);
   console.error(result.stdout);
   process.exit(1);
 }

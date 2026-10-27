@@ -97,7 +97,7 @@ Each record type gets its own table. Do not add a generic log table. A record ta
 - `tz text not null` — IANA zone at write time
 - `local_day date not null` — accounting day frozen at write time by `src/core` from `tz` and the user's day-switch. The database rejects a value that is not the civil date of `recorded_at` in `tz` or the previous civil date (`enforce_record_local_day`)
 - `updated_at timestamptz not null default now()` — maintained by the `touch_updated_at` trigger, including soft deletes
-- `deleted_at timestamptz` — null while the row is live. Selects exclude non-null rows. The app calls `soft_delete_weight_record` (security definer) instead of `DELETE` or a direct update, because a direct update would fail once `deleted_at` is set and roll the write back. `DELETE` is revoked on `weight_records`. Upserting a soft-deleted id raises row-level security and the client reports `record deleted` instead of retrying that id
+- `deleted_at timestamptz` — null while the row is live. Selects exclude non-null rows. The app calls `soft_delete_weight_record` (security definer) instead of `DELETE` or a direct update, because a direct update would fail once `deleted_at` is set and roll the write back. `DELETE` is revoked on `weight_records`. Upserting a soft-deleted id raises row-level security. The client treats that as `record deleted`, does not retry that id, and shows `这条记录已在其他设备删除` with only 关闭
 - row level security so an authenticated user can only read and write their own rows, with pgTAP covering that matrix and the anon role
 - a check constraint for any numeric range, such as `weight_kg > 0 and weight_kg < 500`
 

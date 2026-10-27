@@ -40,8 +40,15 @@ export function RecordSheet() {
       return;
     }
     if (!draftId.current) draftId.current = createId();
-    const saved = await saveWeight(weightKg, draftId.current);
-    if (!saved) return;
+    const outcome = await saveWeight(weightKg, draftId.current);
+    if (outcome === 'deleted') {
+      draftId.current = null;
+      setValue('');
+      setError(null);
+      closeRecordSheet();
+      return;
+    }
+    if (outcome !== 'saved') return;
     draftId.current = null;
     setValue('');
     setError(null);
