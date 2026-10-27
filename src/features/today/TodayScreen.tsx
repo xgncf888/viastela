@@ -142,6 +142,9 @@ export function TodayScreen() {
               </Card>
             );
           })}
+          {last && today.length > 0 ? (
+            <Button label={`再记 ${formatKg(last.weightKg)} kg`} onPress={() => openRecordSheet(last.weightKg)} />
+          ) : null}
         </Stack>
 
         <CardRow>
@@ -248,10 +251,6 @@ export function TodayScreen() {
               );
             })
           : null}
-
-        {last && today.length > 0 ? (
-          <Button label={`再记 ${formatKg(last.weightKg)} kg`} onPress={() => openRecordSheet(last.weightKg)} />
-        ) : null}
       </Content>
     </Screen>
   );

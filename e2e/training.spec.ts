@@ -90,7 +90,7 @@ async function saveSet(page: Page, exercise: string, reps: string, load: { weigh
     await page.getByRole('button', { name: '重量' }).click();
     await page.getByRole('textbox', { name: '重量（kg）' }).fill(load.weight);
   } else {
-    await page.getByRole('button', { name: '弹力带' }).click();
+    await page.getByRole('button', { name: '弹力带', exact: true }).click();
     await page.getByRole('button', { name: load.band, exact: true }).click();
   }
   await page.getByRole('textbox', { name: '次数' }).fill(reps);
