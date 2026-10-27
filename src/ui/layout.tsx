@@ -67,11 +67,24 @@ export function ScreenHeader({
   );
 }
 
-export function Field({ label, value, hint }: { label: string; value: string; hint?: string }) {
+export function Field({
+  label,
+  value,
+  hint,
+  locked = false,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  /** Read-only. Used when a code or account cannot be edited. */
+  locked?: boolean;
+}) {
   return (
     <Stack gap="xs">
       <Text variant="muted">{label}</Text>
-      <Text variant="body">{value}</Text>
+      <Text variant="body" tone={locked ? 'muted' : 'ink'} accessibilityState={locked ? { disabled: true } : undefined}>
+        {value}
+      </Text>
       {hint ? <Text variant="muted">{hint}</Text> : null}
     </Stack>
   );
@@ -84,13 +97,23 @@ export function Callout({
 }: {
   message: string;
   action?: ReactNode;
-  tone?: 'danger';
+  tone?: 'danger' | 'warning';
 }) {
   const theme = useTheme();
   if (tone === 'danger') {
     return (
       <View accessibilityRole="alert" style={[styles.danger, { backgroundColor: theme.color.dangerSoft }]}>
         <Text variant="body" tone="danger">
+          {message}
+        </Text>
+        {action}
+      </View>
+    );
+  }
+  if (tone === 'warning') {
+    return (
+      <View accessibilityRole="text" role="status" style={[styles.danger, { backgroundColor: theme.color.warningSoft }]}>
+        <Text variant="body" tone="warning">
           {message}
         </Text>
         {action}
