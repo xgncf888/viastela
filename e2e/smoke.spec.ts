@@ -35,6 +35,7 @@ test('starting Google sign-in disables GitHub and the email code button', async 
   });
   await page.goto('/');
   await page.getByRole('button', { name: '使用 Google 登录' }).click();
+  await expect(page.getByRole('button', { name: '使用 Google 登录' })).toBeDisabled();
   await expect(page.getByRole('button', { name: '使用 GitHub 登录' })).toBeDisabled();
   await expect(page.getByRole('button', { name: '发送验证码' })).toBeDisabled();
 });

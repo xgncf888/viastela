@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 
 import { brand } from '@/config/brand';
 import { isSupabaseConfigured } from '@/config/env';
+import { showProviderSignIn } from '@/core/provider-sign-in';
 import { requestEmailOtp, signInWithProvider, verifyEmailOtp } from '@/data/auth';
 import { captureOAuthFailure, clearOAuthFailureMessage, type OAuthProvider } from '@/data/oauth';
 import { Button } from '@/ui/Button';
@@ -39,7 +40,7 @@ function messageFrom(error: unknown, fallback: string): string {
 
 export function LoginScreen() {
   const configured = isSupabaseConfigured();
-  const showProviders = Platform.OS === 'web';
+  const showProviders = showProviderSignIn(Platform.OS);
   const [phase, setPhase] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState(rememberedEmail);
   const [code, setCode] = useState('');
