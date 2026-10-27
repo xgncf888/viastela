@@ -3,6 +3,9 @@
  * `FakeQuoteProvider` is for tests and a local harness. `index.ts` never
  * constructs it: a missing `FINNHUB_API_KEY` stays on cost-basis estimates.
  * Responses from this module never use the source value `fake`.
+ *
+ * The Finnhub key is the `X-Finnhub-Token` header. It is never a query
+ * parameter, and this module does not log the key or the response body.
  */
 
 export const FINNHUB_CONCURRENCY = 4;
@@ -43,6 +46,12 @@ const systemClock: ProviderClock = {
   wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 };
 
+function responseCurrency(value: unknown): string {
+  if (typeof value !== 'string') return 'USD';
+  const normalized = value.trim().toUpperCase();
+  return normalized || 'USD';
+}
+
 export class FinnhubQuoteProvider implements QuoteProvider {
   private hits: number[] = [];
 
@@ -60,15 +69,16 @@ export class FinnhubQuoteProvider implements QuoteProvider {
     await this.takeSlot();
     const url = new URL(FINNHUB_QUOTE_URL);
     url.searchParams.set('symbol', symbol);
-    url.searchParams.set('token', this.apiKey);
     let response: Response;
     try {
-      response = await this.fetchImpl(url);
+      response = await this.fetchImpl(url, {
+        headers: { 'X-Finnhub-Token': this.apiKey },
+      });
     } catch {
       throw new Error('quote provider failed');
     }
     if (!response.ok) throw new Error('quote provider failed');
-    let body: { c?: unknown; t?: unknown };
+    let body: { c?: unknown; t?: unknown; currency?: unknown };
     try {
       body = await response.json();
     } catch {
@@ -76,19 +86,19 @@ export class FinnhubQuoteProvider implements QuoteProvider {
     }
     const current = typeof body.c === 'number' ? body.c : Number.NaN;
     const timestamp = typeof body.t === 'number' ? body.t : 0;
-    const missing = current === 0 && timestamp === 0;
-    if (!Number.isFinite(current) || current < 0 || missing) {
+    const currency = responseCurrency(body.currency);
+    if (!Number.isFinite(current) || current <= 0) {
       return {
         symbol,
         price: null,
-        currency: 'USD',
+        currency,
         as_of: new Date(this.clock.now()).toISOString(),
       };
     }
     const asOf = timestamp > 0
       ? new Date(timestamp * 1000).toISOString()
       : new Date(this.clock.now()).toISOString();
-    return { symbol, price: current, currency: 'USD', as_of: asOf };
+    return { symbol, price: current, currency, as_of: asOf };
   }
 
   private async takeSlot(): Promise<void> {
@@ -156,7 +166,7 @@ export class FakeQuoteProvider implements QuoteProvider {
     if (this.fail) throw new Error('quote provider failed');
     return symbols.map((symbol) => {
       const price = this.prices[symbol];
-      if (price === undefined || !Number.isFinite(price) || price < 0) {
+      if (price === undefined || !Number.isFinite(price) || price <= 0) {
         return { symbol, price: null, currency: 'USD', as_of: this.asOf() };
       }
       return { symbol, price, currency: 'USD', as_of: this.asOf() };
