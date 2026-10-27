@@ -1,5 +1,7 @@
 -- Not applied to the hosted project. The connector applies this after review.
--- Depends on the training_sets migration: assign_auth_user_id and forbid_update_deleted.
+-- Sorts after 20261027125509_training_sets_and_forbid_update_deleted.sql so
+-- assign_auth_user_id, forbid_update_deleted, and training_sets already exist.
+-- The training_sets grant follow-up below runs only after that table exists.
 -- Soft delete is a plain update of deleted_at. Select policies check only the owner.
 -- Grants are an allowlist: revoke everything, then select, insert, and update.
 
