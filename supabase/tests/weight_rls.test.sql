@@ -296,11 +296,15 @@ select throws_ok(
     )
     on conflict (id) do update set weight_kg = excluded.weight_kg
   $$,
+  '42501',
+  NULL::text,
   'user B cannot upsert user A weight id'
 );
 
 select throws_ok(
   $$insert into public.profiles (user_id) values (current_setting('tests.user_a')::uuid)$$,
+  '42501',
+  NULL::text,
   'user B cannot insert a profile for user A'
 );
 

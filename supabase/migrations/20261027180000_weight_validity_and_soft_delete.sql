@@ -33,10 +33,10 @@ language plpgsql
 set search_path = ''
 as $$
 declare
-  civil date;
+  civil pg_catalog.date;
 begin
   begin
-    civil := (new.recorded_at at time zone new.tz)::date;
+    civil := (new.recorded_at at time zone new.tz)::pg_catalog.date;
   exception
     when invalid_parameter_value then
       raise exception 'invalid timezone %', new.tz using errcode = '22023';
@@ -85,14 +85,14 @@ security definer
 set search_path = ''
 as $$
 declare
-  affected integer;
+  affected pg_catalog.int4;
 begin
   if auth.uid() is null then
     raise exception 'not authenticated' using errcode = '42501';
   end if;
 
   update public.weight_records
-  set deleted_at = now()
+  set deleted_at = pg_catalog.now()
   where id = target
     and user_id = auth.uid()
     and deleted_at is null;
