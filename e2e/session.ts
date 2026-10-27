@@ -263,11 +263,6 @@ export async function installApi(
       await route.fulfill({ status: 200, headers: cors, body: JSON.stringify(authSession()) });
       return;
     }
-    if (url.includes('soft_delete_weight_record')) {
-      options.onSoftDelete?.(request.postData() ?? '');
-      await route.fulfill({ status: 200, headers: cors, body: 'null' });
-      return;
-    }
     await route.fulfill({ status: 200, headers: cors, body: '{}' });
   });
 }

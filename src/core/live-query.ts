@@ -1,4 +1,13 @@
-export const RECORD_TABLES = ['weight_records', 'training_sets', 'study_records'] as const;
+export const RECORD_TABLES = [
+  'weight_records',
+  'training_sets',
+  'study_records',
+  'asset_accounts',
+  'account_balances',
+  'holdings',
+  'net_worth_goals',
+  'projection_assumptions',
+] as const;
 
 export type RecordTable = (typeof RECORD_TABLES)[number];
 

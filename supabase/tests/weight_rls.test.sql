@@ -308,10 +308,22 @@ select throws_ok(
   'user B cannot insert a profile for user A'
 );
 
-select throws_ok(
-  $$select public.soft_delete_weight_record('11111111-1111-4111-8111-111111111111')$$,
-  'P0002',
-  NULL::text,
+select lives_ok(
+  $$
+    do $body$
+    declare
+      affected integer;
+    begin
+      update public.weight_records
+      set deleted_at = now()
+      where id = '11111111-1111-4111-8111-111111111111';
+      get diagnostics affected = row_count;
+      if affected is distinct from 0 then
+        raise exception 'updated % rows, expected 0', affected;
+      end if;
+    end
+    $body$;
+  $$,
   'user B cannot soft-delete user A weight record'
 );
 
@@ -353,7 +365,21 @@ select throws_ok(
 );
 
 select lives_ok(
-  $$select public.soft_delete_weight_record('11111111-1111-4111-8111-111111111111')$$,
+  $$
+    do $body$
+    declare
+      affected integer;
+    begin
+      update public.weight_records
+      set deleted_at = now()
+      where id = '11111111-1111-4111-8111-111111111111';
+      get diagnostics affected = row_count;
+      if affected is distinct from 1 then
+        raise exception 'updated % rows, expected 1', affected;
+      end if;
+    end
+    $body$;
+  $$,
   'user A can soft-delete their own weight record'
 );
 
@@ -599,7 +625,7 @@ select throws_ok(
   'anon cannot delete profiles'
 );
 select throws_ok(
-  $$select public.soft_delete_weight_record('11111111-1111-4111-8111-111111111111')$$,
+  $$update public.weight_records set deleted_at = now() where id = '11111111-1111-4111-8111-111111111111'$$,
   '42501',
   NULL::text,
   'anon cannot soft-delete weight records'
