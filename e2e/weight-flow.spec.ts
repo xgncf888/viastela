@@ -88,6 +88,12 @@ function trackWrites() {
   };
 }
 
+async function expectNoWrites(writes: ReturnType<typeof trackWrites>) {
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  expect(writes.deletedAtWrites).toEqual([]);
+  expect(writes.otherWrites()).toBe(0);
+}
+
 async function openPausedToday(page: Page, weights: ReturnType<typeof weightRow>[], writes: ReturnType<typeof trackWrites>) {
   await page.clock.install({ time: new Date(`${day}T08:00:00.000Z`) });
   await signIn(page);
@@ -118,8 +124,7 @@ test('删除 hides the row immediately and 撤销 within 5s sends no write', asy
   await page.getByRole('button', { name: '撤销' }).click();
   await expect(page.getByText('晨重', { exact: true })).toHaveCount(1);
   await page.clock.fastForward(5_000);
-  expect(writes.deletedAtWrites).toEqual([]);
-  expect(writes.otherWrites()).toBe(0);
+  await expectNoWrites(writes);
 });
 
 test('no undo sends exactly one deleted_at soft-delete at 5s', async ({ page }) => {
@@ -129,8 +134,7 @@ test('no undo sends exactly one deleted_at soft-delete at 5s', async ({ page }) 
   await page.getByRole('button', { name: '删除' }).click();
   await expect(page.getByText('晨重', { exact: true })).toHaveCount(0);
   await page.clock.fastForward(4_999);
-  expect(writes.deletedAtWrites).toEqual([]);
-  expect(writes.otherWrites()).toBe(0);
+  await expectNoWrites(writes);
   await page.clock.fastForward(1);
   await expect.poll(() => writes.deletedAtWrites.length).toBe(1);
   expect(writes.deletedAtWrites[0]).toContain('w-1');
@@ -153,7 +157,7 @@ test('background, close, or reload within 5s drops the delete', async ({ page })
   });
   await expect(page.getByText('晨重', { exact: true })).toHaveCount(1);
   await page.clock.fastForward(5_000);
-  expect(writes.deletedAtWrites).toEqual([]);
+  await expectNoWrites(writes);
 
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
@@ -164,7 +168,7 @@ test('background, close, or reload within 5s drops the delete', async ({ page })
   await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
   await expect(page.getByText('晨重', { exact: true })).toHaveCount(1);
   await page.clock.fastForward(5_000);
-  expect(writes.deletedAtWrites).toEqual([]);
+  await expectNoWrites(writes);
 
   await page.getByRole('button', { name: '删除' }).click();
   await expect(page.getByText('晨重', { exact: true })).toHaveCount(0);
@@ -173,34 +177,61 @@ test('background, close, or reload within 5s drops the delete', async ({ page })
   await expect(page.getByText('晨重', { exact: true })).toHaveCount(1);
   await page.clock.pauseAt(`${day}T08:03:00.000Z`);
   await page.clock.fastForward(5_000);
-  expect(writes.deletedAtWrites).toEqual([]);
-  expect(writes.otherWrites()).toBe(0);
+  await expectNoWrites(writes);
 });
 
-test('two deletes keep independent timers and undoing one leaves the other', async ({ page }) => {
+test('a later delete restarts the shared undo window for every pending row', async ({ page }) => {
   const writes = trackWrites();
   await openPausedToday(page, [weightRow('w-1', day, 73.7, 8), weightRow('w-2', day, 74.1, 9)], writes);
   await expect(page.getByText('复测', { exact: true })).toHaveCount(1);
 
   await page.getByRole('button', { name: '删除' }).nth(0).click();
-  await expect(page.getByText('晨重', { exact: true })).toHaveCount(0);
-  await expect(page.getByText('复测', { exact: true })).toHaveCount(1);
-  await page.clock.fastForward(2_000);
+  await expect(page.getByRole('alert')).toContainText('已删除 · 撤销');
+  await page.clock.fastForward(4_000);
+  await expectNoWrites(writes);
   await page.getByRole('button', { name: '删除' }).click();
-  await expect(page.getByText('复测', { exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: '撤销' }).click();
-  await expect(page.getByText('复测', { exact: true })).toHaveCount(1);
   await expect(page.getByText('晨重', { exact: true })).toHaveCount(0);
-  await page.clock.fastForward(2_999);
-  expect(writes.deletedAtWrites).toEqual([]);
+  await expect(page.getByText('复测', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('alert')).toContainText('已删除 2 条 · 撤销');
+  await page.clock.fastForward(4_999);
+  await expectNoWrites(writes);
   await page.clock.fastForward(1);
-  await expect.poll(() => writes.deletedAtWrites.length).toBe(1);
-  expect(writes.deletedAtWrites[0]).toContain('w-1');
-  expect(writes.deletedAtWrites[0]).not.toContain('w-2');
-  await expect(page.getByText('74.1 kg · 9:15')).toBeVisible();
-  await expect(page.getByText('73.7 kg')).toHaveCount(0);
-  await page.clock.fastForward(5_000);
-  expect(writes.deletedAtWrites).toHaveLength(1);
-  await expect(page.getByText('74.1 kg · 9:15')).toBeVisible();
+  await expect.poll(() => writes.deletedAtWrites.length).toBe(2);
+  expect(writes.deletedAtWrites.some((body) => body.includes('w-1'))).toBe(true);
+  expect(writes.deletedAtWrites.some((body) => body.includes('w-2'))).toBe(true);
   expect(writes.otherWrites()).toBe(0);
+});
+
+test('撤销 restores every pending row and sends no write', async ({ page }) => {
+  const writes = trackWrites();
+  await openPausedToday(page, [weightRow('w-1', day, 73.7, 8), weightRow('w-2', day, 74.1, 9)], writes);
+
+  await page.getByRole('button', { name: '删除' }).nth(0).click();
+  await page.getByRole('button', { name: '删除' }).click();
+  await expect(page.getByRole('alert')).toContainText('已删除 2 条 · 撤销');
+  await page.getByRole('button', { name: '撤销' }).click();
+  await expect(page.getByText('晨重', { exact: true })).toHaveCount(1);
+  await expect(page.getByText('复测', { exact: true })).toHaveCount(1);
+  await page.clock.fastForward(5_000);
+  await expectNoWrites(writes);
+});
+
+test('saving a record does not cover the undo toast', async ({ page }) => {
+  const writes = trackWrites();
+  await openPausedToday(page, [weightRow('w-1', day, 73.7)], writes);
+
+  await page.getByRole('button', { name: '删除' }).click();
+  await expect(page.getByRole('alert')).toContainText('已删除 · 撤销');
+  await page.getByRole('button', { name: '再记 73.7 kg' }).click();
+  await page.getByRole('textbox', { name: '体重（kg）' }).fill('80.2');
+  await page.getByRole('button', { name: '保存' }).click();
+  await expect(page.getByText('80.2 kg · 8:01')).toBeVisible();
+  await expect(page.getByRole('alert')).toContainText('已删除 · 撤销');
+  await page.getByRole('button', { name: '撤销' }).click();
+  await expect(page.getByText('73.7 kg · 8:15')).toBeVisible();
+  await expect(page.getByText('80.2 kg · 8:01')).toBeVisible();
+  await page.clock.fastForward(5_000);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  expect(writes.deletedAtWrites).toEqual([]);
+  expect(writes.otherWrites()).toBe(1);
 });

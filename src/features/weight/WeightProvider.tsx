@@ -48,7 +48,8 @@ export function WeightProvider({ children }: { children: ReactNode }) {
   const [deletedNotice, setDeletedNotice] = useState(false);
   const creating = useRef(false);
   const inFlight = useRef(new Set<string>());
-  const pendingDeletes = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const pendingDeletes = useRef(new Set<string>());
+  const deleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pendingDeleteIds, setPendingDeleteIds] = useState<ReadonlySet<string>>(new Set());
 
   const loadSaved = useCallback(async (switchTime: string) => {
@@ -229,19 +230,10 @@ export function WeightProvider({ children }: { children: ReactNode }) {
     removeRecordRef.current = removeRecord;
   }, [removeRecord]);
 
-  const undoDelete = useCallback(
-    (id: string) => {
-      const timer = pendingDeletes.current.get(id);
-      if (timer) clearTimeout(timer);
-      pendingDeletes.current.delete(id);
-      revealPending(id);
-    },
-    [revealPending],
-  );
-
   const cancelPendingDeletes = useCallback(() => {
+    if (deleteTimer.current) clearTimeout(deleteTimer.current);
+    deleteTimer.current = null;
     if (pendingDeletes.current.size === 0) return;
-    for (const timer of pendingDeletes.current.values()) clearTimeout(timer);
     pendingDeletes.current.clear();
     setPendingDeleteIds(new Set());
     dismissShownToast();
@@ -250,29 +242,30 @@ export function WeightProvider({ children }: { children: ReactNode }) {
   const scheduleDelete = useCallback(
     (id: string) => {
       if (pendingDeletes.current.has(id)) return;
-      setPendingDeleteIds((current) => {
-        const next = new Set(current);
-        next.add(id);
-        return next;
-      });
+      pendingDeletes.current.add(id);
+      setPendingDeleteIds(new Set(pendingDeletes.current));
+      if (deleteTimer.current) clearTimeout(deleteTimer.current);
+      const count = pendingDeletes.current.size;
       showToast({
-        text: '已删除',
+        text: count === 1 ? '已删除' : `已删除 ${count} 条`,
         duration: DELETE_UNDO_MS,
-        action: { label: '撤销', onPress: () => undoDelete(id) },
+        pinned: true,
+        action: { label: '撤销', onPress: () => cancelPendingDeletes() },
       });
-      const timer = setTimeout(() => {
-        if (!pendingDeletes.current.has(id)) return;
+      deleteTimer.current = setTimeout(() => {
+        deleteTimer.current = null;
         const state = AppState.currentState;
         if (state === 'background' || state === 'inactive') {
           cancelPendingDeletes();
           return;
         }
-        pendingDeletes.current.delete(id);
-        void removeRecordRef.current(id);
+        const ids = [...pendingDeletes.current];
+        pendingDeletes.current.clear();
+        setPendingDeleteIds(new Set());
+        for (const pendingId of ids) void removeRecordRef.current(pendingId);
       }, DELETE_UNDO_MS);
-      pendingDeletes.current.set(id, timer);
     },
-    [cancelPendingDeletes, undoDelete],
+    [cancelPendingDeletes],
   );
 
   useEffect(() => {
@@ -290,14 +283,16 @@ export function WeightProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (session) return;
-    for (const timer of pendingDeletes.current.values()) clearTimeout(timer);
+    if (deleteTimer.current) clearTimeout(deleteTimer.current);
+    deleteTimer.current = null;
     pendingDeletes.current.clear();
   }, [session]);
 
   useEffect(() => {
     const pending = pendingDeletes.current;
     return () => {
-      for (const timer of pending.values()) clearTimeout(timer);
+      if (deleteTimer.current) clearTimeout(deleteTimer.current);
+      deleteTimer.current = null;
       pending.clear();
     };
   }, []);

@@ -16,6 +16,8 @@ export type ToastInput = {
   tone?: 'ok' | 'error';
   duration?: number;
   action?: ToastAction;
+  /** Stays up until it is dismissed. A normal toast waits behind it. */
+  pinned?: boolean;
 };
 
 type ToastMessage = {
@@ -23,9 +25,12 @@ type ToastMessage = {
   text: string;
   tone: 'ok' | 'error';
   action?: ToastAction;
+  pinned?: boolean;
+  duration: number;
 };
 
 let current: ToastMessage | null = null;
+let held: ToastMessage | null = null;
 let nextId = 1;
 let timer: ReturnType<typeof setTimeout> | null = null;
 const listeners = new Set<() => void>();
@@ -34,12 +39,28 @@ function emit() {
   listeners.forEach((listener) => listener());
 }
 
+function showHeld() {
+  const next = held;
+  held = null;
+  if (!next) {
+    emit();
+    return;
+  }
+  current = next;
+  emit();
+  timer = setTimeout(() => {
+    timer = null;
+    current = null;
+    showHeld();
+  }, next.duration);
+}
+
 function dismissToast(id?: number) {
   if (id != null && current?.id !== id) return;
   if (timer) clearTimeout(timer);
   timer = null;
   current = null;
-  emit();
+  showHeld();
 }
 
 export function dismissShownToast(): void {
@@ -47,16 +68,28 @@ export function dismissShownToast(): void {
 }
 
 export function showToast(toast: ToastInput): void {
-  if (timer) clearTimeout(timer);
   const tone = toast.tone ?? 'ok';
   const duration = toast.duration ?? (tone === 'error' ? 4200 : 2600);
-  current = { text: toast.text, tone, action: toast.action, id: nextId };
+  const message: ToastMessage = {
+    text: toast.text,
+    tone,
+    action: toast.action,
+    pinned: toast.pinned,
+    duration,
+    id: nextId,
+  };
   nextId += 1;
+  if (current?.pinned && !message.pinned) {
+    held = message;
+    return;
+  }
+  if (timer) clearTimeout(timer);
+  current = message;
   emit();
   timer = setTimeout(() => {
     timer = null;
     current = null;
-    emit();
+    showHeld();
   }, duration);
 }
 
