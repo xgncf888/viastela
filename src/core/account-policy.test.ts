@@ -2,6 +2,7 @@ import { expect, test } from '@jest/globals';
 
 import {
   accountDeletionPhrase,
+  reauthBeforeDeleteMessage,
   backupPurgeDays,
   accountDeletedDetail,
   deletionFacts,
@@ -33,6 +34,8 @@ test('privacy copy names the stored data, the limits on its use, and the contact
   expect(text).toContain(privacyContactEmail);
   expect(privacyContactEmail).toBe('xgncf888@gmail.com');
   expect(privacyUpdatedLabel()).toBe('更新日期：2026年10月27日');
+  expect(reauthBeforeDeleteMessage).toBe('为了确认是你本人，删除账号前请重新登录一次。');
+  expect(reauthBeforeDeleteMessage).not.toBe('删除失败，请重试');
 });
 
 test('deletion facts list weight, training, study, the profile, and the same purge window', () => {
