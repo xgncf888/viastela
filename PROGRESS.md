@@ -17,7 +17,7 @@ Shipped in the skeleton:
 - pgTAP coverage that each user can only read and write their own profile and weight rows, anon is denied, and every public table has RLS.
 - GitHub Actions, a Playwright smoke test of the web export, and a pre-push hook.
 - Account deletion through the `delete-account` Edge Function, with pgTAP coverage that a deleted user's public rows are gone and that every `user_id` foreign key cascades.
-- Web privacy policy and account-deletion pages. Google and GitHub buttons are not on the login screen yet.
+- Web privacy policy and account-deletion pages. Google and GitHub buttons are on the web login screen.
 
 Stubbed:
 
@@ -26,7 +26,7 @@ Stubbed:
 - No EAS build, no store binaries, and no real EAS project id.
 - No hosted Supabase project in the repo.
 - The `delete-account` function is in the repo and is not deployed. Deploy it after review.
-- Google and GitHub sign-in buttons are a later change.
+- Native Google and GitHub OAuth, and Sign in with Apple before the iOS release.
 
 Owner still needs to:
 

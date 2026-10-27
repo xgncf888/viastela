@@ -1,5 +1,5 @@
 import { spawnSync } from 'child_process';
-import { readFileSync } from 'fs';
+import { readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { expect, test } from '@jest/globals';
 import { extname, join, resolve } from 'path';
 
@@ -106,56 +106,120 @@ test('user A cannot delete user B', async () => {
   expect(logs).not.toContain(envName);
 });
 
-test('every file is scanned the same way for a privileged-role key', () => {
+const textExtensions = new Set([
+  '.ts',
+  '.tsx',
+  '.js',
+  '.mjs',
+  '.cjs',
+  '.sql',
+  '.md',
+  '.yml',
+  '.yaml',
+  '.toml',
+  '.json',
+  '.example',
+  '.txt',
+  '.html',
+]);
+const clientDirectories = ['src', 'app', 'e2e', '.github', 'scripts'];
+const secretKeyPattern = new RegExp(
+  `${['sb', 'secret', ''].join('_')}[A-Za-z0-9_-]{22}_[A-Za-z0-9_-]{8}`,
+);
+
+type SecretHit = 'privileged-jwt' | 'supabase-secret-key' | 'service-role-literal' | 'service-key-env-name';
+
+function listRepositoryFiles(): string[] {
   const listed = spawnSync('git', ['ls-files', '-co', '--exclude-standard', '-z'], {
     cwd: root,
     encoding: 'utf8',
   });
   if (listed.status !== 0) throw new Error('could not list repository files');
-  const textExtensions = new Set([
-    '.ts',
-    '.tsx',
-    '.js',
-    '.mjs',
-    '.cjs',
-    '.sql',
-    '.md',
-    '.yml',
-    '.yaml',
-    '.toml',
-    '.json',
-    '.example',
-    '.txt',
-    '.html',
-  ]);
-  const encodedRoleHits: string[] = [];
-  for (const relative of listed.stdout.split('\0').filter(Boolean)) {
-    const extension = extname(relative);
-    if (!textExtensions.has(extension)) continue;
-    const text = readFileSync(join(root, relative), 'utf8');
-    if (jwtHasForbiddenRole(text)) encodedRoleHits.push(relative);
-  }
-  if (encodedRoleHits.length > 0) {
-    throw new Error(`JWT with the forbidden role found in: ${encodedRoleHits.join(', ')}`);
-  }
+  return listed.stdout.split('\0').filter(Boolean);
+}
 
+function isTextPath(relative: string): boolean {
+  const extension = extname(relative);
+  if (extension === '') return true;
+  return textExtensions.has(extension);
+}
+
+function inClientDirectory(relative: string): boolean {
+  return clientDirectories.some((directory) => relative.startsWith(`${directory}/`));
+}
+
+function hitsInText(text: string, relative: string): SecretHit[] {
+  const hits: SecretHit[] = [];
+  if (jwtHasForbiddenRole(text)) hits.push('privileged-jwt');
+  if (secretKeyPattern.test(text)) hits.push('supabase-secret-key');
+  if (inClientDirectory(relative)) {
+    if (text.includes(roleName)) hits.push('service-role-literal');
+    if (text.includes(envName)) hits.push('service-key-env-name');
+  }
+  return hits;
+}
+
+function scanTextFile(relative: string): SecretHit[] {
+  if (!isTextPath(relative)) return [];
+  return hitsInText(readFileSync(join(root, relative), 'utf8'), relative);
+}
+
+function removeFixture(relative: string) {
+  try {
+    unlinkSync(join(root, relative));
+  } catch {
+    // The fixture is already gone.
+  }
+}
+
+test('every text file is scanned for a privileged-role JWT and a Supabase secret key', () => {
+  const hits: string[] = [];
+  for (const relative of listRepositoryFiles()) {
+    const found = scanTextFile(relative).filter(
+      (hit) => hit === 'privileged-jwt' || hit === 'supabase-secret-key',
+    );
+    if (found.length > 0) hits.push(`${relative}: ${found.join(', ')}`);
+  }
+  expect(hits).toEqual([]);
+});
+
+test('src, app, e2e, .github, and scripts are scanned for the service role literal and the service key env name', () => {
   const indexSource = readFileSync(join(root, 'supabase/functions/delete-account/index.ts'), 'utf8');
   const handlerSource = readFileSync(join(root, 'supabase/functions/delete-account/handler.ts'), 'utf8');
-  if (!indexSource.includes(`Deno.env.get('${envName}')`)) {
-    throw new Error('delete-account must read the runtime service key inside the function');
+  expect(indexSource.includes(`Deno.env.get('${envName}')`)).toBe(true);
+  expect(handlerSource.includes(envName)).toBe(false);
+  expect(indexSource.includes('console.')).toBe(false);
+
+  const hits: string[] = [];
+  for (const relative of listRepositoryFiles()) {
+    if (!inClientDirectory(relative)) continue;
+    const found = scanTextFile(relative).filter(
+      (hit) => hit === 'service-role-literal' || hit === 'service-key-env-name',
+    );
+    if (found.length > 0) hits.push(`${relative}: ${found.join(', ')}`);
   }
-  if (handlerSource.includes(envName) || indexSource.includes('console.')) {
-    throw new Error('the service key must stay inside the function entry and must not be logged');
+  expect(hits).toEqual([]);
+});
+
+test('a temporary text file containing a fake Supabase secret key is reported', () => {
+  const relative = '.secret-scan-fake-key.txt';
+  const fake = `${['sb', 'secret', ''].join('_')}${'a'.repeat(22)}_${'b'.repeat(8)}`;
+  try {
+    writeFileSync(join(root, relative), `token=${fake}\n`);
+    expect(scanTextFile(relative)).toContain('supabase-secret-key');
+  } finally {
+    removeFixture(relative);
   }
-  for (const relative of ['src', 'app', 'e2e', '.github', 'scripts'].flatMap((directory) =>
-    listed.stdout
-      .split('\0')
-      .filter((file: string) => file.startsWith(`${directory}/`) && textExtensions.has(extname(file))),
-  )) {
-    const text = readFileSync(join(root, relative), 'utf8');
-    if (text.includes(envName)) {
-      throw new Error(`runtime service key env var leaked into ${relative}`);
-    }
+});
+
+test('a temporary file under a scanned directory containing the service role literal is reported', () => {
+  const relative = 'src/core/.secret-scan-role-literal.txt';
+  try {
+    writeFileSync(join(root, relative), `role=${roleName}\n`);
+    expect(inClientDirectory(relative)).toBe(true);
+    expect(scanTextFile(relative)).toContain('service-role-literal');
+  } finally {
+    removeFixture(relative);
   }
 });
 

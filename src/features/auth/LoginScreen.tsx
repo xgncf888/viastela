@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { router } from 'expo-router';
+import { Platform, View } from 'react-native';
 
 import { brand } from '@/config/brand';
 import { isSupabaseConfigured } from '@/config/env';
 import { requestEmailOtp, signInWithProvider, verifyEmailOtp } from '@/data/auth';
-import type { OAuthProvider } from '@/data/oauth';
+import { captureOAuthFailure, clearOAuthFailureMessage, type OAuthProvider } from '@/data/oauth';
 import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
 import { Content } from '@/ui/Content';
@@ -11,6 +13,7 @@ import { Row, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { TextField } from '@/ui/TextField';
+import { useTheme } from '@/ui/ThemeProvider';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const savedEmailKey = 'login-email';
@@ -25,31 +28,6 @@ function rememberEmail(value: string) {
   sessionStorage.setItem(savedEmailKey, value);
 }
 
-function oauthFailedOnReturn(): boolean {
-  if (typeof window === 'undefined') return false;
-  const params = new URLSearchParams(window.location.search);
-  return params.has('error') || params.has('error_code');
-}
-
-function clearOAuthErrorFromUrl() {
-  if (typeof window === 'undefined') return;
-  const url = new URL(window.location.href);
-  url.searchParams.delete('error');
-  url.searchParams.delete('error_description');
-  url.searchParams.delete('error_code');
-  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
-}
-
-let oauthFailureMessage: string | null | undefined;
-
-function initialOAuthError(): string | null {
-  if (oauthFailedOnReturn()) {
-    clearOAuthErrorFromUrl();
-    oauthFailureMessage = '登录没有完成，请重试';
-  }
-  return oauthFailureMessage ?? null;
-}
-
 function messageFrom(error: unknown, fallback: string): string {
   const text = error instanceof Error ? error.message.toLowerCase() : '';
   if (text.includes('rate') || text.includes('once')) return '发送太频繁，请稍后再试';
@@ -61,11 +39,17 @@ function messageFrom(error: unknown, fallback: string): string {
 }
 
 export function LoginScreen() {
+  const theme = useTheme();
   const configured = isSupabaseConfigured();
+  const showProviders = Platform.OS === 'web';
   const [phase, setPhase] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState(rememberedEmail);
   const [code, setCode] = useState('');
-  const [error, setError] = useState<string | null>(initialOAuthError);
+  const [providerNotice, setProviderNotice] = useState<string | null>(captureOAuthFailure);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    clearOAuthFailureMessage();
+  }, []);
   const [busy, setBusy] = useState(false);
   const [provider, setProvider] = useState<OAuthProvider | null>(null);
 
@@ -76,16 +60,18 @@ export function LoginScreen() {
 
   async function startProvider(next: OAuthProvider) {
     if (!configured) {
-      setError('尚未配置 Supabase');
+      setProviderNotice('尚未配置 Supabase');
       return;
     }
     setBusy(true);
     setProvider(next);
-    setError(null);
+    setProviderNotice(null);
     try {
       await signInWithProvider(next);
+      clearOAuthFailureMessage();
+      setProviderNotice(null);
     } catch (providerError) {
-      setError(messageFrom(providerError, '登录没有完成，请重试'));
+      setProviderNotice(messageFrom(providerError, '登录没有完成，请重试'));
       setBusy(false);
       setProvider(null);
     }
@@ -123,6 +109,8 @@ export function LoginScreen() {
     setError(null);
     try {
       await verifyEmailOtp(email, code.trim());
+      clearOAuthFailureMessage();
+      setProviderNotice(null);
     } catch (verifyError) {
       setError(messageFrom(verifyError, '验证码不正确或已过期'));
     } finally {
@@ -145,23 +133,39 @@ export function LoginScreen() {
         ) : null}
         {phase === 'email' ? (
           <Stack gap="md">
-            <Button
-              label="使用 Google 登录"
-              variant="secondary"
-              onPress={() => void startProvider('google')}
-              loading={provider === 'google'}
-              disabled={busy && provider !== 'google'}
-            />
-            <Button
-              label="使用 GitHub 登录"
-              variant="secondary"
-              onPress={() => void startProvider('github')}
-              loading={provider === 'github'}
-              disabled={busy && provider !== 'github'}
-            />
-            <Row justify="center">
-              <Text variant="muted">或</Text>
-            </Row>
+            {showProviders ? (
+              <>
+                {providerNotice ? (
+                  <View
+                    accessibilityRole="alert"
+                    style={{
+                      backgroundColor: theme.color.dangerSoft,
+                      borderRadius: theme.radius.sm,
+                      padding: theme.space.md,
+                    }}
+                  >
+                    <Text tone="danger">{providerNotice}</Text>
+                  </View>
+                ) : null}
+                <Button
+                  label="使用 Google 登录"
+                  variant="secondary"
+                  onPress={() => void startProvider('google')}
+                  loading={provider === 'google'}
+                  disabled={busy && provider !== 'google'}
+                />
+                <Button
+                  label="使用 GitHub 登录"
+                  variant="secondary"
+                  onPress={() => void startProvider('github')}
+                  loading={provider === 'github'}
+                  disabled={busy && provider !== 'github'}
+                />
+                <Row justify="center">
+                  <Text variant="muted">或</Text>
+                </Row>
+              </>
+            ) : null}
             <TextField
               label="邮箱"
               value={email}
@@ -198,6 +202,7 @@ export function LoginScreen() {
             />
           </Stack>
         )}
+        <Button label="隐私政策" variant="ghost" onPress={() => router.push('/privacy')} />
       </Content>
     </Screen>
   );
