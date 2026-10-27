@@ -146,7 +146,7 @@ begin
 end;
 $$;
 
-select plan(34);
+select plan(67);
 
 do $$
 declare
@@ -217,7 +217,21 @@ select lives_ok(
 );
 
 select lives_ok(
-  $$select public.soft_delete_weight_record('22222222-2222-4222-8222-222222222222')$$,
+  $$
+    do $body$
+    declare
+      affected integer;
+    begin
+      update public.weight_records
+      set deleted_at = now()
+      where id = '22222222-2222-4222-8222-222222222222';
+      get diagnostics affected = row_count;
+      if affected is distinct from 1 then
+        raise exception 'updated % rows, expected 1', affected;
+      end if;
+    end
+    $body$;
+  $$,
   'user A can soft-delete the second weight record'
 );
 
@@ -250,6 +264,75 @@ select lives_ok(
     )
   $$,
   'user A can insert a study record'
+);
+
+select lives_ok(
+  $$
+    insert into public.asset_accounts (id, name, currency)
+    values ('cccccccc-cccc-4ccc-8ccc-ccccccccccc1', 'Cash', 'USD')
+  $$,
+  'user A can insert an asset account'
+);
+
+select lives_ok(
+  $$
+    insert into public.account_balances (id, account_id, amount, usd_rate, recorded_at, tz, local_day)
+    values (
+      'cccccccc-cccc-4ccc-8ccc-ccccccccccc2',
+      'cccccccc-cccc-4ccc-8ccc-ccccccccccc1',
+      100,
+      1,
+      timestamptz '2026-10-27 08:00:00+00',
+      'Asia/Singapore',
+      date '2026-10-27'
+    )
+  $$,
+  'user A can insert an account balance'
+);
+
+select lives_ok(
+  $$
+    insert into public.holdings (id, account_id, symbol, quantity, cost_basis_usd)
+    values (
+      'cccccccc-cccc-4ccc-8ccc-ccccccccccc3',
+      'cccccccc-cccc-4ccc-8ccc-ccccccccccc1',
+      'ZZ',
+      2,
+      100
+    )
+  $$,
+  'user A can insert a holding'
+);
+
+select lives_ok(
+  $$
+    insert into public.net_worth_goals (id, target_usd)
+    values ('cccccccc-cccc-4ccc-8ccc-ccccccccccc4', 1000)
+  $$,
+  'user A can insert a net worth goal'
+);
+
+select lives_ok(
+  $$
+    insert into public.projection_assumptions (id, start_usd, start_month, monthly_net_usd)
+    values ('cccccccc-cccc-4ccc-8ccc-ccccccccccc5', 100, date '2026-10-01', 10)
+  $$,
+  'user A can insert a projection'
+);
+
+select lives_ok(
+  $$
+    insert into public.net_worth_snapshots (local_day, tz, total_usd, cash_usd, securities_usd, as_of)
+    values (
+      date '2026-10-27',
+      'Asia/Singapore',
+      200,
+      100,
+      100,
+      timestamptz '2026-10-27 08:00:00+00'
+    )
+  $$,
+  'user A can insert a net worth snapshot'
 );
 
 reset role;
@@ -317,6 +400,74 @@ select lives_ok(
   'user B can insert a study record'
 );
 
+select lives_ok(
+  $$
+    insert into public.asset_accounts (id, name, currency)
+    values ('dddddddd-dddd-4ddd-8ddd-ddddddddddd1', 'Cash', 'HKD')
+  $$,
+  'user B can insert an asset account'
+);
+
+select lives_ok(
+  $$
+    insert into public.account_balances (id, account_id, amount, recorded_at, tz, local_day)
+    values (
+      'dddddddd-dddd-4ddd-8ddd-ddddddddddd2',
+      'dddddddd-dddd-4ddd-8ddd-ddddddddddd1',
+      80,
+      timestamptz '2026-10-27 08:00:00+00',
+      'Asia/Singapore',
+      date '2026-10-27'
+    )
+  $$,
+  'user B can insert an account balance'
+);
+
+select lives_ok(
+  $$
+    insert into public.holdings (id, account_id, symbol, quantity, cost_basis_usd)
+    values (
+      'dddddddd-dddd-4ddd-8ddd-ddddddddddd3',
+      'dddddddd-dddd-4ddd-8ddd-ddddddddddd1',
+      'YY',
+      3,
+      50
+    )
+  $$,
+  'user B can insert a holding'
+);
+
+select lives_ok(
+  $$
+    insert into public.net_worth_goals (id, target_usd)
+    values ('dddddddd-dddd-4ddd-8ddd-ddddddddddd4', 2000)
+  $$,
+  'user B can insert a net worth goal'
+);
+
+select lives_ok(
+  $$
+    insert into public.projection_assumptions (id, start_usd, start_month, monthly_net_usd)
+    values ('dddddddd-dddd-4ddd-8ddd-ddddddddddd5', 50, date '2026-10-01', 5)
+  $$,
+  'user B can insert a projection'
+);
+
+select lives_ok(
+  $$
+    insert into public.net_worth_snapshots (local_day, tz, total_usd, cash_usd, securities_usd, as_of)
+    values (
+      date '2026-10-27',
+      'Asia/Singapore',
+      130,
+      80,
+      50,
+      timestamptz '2026-10-27 08:00:00+00'
+    )
+  $$,
+  'user B can insert a net worth snapshot'
+);
+
 reset role;
 
 select isnt(
@@ -347,6 +498,48 @@ select is(
   (select count(*) from public.study_records where user_id = current_setting('tests.user_a')::uuid),
   1::bigint,
   'user A study record exists before delete'
+);
+
+select is(
+  (select count(*) from public.asset_accounts where user_id = current_setting('tests.user_a')::uuid),
+  1::bigint,
+  'user A asset account exists before delete'
+);
+
+select is(
+  (select count(*) from public.account_balances where user_id = current_setting('tests.user_a')::uuid),
+  1::bigint,
+  'user A account balance exists before delete'
+);
+
+select is(
+  (select count(*) from public.holdings where user_id = current_setting('tests.user_a')::uuid),
+  1::bigint,
+  'user A holding exists before delete'
+);
+
+select is(
+  (select count(*) from public.net_worth_goals where user_id = current_setting('tests.user_a')::uuid),
+  1::bigint,
+  'user A net worth goal exists before delete'
+);
+
+select is(
+  (select count(*) from public.projection_assumptions where user_id = current_setting('tests.user_a')::uuid),
+  1::bigint,
+  'user A projection exists before delete'
+);
+
+select is(
+  (select count(*) from public.net_worth_snapshots where user_id = current_setting('tests.user_a')::uuid),
+  1::bigint,
+  'user A net worth snapshot exists before delete'
+);
+
+select is(
+  (select count(*) from public.asset_events where user_id = current_setting('tests.user_a')::uuid),
+  2::bigint,
+  'user A asset events exist before delete'
 );
 
 select lives_ok(
@@ -385,6 +578,48 @@ select is(
 );
 
 select is(
+  (select count(*) from public.asset_accounts where user_id = current_setting('tests.user_a')::uuid),
+  0::bigint,
+  'deleted user asset accounts are gone'
+);
+
+select is(
+  (select count(*) from public.account_balances where user_id = current_setting('tests.user_a')::uuid),
+  0::bigint,
+  'deleted user account balances are gone'
+);
+
+select is(
+  (select count(*) from public.holdings where user_id = current_setting('tests.user_a')::uuid),
+  0::bigint,
+  'deleted user holdings are gone'
+);
+
+select is(
+  (select count(*) from public.net_worth_goals where user_id = current_setting('tests.user_a')::uuid),
+  0::bigint,
+  'deleted user net worth goals are gone'
+);
+
+select is(
+  (select count(*) from public.projection_assumptions where user_id = current_setting('tests.user_a')::uuid),
+  0::bigint,
+  'deleted user projections are gone'
+);
+
+select is(
+  (select count(*) from public.net_worth_snapshots where user_id = current_setting('tests.user_a')::uuid),
+  0::bigint,
+  'deleted user net worth snapshots are gone'
+);
+
+select is(
+  (select count(*) from public.asset_events where user_id = current_setting('tests.user_a')::uuid),
+  0::bigint,
+  'deleted user asset events are gone'
+);
+
+select is(
   (select count(*) from auth.users where id = current_setting('tests.user_a')::uuid),
   0::bigint,
   'deleted auth user row is gone'
@@ -418,6 +653,48 @@ select is(
   (select count(*) from public.study_records where user_id = current_setting('tests.user_b')::uuid),
   1::bigint,
   'the other user study row remains'
+);
+
+select is(
+  (select count(*) from public.asset_accounts where user_id = current_setting('tests.user_b')::uuid),
+  1::bigint,
+  'the other user asset account remains'
+);
+
+select is(
+  (select count(*) from public.account_balances where user_id = current_setting('tests.user_b')::uuid),
+  1::bigint,
+  'the other user account balance remains'
+);
+
+select is(
+  (select count(*) from public.holdings where user_id = current_setting('tests.user_b')::uuid),
+  1::bigint,
+  'the other user holding remains'
+);
+
+select is(
+  (select count(*) from public.net_worth_goals where user_id = current_setting('tests.user_b')::uuid),
+  1::bigint,
+  'the other user net worth goal remains'
+);
+
+select is(
+  (select count(*) from public.projection_assumptions where user_id = current_setting('tests.user_b')::uuid),
+  1::bigint,
+  'the other user projection remains'
+);
+
+select is(
+  (select count(*) from public.net_worth_snapshots where user_id = current_setting('tests.user_b')::uuid),
+  1::bigint,
+  'the other user net worth snapshot remains'
+);
+
+select is(
+  (select count(*) from public.asset_events where user_id = current_setting('tests.user_b')::uuid),
+  2::bigint,
+  'the other user asset events remain'
 );
 
 select is(

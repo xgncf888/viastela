@@ -9,7 +9,7 @@ Shipped in the skeleton:
 - Email OTP login through Supabase.
 - Weight log from input to `weight_records`, with a 7-day average (hidden until 4 days of data) and a 28-day EMA trend chart (alpha 0.1).
 - Client UUID, `recorded_at`, `tz`, frozen `local_day`, `updated_at`, and nullable `deleted_at`.
-- Weight reads use a `local_day` window. Delete is a plain update of `deleted_at`. `soft_delete_weight_record` stays until the app no longer calls it.
+- Weight reads use a `local_day` window. Delete is a plain update of `deleted_at`. `soft_delete_weight_record` 已删除.
 - Optimistic save, error toast, and retry on the same id.
 - One-tap `再记` of the last weight. Empty states say `先记第一笔`.
 - Day-switch setting on 我的, default 04:00, applied only to new rows.
