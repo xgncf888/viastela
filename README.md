@@ -83,7 +83,7 @@ The anon key is public. The service role key stays on the server and out of this
 
 `/account/delete` explains that weight records, training sets, study records, and the profile are deleted, and that this cannot be undone. Both pages use `backupPurgeDays` for the backup purge window. The button stays off until the person types 删除. A failure returns to that explanation. Success opens 账号已删除, and 好的 returns to login.
 
-`profiles.user_id` and `weight_records.user_id` already reference `auth.users` with `on delete cascade`. pgTAP checks that catalog rule and that deleting a test user leaves no `user_id` row in `public`.
+`profiles.user_id`, `weight_records.user_id`, and `training_sets.user_id` reference `auth.users` with `on delete cascade`. pgTAP checks that catalog rule and that deleting a test user leaves no `user_id` row in `public`.
 
 ## EAS Update later
 
@@ -105,7 +105,7 @@ Each record type gets its own table. Do not add a generic log table. A record ta
 - `tz text not null` — IANA zone at write time
 - `local_day date not null` — accounting day frozen at write time by `src/core` from `tz` and the user's day-switch. The database rejects a value that is not the civil date of `recorded_at` in `tz` or the previous civil date (`enforce_record_local_day`)
 - `updated_at timestamptz not null default now()` — maintained by the `touch_updated_at` trigger, including soft deletes
-- `deleted_at timestamptz` — null while the row is live. Selects exclude non-null rows. The app calls `soft_delete_weight_record` (security definer) instead of `DELETE` or a direct update, because a direct update would fail once `deleted_at` is set and roll the write back. `DELETE` is revoked on `weight_records`. Upserting a soft-deleted id raises row-level security. The client treats that as `record deleted`, does not retry that id, and shows `这条记录已在其他设备删除` with only 关闭
+- `deleted_at timestamptz` — null while the row is live. The app reads through `liveRows`, which adds `deleted_at is null`. Select policies do not. Soft delete is `update set deleted_at = now()` and the update asks for `id` back; zero rows is a failed delete. `forbid_update_deleted` on every record table raises `P0001` `record deleted` if that row is updated again. The client treats that as `record deleted` only when the code is `P0001` and the message is exactly `record deleted`. It does not retry that id, and shows `这条记录已在其他设备删除` with only 关闭. Any other error, including `P0001` with a different message, is retried. `DELETE` is revoked. Keep `soft_delete_weight_record` until the app no longer calls it.
 - row level security so an authenticated user can only read and write their own rows, with pgTAP covering that matrix and the anon role
 - a check constraint for any numeric range, such as `weight_kg > 0 and weight_kg < 500`
 

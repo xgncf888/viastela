@@ -65,6 +65,16 @@ export function shiftLocalDay(localDay: string, days: number): string {
   return formatLocalDay(utc.getUTCFullYear(), utc.getUTCMonth() + 1, utc.getUTCDate());
 }
 
+const DAY_MS = 86_400_000;
+
+/** Signed civil-day span from start to end. The same day is 0. */
+export function daysBetween(start: string, end: string): number {
+  const [startYear, startMonth, startDay] = start.split('-').map(Number);
+  const [endYear, endMonth, endDay] = end.split('-').map(Number);
+  const span = Date.UTC(endYear, endMonth - 1, endDay) - Date.UTC(startYear, startMonth - 1, startDay);
+  return Math.round(span / DAY_MS);
+}
+
 export function civilLocalDay(instant: Date, timeZone: string): string {
   const civil = zonedCivilTime(instant, timeZone);
   return formatLocalDay(civil.year, civil.month, civil.day);

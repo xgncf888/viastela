@@ -1,7 +1,8 @@
-import { isSoftDeletedUpsert, RECORD_DELETED } from '@/core/weight-write';
+import { isRecordDeleted, RECORD_DELETED, requireDeletedIds } from '@/core/weight-write';
 import type { WeightRecord } from '@/core/weight-stats';
 
 import { getSupabase } from './client';
+import { liveRows } from './live-rows';
 
 export type WeightDayWindow = {
   fromDay: string;
@@ -42,13 +43,10 @@ function toRecord(row: {
 
 const columns = 'id, weight_kg, recorded_at, tz, local_day, updated_at' as const;
 
-/** Live rows whose accounting day falls in the window. Soft-deleted rows stay out. */
+/** Live rows whose accounting day falls in the window. */
 export async function listWeightRecords(window: WeightDayWindow): Promise<WeightRecord[]> {
   assertWindow(window);
-  const { data, error } = await getSupabase()
-    .from('weight_records')
-    .select(columns)
-    .is('deleted_at', null)
+  const { data, error } = await liveRows(getSupabase().from('weight_records').select(columns))
     .gte('local_day', window.fromDay)
     .lte('local_day', window.toDay)
     .order('recorded_at', { ascending: true });
@@ -58,10 +56,7 @@ export async function listWeightRecords(window: WeightDayWindow): Promise<Weight
 
 /** One newest live row, for one-tap reuse outside the chart window. */
 export async function latestWeightRecord(): Promise<WeightRecord | null> {
-  const { data, error } = await getSupabase()
-    .from('weight_records')
-    .select(columns)
-    .is('deleted_at', null)
+  const { data, error } = await liveRows(getSupabase().from('weight_records').select(columns))
     .order('recorded_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -87,17 +82,21 @@ export async function upsertWeightRecord(record: WeightRecord): Promise<void> {
     { onConflict: 'id' },
   );
   if (error) {
-    if (isSoftDeletedUpsert(error)) throw new Error(RECORD_DELETED);
+    if (isRecordDeleted(error)) throw new Error(RECORD_DELETED);
     throw error;
   }
 }
 
-/**
- * Sets deleted_at through soft_delete_weight_record.
- * A table update would fail the select policy once the row is hidden, and
- * that failure rolls the write back.
- */
+/** Plain update. A deleted id raises P0001 and is not rewritten. Zero rows is a failed delete. */
 export async function softDeleteWeightRecord(id: string): Promise<void> {
-  const { error } = await getSupabase().rpc('soft_delete_weight_record', { target: id });
-  if (error) throw error;
+  const { data, error } = await getSupabase()
+    .from('weight_records')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', id)
+    .select('id');
+  if (error) {
+    if (isRecordDeleted(error)) throw new Error(RECORD_DELETED);
+    throw error;
+  }
+  requireDeletedIds(data);
 }

@@ -45,6 +45,15 @@ export function weighInLabel(index: number): string {
   return index === 0 ? '晨重' : '复测';
 }
 
+/** Pending deletes stay in memory for undo and stay out of numbering and the average. */
+export function excludePending<T extends { id: string }>(
+  records: readonly T[],
+  pendingIds: ReadonlySet<string>,
+): readonly T[] {
+  if (pendingIds.size === 0) return records;
+  return records.filter((record) => !pendingIds.has(record.id));
+}
+
 export function labelsForDay(records: readonly WeightRecord[], localDay: string): string[] {
   return recordsOnDay(records, localDay).map((_, index) => weighInLabel(index));
 }

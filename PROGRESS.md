@@ -9,7 +9,7 @@ Shipped in the skeleton:
 - Email OTP login through Supabase.
 - Weight log from input to `weight_records`, with a 7-day average (hidden until 4 days of data) and a 28-day EMA trend chart (alpha 0.1).
 - Client UUID, `recorded_at`, `tz`, frozen `local_day`, `updated_at`, and nullable `deleted_at`.
-- Weight reads use a `local_day` window. Delete calls `soft_delete_weight_record`.
+- Weight reads use a `local_day` window. Delete is a plain update of `deleted_at`. `soft_delete_weight_record` stays until the app no longer calls it.
 - Optimistic save, error toast, and retry on the same id.
 - One-tap `再记` of the last weight. Empty states say `先记第一笔`.
 - Day-switch setting on 我的, default 04:00, applied only to new rows.
@@ -21,7 +21,7 @@ Shipped in the skeleton:
 
 Stubbed:
 
-- 训练, 学习, and 时间块 are visible in the record sheet and do not save.
+- 训练 records sets on 今日: recent-exercise chips, kilograms or 轻/中/重/加重, reps, `保存这一组` keeps the sheet open, `完成` toasts the day and the count. Delete is on the per-set list behind the summary card, with the same deferred delete as weight. 学习 and 时间块 are visible in the record sheet and do not save.
 - No offline queue.
 - No EAS build, no store binaries, and no real EAS project id.
 - No hosted Supabase project in the repo.

@@ -369,15 +369,15 @@ select throws_ok(
     )
     on conflict (id) do update set weight_kg = excluded.weight_kg
   $$,
-  '42501',
-  NULL::text,
-  'upsert of a soft-deleted weight id is rejected by row level security'
+  'P0001',
+  'record deleted',
+  'upsert of a soft-deleted weight id errors with record deleted'
 );
 
 select is(
   (select count(*) from public.weight_records),
-  0::bigint,
-  'user A cannot read a soft-deleted weight record'
+  1::bigint,
+  'user A can see their own soft-deleted weight record'
 );
 
 select lives_ok(

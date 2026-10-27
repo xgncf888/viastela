@@ -1,16 +1,32 @@
 import { useRef, useState, useSyncExternalStore } from 'react';
 
 import { createId } from '@/core/id';
-import { currentTimeZone, sheetAccountingHint } from '@/core/local-day';
+import { computeLocalDay, currentTimeZone, sheetAccountingHint } from '@/core/local-day';
+import {
+  BAND_LABEL,
+  BAND_LEVELS,
+  formatTrainingKg,
+  formatTrainingLoad,
+  parseTrainingDraft,
+  trainingFinishToast,
+  trainingSetsOnDay,
+  type TrainingMode,
+  type TrainingSet,
+} from '@/core/training';
 import { parseWeightKg } from '@/core/weight-input';
 import { formatKg, latestRecord } from '@/core/weight-stats';
+import { useTraining } from '@/features/training/TrainingProvider';
+import { excludePending } from '@/features/weight/weight-copy';
 import { useWeight } from '@/features/weight/WeightProvider';
 import { Button } from '@/ui/Button';
 import { Chip } from '@/ui/Chip';
+import { ChipGroup } from '@/ui/ChipGroup';
 import { Row, Stack } from '@/ui/layout';
+import { SetRow } from '@/ui/SetRow';
 import { Sheet } from '@/ui/Sheet';
 import { Text } from '@/ui/Text';
 import { TextField } from '@/ui/TextField';
+import { showToast } from '@/ui/toast';
 
 import { closeRecordSheet, getRecordSheetSnapshot, subscribeRecordSheet } from './record-sheet-store';
 
@@ -25,7 +41,9 @@ type TypeId = (typeof TYPES)[number]['id'];
 
 export function RecordSheet() {
   const sheet = useSyncExternalStore(subscribeRecordSheet, getRecordSheetSnapshot, getRecordSheetSnapshot);
-  const { saving } = useWeight();
+  const { saving: weightSaving } = useWeight();
+  const { saving: trainingSaving } = useTraining();
+  const saving = weightSaving || trainingSaving;
 
   return (
     <Sheet
@@ -35,19 +53,42 @@ export function RecordSheet() {
         closeRecordSheet();
       }}
     >
-      {sheet.open ? <RecordForm key={sheet.generation} prefillKg={sheet.prefillKg} /> : null}
+      {sheet.open ? <RecordForm key={sheet.generation} prefillKg={sheet.prefillKg} initialType={sheet.kind} /> : null}
     </Sheet>
   );
 }
 
-function RecordForm({ prefillKg }: { prefillKg: number | null }) {
-  const { records, daySwitch, saving, saveWeight } = useWeight();
-  const [type, setType] = useState<TypeId>('weight');
+function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; initialType: TypeId }) {
+  const { records, daySwitch, saving: weightSaving, saveWeight } = useWeight();
+  const {
+    sets,
+    pendingDeleteIds,
+    saving: trainingSaving,
+    saveSet,
+    daySwitch: trainingSwitch,
+    recentExercises,
+  } = useTraining();
+  const saving = weightSaving || trainingSaving;
+  const [type, setType] = useState<TypeId>(initialType);
   const [value, setValue] = useState(prefillKg == null ? '' : formatKg(prefillKg));
   const [error, setError] = useState<string | null>(null);
+  const [customExercise, setCustomExercise] = useState(recentExercises.length === 0);
+  const [exercise, setExercise] = useState('');
+  const [reps, setReps] = useState('');
+  const [mode, setMode] = useState<TrainingMode>('weight');
+  const [load, setLoad] = useState('');
+  const [band, setBand] = useState<string>('');
+  const [trainingError, setTrainingError] = useState<string | null>(null);
+  const [trainingField, setTrainingField] = useState<string | null>(null);
+  const [finishedExercise, setFinishedExercise] = useState<string | null>(null);
   const draftId = useRef<string | null>(null);
+  const trainingId = useRef<string | null>(null);
   const last = latestRecord(records);
   const hint = sheetAccountingHint(new Date(), currentTimeZone(), daySwitch);
+  const accountingDay = computeLocalDay(new Date(), currentTimeZone(), trainingSwitch);
+  const exerciseSets = trainingSetsOnDay(excludePending(sets, pendingDeleteIds), accountingDay).filter(
+    (set) => set.exercise === exercise.trim(),
+  );
 
   async function onSave() {
     const weightKg = parseWeightKg(value);
@@ -71,6 +112,70 @@ function RecordForm({ prefillKg }: { prefillKg: number | null }) {
     closeRecordSheet();
   }
 
+  function applySet(set: TrainingSet) {
+    const known = recentExercises.includes(set.exercise);
+    setCustomExercise(!known);
+    setExercise(set.exercise);
+    setReps(String(set.reps));
+    if (set.weightKg != null) {
+      setMode('weight');
+      setLoad(formatTrainingKg(set.weightKg));
+      setBand('');
+    } else {
+      setMode('band');
+      setLoad('');
+      setBand(set.bandLevel ?? '');
+    }
+    setTrainingField(null);
+    setTrainingError(null);
+  }
+
+  function addAnotherSet() {
+    const lastSet = exerciseSets[exerciseSets.length - 1];
+    if (!lastSet) return;
+    applySet(lastSet);
+    trainingId.current = null;
+  }
+
+  async function onSaveTraining() {
+    const draft = parseTrainingDraft({ exercise, reps, mode, weight: load, bandLevel: band });
+    if (!draft.ok) {
+      setTrainingField(draft.field);
+      setTrainingError(draft.error);
+      return;
+    }
+    if (!trainingId.current) trainingId.current = createId();
+    const outcome = await saveSet({
+      exercise: draft.exercise,
+      reps: draft.reps,
+      weightKg: draft.weightKg,
+      bandLevel: draft.bandLevel,
+      existingId: trainingId.current,
+    });
+    if (outcome === 'deleted') {
+      trainingId.current = null;
+      setTrainingError(null);
+      closeRecordSheet();
+      return;
+    }
+    if (outcome !== 'saved') return;
+    trainingId.current = null;
+    setFinishedExercise(draft.exercise);
+    setExercise(draft.exercise);
+    setTrainingField(null);
+    setTrainingError(null);
+  }
+
+  function onFinish() {
+    if (finishedExercise) {
+      const count = trainingSetsOnDay(excludePending(sets, pendingDeleteIds), accountingDay).filter(
+        (set) => set.exercise === finishedExercise,
+      ).length;
+      if (count > 0) showToast({ text: trainingFinishToast(finishedExercise, count, accountingDay) });
+    }
+    closeRecordSheet();
+  }
+
   return (
     <Stack gap="lg">
       <Row justify="between">
@@ -79,11 +184,11 @@ function RecordForm({ prefillKg }: { prefillKg: number | null }) {
         </Text>
         <Button label="关闭" variant="ghost" onPress={closeRecordSheet} disabled={saving} />
       </Row>
-      <Row gap="sm" wrap>
+      <ChipGroup>
         {TYPES.map((item) => (
           <Chip key={item.id} label={item.label} selected={type === item.id} onPress={() => setType(item.id)} />
         ))}
-      </Row>
+      </ChipGroup>
       {type === 'weight' ? (
         <Stack gap="md">
           <TextField
@@ -107,6 +212,114 @@ function RecordForm({ prefillKg }: { prefillKg: number | null }) {
             />
           ) : null}
           <Button label="保存" onPress={() => void onSave()} loading={saving} />
+        </Stack>
+      ) : type === 'training' ? (
+        <Stack gap="md">
+          <ChipGroup>
+            {recentExercises.map((name) => (
+              <Chip
+                key={name}
+                label={name}
+                selected={!customExercise && exercise === name}
+                onPress={() => {
+                  setCustomExercise(false);
+                  setExercise(name);
+                  setTrainingError(null);
+                }}
+              />
+            ))}
+            <Chip
+              label="+ 其他"
+              selected={customExercise}
+              onPress={() => {
+                setCustomExercise(true);
+                if (recentExercises.includes(exercise)) setExercise('');
+                setTrainingError(null);
+              }}
+            />
+          </ChipGroup>
+          {customExercise ? (
+            <TextField
+              label="动作"
+              value={exercise}
+              onChangeText={(next) => {
+                setExercise(next);
+                setTrainingError(null);
+              }}
+              placeholder="例如 卧推"
+              autoFocus
+              error={trainingField === 'exercise' ? trainingError : null}
+            />
+          ) : null}
+          <ChipGroup>
+            <Chip
+              label="重量"
+              selected={mode === 'weight'}
+              onPress={() => {
+                setMode('weight');
+                setTrainingError(null);
+              }}
+            />
+            <Chip
+              label="弹力带"
+              selected={mode === 'band'}
+              onPress={() => {
+                setMode('band');
+                setTrainingError(null);
+              }}
+            />
+          </ChipGroup>
+          {mode === 'weight' ? (
+            <TextField
+              label="重量（kg）"
+              value={load}
+              onChangeText={(next) => {
+                setLoad(next);
+                setTrainingError(null);
+              }}
+              placeholder="例如 40"
+              keyboardType="decimal-pad"
+              error={trainingField === 'weight' ? trainingError : null}
+            />
+          ) : (
+            <Stack gap="sm">
+              <ChipGroup>
+                {BAND_LEVELS.map((level) => (
+                  <Chip
+                    key={level}
+                    label={BAND_LABEL[level]}
+                    selected={band === level}
+                    onPress={() => {
+                      setBand(level);
+                      setTrainingError(null);
+                    }}
+                  />
+                ))}
+              </ChipGroup>
+              {trainingField === 'band' && trainingError ? (
+                <Text variant="muted" tone="danger">
+                  {trainingError}
+                </Text>
+              ) : null}
+            </Stack>
+          )}
+          <TextField
+            label="次数"
+            value={reps}
+            onChangeText={(next) => {
+              setReps(next);
+              setTrainingError(null);
+            }}
+            placeholder="例如 8"
+            keyboardType="number-pad"
+            error={trainingField === 'reps' ? trainingError : null}
+          />
+          {exerciseSets.map((set) => (
+            <SetRow key={set.id} title={set.exercise} detail={`${set.reps} 次 · ${formatTrainingLoad(set)}`} />
+          ))}
+          <Button label="保存这一组" onPress={() => void onSaveTraining()} loading={saving} />
+          <Button label="+1 组" variant="secondary" onPress={addAnotherSet} disabled={saving || exerciseSets.length === 0} />
+          <Button label="完成" variant="secondary" onPress={onFinish} disabled={saving} />
         </Stack>
       ) : (
         <Stack gap="sm">

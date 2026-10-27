@@ -53,5 +53,7 @@ const styles = StyleSheet.create({
     borderWidth: baseTheme.border.width,
     padding: baseTheme.space.lg,
     gap: baseTheme.space.lg,
+    maxHeight: '90%',
+    overflow: 'scroll',
   },
 });

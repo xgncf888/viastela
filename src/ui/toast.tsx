@@ -2,6 +2,8 @@ import { useSyncExternalStore } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { dismissQueuedToast, emptyToastQueue, enqueueToast } from '@/core/toast-queue';
+
 import { Text } from './Text';
 import { theme as baseTheme } from './theme';
 import { useTheme } from './ThemeProvider';
@@ -16,7 +18,7 @@ export type ToastInput = {
   tone?: 'ok' | 'error';
   duration?: number;
   action?: ToastAction;
-  /** Stays up until it is dismissed. A normal toast waits behind it. */
+  /** Stays up until it is dismissed. Normal toasts wait behind it. Error toasts stack above it. */
   pinned?: boolean;
 };
 
@@ -29,38 +31,59 @@ type ToastMessage = {
   duration: number;
 };
 
-let current: ToastMessage | null = null;
-let held: ToastMessage | null = null;
-let nextId = 1;
-let timer: ReturnType<typeof setTimeout> | null = null;
-const listeners = new Set<() => void>();
+type Snapshot = {
+  errors: readonly ToastMessage[];
+  current: ToastMessage | null;
+  pinned: ToastMessage | null;
+};
 
-function emit() {
+let state = emptyToastQueue<ToastMessage>();
+let nextId = 1;
+const timers = new Map<number, ReturnType<typeof setTimeout>>();
+const listeners = new Set<() => void>();
+let snapshot: Snapshot = { errors: [], current: null, pinned: null };
+
+function clearTimer(id: number) {
+  const timer = timers.get(id);
+  if (timer) clearTimeout(timer);
+  timers.delete(id);
+}
+
+function publish() {
+  snapshot = {
+    errors: state.errors,
+    current: state.current,
+    pinned: state.pinned,
+  };
+  const visible = new Set<number>();
+  for (const toast of state.errors) visible.add(toast.id);
+  if (state.current) visible.add(state.current.id);
+  if (state.pinned) visible.add(state.pinned.id);
+  for (const id of [...timers.keys()]) {
+    if (!visible.has(id)) clearTimer(id);
+  }
+  const arm = (toast: ToastMessage | null) => {
+    if (!toast || timers.has(toast.id)) return;
+    timers.set(
+      toast.id,
+      setTimeout(() => {
+        timers.delete(toast.id);
+        state = dismissQueuedToast(state, toast.id);
+        publish();
+      }, toast.duration),
+    );
+  };
+  for (const toast of state.errors) arm(toast);
+  arm(state.current);
+  arm(state.pinned);
   listeners.forEach((listener) => listener());
 }
 
-function showHeld() {
-  const next = held;
-  held = null;
-  if (!next) {
-    emit();
-    return;
-  }
-  current = next;
-  emit();
-  timer = setTimeout(() => {
-    timer = null;
-    current = null;
-    showHeld();
-  }, next.duration);
-}
-
 function dismissToast(id?: number) {
-  if (id != null && current?.id !== id) return;
-  if (timer) clearTimeout(timer);
-  timer = null;
-  current = null;
-  showHeld();
+  const target = id ?? state.pinned?.id ?? state.current?.id;
+  if (target == null) return;
+  state = dismissQueuedToast(state, target);
+  publish();
 }
 
 export function dismissShownToast(): void {
@@ -79,18 +102,8 @@ export function showToast(toast: ToastInput): void {
     id: nextId,
   };
   nextId += 1;
-  if (current?.pinned && !message.pinned) {
-    held = message;
-    return;
-  }
-  if (timer) clearTimeout(timer);
-  current = message;
-  emit();
-  timer = setTimeout(() => {
-    timer = null;
-    current = null;
-    showHeld();
-  }, duration);
+  state = enqueueToast(state, message);
+  publish();
 }
 
 function subscribe(listener: () => void): () => void {
@@ -98,52 +111,61 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-function getSnapshot(): ToastMessage | null {
-  return current;
+function getSnapshot(): Snapshot {
+  return snapshot;
+}
+
+function ToastView({ toast }: { toast: ToastMessage }) {
+  const theme = useTheme();
+  const backgroundColor = toast.tone === 'error' ? theme.color.dangerFill : theme.color.toast;
+  if (!toast.action) {
+    return (
+      <Pressable
+        accessibilityRole="alert"
+        onPress={() => dismissToast(toast.id)}
+        style={[styles.toast, { backgroundColor }]}
+      >
+        <Text variant="body" tone="inverse">
+          {toast.text}
+        </Text>
+      </Pressable>
+    );
+  }
+  const action = toast.action;
+  return (
+    <View accessibilityRole="alert" style={[styles.toast, styles.withAction, { backgroundColor }]}>
+      <Text variant="body" tone="inverse">
+        {toast.text}
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={action.label}
+        onPress={() => {
+          action.onPress();
+          dismissToast(toast.id);
+        }}
+        style={styles.action}
+      >
+        <Text variant="body" tone="inverse">
+          {` · ${action.label}`}
+        </Text>
+      </Pressable>
+    </View>
+  );
 }
 
 export function ToastHost() {
   const toast = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const insets = useSafeAreaInsets();
-  const theme = useTheme();
-  if (!toast) return null;
-  const backgroundColor = toast.tone === 'error' ? theme.color.dangerFill : theme.color.toast;
-  const hostStyle = [styles.host, { bottom: insets.bottom + baseTheme.layout.tabBar }];
-  if (!toast.action) {
-    return (
-      <View pointerEvents="box-none" style={hostStyle}>
-        <Pressable
-          accessibilityRole="alert"
-          onPress={() => dismissToast(toast.id)}
-          style={[styles.toast, { backgroundColor }]}
-        >
-          <Text variant="body" tone="inverse">
-            {toast.text}
-          </Text>
-        </Pressable>
-      </View>
-    );
-  }
-  const action = toast.action;
+  if (toast.errors.length === 0 && !toast.current && !toast.pinned) return null;
   return (
-    <View pointerEvents="box-none" style={hostStyle}>
-      <View accessibilityRole="alert" style={[styles.toast, styles.withAction, { backgroundColor }]}>
-        <Text variant="body" tone="inverse">
-          {toast.text}
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={action.label}
-          onPress={() => {
-            action.onPress();
-            dismissToast(toast.id);
-          }}
-          style={styles.action}
-        >
-          <Text variant="body" tone="inverse">
-            {` · ${action.label}`}
-          </Text>
-        </Pressable>
+    <View pointerEvents="box-none" style={[styles.host, { bottom: insets.bottom + baseTheme.layout.tabBar }]}>
+      <View pointerEvents="box-none" style={styles.stack}>
+        {toast.errors.map((item) => (
+          <ToastView key={item.id} toast={item} />
+        ))}
+        {toast.current ? <ToastView key={toast.current.id} toast={toast.current} /> : null}
+        {toast.pinned ? <ToastView key={toast.pinned.id} toast={toast.pinned} /> : null}
       </View>
     </View>
   );
@@ -156,6 +178,10 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     paddingHorizontal: baseTheme.space.lg,
+  },
+  stack: {
+    alignItems: 'center',
+    gap: baseTheme.space.sm,
   },
   toast: {
     minHeight: baseTheme.layout.control,

@@ -1,22 +1,26 @@
+export type RecordSheetKind = 'weight' | 'training';
+
 type RecordSheetSnapshot = {
   open: boolean;
   prefillKg: number | null;
+  kind: RecordSheetKind;
   generation: number;
 };
 
 let generation = 0;
-let snapshot: RecordSheetSnapshot = { open: false, prefillKg: null, generation };
+let snapshot: RecordSheetSnapshot = { open: false, prefillKg: null, kind: 'weight', generation };
 const listeners = new Set<() => void>();
 
 function emit() {
   listeners.forEach((listener) => listener());
 }
 
-export function openRecordSheet(weightKg?: number): void {
+export function openRecordSheet(weightKg?: number, kind: RecordSheetKind = 'weight'): void {
   generation += 1;
   snapshot = {
     open: true,
     prefillKg: typeof weightKg === 'number' ? weightKg : null,
+    kind,
     generation,
   };
   emit();
@@ -24,7 +28,7 @@ export function openRecordSheet(weightKg?: number): void {
 
 export function closeRecordSheet(): void {
   if (!snapshot.open && snapshot.prefillKg === null) return;
-  snapshot = { open: false, prefillKg: null, generation };
+  snapshot = { open: false, prefillKg: null, kind: 'weight', generation };
   emit();
 }
 
