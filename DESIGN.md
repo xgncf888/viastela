@@ -143,6 +143,46 @@ The study sheet is one screen: a topic (recent chips, or a typed name), a durati
 
 When weight, training, and study all have a row for the accounting day, the header note says `今天都记完了`.
 
+## Assets
+
+`/assets` is the asset dashboard. While the first read is in flight and nothing is ready, the page shows only `读取中`. A failed first read is `读取失败，请重试`. With no live account the empty state is `还没有账户` and `添加第一个账户`.
+
+The headline is the server `total_usd`. Offline, that figure is the last cached quotes response. The client does not show a second total of its own. Money is `US$`, `S$`, `HK$`, or `¥`, with thousands separators and two decimals. A negative amount stays ink, not danger. Share counts keep up to six decimals and drop trailing zeros.
+
+### Hide amounts
+
+Hiding amounts is on by default and stored on this device per user (`viastela.amount-mask.v1.${userId}`). Missing storage, or any value other than `0`, stays hidden. The eye button is `显示金额` or `隐藏金额`. Masking covers the total, the goal percent, the progress bar, profit and loss, share counts, and the projection chart. Cash and stock percents stay visible. Sheets show the real numbers. A hidden chart is a gray `fill` placeholder; tapping it turns masking off. It does not open the assumptions sheet. `调整假设` does.
+
+### Projection
+
+The card draws three return lines from `return_rates`, default `[0.03, 0.05, 0.07]`. `main_rate_index` is 1-based. The default index is 1, so the main line is 3%. Chips switch the main line among 3%, 5%, and 7%. All three lines share one `LineChart`. The actual series is an accent solid line with dots, and only when there are at least two snapshot points. The selected line is moss and dashed. The other two are muted, dashed, and thinner. The target is a dotted line. The accessible name is `实际、3%、5%、7%、目标，预计达标月份`, using the rates that are actually drawn.
+
+The date passed into the gap is clamped to the line first, so a day outside the projection does not throw and blank the board. When monthly net is 0 or negative, the sentence has the dollar gap and no “ahead or behind N months”. When the selected line never reaches the goal, the copy is the template `按 {当前选中的年化}% 年化，50 年内达不到目标`. The percent is the selected line, never a hardcoded 3%, and the sentence is never `600 个月内达不到`. At 5% that sentence is `按 5% 年化，50 年内达不到目标`.
+
+`snapshot: 'skipped'` with fewer than two actual points says `接入真实行情后开始记录实际走势`. Two or more actual points add no extra note, even if today was skipped. Fewer than two points after a snapshot was written says `下个月开始显示实际走势`.
+
+### Accounts and holdings
+
+A symbol matches `^[A-Z][A-Z.]{0,9}$`. Anything else says `代码只能是大写字母和点，例如 AAPL、BRK.B`. Editing a holding locks the symbol and the account in gray fields, with the hint `要换代码，请删除后重新添加`. The cost helper is `不填就无法在取不到价格时估算`. The balance helper is `负债填负数`. Saving a holding sends quantity and cost only.
+
+`全部更新余额` writes only accounts whose amount changed, then toasts `已更新 N 个账户`. `更新余额` on one account opens that account’s sheet directly. A USD balance always stores `usd_rate = 1`, so a later timeline `after_usd` is not null. Other currencies store the positive FX snapshot (units of that currency per 1 USD) or null when the client has no rate.
+
+An account that still has a live holding cannot be deleted. The hint is `先移除这个账户里的持仓`. An account with only balances can be deleted, with the same 5 second undo. The toast is `已删除 {账户名}，它的余额不再计入总资产`. A holding delete uses the same 5 second undo. Undo writes nothing. When the window ends, the soft delete runs once. If the parent account was already deleted, the sheet closes, the list refreshes, and the notice is `这个账户已经删除了`. `immutable column` says `代码和账户不能修改，请删除后重新添加`. A duplicate symbol says `这个账户里已经有 {symbol} 了`. `record deleted` keeps `这条记录已在其他设备删除`. Anything else is `保存失败，请重试`.
+
+Recent activity is up to three `TimelineItem`s on this card. The full timeline page is a later task.
+
+### Quotes
+
+The client calls the quotes function and stores the last successful book on this device, keyed by `user_id`. Prices are USD. Fresh versus stale is decided on the server. The client does not recompute the 15 minute window, and it does not invent a cost-basis price for an `unavailable` row.
+
+`status: 'unavailable'` is always `暂无价格` and stays out of the total, even when the holding has `cost_basis_usd`. A row whose `source` is `cost_basis` and that still has a price says `按成本价估算`, including when the server called it fresh. It never says `价格更新于 HH:mm`. A fresh Finnhub price says `价格更新于 HH:mm` in the user’s time zone. A stale Finnhub price, or a cached Finnhub price kept after a failed fetch, says `价格可能过期`.
+
+When the quotes source fails with no server cache, the function returns 502 `{ error: 'quote_unavailable' }`. When FX is missing, it returns 502 `{ error: 'fx_unavailable' }`. On those responses and on a network error, the board keeps the last local book, marks those Finnhub rows possibly expired, and does not overwrite or clear the cache. With no cache, the board uses the empty and unavailable states above. A top-level `unpriced` count says `有 N 个持仓没有价格`.
+
+A book whose `source` is `cost_basis` adds the callout `还没接入真实行情，股票按成本价估算`. A failed fetch that fell back to the device cache adds `离线中，显示的是上次取到的价格`. Both use `Callout` `tone="warning"`.
+
+Sign-out and local sign-out (including account deletion) clear that user’s quote cache in a `finally`, so the cache is cleared even when `auth.signOut()` throws. Another user’s cache stays.
+
 ## Installed web app
 
 The web export is an installable app. `display` is `standalone` and `start_url` is `/`. The installed name and short name live on `brand.homeScreenName` and `brand.homeScreenShortName`. `theme_color` and `background_color` are the light `paper` token. Icons are exported from `assets/icon.png`: 192, 512, a 512 maskable icon whose mark sits inside the center 80% circle, and a 180 apple touch icon. Startup images are a paper field with that icon centered.
