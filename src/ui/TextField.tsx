@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 
 import { Text } from './Text';
-import { theme } from './theme';
+import { theme as baseTheme } from './theme';
+import { useTheme } from './ThemeProvider';
 
 export function TextField({
   label,
@@ -24,6 +26,8 @@ export function TextField({
   error?: string | null;
   helper?: string;
 }) {
+  const theme = useTheme();
+  const [focused, setFocused] = useState(false);
   return (
     <View style={styles.wrap}>
       <Text variant="muted">{label}</Text>
@@ -32,29 +36,41 @@ export function TextField({
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={theme.color.faint}
+        placeholderTextColor={theme.color.textFaint}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
         autoCorrect={false}
         autoComplete={autoComplete}
-        style={styles.input}
+        selectionColor={theme.color.accent}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={[
+          styles.input,
+          {
+            borderColor: error ? theme.color.danger : focused ? theme.color.accent : theme.color.line,
+            backgroundColor: theme.color.surface,
+            color: theme.color.ink,
+          },
+        ]}
       />
-      {error ? <Text variant="muted" tone="danger">{error}</Text> : null}
+      {error ? (
+        <Text variant="muted" tone="danger">
+          {error}
+        </Text>
+      ) : null}
       {!error && helper ? <Text variant="muted">{helper}</Text> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: theme.space.sm },
+  wrap: { gap: baseTheme.space.sm },
   input: {
-    minHeight: theme.layout.control,
-    borderRadius: theme.radius.md,
-    borderWidth: theme.border.width,
-    borderColor: theme.color.line,
-    backgroundColor: theme.color.card,
-    color: theme.color.ink,
-    fontSize: theme.font.lg,
-    paddingHorizontal: theme.space.md,
+    minHeight: baseTheme.layout.control,
+    borderRadius: baseTheme.radius.sm,
+    borderWidth: baseTheme.border.width,
+    fontSize: baseTheme.font.md,
+    paddingHorizontal: baseTheme.space.md,
+    fontVariant: ['tabular-nums'],
   },
 });

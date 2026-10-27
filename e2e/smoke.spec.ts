@@ -1,13 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { brand } from '../src/config/brand';
-
-const userId = '11111111-1111-4111-8111-111111111111';
-
-function unsignedJwt(payload: Record<string, unknown>): string {
-  const encode = (value: Record<string, unknown>) => Buffer.from(JSON.stringify(value)).toString('base64url');
-  return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.sig`;
-}
+import { installApi, signIn } from './session';
 
 test('web build shows the email login screen', async ({ page }) => {
   const pageErrors: string[] = [];
@@ -26,30 +20,8 @@ test('web build shows the email login screen', async ({ page }) => {
 test('signed-in shell switches tabs and opens the record sheet', async ({ page }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
-  const session = {
-    access_token: unsignedJwt({
-      sub: userId,
-      email: 'yifeng@example.com',
-      role: 'authenticated',
-      exp: 4_000_000_000,
-    }),
-    refresh_token: 'refresh-token',
-    expires_at: 4_000_000_000,
-    expires_in: 3_600,
-    token_type: 'bearer',
-    user: {
-      id: userId,
-      aud: 'authenticated',
-      email: 'yifeng@example.com',
-      app_metadata: { provider: 'email' },
-      user_metadata: {},
-      created_at: '2026-10-24T00:00:00.000Z',
-    },
-  };
-  await page.addInitScript((stored) => {
-    // Storage key matches the bundled EXPO_PUBLIC_SUPABASE_URL host (127.0.0.1).
-    localStorage.setItem('sb-127-auth-token', JSON.stringify(stored));
-  }, session);
+  await signIn(page);
+  await installApi(page, { weights: [] });
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');

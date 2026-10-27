@@ -1,30 +1,40 @@
 import { Text as NativeText, Platform, StyleSheet, type StyleProp, type TextStyle } from 'react-native';
 
-import { theme } from './theme';
+import { theme as baseTheme } from './theme';
+import { useTheme } from './ThemeProvider';
 
 type Variant = 'display' | 'title' | 'heading' | 'body' | 'muted';
-type Tone = 'ink' | 'muted' | 'inverse' | 'accent' | 'danger';
+type Tone = 'ink' | 'muted' | 'inverse' | 'accent' | 'onAccent' | 'danger' | 'moss';
 
 const variantStyle: Record<Variant, TextStyle> = {
   display: {
-    fontSize: theme.font.display,
-    lineHeight: theme.font.display + theme.space.sm,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
+    fontSize: baseTheme.font.display,
+    lineHeight: baseTheme.font.display + baseTheme.space.sm,
+    fontWeight: '500',
   },
-  title: { fontSize: theme.font.xl, lineHeight: theme.font.xl + theme.space.sm, fontWeight: '600' },
-  heading: { fontSize: theme.font.lg, lineHeight: theme.font.lg + theme.space.sm, fontWeight: '600' },
-  body: { fontSize: theme.font.md, lineHeight: theme.font.md + theme.space.sm, fontWeight: '400' },
-  muted: { fontSize: theme.font.sm, lineHeight: theme.font.sm + theme.space.sm, fontWeight: '400' },
+  title: {
+    fontSize: baseTheme.font.xl,
+    lineHeight: baseTheme.font.xl + baseTheme.space.sm,
+    fontWeight: '500',
+  },
+  heading: {
+    fontSize: baseTheme.font.lg,
+    lineHeight: baseTheme.font.lg + baseTheme.space.sm,
+    fontWeight: '500',
+  },
+  body: {
+    fontSize: baseTheme.font.md,
+    lineHeight: baseTheme.font.md + baseTheme.space.sm,
+    fontWeight: '400',
+  },
+  muted: {
+    fontSize: baseTheme.font.sm,
+    lineHeight: baseTheme.font.sm + baseTheme.space.sm,
+    fontWeight: '400',
+  },
 };
 
-const toneColor: Record<Tone, string> = {
-  ink: theme.color.ink,
-  muted: theme.color.muted,
-  inverse: theme.color.accentInk,
-  accent: theme.color.accent,
-  danger: theme.color.danger,
-};
+const editorial = new Set<Variant>(['display', 'title', 'heading']);
 
 export function Text({
   children,
@@ -39,11 +49,28 @@ export function Text({
   style?: StyleProp<TextStyle>;
   accessibilityRole?: 'header' | 'text';
 }) {
+  const theme = useTheme();
   const resolvedTone = tone ?? (variant === 'muted' ? 'muted' : 'ink');
+  const accentColor = variant === 'display' ? theme.color.accent : theme.color.accentText;
+  const toneColor: Record<Tone, string> = {
+    ink: theme.color.ink,
+    muted: theme.color.muted,
+    inverse: theme.color.onToast,
+    accent: accentColor,
+    onAccent: theme.color.accentInk,
+    danger: theme.color.danger,
+    moss: theme.color.moss,
+  };
   return (
     <NativeText
       accessibilityRole={accessibilityRole}
-      style={[styles.base, variantStyle[variant], { color: toneColor[resolvedTone] }, style]}
+      style={[
+        styles.base,
+        variantStyle[variant],
+        editorial.has(variant) ? styles.editorial : null,
+        { color: toneColor[resolvedTone] },
+        style,
+      ]}
     >
       {children}
     </NativeText>
@@ -53,8 +80,16 @@ export function Text({
 const styles = StyleSheet.create({
   base: {
     fontFamily: Platform.select({
-      web: 'ui-sans-serif, system-ui, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif',
+      web: baseTheme.fontFamily.sans,
       default: undefined,
     }),
+    fontVariant: ['tabular-nums'],
+  },
+  editorial: {
+    fontFamily: Platform.select({
+      web: baseTheme.fontFamily.serif,
+      default: undefined,
+    }),
+    fontWeight: '500',
   },
 });

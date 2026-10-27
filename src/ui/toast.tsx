@@ -3,7 +3,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Text } from './Text';
-import { theme } from './theme';
+import { theme as baseTheme } from './theme';
+import { useTheme } from './ThemeProvider';
 
 export type ToastInput = {
   text: string;
@@ -45,16 +46,20 @@ function getSnapshot(): ToastMessage | null {
 export function ToastHost() {
   const toast = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
   if (!toast) return null;
   return (
-    <View pointerEvents="box-none" style={[styles.host, { bottom: insets.bottom + theme.layout.tabBar }]}>
+    <View pointerEvents="box-none" style={[styles.host, { bottom: insets.bottom + baseTheme.layout.tabBar }]}>
       <Pressable
         accessibilityRole="alert"
         onPress={() => {
           current = null;
           emit();
         }}
-        style={[styles.toast, toast.tone === 'error' ? styles.error : styles.ok]}
+        style={[
+          styles.toast,
+          { backgroundColor: toast.tone === 'error' ? theme.color.dangerFill : theme.color.toast },
+        ]}
       >
         <Text variant="body" tone="inverse">
           {toast.text}
@@ -70,14 +75,15 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    paddingHorizontal: theme.space.lg,
+    paddingHorizontal: baseTheme.space.lg,
   },
   toast: {
-    borderRadius: theme.radius.pill,
-    paddingHorizontal: theme.space.lg,
-    paddingVertical: theme.space.sm,
-    maxWidth: theme.layout.content,
+    minHeight: baseTheme.layout.control,
+    borderRadius: baseTheme.radius.pill,
+    paddingHorizontal: baseTheme.space.lg,
+    paddingVertical: baseTheme.space.sm,
+    maxWidth: baseTheme.layout.content,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  ok: { backgroundColor: theme.color.ink },
-  error: { backgroundColor: theme.color.danger },
 });
