@@ -79,9 +79,9 @@ The anon key is public. The service role key stays on the server and out of this
 
 ## Account and privacy
 
-`/privacy` is the privacy policy: what is stored, the sign-in methods, deletion, and the backup purge window. The contact address is xgncf888@gmail.com.
+`/privacy` lists the stored data: weight, training sets, study records, and the account email, name, and avatar. It says the data is not sold, not used for advertising, and not sent to an AI service in this version. The contact address is xgncf888@gmail.com.
 
-`/account/delete` explains that weight records and the profile are deleted, that this cannot be undone, and that backups are purged within 30 days. The button stays off until the person types 删除. A failure returns to that explanation. Success opens 账号已删除, and 好的 returns to login.
+`/account/delete` explains that weight records, training sets, study records, and the profile are deleted, and that this cannot be undone. Both pages use `backupPurgeDays` for the backup purge window. The button stays off until the person types 删除. A failure returns to that explanation. Success opens 账号已删除, and 好的 returns to login.
 
 `profiles.user_id` and `weight_records.user_id` already reference `auth.users` with `on delete cascade`. pgTAP checks that catalog rule and that deleting a test user leaves no `user_id` row in `public`.
 
