@@ -1,4 +1,4 @@
--- Not applied on the hosted database. 20261027051825 is the hosted version of
+-- Applied on the hosted database as 20261027064126. 20261027051825 is the hosted version of
 -- the init migration only (supabase/migrations/20261027051825_init.sql).
 -- Future record tables copy this shape:
 -- client uuid id, recorded_at, tz, local_day frozen at write, updated_at
