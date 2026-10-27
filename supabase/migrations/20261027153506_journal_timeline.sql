@@ -355,5 +355,36 @@ from (
 comment on view public.timeline is
   'Journal entries, asset events, and balance changes for the calling user. Keyset order is (occurred_at, id).';
 
+-- A UNION view is not auto-updatable. Postgres reports that as 55000 before it
+-- checks grants, so an anonymous insert would not be 42501. INSTEAD OF triggers
+-- make the write path a privilege check: roles without INSERT get 42501.
+-- A role that does have INSERT still cannot change the underlying rows.
+create or replace function public.reject_timeline_write()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  raise exception 'timeline is read only' using errcode = '55000';
+end;
+$$;
+
+comment on function public.reject_timeline_write() is
+  'Rejects writes that pass the timeline privilege check. The view is read only.';
+
+create trigger timeline_reject_insert
+instead of insert on public.timeline
+for each row execute function public.reject_timeline_write();
+
+create trigger timeline_reject_update
+instead of update on public.timeline
+for each row execute function public.reject_timeline_write();
+
+create trigger timeline_reject_delete
+instead of delete on public.timeline
+for each row execute function public.reject_timeline_write();
+
+revoke all on function public.reject_timeline_write() from public, anon, authenticated;
+
 revoke all on table public.timeline from public, anon, authenticated;
 grant select on table public.timeline to authenticated;
