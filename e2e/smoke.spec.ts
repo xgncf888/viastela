@@ -29,6 +29,20 @@ test('web build shows the email login screen', async ({ page }) => {
   expect(pageErrors).toEqual([]);
 });
 
+test('an unknown path offers 回到今日 and opens Today', async ({ page }) => {
+  await signIn(page);
+  await installApi(page, { weights: [] });
+  await page.goto('/does-not-exist');
+  await expect(page.getByText('找不到这一页')).toBeVisible();
+  const home = page.getByRole('button', { name: '回到今日' });
+  await expect(home).toBeVisible();
+  await home.click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole('button', { name: '回到今日' })).toHaveCount(0);
+  await expect(page.getByText('先记第一笔').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: '今日' })).toBeVisible();
+});
+
 test('a direct /account/delete load renders the app', async ({ page }) => {
   const response = await page.goto('/account/delete');
   expect(response?.status()).toBe(200);
