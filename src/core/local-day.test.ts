@@ -4,6 +4,7 @@ import vectors from '../../fixtures/local-day.json';
 import {
   civilLocalDay,
   computeLocalDay,
+  daysBetween,
   headerAccountingLabel,
   saveToastMessage,
   shiftLocalDay,
@@ -98,6 +99,14 @@ describe('day-switch changes', () => {
     expect(ifRecomputed).toEqual(['2026-10-23', '2026-10-24']);
     expect(written.map((item) => item.localDay)).toEqual(['2026-10-24', '2026-10-24']);
     expect(sevenDayAverageView(written, '2026-10-24').status).toBe('insufficient');
+  });
+});
+
+describe('civil day span', () => {
+  it('counts whole days and treats the same day as zero', () => {
+    expect(daysBetween('2026-10-01', '2026-10-28')).toBe(27);
+    expect(daysBetween('2026-10-27', '2026-10-27')).toBe(0);
+    expect(daysBetween('2026-10-28', '2026-10-01')).toBe(-27);
   });
 });
 

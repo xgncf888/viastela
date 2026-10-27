@@ -5,7 +5,7 @@ import { formatKg, summarizeWindow } from '@/core/weight-stats';
 import { openRecordSheet } from '@/features/record/record-sheet-store';
 import { useShellInset } from '@/features/shell/AppShell';
 import { AverageHeadline } from '@/features/weight/WeightSummary';
-import { LOADING_TEXT, weighInLabel } from '@/features/weight/weight-copy';
+import { excludePending, LOADING_TEXT, weighInLabel } from '@/features/weight/weight-copy';
 import { useWeight } from '@/features/weight/WeightProvider';
 import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
@@ -19,7 +19,7 @@ import { Text } from '@/ui/Text';
 import { chartSeries } from './chart-model';
 
 export function TrendScreen() {
-  const { ready, loadError, records, daySwitch, timeZone, reload } = useWeight();
+  const { ready, loadError, records, pendingDeleteIds, daySwitch, timeZone, reload } = useWeight();
   const inset = useShellInset();
   const [now, setNow] = useState(() => new Date());
 
@@ -29,8 +29,9 @@ export function TrendScreen() {
   }, []);
 
   const endDay = computeLocalDay(now, timeZone, daySwitch);
-  const days = summarizeWindow(records, endDay);
-  const series = chartSeries(records, endDay);
+  const counted = excludePending(records, pendingDeleteIds);
+  const days = summarizeWindow(counted, endDay);
+  const series = chartSeries(counted, endDay);
   const startLabel = formatMonthDay(series.startDay);
   const endLabel = formatMonthDay(series.endDay);
 
@@ -45,7 +46,7 @@ export function TrendScreen() {
         {loadError ? (
           <Callout message={loadError} action={<Button label="重试" variant="secondary" onPress={() => void reload()} />} />
         ) : null}
-        <AverageHeadline records={records} endDay={endDay} />
+        <AverageHeadline records={counted} endDay={endDay} />
         <Card>
           <Text variant="muted">近 28 日</Text>
           {!ready ? <Text variant="muted">{LOADING_TEXT}</Text> : null}

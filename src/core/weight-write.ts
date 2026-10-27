@@ -1,4 +1,4 @@
-/** Thrown when an upsert targets an id that was soft-deleted. Do not retry that id. */
+/** Thrown when a write targets an id that was already soft-deleted. Do not retry that id. */
 export const RECORD_DELETED = 'record deleted';
 
 type DbError = {
@@ -7,11 +7,11 @@ type DbError = {
 };
 
 /**
- * Postgres rejects an upsert of a soft-deleted id with row-level security:
- * the hidden row can be matched, but the new row still has deleted_at set.
+ * The deleted-row trigger raises P0001. Any other code, including row-level
+ * security, means the same id can be retried.
  */
-export function isSoftDeletedUpsert(error: DbError): boolean {
-  return error.code === '42501' && /row-level security policy/i.test(error.message ?? '');
+export function isRecordDeleted(error: DbError): boolean {
+  return error.code === 'P0001';
 }
 
 /** `record deleted` drops the pending row. Anything else can be retried on the same id. */

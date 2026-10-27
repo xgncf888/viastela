@@ -36,6 +36,18 @@ export function accountingDay(now = new Date()): string {
   return clock.toISOString().slice(0, 10);
 }
 
+export type TrainingRow = {
+  id: string;
+  exercise: string;
+  reps: number;
+  weight: number | null;
+  band_level: string | null;
+  recorded_at: string;
+  tz: string;
+  local_day: string;
+  updated_at: string;
+};
+
 export type WeightRow = {
   id: string;
   weight_kg: number;
@@ -68,8 +80,11 @@ export async function installApi(
   page: Page,
   options: {
     weights: WeightRow[];
+    training?: TrainingRow[];
     onWrite?: (route: Route) => Promise<void>;
     onSoftDelete?: (body: string) => void;
+    onTrainingWrite?: (route: Route) => Promise<void>;
+    onTrainingDelete?: (body: string) => void;
   },
 ): Promise<void> {
   await page.route('**/*', async (route) => {
@@ -85,6 +100,12 @@ export async function installApi(
       return;
     }
     if (url.includes('/rest/v1/weight_records') && request.method() !== 'GET') {
+      const body = request.postData() ?? '';
+      if (request.method() === 'PATCH' && body.includes('deleted_at')) {
+        options.onSoftDelete?.(`${url}\n${body}`);
+        await route.fulfill({ status: 200, headers: cors, body: '[]' });
+        return;
+      }
       if (options.onWrite) {
         await options.onWrite(route);
         return;
@@ -101,6 +122,24 @@ export async function installApi(
           )
         : JSON.stringify(options.weights);
       await route.fulfill({ status: 200, headers: cors, body });
+      return;
+    }
+    if (url.includes('/rest/v1/training_sets') && request.method() !== 'GET') {
+      const body = request.postData() ?? '';
+      if (request.method() === 'PATCH' && body.includes('deleted_at')) {
+        options.onTrainingDelete?.(`${url}\n${body}`);
+        await route.fulfill({ status: 200, headers: cors, body: '[]' });
+        return;
+      }
+      if (options.onTrainingWrite) {
+        await options.onTrainingWrite(route);
+        return;
+      }
+      await route.fulfill({ status: 201, headers: cors, body: '[]' });
+      return;
+    }
+    if (url.includes('/rest/v1/training_sets')) {
+      await route.fulfill({ status: 200, headers: cors, body: JSON.stringify(options.training ?? []) });
       return;
     }
     if (url.includes('/rest/v1/profiles')) {

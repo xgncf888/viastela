@@ -21,7 +21,7 @@ Shipped in the skeleton:
 
 Stubbed:
 
-- 训练, 学习, and 时间块 are visible in the record sheet and do not save.
+- 训练 records a set (动作, 次数, 重量 or 弹力带) on 今日, with the same deferred delete as weight. 学习 and 时间块 are visible in the record sheet and do not save.
 - No offline queue.
 - No EAS build, no store binaries, and no real EAS project id.
 - No hosted Supabase project in the repo.

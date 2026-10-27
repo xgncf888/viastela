@@ -18,8 +18,8 @@
 - The 7-day average is insufficient data until 4 local days in the window have a weigh-in.
 - The trend chart series is an exponential moving average (alpha 0.1) of the earliest weigh-in on each `local_day`. Days with no row are skipped and are not interpolated. The headline number stays the 7-day average.
 - Weight list reads are the last 28 `local_day` values plus one latest row, and soft-deleted rows are excluded.
-- A weight row is removed by `soft_delete_weight_record`, which sets `deleted_at`. Hard `DELETE` is revoked. A direct update that leaves `deleted_at` set fails row-level security. `updated_at` stays on the server trigger from the init migration.
-- Upserting a soft-deleted weight id throws `record deleted` and that id is not retried. The screen says `这条记录已在其他设备删除` and offers only 关闭. The raw error is not shown.
+- A record row is removed by a plain update that sets `deleted_at`. Hard `DELETE` stays revoked. `soft_delete_weight_record` remains. Select policies check only `user_id = auth.uid()`, so a person can read their own deleted rows. The app adds `deleted_at is null` on every read through `liveRows`. `forbid_update_deleted` runs on every table with `deleted_at` and raises `P0001` `record deleted` when a deleted row is updated or upserted. The app treats only that code as record deleted. Any other error, including row-level security, is retried on the same id. The screen says `这条记录已在其他设备删除` and offers only 关闭. The raw error is not shown.
+- `training_sets` is one row per set. `weight` and `band_level` are mutually exclusive. `user_id` references `auth.users` on delete cascade. `local_day` is frozen at write time.
 - `local_day` must be the civil date of `recorded_at` in `tz` or the previous day. `weight_kg` stays inside (0, 500).
 - `fixtures/local-day.json` is the shared vector file for the Jest local-day tests and the pgTAP trigger tests.
 - Future money columns are integer minor units, a currency code, and an FX snapshot taken at write time.

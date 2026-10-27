@@ -42,6 +42,34 @@ test('saving a soft-deleted record says it was removed elsewhere and has no retr
     weights: [weightRow('w-1', day, 73.7)],
     onWrite: async (route) => {
       await route.fulfill({
+        status: 400,
+        headers: {
+          'access-control-allow-origin': '*',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          code: 'P0001',
+          message: 'record deleted',
+          details: null,
+          hint: null,
+        }),
+      });
+    },
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: '再记 73.7 kg' }).click();
+  await page.getByRole('button', { name: '保存' }).click();
+  await expect(page.getByText('这条记录已在其他设备删除')).toBeVisible();
+  await expect(page.getByRole('button', { name: '重试' })).toHaveCount(0);
+});
+
+test('a row-level security error other than record deleted can be retried', async ({ page }) => {
+  const day = accountingDay();
+  await signIn(page);
+  await installApi(page, {
+    weights: [weightRow('w-1', day, 73.7)],
+    onWrite: async (route) => {
+      await route.fulfill({
         status: 403,
         headers: {
           'access-control-allow-origin': '*',
@@ -59,8 +87,38 @@ test('saving a soft-deleted record says it was removed elsewhere and has no retr
   await page.goto('/');
   await page.getByRole('button', { name: '再记 73.7 kg' }).click();
   await page.getByRole('button', { name: '保存' }).click();
-  await expect(page.getByText('这条记录已在其他设备删除')).toBeVisible();
-  await expect(page.getByRole('button', { name: '重试' })).toHaveCount(0);
+  await page.getByRole('button', { name: '关闭' }).click();
+  await expect(page.getByText('这条记录已在其他设备删除')).toHaveCount(0);
+  await expect(page.getByText('保存失败，请重试')).toBeVisible();
+  await expect(page.getByRole('button', { name: '重试' })).toBeVisible();
+});
+
+test('a pending delete drops out of 复测 numbering and the 7-day average', async ({ page }) => {
+  const writes = trackWrites();
+  await openPausedToday(
+    page,
+    [
+      weightRow('d24', '2026-10-24', 70, 8),
+      weightRow('d25', '2026-10-25', 70, 8),
+      weightRow('d26', '2026-10-26', 70, 8),
+      weightRow('d27', day, 70, 8),
+      weightRow('d27b', day, 90, 9),
+    ],
+    writes,
+  );
+  await expect(page.getByText('复测', { exact: true })).toHaveCount(1);
+  await expect(page.getByText('70.0', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: '删除' }).nth(0).click();
+  await expect(page.getByText('复测', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('晨重', { exact: true })).toHaveCount(1);
+  await expect(page.getByText('90.0 kg · 9:15')).toBeVisible();
+  await expect(page.getByText('75.0', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '撤销' }).click();
+  await expect(page.getByText('复测', { exact: true })).toHaveCount(1);
+  await expect(page.getByText('70.0', { exact: true })).toBeVisible();
+  await page.clock.fastForward(5_000);
+  await expectNoWrites(writes);
 });
 
 const day = '2026-10-27';
