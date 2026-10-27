@@ -1,19 +1,18 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
 
 import { brand } from '@/config/brand';
+import { signOut } from '@/data/auth';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { useShellInset } from '@/features/shell/AppShell';
 import { useWeight } from '@/features/weight/WeightProvider';
-import { signOut } from '@/data/auth';
 import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
 import { Content } from '@/ui/Content';
+import { Field, ScreenHeader } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { TextField } from '@/ui/TextField';
 import { showToast } from '@/ui/toast';
-import { theme } from '@/ui/theme';
 
 export function MeScreen() {
   const { session } = useAuth();
@@ -42,15 +41,9 @@ export function MeScreen() {
   return (
     <Screen>
       <Content inset={inset}>
-        <View style={styles.header}>
-          <Text variant="muted">我的</Text>
-          <Text variant="title" accessibilityRole="header">
-            {brand.displayName}
-          </Text>
-        </View>
+        <ScreenHeader kicker="我的" title={brand.displayName} />
         <Card>
-          <Text variant="muted">邮箱</Text>
-          <Text variant="body">{session?.email ?? '未登录'}</Text>
+          <Field label="邮箱" value={session?.email ?? '未登录'} />
         </Card>
         <Card>
           <TextField
@@ -64,9 +57,11 @@ export function MeScreen() {
           <Button label="保存" onPress={() => void onSave()} loading={saving} />
         </Card>
         <Card>
-          <Text variant="muted">当前时区</Text>
-          <Text variant="body">{timeZone}</Text>
-          <Text variant="muted">每条记录写下当时的时区。之后换城市，旧记录的归属日不变。</Text>
+          <Field
+            label="当前时区"
+            value={timeZone}
+            hint="每条记录写下当时的时区。之后换城市，旧记录的归属日不变。"
+          />
         </Card>
         <Card>
           <Text variant="body">训练、学习和时间块还在后面。现在可以记体重。</Text>
@@ -84,7 +79,3 @@ export function MeScreen() {
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  header: { gap: theme.space.xs },
-});

@@ -1,18 +1,29 @@
 import { StyleSheet, View } from 'react-native';
 
-import { theme } from './theme';
+import { theme as baseTheme } from './theme';
+import { useTheme } from './ThemeProvider';
 
 export function Card({ children }: { children: React.ReactNode }) {
-  return <View style={styles.card}>{children}</View>;
+  const theme = useTheme();
+  return (
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: theme.color.card, borderColor: theme.color.line },
+      ]}
+    >
+      {children}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: theme.color.card,
-    borderRadius: theme.radius.lg,
-    borderWidth: theme.border.width,
-    borderColor: theme.color.line,
-    padding: theme.space.lg,
-    gap: theme.space.sm,
+    backgroundColor: baseTheme.color.card,
+    borderRadius: baseTheme.radius.lg,
+    borderWidth: baseTheme.border.width,
+    borderColor: baseTheme.color.line,
+    padding: baseTheme.space.md,
+    gap: baseTheme.space.sm,
   },
 });

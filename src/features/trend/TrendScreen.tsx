@@ -1,20 +1,22 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
 
-import { DEFAULT_WEIGHT_EMA_ALPHA, weightTrendEma } from '@/core/ema';
 import { computeLocalDay, formatClock, formatMonthDay } from '@/core/local-day';
-import { formatKg, sevenDayAverageView, summarizeWindow } from '@/core/weight-stats';
+import { formatKg, summarizeWindow } from '@/core/weight-stats';
+import { openRecordSheet } from '@/features/record/record-sheet-store';
 import { useShellInset } from '@/features/shell/AppShell';
+import { AverageHeadline } from '@/features/weight/WeightSummary';
+import { LOADING_TEXT, weighInLabel } from '@/features/weight/weight-copy';
 import { useWeight } from '@/features/weight/WeightProvider';
 import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
 import { Content } from '@/ui/Content';
 import { EmptyState } from '@/ui/EmptyState';
+import { LineChart } from '@/ui/LineChart';
+import { Callout, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
-import { theme } from '@/ui/theme';
 
-import { TrendChart } from './TrendChart';
+import { chartSeries } from './chart-model';
 
 export function TrendScreen() {
   const { ready, loadError, records, daySwitch, timeZone, reload } = useWeight();
@@ -28,58 +30,66 @@ export function TrendScreen() {
 
   const endDay = computeLocalDay(now, timeZone, daySwitch);
   const days = summarizeWindow(records, endDay);
-  const trend = weightTrendEma(records, endDay, DEFAULT_WEIGHT_EMA_ALPHA);
-  const average = sevenDayAverageView(records, endDay);
-  const hasAny = days.some((day) => day.primary);
+  const series = chartSeries(records, endDay);
+  const startLabel = formatMonthDay(series.startDay);
+  const endLabel = formatMonthDay(series.endDay);
 
   return (
     <Screen>
       <Content inset={inset}>
-        <View style={styles.header}>
-          <Text variant="muted">趋势</Text>
-          <Text variant="title" accessibilityRole="header">
-            近 7 日
-          </Text>
-          <Text variant="muted">均重用每天最早的一笔。同一天的其他记录留作备注，不进均重。</Text>
-        </View>
+        <ScreenHeader
+          kicker="趋势"
+          title="近 7 日"
+          detail="均重用每天最早的一笔。同一天更晚的记录是复测，不进均重。"
+        />
         {loadError ? (
-          <Card>
-            <Text variant="body">{loadError}</Text>
-            <Button label="重试" variant="secondary" onPress={() => void reload()} />
-          </Card>
+          <Callout message={loadError} action={<Button label="重试" variant="secondary" onPress={() => void reload()} />} />
         ) : null}
+        <AverageHeadline records={records} endDay={endDay} />
         <Card>
-          <Text variant="muted">7 日均重</Text>
-          {average.status === 'insufficient' ? (
-            <Text variant="body">数据不足</Text>
-          ) : (
-            <Text variant="display">{formatKg(average.kilograms)}</Text>
-          )}
-          <Text variant="muted">{average.status === 'insufficient' ? '至少 4 天记录后显示均重' : 'kg'}</Text>
-          {ready && !hasAny ? <EmptyState /> : <TrendChart days={trend} />}
+          <Text variant="muted">近 28 日</Text>
+          {!ready ? <Text variant="muted">{LOADING_TEXT}</Text> : null}
+          {ready && series.points.length === 0 ? (
+            <EmptyState
+              title="还没有体重"
+              description="记下体重后，这里会画出每天最早的体重，以及一条平滑趋势。"
+              action={<Button label="记录" onPress={() => openRecordSheet()} />}
+            />
+          ) : null}
+          {ready && series.points.length > 0 ? (
+            <Stack gap="sm">
+              <LineChart
+                points={series.points}
+                startLabel={startLabel}
+                endLabel={endLabel}
+                rawLabel="最早体重"
+                trendLabel="平滑趋势"
+                accessibilityLabel={`近 28 日走势，${startLabel}至${endLabel}。圆点是每天最早的体重，虚线是平滑趋势，不是均重。`}
+              />
+              <Text variant="muted">圆点是每天最早的体重。虚线是指数平滑，不是另一条均重。</Text>
+            </Stack>
+          ) : null}
         </Card>
-        {days.map((day) => (
-          <Card key={day.localDay}>
-            <Text variant="heading">{formatMonthDay(day.localDay)}</Text>
-            {day.primary ? (
-              <Text variant="body">
-                晨重 {formatKg(day.primary.weightKg)} kg · {formatClock(day.primary.recordedAt, day.primary.tz)}
-              </Text>
-            ) : (
-              <Text variant="muted">无记录</Text>
-            )}
-            {day.notes.map((note) => (
-              <Text key={note.id} variant="muted">
-                备注 {formatKg(note.weightKg)} kg · {formatClock(note.recordedAt, note.tz)}
-              </Text>
-            ))}
-          </Card>
-        ))}
+        <Stack gap="md">
+          {days.map((day) => (
+            <Card key={day.localDay}>
+              <Text variant="heading">{formatMonthDay(day.localDay)}</Text>
+              {day.primary ? (
+                <Text variant="body">
+                  {weighInLabel(0)} {formatKg(day.primary.weightKg)} kg · {formatClock(day.primary.recordedAt, day.primary.tz)}
+                </Text>
+              ) : (
+                <Text variant="muted">无记录</Text>
+              )}
+              {day.notes.map((note, index) => (
+                <Text key={note.id} variant="muted">
+                  {weighInLabel(index + 1)} {formatKg(note.weightKg)} kg · {formatClock(note.recordedAt, note.tz)}
+                </Text>
+              ))}
+            </Card>
+          ))}
+        </Stack>
       </Content>
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  header: { gap: theme.space.xs },
-});

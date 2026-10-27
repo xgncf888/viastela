@@ -1,10 +1,28 @@
 import { ScrollView, StyleSheet } from 'react-native';
 
-import { theme } from './theme';
+import { theme, type SpaceName } from './theme';
 
-export function Content({ children, inset }: { children: React.ReactNode; inset: number }) {
+export function Content({
+  children,
+  inset = 0,
+  align = 'start',
+  gap = 'lg',
+}: {
+  children: React.ReactNode;
+  inset?: number;
+  align?: 'start' | 'center';
+  gap?: SpaceName;
+}) {
   return (
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: inset }]} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      contentContainerStyle={[
+        styles.content,
+        { gap: theme.space[gap] },
+        inset > 0 ? { paddingBottom: inset } : null,
+        align === 'center' ? styles.center : null,
+      ]}
+      keyboardShouldPersistTaps="handled"
+    >
       {children}
     </ScrollView>
   );
@@ -16,6 +34,9 @@ const styles = StyleSheet.create({
     maxWidth: theme.layout.content,
     alignSelf: 'center',
     padding: theme.space.lg,
-    gap: theme.space.lg,
+  },
+  center: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
 });

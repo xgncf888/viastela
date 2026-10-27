@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet } from 'react-native';
 
 import { Text } from './Text';
-import { theme } from './theme';
+import { theme as baseTheme } from './theme';
+import { useTheme } from './ThemeProvider';
 
-type Variant = 'primary' | 'secondary' | 'ghost';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 export function Button({
   label,
@@ -18,7 +20,26 @@ export function Button({
   disabled?: boolean;
   loading?: boolean;
 }) {
+  const theme = useTheme();
+  const [hovered, setHovered] = useState(false);
   const inactive = disabled || loading;
+  const hot = hovered && !inactive;
+  const background =
+    variant === 'primary'
+      ? hot
+        ? theme.color.accentHover
+        : theme.color.accent
+      : variant === 'danger'
+        ? theme.color.dangerFill
+        : variant === 'secondary'
+          ? hot
+            ? theme.color.fill
+            : 'transparent'
+          : hot
+            ? theme.color.accentSoft
+            : 'transparent';
+  const labelTone = variant === 'primary' ? 'onAccent' : variant === 'danger' ? 'inverse' : variant === 'ghost' ? 'accent' : 'ink';
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -26,12 +47,35 @@ export function Button({
       accessibilityState={{ disabled: inactive, busy: loading }}
       disabled={inactive}
       onPress={onPress}
-      style={[styles.base, styles[variant], inactive && styles.inactive]}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      style={({ pressed }) => [
+        styles.base,
+        {
+          backgroundColor: background,
+          borderColor: variant === 'secondary' ? theme.color.line : 'transparent',
+          transform: pressed && !inactive ? [{ translateY: 1 }] : undefined,
+        },
+        variant === 'primary' && !inactive
+          ? {
+              shadowColor: theme.color.accent,
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.25,
+              shadowRadius: 2,
+              elevation: 1,
+            }
+          : null,
+        inactive ? styles.inactive : null,
+      ]}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' ? theme.color.accentInk : theme.color.accent} />
+        <ActivityIndicator
+          color={
+            variant === 'primary' ? theme.color.accentInk : variant === 'danger' ? theme.color.onToast : theme.color.accent
+          }
+        />
       ) : (
-        <Text variant="body" tone={variant === 'primary' ? 'inverse' : variant === 'ghost' ? 'accent' : 'ink'}>
+        <Text variant="body" tone={labelTone} style={styles.label}>
           {label}
         </Text>
       )}
@@ -41,18 +85,15 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: {
-    minHeight: theme.layout.control,
-    borderRadius: theme.radius.md,
+    minHeight: baseTheme.layout.control,
+    borderRadius: baseTheme.radius.sm,
+    borderWidth: baseTheme.border.width,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: theme.space.lg,
+    paddingHorizontal: baseTheme.space.md,
+    paddingVertical: baseTheme.space.sm,
+    minWidth: baseTheme.layout.control,
   },
-  primary: { backgroundColor: theme.color.accent },
-  secondary: {
-    backgroundColor: theme.color.card,
-    borderWidth: theme.border.width,
-    borderColor: theme.color.line,
-  },
-  ghost: { backgroundColor: 'transparent' },
+  label: { fontWeight: '500' },
   inactive: { opacity: 0.55 },
 });

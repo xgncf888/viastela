@@ -3,16 +3,34 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Text } from './Text';
-import { theme } from './theme';
+import { theme as baseTheme } from './theme';
+import { useTheme } from './ThemeProvider';
+
+export type ToastAction = {
+  label: string;
+  onPress: () => void;
+};
 
 export type ToastInput = {
   text: string;
   tone?: 'ok' | 'error';
+  duration?: number;
+  action?: ToastAction;
+  /** Stays up until it is dismissed. A normal toast waits behind it. */
+  pinned?: boolean;
 };
 
-type ToastMessage = ToastInput & { id: number; tone: 'ok' | 'error' };
+type ToastMessage = {
+  id: number;
+  text: string;
+  tone: 'ok' | 'error';
+  action?: ToastAction;
+  pinned?: boolean;
+  duration: number;
+};
 
 let current: ToastMessage | null = null;
+let held: ToastMessage | null = null;
 let nextId = 1;
 let timer: ReturnType<typeof setTimeout> | null = null;
 const listeners = new Set<() => void>();
@@ -21,16 +39,58 @@ function emit() {
   listeners.forEach((listener) => listener());
 }
 
-export function showToast(toast: ToastInput): void {
-  if (timer) clearTimeout(timer);
-  const tone = toast.tone ?? 'ok';
-  current = { ...toast, tone, id: nextId };
-  nextId += 1;
+function showHeld() {
+  const next = held;
+  held = null;
+  if (!next) {
+    emit();
+    return;
+  }
+  current = next;
   emit();
   timer = setTimeout(() => {
+    timer = null;
     current = null;
-    emit();
-  }, tone === 'error' ? 4200 : 2600);
+    showHeld();
+  }, next.duration);
+}
+
+function dismissToast(id?: number) {
+  if (id != null && current?.id !== id) return;
+  if (timer) clearTimeout(timer);
+  timer = null;
+  current = null;
+  showHeld();
+}
+
+export function dismissShownToast(): void {
+  dismissToast();
+}
+
+export function showToast(toast: ToastInput): void {
+  const tone = toast.tone ?? 'ok';
+  const duration = toast.duration ?? (tone === 'error' ? 4200 : 2600);
+  const message: ToastMessage = {
+    text: toast.text,
+    tone,
+    action: toast.action,
+    pinned: toast.pinned,
+    duration,
+    id: nextId,
+  };
+  nextId += 1;
+  if (current?.pinned && !message.pinned) {
+    held = message;
+    return;
+  }
+  if (timer) clearTimeout(timer);
+  current = message;
+  emit();
+  timer = setTimeout(() => {
+    timer = null;
+    current = null;
+    showHeld();
+  }, duration);
 }
 
 function subscribe(listener: () => void): () => void {
@@ -45,21 +105,46 @@ function getSnapshot(): ToastMessage | null {
 export function ToastHost() {
   const toast = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
   if (!toast) return null;
+  const backgroundColor = toast.tone === 'error' ? theme.color.dangerFill : theme.color.toast;
+  const hostStyle = [styles.host, { bottom: insets.bottom + baseTheme.layout.tabBar }];
+  if (!toast.action) {
+    return (
+      <View pointerEvents="box-none" style={hostStyle}>
+        <Pressable
+          accessibilityRole="alert"
+          onPress={() => dismissToast(toast.id)}
+          style={[styles.toast, { backgroundColor }]}
+        >
+          <Text variant="body" tone="inverse">
+            {toast.text}
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
+  const action = toast.action;
   return (
-    <View pointerEvents="box-none" style={[styles.host, { bottom: insets.bottom + theme.layout.tabBar }]}>
-      <Pressable
-        accessibilityRole="alert"
-        onPress={() => {
-          current = null;
-          emit();
-        }}
-        style={[styles.toast, toast.tone === 'error' ? styles.error : styles.ok]}
-      >
+    <View pointerEvents="box-none" style={hostStyle}>
+      <View accessibilityRole="alert" style={[styles.toast, styles.withAction, { backgroundColor }]}>
         <Text variant="body" tone="inverse">
           {toast.text}
         </Text>
-      </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={action.label}
+          onPress={() => {
+            action.onPress();
+            dismissToast(toast.id);
+          }}
+          style={styles.action}
+        >
+          <Text variant="body" tone="inverse">
+            {` · ${action.label}`}
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -70,14 +155,27 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    paddingHorizontal: theme.space.lg,
+    paddingHorizontal: baseTheme.space.lg,
   },
   toast: {
-    borderRadius: theme.radius.pill,
-    paddingHorizontal: theme.space.lg,
-    paddingVertical: theme.space.sm,
-    maxWidth: theme.layout.content,
+    minHeight: baseTheme.layout.control,
+    borderRadius: baseTheme.radius.pill,
+    paddingHorizontal: baseTheme.space.lg,
+    paddingVertical: baseTheme.space.sm,
+    maxWidth: baseTheme.layout.content,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  ok: { backgroundColor: theme.color.ink },
-  error: { backgroundColor: theme.color.danger },
+  withAction: {
+    flexDirection: 'row',
+    paddingVertical: 0,
+    paddingRight: baseTheme.space.xs,
+  },
+  action: {
+    minHeight: baseTheme.layout.control,
+    minWidth: baseTheme.layout.control,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: baseTheme.space.sm,
+  },
 });
