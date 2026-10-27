@@ -83,7 +83,7 @@ The anon key is public. The service role key stays on the server and out of this
 
 `/account/delete` explains that weight records, training sets, study records, and the profile are deleted, and that this cannot be undone. Both pages use `backupPurgeDays` for the backup purge window. The button stays off until the person types 删除. A failure returns to that explanation. Success opens 账号已删除, and 好的 returns to login.
 
-`profiles.user_id` and `weight_records.user_id` already reference `auth.users` with `on delete cascade`. pgTAP checks that catalog rule and that deleting a test user leaves no `user_id` row in `public`.
+`profiles.user_id`, `weight_records.user_id`, and `training_sets.user_id` reference `auth.users` with `on delete cascade`. pgTAP checks that catalog rule and that deleting a test user leaves no `user_id` row in `public`.
 
 ## EAS Update later
 
