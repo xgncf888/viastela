@@ -62,7 +62,7 @@ export type Database = {
           user_id: string;
           exercise: string;
           reps: number;
-          weight: number | null;
+          weight_kg: number | null;
           band_level: string | null;
           recorded_at: string;
           tz: string;
@@ -76,7 +76,7 @@ export type Database = {
           user_id?: string;
           exercise: string;
           reps: number;
-          weight?: number | null;
+          weight_kg?: number | null;
           band_level?: string | null;
           recorded_at: string;
           tz: string;
@@ -90,7 +90,7 @@ export type Database = {
           user_id?: string;
           exercise?: string;
           reps?: number;
-          weight?: number | null;
+          weight_kg?: number | null;
           band_level?: string | null;
           recorded_at?: string;
           tz?: string;

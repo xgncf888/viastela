@@ -3,9 +3,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createId } from '@/core/id';
 import { computeLocalDay, currentTimeZone, DEFAULT_DAY_SWITCH } from '@/core/local-day';
 import { beginSave, confirmSave, visibleRecords, type SaveState } from '@/core/save-state';
-import { trainingSaveToast, type TrainingSet } from '@/core/training';
+import { recentExerciseNames, type RecentExerciseRow, type TrainingSet } from '@/core/training';
 import { RECORD_DELETED, weightSaveOutcome } from '@/core/weight-write';
-import { listTrainingSets, softDeleteTrainingSet, upsertTrainingSet } from '@/data/training';
+import { listRecentExercises, listTrainingSets, softDeleteTrainingSet, upsertTrainingSet } from '@/data/training';
 import { getDaySwitch } from '@/data/profile';
 import { useAuth } from '@/features/auth/AuthProvider';
 import {
@@ -28,6 +28,7 @@ type TrainingContextValue = {
   saving: boolean;
   daySwitch: string;
   timeZone: string;
+  recentExercises: readonly string[];
   reload: () => Promise<void>;
   saveSet: (input: {
     exercise: string;
@@ -53,21 +54,24 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [deletedNotice, setDeletedNotice] = useState(false);
+  const [recentRows, setRecentRows] = useState<RecentExerciseRow[]>([]);
   const creating = useRef(false);
   const inFlight = useRef(new Set<string>());
   const pendingDeleteIds = useDeferredDeleteIds();
 
   const loadSaved = useCallback(async (switchTime: string) => {
     const endDay = computeLocalDay(new Date(), currentTimeZone(), switchTime);
-    return listTrainingSets(endDay);
+    const [sets, recent] = await Promise.all([listTrainingSets(endDay), listRecentExercises()]);
+    return { sets, recent };
   }, []);
 
   const reload = useCallback(async () => {
     try {
       const nextSwitch = await getDaySwitch();
-      const rows = await loadSaved(nextSwitch);
+      const { sets: rows, recent } = await loadSaved(nextSwitch);
       setLoadError(null);
       setDaySwitch(nextSwitch);
+      setRecentRows(recent);
       setSaveState((current) => {
         const serverIds = new Set(rows.map((row) => row.id));
         return { saved: rows, pending: current.pending.filter((row) => !serverIds.has(row.id)) };
@@ -83,12 +87,13 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
     if (!session) return undefined;
     let cancelled = false;
     void getDaySwitch()
-      .then(async (nextSwitch) => ({ nextSwitch, rows: await loadSaved(nextSwitch) }))
+      .then(async (nextSwitch) => ({ nextSwitch, ...(await loadSaved(nextSwitch)) }))
       .then(
-        ({ rows, nextSwitch }) => {
+        ({ sets: rows, recent, nextSwitch }) => {
           if (cancelled) return;
           setLoadError(null);
           setDaySwitch(nextSwitch);
+          setRecentRows(recent);
           setSaveState((current) => {
             const serverIds = new Set(rows.map((row) => row.id));
             return { saved: rows, pending: current.pending.filter((row) => !serverIds.has(row.id)) };
@@ -144,7 +149,8 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
       try {
         await upsertTrainingSet(set);
         try {
-          const rows = await loadSaved(switchTime);
+          const { sets: rows, recent } = await loadSaved(switchTime);
+          setRecentRows(recent);
           setSaveState((current) => ({
             saved: rows.some((row) => row.id === id) ? rows : confirmSave({ saved: rows, pending: [] }, set).saved,
             pending: current.pending.filter((row) => row.id !== id && !rows.some((saved) => saved.id === row.id)),
@@ -152,7 +158,6 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
         } catch {
           setSaveState((current) => confirmSave(current, set));
         }
-        showToast({ text: trainingSaveToast(set.exercise, recordedAt, tz, switchTime) });
         return 'saved';
       } catch (error) {
         if (weightSaveOutcome(error) === RECORD_DELETED) {
@@ -251,6 +256,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
   useEffect(() => () => cancelDeferredDeletes('training'), []);
 
   const sets = useMemo(() => visibleRecords(saveState), [saveState]);
+  const recentExercises = useMemo(() => recentExerciseNames(recentRows), [recentRows]);
   const value = useMemo<TrainingContextValue>(
     () => ({
       ready,
@@ -262,6 +268,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
       saving,
       daySwitch,
       timeZone: currentTimeZone(),
+      recentExercises,
       reload,
       saveSet,
       retry,
@@ -278,6 +285,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
       deletedNotice,
       saving,
       daySwitch,
+      recentExercises,
       reload,
       saveSet,
       retry,

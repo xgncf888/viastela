@@ -40,7 +40,7 @@ export type TrainingRow = {
   id: string;
   exercise: string;
   reps: number;
-  weight: number | null;
+  weight_kg: number | null;
   band_level: string | null;
   recorded_at: string;
   tz: string;
@@ -69,6 +69,35 @@ export function weightRow(id: string, day: string, kilograms: number, hour = 8):
   };
 }
 
+function idFromEq(url: string): string | null {
+  const match = /(?:\?|&)id=eq\.([^&]+)/.exec(url);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function rememberTraining(rows: TrainingRow[], body: string): void {
+  try {
+    const parsed = JSON.parse(body) as Partial<TrainingRow> | Partial<TrainingRow>[];
+    const row = Array.isArray(parsed) ? parsed[0] : parsed;
+    if (!row?.id || !row.exercise || !row.local_day) return;
+    const next: TrainingRow = {
+      id: row.id,
+      exercise: row.exercise,
+      reps: row.reps ?? 0,
+      weight_kg: row.weight_kg ?? null,
+      band_level: row.band_level ?? null,
+      recorded_at: row.recorded_at ?? new Date().toISOString(),
+      tz: row.tz ?? 'UTC',
+      local_day: row.local_day,
+      updated_at: row.updated_at ?? row.recorded_at ?? new Date().toISOString(),
+    };
+    const index = rows.findIndex((item) => item.id === next.id);
+    if (index === -1) rows.push(next);
+    else rows[index] = next;
+  } catch {
+    // The spec still records the raw body when JSON is not a set.
+  }
+}
+
 const cors = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': '*',
@@ -85,8 +114,10 @@ export async function installApi(
     onSoftDelete?: (body: string) => void;
     onTrainingWrite?: (route: Route) => Promise<void>;
     onTrainingDelete?: (body: string) => void;
+    emptyTrainingDelete?: boolean;
   },
 ): Promise<void> {
+  const trainingRows: TrainingRow[] = [...(options.training ?? [])];
   await page.route('**/*', async (route) => {
     const request = route.request();
     const url = request.url();
@@ -103,7 +134,8 @@ export async function installApi(
       const body = request.postData() ?? '';
       if (request.method() === 'PATCH' && body.includes('deleted_at')) {
         options.onSoftDelete?.(`${url}\n${body}`);
-        await route.fulfill({ status: 200, headers: cors, body: '[]' });
+        const id = idFromEq(url);
+        await route.fulfill({ status: 200, headers: cors, body: JSON.stringify(id ? [{ id }] : []) });
         return;
       }
       if (options.onWrite) {
@@ -128,9 +160,16 @@ export async function installApi(
       const body = request.postData() ?? '';
       if (request.method() === 'PATCH' && body.includes('deleted_at')) {
         options.onTrainingDelete?.(`${url}\n${body}`);
-        await route.fulfill({ status: 200, headers: cors, body: '[]' });
+        const id = idFromEq(url);
+        if (!options.emptyTrainingDelete && id) {
+          const index = trainingRows.findIndex((row) => row.id === id);
+          if (index >= 0) trainingRows.splice(index, 1);
+        }
+        const rows = options.emptyTrainingDelete || !id ? [] : [{ id }];
+        await route.fulfill({ status: 200, headers: cors, body: JSON.stringify(rows) });
         return;
       }
+      rememberTraining(trainingRows, body);
       if (options.onTrainingWrite) {
         await options.onTrainingWrite(route);
         return;
@@ -139,7 +178,7 @@ export async function installApi(
       return;
     }
     if (url.includes('/rest/v1/training_sets')) {
-      await route.fulfill({ status: 200, headers: cors, body: JSON.stringify(options.training ?? []) });
+      await route.fulfill({ status: 200, headers: cors, body: JSON.stringify(trainingRows) });
       return;
     }
     if (url.includes('/rest/v1/profiles')) {

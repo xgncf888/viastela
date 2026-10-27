@@ -1,4 +1,4 @@
-import { isRecordDeleted, RECORD_DELETED } from '@/core/weight-write';
+import { isRecordDeleted, RECORD_DELETED, requireDeletedIds } from '@/core/weight-write';
 import type { WeightRecord } from '@/core/weight-stats';
 
 import { getSupabase } from './client';
@@ -87,14 +87,16 @@ export async function upsertWeightRecord(record: WeightRecord): Promise<void> {
   }
 }
 
-/** Plain update. A deleted id raises P0001 and is not rewritten. */
+/** Plain update. A deleted id raises P0001 and is not rewritten. Zero rows is a failed delete. */
 export async function softDeleteWeightRecord(id: string): Promise<void> {
-  const { error } = await getSupabase()
+  const { data, error } = await getSupabase()
     .from('weight_records')
     .update({ deleted_at: new Date().toISOString() })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) {
     if (isRecordDeleted(error)) throw new Error(RECORD_DELETED);
     throw error;
   }
+  requireDeletedIds(data);
 }

@@ -1,18 +1,32 @@
 import { useRef, useState, useSyncExternalStore } from 'react';
 
 import { createId } from '@/core/id';
-import { currentTimeZone, sheetAccountingHint } from '@/core/local-day';
-import { BAND_LEVELS, parseTrainingDraft, type TrainingMode } from '@/core/training';
+import { computeLocalDay, currentTimeZone, sheetAccountingHint } from '@/core/local-day';
+import {
+  BAND_LABEL,
+  BAND_LEVELS,
+  formatTrainingKg,
+  formatTrainingLoad,
+  parseTrainingDraft,
+  trainingFinishToast,
+  trainingSetsOnDay,
+  type TrainingMode,
+  type TrainingSet,
+} from '@/core/training';
 import { parseWeightKg } from '@/core/weight-input';
 import { formatKg, latestRecord } from '@/core/weight-stats';
 import { useTraining } from '@/features/training/TrainingProvider';
+import { excludePending } from '@/features/weight/weight-copy';
 import { useWeight } from '@/features/weight/WeightProvider';
 import { Button } from '@/ui/Button';
 import { Chip } from '@/ui/Chip';
+import { ChipGroup } from '@/ui/ChipGroup';
 import { Row, Stack } from '@/ui/layout';
+import { SetRow } from '@/ui/SetRow';
 import { Sheet } from '@/ui/Sheet';
 import { Text } from '@/ui/Text';
 import { TextField } from '@/ui/TextField';
+import { showToast } from '@/ui/toast';
 
 import { closeRecordSheet, getRecordSheetSnapshot, subscribeRecordSheet } from './record-sheet-store';
 
@@ -39,18 +53,26 @@ export function RecordSheet() {
         closeRecordSheet();
       }}
     >
-      {sheet.open ? <RecordForm key={sheet.generation} prefillKg={sheet.prefillKg} /> : null}
+      {sheet.open ? <RecordForm key={sheet.generation} prefillKg={sheet.prefillKg} initialType={sheet.kind} /> : null}
     </Sheet>
   );
 }
 
-function RecordForm({ prefillKg }: { prefillKg: number | null }) {
+function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; initialType: TypeId }) {
   const { records, daySwitch, saving: weightSaving, saveWeight } = useWeight();
-  const { saving: trainingSaving, saveSet } = useTraining();
+  const {
+    sets,
+    pendingDeleteIds,
+    saving: trainingSaving,
+    saveSet,
+    daySwitch: trainingSwitch,
+    recentExercises,
+  } = useTraining();
   const saving = weightSaving || trainingSaving;
-  const [type, setType] = useState<TypeId>('weight');
+  const [type, setType] = useState<TypeId>(initialType);
   const [value, setValue] = useState(prefillKg == null ? '' : formatKg(prefillKg));
   const [error, setError] = useState<string | null>(null);
+  const [customExercise, setCustomExercise] = useState(recentExercises.length === 0);
   const [exercise, setExercise] = useState('');
   const [reps, setReps] = useState('');
   const [mode, setMode] = useState<TrainingMode>('weight');
@@ -58,10 +80,15 @@ function RecordForm({ prefillKg }: { prefillKg: number | null }) {
   const [band, setBand] = useState<string>('');
   const [trainingError, setTrainingError] = useState<string | null>(null);
   const [trainingField, setTrainingField] = useState<string | null>(null);
+  const [finishedExercise, setFinishedExercise] = useState<string | null>(null);
   const draftId = useRef<string | null>(null);
   const trainingId = useRef<string | null>(null);
   const last = latestRecord(records);
   const hint = sheetAccountingHint(new Date(), currentTimeZone(), daySwitch);
+  const accountingDay = computeLocalDay(new Date(), currentTimeZone(), trainingSwitch);
+  const exerciseSets = trainingSetsOnDay(excludePending(sets, pendingDeleteIds), accountingDay).filter(
+    (set) => set.exercise === exercise.trim(),
+  );
 
   async function onSave() {
     const weightKg = parseWeightKg(value);
@@ -83,6 +110,31 @@ function RecordForm({ prefillKg }: { prefillKg: number | null }) {
     setValue('');
     setError(null);
     closeRecordSheet();
+  }
+
+  function applySet(set: TrainingSet) {
+    const known = recentExercises.includes(set.exercise);
+    setCustomExercise(!known);
+    setExercise(set.exercise);
+    setReps(String(set.reps));
+    if (set.weightKg != null) {
+      setMode('weight');
+      setLoad(formatTrainingKg(set.weightKg));
+      setBand('');
+    } else {
+      setMode('band');
+      setLoad('');
+      setBand(set.bandLevel ?? '');
+    }
+    setTrainingField(null);
+    setTrainingError(null);
+  }
+
+  function addAnotherSet() {
+    const lastSet = exerciseSets[exerciseSets.length - 1];
+    if (!lastSet) return;
+    applySet(lastSet);
+    trainingId.current = null;
   }
 
   async function onSaveTraining() {
@@ -108,11 +160,19 @@ function RecordForm({ prefillKg }: { prefillKg: number | null }) {
     }
     if (outcome !== 'saved') return;
     trainingId.current = null;
-    setExercise('');
-    setReps('');
-    setLoad('');
-    setBand('');
+    setFinishedExercise(draft.exercise);
+    setExercise(draft.exercise);
+    setTrainingField(null);
     setTrainingError(null);
+  }
+
+  function onFinish() {
+    if (finishedExercise) {
+      const count = trainingSetsOnDay(excludePending(sets, pendingDeleteIds), accountingDay).filter(
+        (set) => set.exercise === finishedExercise,
+      ).length;
+      if (count > 0) showToast({ text: trainingFinishToast(finishedExercise, count, accountingDay) });
+    }
     closeRecordSheet();
   }
 
@@ -124,11 +184,11 @@ function RecordForm({ prefillKg }: { prefillKg: number | null }) {
         </Text>
         <Button label="关闭" variant="ghost" onPress={closeRecordSheet} disabled={saving} />
       </Row>
-      <Row gap="sm" wrap>
+      <ChipGroup>
         {TYPES.map((item) => (
           <Chip key={item.id} label={item.label} selected={type === item.id} onPress={() => setType(item.id)} />
         ))}
-      </Row>
+      </ChipGroup>
       {type === 'weight' ? (
         <Stack gap="md">
           <TextField
@@ -155,29 +215,43 @@ function RecordForm({ prefillKg }: { prefillKg: number | null }) {
         </Stack>
       ) : type === 'training' ? (
         <Stack gap="md">
-          <TextField
-            label="动作"
-            value={exercise}
-            onChangeText={(next) => {
-              setExercise(next);
-              setTrainingError(null);
-            }}
-            placeholder="例如 卧推"
-            autoFocus
-            error={trainingField === 'exercise' ? trainingError : null}
-          />
-          <TextField
-            label="次数"
-            value={reps}
-            onChangeText={(next) => {
-              setReps(next);
-              setTrainingError(null);
-            }}
-            placeholder="例如 8"
-            keyboardType="number-pad"
-            error={trainingField === 'reps' ? trainingError : null}
-          />
-          <Row gap="sm" wrap>
+          <ChipGroup>
+            {recentExercises.map((name) => (
+              <Chip
+                key={name}
+                label={name}
+                selected={!customExercise && exercise === name}
+                onPress={() => {
+                  setCustomExercise(false);
+                  setExercise(name);
+                  setTrainingError(null);
+                }}
+              />
+            ))}
+            <Chip
+              label="+ 其他"
+              selected={customExercise}
+              onPress={() => {
+                setCustomExercise(true);
+                if (recentExercises.includes(exercise)) setExercise('');
+                setTrainingError(null);
+              }}
+            />
+          </ChipGroup>
+          {customExercise ? (
+            <TextField
+              label="动作"
+              value={exercise}
+              onChangeText={(next) => {
+                setExercise(next);
+                setTrainingError(null);
+              }}
+              placeholder="例如 卧推"
+              autoFocus
+              error={trainingField === 'exercise' ? trainingError : null}
+            />
+          ) : null}
+          <ChipGroup>
             <Chip
               label="重量"
               selected={mode === 'weight'}
@@ -194,7 +268,7 @@ function RecordForm({ prefillKg }: { prefillKg: number | null }) {
                 setTrainingError(null);
               }}
             />
-          </Row>
+          </ChipGroup>
           {mode === 'weight' ? (
             <TextField
               label="重量（kg）"
@@ -209,11 +283,11 @@ function RecordForm({ prefillKg }: { prefillKg: number | null }) {
             />
           ) : (
             <Stack gap="sm">
-              <Row gap="sm" wrap>
+              <ChipGroup>
                 {BAND_LEVELS.map((level) => (
                   <Chip
                     key={level}
-                    label={level}
+                    label={BAND_LABEL[level]}
                     selected={band === level}
                     onPress={() => {
                       setBand(level);
@@ -221,7 +295,7 @@ function RecordForm({ prefillKg }: { prefillKg: number | null }) {
                     }}
                   />
                 ))}
-              </Row>
+              </ChipGroup>
               {trainingField === 'band' && trainingError ? (
                 <Text variant="muted" tone="danger">
                   {trainingError}
@@ -229,7 +303,23 @@ function RecordForm({ prefillKg }: { prefillKg: number | null }) {
               ) : null}
             </Stack>
           )}
-          <Button label="保存" onPress={() => void onSaveTraining()} loading={saving} />
+          <TextField
+            label="次数"
+            value={reps}
+            onChangeText={(next) => {
+              setReps(next);
+              setTrainingError(null);
+            }}
+            placeholder="例如 8"
+            keyboardType="number-pad"
+            error={trainingField === 'reps' ? trainingError : null}
+          />
+          {exerciseSets.map((set) => (
+            <SetRow key={set.id} title={set.exercise} detail={`${set.reps} 次 · ${formatTrainingLoad(set)}`} />
+          ))}
+          <Button label="保存这一组" onPress={() => void onSaveTraining()} loading={saving} />
+          <Button label="+1 组" variant="secondary" onPress={addAnotherSet} disabled={saving || exerciseSets.length === 0} />
+          <Button label="完成" variant="secondary" onPress={onFinish} disabled={saving} />
         </Stack>
       ) : (
         <Stack gap="sm">

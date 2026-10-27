@@ -1,13 +1,31 @@
-import { headerAccountingLabel } from './local-day';
+import { formatMonthDay } from './local-day';
 import { parseWeightKg } from './weight-input';
+import { formatKg } from './weight-stats';
 
-export const BAND_LEVELS = ['黄', '红', '绿', '蓝', '黑'] as const;
+export const BAND_LEVELS = ['light', 'medium', 'heavy', 'extra_heavy'] as const;
 
 export type BandLevel = (typeof BAND_LEVELS)[number];
+
+export const BAND_LABEL: Record<BandLevel, string> = {
+  light: '轻',
+  medium: '中',
+  heavy: '重',
+  extra_heavy: '加重',
+};
+
+export function bandLabel(level: string | null): string {
+  if (level && (BAND_LEVELS as readonly string[]).includes(level)) return BAND_LABEL[level as BandLevel];
+  return level ?? '';
+}
 
 export type TrainingMode = 'weight' | 'band';
 
 export type TrainingField = 'exercise' | 'reps' | 'weight' | 'band';
+
+export type RecentExerciseRow = {
+  exercise: string;
+  recordedAt: string;
+};
 
 export type TrainingSet = {
   id: string;
@@ -63,9 +81,15 @@ export function parseTrainingDraft(input: {
   return { ok: true, exercise, reps, weightKg: null, bandLevel };
 }
 
+/** Kilograms for a set. `formatKg`, then drop a trailing `.0`, so 40 is `40` and the row reads `40 kg`. */
+export function formatTrainingKg(weightKg: number): string {
+  const text = formatKg(weightKg);
+  return text.endsWith('.0') ? text.slice(0, -2) : text;
+}
+
 export function formatTrainingLoad(set: Pick<TrainingSet, 'weightKg' | 'bandLevel'>): string {
-  if (set.weightKg != null) return `${set.weightKg.toFixed(1)} kg`;
-  return `弹力带 ${set.bandLevel ?? ''}`;
+  if (set.weightKg != null) return `${formatTrainingKg(set.weightKg)} kg`;
+  return `弹力带 ${bandLabel(set.bandLevel)}`;
 }
 
 export function trainingSetsOnDay(sets: readonly TrainingSet[], localDay: string): TrainingSet[] {
@@ -78,7 +102,37 @@ export function trainingSetsOnDay(sets: readonly TrainingSet[], localDay: string
     });
 }
 
-export function trainingSaveToast(exercise: string, instant: Date, timeZone: string, daySwitch: string): string {
-  const accounting = headerAccountingLabel(instant, timeZone, daySwitch);
-  return accounting ? `${accounting} · ${exercise}` : `已记下 ${exercise}`;
+export function trainingDaySummary(sets: readonly Pick<TrainingSet, 'exercise'>[]): string {
+  const counts = new Map<string, number>();
+  const order: string[] = [];
+  for (const set of sets) {
+    if (!counts.has(set.exercise)) {
+      order.push(set.exercise);
+      counts.set(set.exercise, 0);
+    }
+    counts.set(set.exercise, (counts.get(set.exercise) ?? 0) + 1);
+  }
+  return order.map((name) => `${name} ${counts.get(name)} 组`).join(' · ');
+}
+
+export function recentExerciseNames(rows: readonly RecentExerciseRow[], limit = 6): string[] {
+  const ordered = [...rows].sort((left, right) => {
+    const byTime = Date.parse(right.recordedAt) - Date.parse(left.recordedAt);
+    if (byTime !== 0) return byTime;
+    return left.exercise.localeCompare(right.exercise);
+  });
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const row of ordered) {
+    const name = row.exercise.trim();
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    names.push(name);
+    if (names.length === limit) break;
+  }
+  return names;
+}
+
+export function trainingFinishToast(exercise: string, count: number, localDay: string): string {
+  return `已记入 ${formatMonthDay(localDay)} · ${exercise} ${count} 组`;
 }

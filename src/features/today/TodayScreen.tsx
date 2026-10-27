@@ -8,7 +8,7 @@ import {
   parseDaySwitch,
   weekdayLabel,
 } from '@/core/local-day';
-import { formatTrainingLoad, trainingSetsOnDay } from '@/core/training';
+import { formatTrainingLoad, trainingDaySummary, trainingSetsOnDay } from '@/core/training';
 import { formatKg, latestRecord, recordsOnDay } from '@/core/weight-stats';
 import { openRecordSheet } from '@/features/record/record-sheet-store';
 import { useShellInset } from '@/features/shell/AppShell';
@@ -18,6 +18,8 @@ import { excludePending, LOADING_TEXT, todayReadout, weighInLabel } from '@/feat
 import { useWeight } from '@/features/weight/WeightProvider';
 import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
+import { SetRow } from '@/ui/SetRow';
+import { StatusCard } from '@/ui/StatusCard';
 import { Content } from '@/ui/Content';
 import { EmptyState } from '@/ui/EmptyState';
 import { Callout, Row, ScreenHeader, Stack } from '@/ui/layout';
@@ -51,6 +53,7 @@ export function TodayScreen() {
   const training = useTraining();
   const inset = useShellInset();
   const [now, setNow] = useState(() => new Date());
+  const [trainingDetail, setTrainingDetail] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30_000);
@@ -133,7 +136,7 @@ export function TodayScreen() {
         </Stack>
 
         <Stack gap="md">
-          <Text variant="heading">今天的训练</Text>
+          <Text variant="heading">{beforeSwitch ? `${formatMonthDay(accounting)}的训练` : '今天的训练'}</Text>
           {training.loadError ? (
             <Callout
               message={training.loadError}
@@ -141,32 +144,35 @@ export function TodayScreen() {
             />
           ) : null}
           {!training.ready ? <Text variant="body">{LOADING_TEXT}</Text> : null}
-          {training.ready && trainingToday.length === 0 ? <Text variant="muted">今天还没有训练</Text> : null}
-          {trainingToday.map((set) => {
-            const failed = training.failedIds.has(set.id);
-            return (
-              <Card key={set.id}>
-                <Row justify="between" align="center">
-                  <Text variant="muted">{set.exercise}</Text>
-                  {failed ? null : (
-                    <Button label="删除" variant="ghost" onPress={() => training.scheduleDelete(set.id)} />
-                  )}
-                </Row>
-                <Text variant="heading">
-                  {set.reps} 次 · {formatTrainingLoad(set)}
-                </Text>
-                {failed ? (
-                  <Row gap="sm" wrap>
-                    <Text variant="muted" tone="danger">
-                      未保存
-                    </Text>
-                    <Button label="重试" onPress={() => void training.retry(set.id)} loading={training.saving} />
-                    <Button label="放弃" variant="ghost" onPress={() => training.dismiss(set.id)} />
-                  </Row>
-                ) : null}
-              </Card>
-            );
-          })}
+          {training.ready && trainingToday.length === 0 ? (
+            <Button label="记一笔" onPress={() => openRecordSheet(undefined, 'training')} />
+          ) : null}
+          {trainingToday.length > 0 ? (
+            <StatusCard summary={trainingDaySummary(trainingToday)} onPress={() => setTrainingDetail(true)} />
+          ) : null}
+          {trainingDetail
+            ? trainingToday.map((set) => {
+                const failed = training.failedIds.has(set.id);
+                return (
+                  <SetRow
+                    key={set.id}
+                    title={set.exercise}
+                    detail={`${set.reps} 次 · ${formatTrainingLoad(set)}`}
+                    onDelete={failed ? undefined : () => training.scheduleDelete(set.id)}
+                  >
+                    {failed ? (
+                      <Row gap="sm" wrap>
+                        <Text variant="muted" tone="danger">
+                          未保存
+                        </Text>
+                        <Button label="重试" onPress={() => void training.retry(set.id)} loading={training.saving} />
+                        <Button label="放弃" variant="ghost" onPress={() => training.dismiss(set.id)} />
+                      </Row>
+                    ) : null}
+                  </SetRow>
+                );
+              })
+            : null}
         </Stack>
 
         {last && today.length > 0 ? (

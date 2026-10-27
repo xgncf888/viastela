@@ -91,7 +91,7 @@ begin
 end;
 $$;
 
-select plan(44);
+select plan(47);
 
 do $$
 declare
@@ -123,7 +123,7 @@ select is(auth.uid()::text, current_setting('tests.user_a'), 'auth.uid() is user
 
 select lives_ok(
   $$
-    insert into public.training_sets (id, exercise, reps, weight, recorded_at, tz, local_day)
+    insert into public.training_sets (id, exercise, reps, weight_kg, recorded_at, tz, local_day)
     values (
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
       '卧推',
@@ -144,13 +144,31 @@ select lives_ok(
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',
       '引体向上',
       6,
-      '红',
+      'light',
       timestamptz '2026-10-23 20:05:00+00',
       'Asia/Singapore',
       date '2026-10-24'
     )
   $$,
   'user A can insert a band training set'
+);
+
+select throws_ok(
+  $$
+    insert into public.training_sets (id, exercise, reps, band_level, recorded_at, tz, local_day)
+    values (
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3',
+      '引体向上',
+      6,
+      '红',
+      timestamptz '2026-10-23 20:05:00+00',
+      'Asia/Singapore',
+      date '2026-10-24'
+    )
+  $$,
+  '23514',
+  NULL::text,
+  'a band level outside light medium heavy extra_heavy is rejected'
 );
 
 select is(
@@ -178,13 +196,13 @@ select throws_ok(
 
 select throws_ok(
   $$
-    insert into public.training_sets (id, exercise, reps, weight, band_level, recorded_at, tz, local_day)
+    insert into public.training_sets (id, exercise, reps, weight_kg, band_level, recorded_at, tz, local_day)
     values (
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3',
       '深蹲',
       5,
       20,
-      '红',
+      'light',
       timestamptz '2026-10-23 20:00:00+00',
       'Asia/Singapore',
       date '2026-10-24'
@@ -197,7 +215,7 @@ select throws_ok(
 
 select throws_ok(
   $$
-    insert into public.training_sets (id, exercise, reps, weight, recorded_at, tz, local_day)
+    insert into public.training_sets (id, exercise, reps, weight_kg, recorded_at, tz, local_day)
     values (
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3',
       '深蹲',
@@ -286,7 +304,7 @@ select lives_ok(
 
 select throws_ok(
   $$
-    insert into public.training_sets (id, exercise, reps, weight, recorded_at, tz, local_day)
+    insert into public.training_sets (id, exercise, reps, weight_kg, recorded_at, tz, local_day)
     values (
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
       '卧推',
@@ -379,7 +397,18 @@ select throws_ok(
 
 select throws_ok(
   $$
-    insert into public.training_sets (id, exercise, reps, weight, recorded_at, tz, local_day)
+    update public.training_sets
+    set tz = 'Not/AZone'
+    where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
+  $$,
+  'P0001',
+  'record deleted',
+  'updating a deleted training set with an invalid tz raises record deleted'
+);
+
+select throws_ok(
+  $$
+    insert into public.training_sets (id, exercise, reps, weight_kg, recorded_at, tz, local_day)
     values (
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
       '卧推',
@@ -437,6 +466,17 @@ select throws_ok(
   'P0001',
   'record deleted',
   'update of a deleted weight record errors with record deleted'
+);
+
+select throws_ok(
+  $$
+    update public.weight_records
+    set tz = 'Not/AZone'
+    where id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1'
+  $$,
+  'P0001',
+  'record deleted',
+  'updating a deleted weight record with an invalid tz raises record deleted'
 );
 
 select throws_ok(
@@ -559,7 +599,7 @@ set local role anon;
 select throws_ok($$select count(*) from public.training_sets$$, '42501', NULL::text, 'anon cannot select training sets');
 select throws_ok(
   $$
-    insert into public.training_sets (id, exercise, reps, weight, recorded_at, tz, local_day)
+    insert into public.training_sets (id, exercise, reps, weight_kg, recorded_at, tz, local_day)
     values (
       'cccccccc-cccc-4ccc-8ccc-ccccccccccc1',
       '卧推',
