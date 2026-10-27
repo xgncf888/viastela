@@ -378,8 +378,6 @@ allow_dynamic_registration = false
 # This repository does not deploy it. The coordinator redeploys through the
 # connector after review and the owner's approval.
 #
-# verify_jwt is off so a browser OPTIONS preflight reaches this function.
-# The function still returns 401 unless getUser accepts the caller's JWT.
 # An allowed Origin is echoed. A rejected Origin, including the literal
 # "null", gets no Access-Control-Allow-Origin and does not delete. A request
 # with no Origin header (native) proceeds without that header. Every response
@@ -397,7 +395,7 @@ allow_dynamic_registration = false
 # (https://viastela-git-<branch>-xgncf888.vercel.app). Per-commit hash URLs
 # are not allowed.
 [functions.delete-account]
-verify_jwt = false
+verify_jwt = true
 
 [edge_runtime]
 enabled = true
