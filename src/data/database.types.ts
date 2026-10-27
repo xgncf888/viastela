@@ -200,6 +200,46 @@ export type Database = {
           },
         ];
       };
+      journal_entries: {
+        Row: {
+          body: string;
+          created_at: string;
+          deleted_at: string | null;
+          entry_day: string;
+          id: string;
+          mood: number | null;
+          tags: string[];
+          tz: string;
+          updated_at: string;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          body: string;
+          created_at?: string;
+          deleted_at?: string | null;
+          entry_day: string;
+          id: string;
+          mood?: number | null;
+          tags?: string[];
+          tz: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          body?: string;
+          created_at?: string;
+          deleted_at?: string | null;
+          entry_day?: string;
+          id?: string;
+          mood?: number | null;
+          tags?: string[];
+          tz?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       net_worth_goals: {
         Row: {
           created_at: string;
@@ -322,6 +362,55 @@ export type Database = {
           return_rates?: number[];
           start_month?: string;
           start_usd?: number;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
+      push_subscriptions: {
+        Row: {
+          auth: string;
+          created_at: string;
+          deleted_at: string | null;
+          enabled: boolean;
+          endpoint: string;
+          id: string;
+          month_end_time: string;
+          p256dh: string;
+          training_days: number[] | null;
+          training_time: string;
+          tz: string;
+          updated_at: string;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          auth: string;
+          created_at?: string;
+          deleted_at?: string | null;
+          enabled?: boolean;
+          endpoint: string;
+          id: string;
+          month_end_time?: string;
+          p256dh: string;
+          training_days?: number[] | null;
+          training_time?: string;
+          tz: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          auth?: string;
+          created_at?: string;
+          deleted_at?: string | null;
+          enabled?: boolean;
+          endpoint?: string;
+          id?: string;
+          month_end_time?: string;
+          p256dh?: string;
+          training_days?: number[] | null;
+          training_time?: string;
+          tz?: string;
           updated_at?: string;
           user_id?: string;
         };
@@ -471,7 +560,18 @@ export type Database = {
       };
     };
     Views: {
-      [_ in never]: never;
+      timeline: {
+        Row: {
+          id: string | null;
+          kind: string | null;
+          local_day: string | null;
+          occurred_at: string | null;
+          payload: Json | null;
+          ref_id: string | null;
+        };
+        ComputedFields: never;
+        Relationships: [];
+      };
     };
     Functions: {
       [_ in never]: never;
