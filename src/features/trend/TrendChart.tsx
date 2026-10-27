@@ -1,12 +1,11 @@
 import { StyleSheet, View } from 'react-native';
 
 import { formatMonthDay } from '@/core/local-day';
-import type { DaySummary } from '@/core/weight-stats';
 import { Text } from '@/ui/Text';
 import { theme } from '@/ui/theme';
 
-export function TrendChart({ days }: { days: DaySummary[] }) {
-  const present = days.flatMap((day) => (day.primary ? [day.primary.weightKg] : []));
+export function TrendChart({ days }: { days: readonly { localDay: string; ema: number | null }[] }) {
+  const present = days.flatMap((day) => (day.ema === null ? [] : [day.ema]));
   const min = present.length > 0 ? Math.min(...present) : 0;
   const max = present.length > 0 ? Math.max(...present) : 1;
   const span = max - min || 1;
@@ -14,7 +13,7 @@ export function TrendChart({ days }: { days: DaySummary[] }) {
   return (
     <View style={styles.row}>
       {days.map((day) => {
-        const value = day.primary?.weightKg ?? null;
+        const value = day.ema;
         const ratio = value === null ? null : 0.28 + ((value - min) / span) * 0.72;
         const barHeight = ratio === null ? theme.space.xs : Math.max(theme.space.sm, ratio * theme.layout.chart);
         const dayNumber = day.localDay.slice(-2).replace(/^0/, '');

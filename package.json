@@ -14,7 +14,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "jest",
-    "test:rls": "supabase db start && supabase test db --local",
+    "test:rls": "node scripts/render-local-day-pgtap.mjs && supabase db start && supabase test db --local",
+    "check:brand": "node scripts/check-brand.mjs",
+    "check:vectors": "node scripts/render-local-day-pgtap.mjs && git diff --exit-code -- supabase/tests/local_day_vectors.test.sql",
     "test:e2e": "playwright test",
     "export:web": "expo export --platform web",
     "prepare": "node scripts/install-hooks.mjs"
@@ -25,8 +27,11 @@
     "expo": "~58.0.19",
     "expo-constants": "~58.0.13",
     "expo-linking": "~58.0.14",
+    "expo-localization": "~58.0.5",
+    "expo-notifications": "~58.1.6",
     "expo-router": "~58.0.26",
     "expo-splash-screen": "~58.0.11",
+    "expo-sqlite": "~58.0.14",
     "expo-status-bar": "~58.0.4",
     "expo-system-ui": "~58.0.6",
     "expo-updates": "~58.0.18",
@@ -36,6 +41,7 @@
     "react-native-gesture-handler": "~3.3.0",
     "react-native-safe-area-context": "~5.10.1",
     "react-native-screens": "~4.30.0",
+    "react-native-svg": "15.16.0",
     "react-native-web": "~0.21.4"
   },
   "devDependencies": {

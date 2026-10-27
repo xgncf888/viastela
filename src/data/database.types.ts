@@ -32,6 +32,7 @@ export type Database = {
           tz: string;
           local_day: string;
           updated_at: string;
+          deleted_at: string | null;
         };
         Insert: {
           id: string;
@@ -41,6 +42,7 @@ export type Database = {
           tz: string;
           local_day: string;
           updated_at?: string;
+          deleted_at?: string | null;
         };
         Update: {
           id?: string;
@@ -50,11 +52,17 @@ export type Database = {
           tz?: string;
           local_day?: string;
           updated_at?: string;
+          deleted_at?: string | null;
         };
         Relationships: [];
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      soft_delete_weight_record: {
+        Args: { target: string };
+        Returns: undefined;
+      };
+    };
   };
 };

@@ -41,17 +41,38 @@ export function notesForDay(records: readonly WeightRecord[], localDay: string):
     .sort((left, right) => Date.parse(left.recordedAt) - Date.parse(right.recordedAt));
 }
 
-/**
- * Mean of the earliest record on each local day inside the window.
- * Days with no row are left out of both the sum and the count.
- * `localDay` on each record is trusted; this function does not recompute it.
- */
-export function sevenDayAverage(records: readonly WeightRecord[], endDay: string): number | null {
+export const MIN_DAYS_FOR_AVERAGE = 4;
+
+export type SevenDayAverage =
+  | { status: 'insufficient' }
+  | { status: 'value'; kilograms: number };
+
+/** Inclusive local_day bounds for the same seven civil days the chart shows. */
+export function weightListWindow(endDay: string): { fromDay: string; toDay: string } {
+  const days = lastNLocalDays(endDay, 7);
+  return { fromDay: days[0] ?? endDay, toDay: endDay };
+}
+
+function earliestInWindow(records: readonly WeightRecord[], endDay: string): WeightRecord[] {
   const window = new Set(lastNLocalDays(endDay, 7));
-  const earliest = earliestPerDay(records.filter((record) => window.has(record.localDay)));
-  if (earliest.length === 0) return null;
+  return earliestPerDay(records.filter((record) => window.has(record.localDay)));
+}
+
+/**
+ * Headline 7-day figure. Below 4 local days with a weigh-in the result is
+ * insufficient data, not a short average. Days with no row are left out of
+ * both the sum and the count. `localDay` is trusted and is not recomputed.
+ */
+export function sevenDayAverageView(records: readonly WeightRecord[], endDay: string): SevenDayAverage {
+  const earliest = earliestInWindow(records, endDay);
+  if (earliest.length < MIN_DAYS_FOR_AVERAGE) return { status: 'insufficient' };
   const sum = earliest.reduce((total, record) => total + record.weightKg, 0);
-  return sum / earliest.length;
+  return { status: 'value', kilograms: sum / earliest.length };
+}
+
+export function sevenDayAverage(records: readonly WeightRecord[], endDay: string): number | null {
+  const view = sevenDayAverageView(records, endDay);
+  return view.status === 'value' ? view.kilograms : null;
 }
 
 export function summarizeWindow(records: readonly WeightRecord[], endDay: string): DaySummary[] {

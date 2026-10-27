@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { brand } from '../src/config/brand';
+
 const userId = '11111111-1111-4111-8111-111111111111';
 
 function unsignedJwt(payload: Record<string, unknown>): string {
@@ -12,7 +14,7 @@ test('web build shows the email login screen', async ({ page }) => {
   page.on('pageerror', (error) => pageErrors.push(error.message));
 
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Viastela' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: brand.displayName })).toBeVisible();
   await expect(page.getByText('用邮箱登录')).toBeVisible();
   await expect(page.getByRole('button', { name: '发送验证码' })).toBeVisible();
 
@@ -68,6 +70,6 @@ test('signed-in shell switches tabs and opens the record sheet', async ({ page }
   await expect(page.getByRole('button', { name: '退出登录' })).toBeVisible();
 
   await page.setViewportSize({ width: 1280, height: 800 });
-  await expect(page.getByRole('heading', { name: 'Viastela' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: brand.displayName })).toBeVisible();
   expect(pageErrors).toEqual([]);
 });

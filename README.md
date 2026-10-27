@@ -1,6 +1,6 @@
-# Viastela
+# Personal life management
 
-Personal life-management app for Yifeng. One Expo codebase runs on the web, in Expo Go on iOS and Android, and later as store binaries. Week 1 is the shell, email login, and weight tracking.
+Personal life-management app for Yifeng. The display name lives only in `src/config/brand.ts`. One Expo codebase runs on the web, in Expo Go on iOS and Android, and later as store binaries. Week 1 is the shell, email login, and weight tracking.
 
 ## Stack
 
@@ -70,7 +70,7 @@ npm run export:web && npm run test:e2e
 ## Use a hosted Supabase project
 
 1. Create a project at https://supabase.com.
-2. In the SQL editor, run `supabase/migrations/20261024120000_init.sql` (or `npx supabase link` and `npx supabase db push` once the CLI is logged in).
+2. Apply every file in `supabase/migrations/` in filename order (`npx supabase link` and `npx supabase db push` once the CLI is logged in). The init migration is already applied on the hosted project as version `20261027051825`; do not edit it. Later changes belong in a new migration file. This repository does not apply migrations to the hosted project.
 3. Under Authentication, keep email OTP enabled.
 4. Put the project URL and the anon key in `.env.local`.
 5. Add `http://localhost:8081` to the auth redirect allow list if you also use magic links. The app signs in with the 6-digit code, so a redirect is not required for the OTP form.
@@ -86,6 +86,31 @@ npx eas init
 ```
 
 Put the project id in `EAS_PROJECT_ID` and the updates URL in `EXPO_PUBLIC_EAS_UPDATE_URL` if you do not want the placeholder `https://u.expo.dev/00000000-0000-0000-0000-000000000000`. Do not run a store build until the Apple Developer and Google Play accounts exist.
+
+## Record tables
+
+Each record type gets its own table. Do not add a generic log table. A record table has:
+
+- `id uuid primary key` — client-generated, no database default, so a retry upserts the same id
+- `user_id uuid not null` references `auth.users`
+- `recorded_at timestamptz not null` — UTC instant
+- `tz text not null` — IANA zone at write time
+- `local_day date not null` — accounting day frozen at write time by `src/core` from `tz` and the user's day-switch. The database rejects a value that is not the civil date of `recorded_at` in `tz` or the previous civil date (`enforce_record_local_day`)
+- `updated_at timestamptz not null default now()` — maintained by the `touch_updated_at` trigger, including soft deletes
+- `deleted_at timestamptz` — null while the row is live. Selects exclude non-null rows. The app calls `soft_delete_weight_record` (security definer) instead of `DELETE` or a direct update, because the select policy would reject the row once `deleted_at` is set and roll the write back
+- row level security so an authenticated user can only read and write their own rows, with pgTAP covering that matrix and the anon role
+- a check constraint for any numeric range, such as `weight_kg > 0 and weight_kg < 500`
+
+Money columns, when a record type needs them, are an integer count of minor units, an ISO currency code, and an FX snapshot (rate, quote currency, and the time of the rate) stored at write time. Do not store money as a float.
+
+## Native modules already installed
+
+These are in the app now so the first EAS development build's fingerprint already contains them:
+
+- `expo-sqlite` — the offline queue is not built yet, and SQLite is native
+- `expo-notifications` — a weigh-in reminder needs the notifications module and the iOS entitlement
+- `expo-localization` — device locale and timezone for later accounting-day work
+- `react-native-svg` — the trend chart can move from view bars to vector drawing
 
 ## Layout
 

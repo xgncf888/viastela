@@ -13,6 +13,14 @@
 - `local_day` is computed in `src/core` at write time from the record's IANA timezone and the user's day-switch, default `04:00`.
 - Changing the day-switch or the device timezone does not rewrite stored `local_day` values.
 - The 7-day average uses the earliest row of each `local_day` and divides by the number of days that have a row; later rows that day are notes.
+- The 7-day average is insufficient data until 4 local days in the window have a weigh-in.
+- The trend chart series is an exponential moving average of those earliest weigh-ins; the headline number stays the 7-day average.
+- Weight list reads are a `local_day` window plus one latest row, and soft-deleted rows are excluded.
+- A weight row is removed by `soft_delete_weight_record`, which sets `deleted_at`. A direct update fails the select policy and rolls back. `updated_at` stays on the server trigger from the init migration.
+- `local_day` must be the civil date of `recorded_at` in `tz` or the previous day. `weight_kg` stays inside (0, 500).
+- `fixtures/local-day.json` is the shared vector file for the Jest local-day tests and the pgTAP trigger tests.
+- Future money columns are integer minor units, a currency code, and an FX snapshot taken at write time.
+- `expo-sqlite`, `expo-notifications`, `expo-localization`, and `react-native-svg` are dependencies before the first EAS dev build so adding offline storage, reminders, locale, or vector charts does not force a new native binary.
 - Between 00:00 and the day-switch, the 今日 header and the save toast say which accounting date the entry uses, for example `已记入 10月23日`.
 - Week 1 has no offline queue.
 - CI on every push and pull request runs `tsc`, ESLint, Jest, pgTAP against the local Supabase stack, and a Playwright smoke test of the web export.

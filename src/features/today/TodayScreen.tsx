@@ -9,7 +9,7 @@ import {
   weekdayLabel,
   civilLocalDay,
 } from '@/core/local-day';
-import { formatKg, recordsOnDay, sevenDayAverage, latestRecord } from '@/core/weight-stats';
+import { formatKg, recordsOnDay, sevenDayAverageView, latestRecord } from '@/core/weight-stats';
 import { openRecordSheet } from '@/features/record/record-sheet-store';
 import { useWeight } from '@/features/weight/WeightProvider';
 import { useShellInset } from '@/features/shell/AppShell';
@@ -22,7 +22,7 @@ import { Text } from '@/ui/Text';
 import { theme } from '@/ui/theme';
 
 export function TodayScreen() {
-  const { ready, loadError, records, failedIds, saving, daySwitch, timeZone, reload, saveWeight, retry, dismiss } =
+  const { ready, loadError, records, failedIds, saving, daySwitch, timeZone, reload, saveWeight, retry, dismiss, removeRecord } =
     useWeight();
   const inset = useShellInset();
   const [now, setNow] = useState(() => new Date());
@@ -35,7 +35,7 @@ export function TodayScreen() {
   const civil = civilLocalDay(now, timeZone);
   const accounting = computeLocalDay(now, timeZone, daySwitch);
   const notice = headerAccountingLabel(now, timeZone, daySwitch);
-  const average = sevenDayAverage(records, accounting);
+  const average = sevenDayAverageView(records, accounting);
   const today = recordsOnDay(records, accounting);
   const last = latestRecord(records);
 
@@ -59,8 +59,14 @@ export function TodayScreen() {
 
         <Card>
           <Text variant="muted">近 7 日均重</Text>
-          <Text variant="display">{average === null ? '—' : formatKg(average)}</Text>
-          <Text variant="muted">kg · 每天最早的一笔，没有记录的日子不计入</Text>
+          {average.status === 'insufficient' ? (
+            <Text variant="body">数据不足</Text>
+          ) : (
+            <Text variant="display">{formatKg(average.kilograms)}</Text>
+          )}
+          <Text variant="muted">
+            {average.status === 'insufficient' ? '至少 4 天记录后显示均重' : 'kg · 每天最早的一笔，没有记录的日子不计入'}
+          </Text>
         </Card>
 
         <View style={styles.section}>
@@ -84,7 +90,9 @@ export function TodayScreen() {
                     <Button label="重试" onPress={() => void retry(record.id)} loading={saving} />
                     <Button label="放弃" variant="ghost" onPress={() => dismiss(record.id)} />
                   </View>
-                ) : null}
+                ) : (
+                  <Button label="删除" variant="ghost" onPress={() => void removeRecord(record.id)} />
+                )}
               </Card>
             );
           })}

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { DEFAULT_WEIGHT_EMA_ALPHA, weightTrendEma } from '@/core/ema';
 import { computeLocalDay, formatClock, formatMonthDay } from '@/core/local-day';
-import { formatKg, sevenDayAverage, summarizeWindow } from '@/core/weight-stats';
+import { formatKg, sevenDayAverageView, summarizeWindow } from '@/core/weight-stats';
 import { useShellInset } from '@/features/shell/AppShell';
 import { useWeight } from '@/features/weight/WeightProvider';
 import { Button } from '@/ui/Button';
@@ -27,7 +28,8 @@ export function TrendScreen() {
 
   const endDay = computeLocalDay(now, timeZone, daySwitch);
   const days = summarizeWindow(records, endDay);
-  const average = sevenDayAverage(records, endDay);
+  const trend = weightTrendEma(records, endDay, DEFAULT_WEIGHT_EMA_ALPHA);
+  const average = sevenDayAverageView(records, endDay);
   const hasAny = days.some((day) => day.primary);
 
   return (
@@ -48,9 +50,13 @@ export function TrendScreen() {
         ) : null}
         <Card>
           <Text variant="muted">7 日均重</Text>
-          <Text variant="display">{average === null ? '—' : formatKg(average)}</Text>
-          <Text variant="muted">kg</Text>
-          {ready && !hasAny ? <EmptyState /> : <TrendChart days={days} />}
+          {average.status === 'insufficient' ? (
+            <Text variant="body">数据不足</Text>
+          ) : (
+            <Text variant="display">{formatKg(average.kilograms)}</Text>
+          )}
+          <Text variant="muted">{average.status === 'insufficient' ? '至少 4 天记录后显示均重' : 'kg'}</Text>
+          {ready && !hasAny ? <EmptyState /> : <TrendChart days={trend} />}
         </Card>
         {days.map((day) => (
           <Card key={day.localDay}>

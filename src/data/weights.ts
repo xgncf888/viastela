@@ -2,27 +2,70 @@ import type { WeightRecord } from '@/core/weight-stats';
 
 import { getSupabase } from './client';
 
+export type WeightDayWindow = {
+  fromDay: string;
+  toDay: string;
+};
+
+const LOCAL_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
 function asNumber(value: number | string): number {
   const parsed = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(parsed)) throw new Error('Invalid weight from database');
   return parsed;
 }
 
-export async function listWeightRecords(): Promise<WeightRecord[]> {
-  const { data, error } = await getSupabase()
-    .from('weight_records')
-    .select('id, weight_kg, recorded_at, tz, local_day, updated_at')
-    .order('recorded_at', { ascending: true })
-    .limit(500);
-  if (error) throw error;
-  return (data ?? []).map((row) => ({
+function assertWindow(window: WeightDayWindow): void {
+  if (!LOCAL_DAY.test(window.fromDay) || !LOCAL_DAY.test(window.toDay) || window.fromDay > window.toDay) {
+    throw new Error('Invalid weight window');
+  }
+}
+
+function toRecord(row: {
+  id: string;
+  weight_kg: number | string;
+  recorded_at: string;
+  tz: string;
+  local_day: string;
+  updated_at: string;
+}): WeightRecord {
+  return {
     id: row.id,
-    weightKg: asNumber(row.weight_kg as number | string),
+    weightKg: asNumber(row.weight_kg),
     recordedAt: row.recorded_at,
     tz: row.tz,
     localDay: row.local_day,
     updatedAt: row.updated_at,
-  }));
+  };
+}
+
+const columns = 'id, weight_kg, recorded_at, tz, local_day, updated_at' as const;
+
+/** Live rows whose accounting day falls in the window. Soft-deleted rows stay out. */
+export async function listWeightRecords(window: WeightDayWindow): Promise<WeightRecord[]> {
+  assertWindow(window);
+  const { data, error } = await getSupabase()
+    .from('weight_records')
+    .select(columns)
+    .is('deleted_at', null)
+    .gte('local_day', window.fromDay)
+    .lte('local_day', window.toDay)
+    .order('recorded_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((row) => toRecord(row));
+}
+
+/** One newest live row, for one-tap reuse outside the chart window. */
+export async function latestWeightRecord(): Promise<WeightRecord | null> {
+  const { data, error } = await getSupabase()
+    .from('weight_records')
+    .select(columns)
+    .is('deleted_at', null)
+    .order('recorded_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? toRecord(data) : null;
 }
 
 export async function upsertWeightRecord(record: WeightRecord): Promise<void> {
@@ -42,5 +85,15 @@ export async function upsertWeightRecord(record: WeightRecord): Promise<void> {
     },
     { onConflict: 'id' },
   );
+  if (error) throw error;
+}
+
+/**
+ * Sets deleted_at through soft_delete_weight_record.
+ * A table update would fail the select policy once the row is hidden, and
+ * that failure rolls the write back.
+ */
+export async function softDeleteWeightRecord(id: string): Promise<void> {
+  const { error } = await getSupabase().rpc('soft_delete_weight_record', { target: id });
   if (error) throw error;
 }

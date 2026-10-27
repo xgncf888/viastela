@@ -64,6 +64,9 @@ const config = {
   },
   plugins: [
     'expo-router',
+    'expo-sqlite',
+    'expo-localization',
+    'expo-notifications',
     [
       'expo-splash-screen',
       {

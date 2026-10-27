@@ -1,0 +1,60 @@
+{
+  "cases": [
+    {
+      "id": "singapore-0130",
+      "recordedAt": "2026-10-23T17:30:00.000Z",
+      "tz": "Asia/Singapore",
+      "daySwitch": "04:00",
+      "civilDay": "2026-10-24",
+      "localDay": "2026-10-23"
+    },
+    {
+      "id": "singapore-0359",
+      "recordedAt": "2026-10-23T19:59:00.000Z",
+      "tz": "Asia/Singapore",
+      "daySwitch": "04:00",
+      "civilDay": "2026-10-24",
+      "localDay": "2026-10-23"
+    },
+    {
+      "id": "singapore-0400",
+      "recordedAt": "2026-10-23T20:00:00.000Z",
+      "tz": "Asia/Singapore",
+      "daySwitch": "04:00",
+      "civilDay": "2026-10-24",
+      "localDay": "2026-10-24"
+    },
+    {
+      "id": "singapore-month-boundary",
+      "recordedAt": "2026-02-28T17:30:00.000Z",
+      "tz": "Asia/Singapore",
+      "daySwitch": "04:00",
+      "civilDay": "2026-03-01",
+      "localDay": "2026-02-28"
+    },
+    {
+      "id": "singapore-0330",
+      "recordedAt": "2026-10-23T19:30:00.000Z",
+      "tz": "Asia/Singapore",
+      "daySwitch": "04:00",
+      "civilDay": "2026-10-24",
+      "localDay": "2026-10-23"
+    },
+    {
+      "id": "tokyo-0430-same-instant",
+      "recordedAt": "2026-10-23T19:30:00.000Z",
+      "tz": "Asia/Tokyo",
+      "daySwitch": "04:00",
+      "civilDay": "2026-10-24",
+      "localDay": "2026-10-24"
+    },
+    {
+      "id": "singapore-0530-switch-0600",
+      "recordedAt": "2026-10-23T21:30:00.000Z",
+      "tz": "Asia/Singapore",
+      "daySwitch": "06:00",
+      "civilDay": "2026-10-24",
+      "localDay": "2026-10-23"
+    }
+  ]
+}
