@@ -27,6 +27,7 @@ create table public.training_sets (
     )
     or (
       weight_kg is null
+      and band_level is not null
       and band_level in ('light', 'medium', 'heavy', 'extra_heavy')
     )
   )
