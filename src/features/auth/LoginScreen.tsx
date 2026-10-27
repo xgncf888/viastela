@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
-import { Platform, View } from 'react-native';
+import { Platform } from 'react-native';
 
 import { brand } from '@/config/brand';
 import { isSupabaseConfigured } from '@/config/env';
@@ -9,11 +9,10 @@ import { captureOAuthFailure, clearOAuthFailureMessage, type OAuthProvider } fro
 import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
 import { Content } from '@/ui/Content';
-import { Row, ScreenHeader, Stack } from '@/ui/layout';
+import { Callout, Row, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { TextField } from '@/ui/TextField';
-import { useTheme } from '@/ui/ThemeProvider';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const savedEmailKey = 'login-email';
@@ -39,7 +38,6 @@ function messageFrom(error: unknown, fallback: string): string {
 }
 
 export function LoginScreen() {
-  const theme = useTheme();
   const configured = isSupabaseConfigured();
   const showProviders = Platform.OS === 'web';
   const [phase, setPhase] = useState<'email' | 'code'>('email');
@@ -135,18 +133,7 @@ export function LoginScreen() {
           <Stack gap="md">
             {showProviders ? (
               <>
-                {providerNotice ? (
-                  <View
-                    accessibilityRole="alert"
-                    style={{
-                      backgroundColor: theme.color.dangerSoft,
-                      borderRadius: theme.radius.sm,
-                      padding: theme.space.md,
-                    }}
-                  >
-                    <Text tone="danger">{providerNotice}</Text>
-                  </View>
-                ) : null}
+                {providerNotice ? <Callout message={providerNotice} tone="danger" /> : null}
                 <Button
                   label="使用 Google 登录"
                   variant="secondary"

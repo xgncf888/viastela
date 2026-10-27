@@ -123,9 +123,7 @@ const textExtensions = new Set([
   '.html',
 ]);
 const clientDirectories = ['src', 'app', 'e2e', '.github', 'scripts'];
-const secretKeyPattern = new RegExp(
-  `${['sb', 'secret', ''].join('_')}[A-Za-z0-9_-]{22}_[A-Za-z0-9_-]{8}`,
-);
+const secretKeyPattern = new RegExp(`${['sb', 'secret', ''].join('_')}[A-Za-z0-9_-]{16,}`);
 
 type SecretHit = 'privileged-jwt' | 'supabase-secret-key' | 'service-role-literal' | 'service-key-env-name';
 
@@ -203,7 +201,7 @@ test('src, app, e2e, .github, and scripts are scanned for the service role liter
 
 test('a temporary text file containing a fake Supabase secret key is reported', () => {
   const relative = '.secret-scan-fake-key.txt';
-  const fake = `${['sb', 'secret', ''].join('_')}${'a'.repeat(22)}_${'b'.repeat(8)}`;
+  const fake = `${['sb', 'secret', ''].join('_')}${'c'.repeat(40)}`;
   try {
     writeFileSync(join(root, relative), `token=${fake}\n`);
     expect(scanTextFile(relative)).toContain('supabase-secret-key');

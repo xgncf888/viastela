@@ -73,7 +73,7 @@ Screens use these primitives. Do not add a `StyleSheet` or a raw color in a scre
 - `Chip` — single-select, 44pt, selected fill `accentSoft` and label `accentText`.
 - `Sheet` — centered on web, bottom sheet on native. One heading, an explicit close, an explicit save.
 - `EmptyState` — title, description, and one button. No second button repeating the same action. 今日 shows it only after `ready`. While the list is loading, the page shows `读取中` and nothing else.
-- `Callout` — a card for a load error plus retry.
+- `Callout` — a card for a load error plus retry. `tone="danger"` is the `dangerSoft` wash with danger text and role alert, for a failed action such as a provider sign-in that did not finish.
 - `LineChart` — domain-free. The feature passes positions from 0 to 1.
 - `ShellFrame`, `SidebarFrame`, `TabBar`, `NavItem`, `RecordButton` — app chrome.
 
