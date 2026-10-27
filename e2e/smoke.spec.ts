@@ -29,6 +29,15 @@ test('web build shows the email login screen', async ({ page }) => {
   expect(pageErrors).toEqual([]);
 });
 
+test('a direct /account/delete load renders the app', async ({ page }) => {
+  const response = await page.goto('/account/delete');
+  expect(response?.status()).toBe(200);
+  expect(response?.headers()['content-type'] ?? '').toContain('text/html');
+  await expect(page.getByRole('heading', { name: brand.displayName })).toBeVisible();
+  await expect(page.getByText('用邮箱登录')).toBeVisible();
+  await expect(page.getByText('NOT_FOUND')).toHaveCount(0);
+});
+
 test('starting Google sign-in disables GitHub and the email code button', async ({ page }) => {
   await page.route('**/auth/v1/authorize**', async (route) => {
     await route.abort('aborted');

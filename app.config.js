@@ -59,6 +59,7 @@ const config = {
   },
   web: {
     bundler: 'metro',
+    // One index.html. vercel.json rewrites client routes onto it; the host still serves real files first.
     output: 'single',
     favicon: brand.favicon,
   },

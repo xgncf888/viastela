@@ -27,6 +27,7 @@
 - Between 00:00 and the day-switch, the 今日 header and the save toast say which accounting date the entry uses, for example `已记入 10月23日`.
 - Week 1 has no offline queue.
 - CI on every push and pull request runs `tsc`, ESLint, Jest, pgTAP against the local Supabase stack, and a Playwright smoke test of the web export.
+- 2026-10-27: Web stays `output: 'single'` (one `index.html`). Vercel has no file for a client route, so `vercel.json` rewrites `/(.*)` to `/index.html`. The filesystem is checked first, so `/_expo/*`, `favicon.ico`, and the rest of the export are served as files. `output: 'static'` was not used: it would pre-render every route, which is a larger change than this host needs.
 - The pre-push hook runs typecheck and Jest.
 - 2026-10-27: Deleting an account calls the `delete-account` Edge Function. The function accepts only the caller's user JWT and deletes that auth user. Public `user_id` foreign keys are `on delete cascade`. The function reads `SUPABASE_SERVICE_ROLE_KEY` from the runtime environment. The value is not stored in the repo, the client, or CI logs. The function has been deployed on the hosted project since merge `97c2810`. This repository does not deploy it; the coordinator redeploys through the connector after review.
 - `backupPurgeDays` (30) is an upper bound for the account-deletion backup window: the longest published Supabase backup retention (Enterprise), not the retention of the current plan. `/privacy` and `/account/delete` both read that constant. Re-check the number if point-in-time recovery is enabled.
