@@ -3,6 +3,7 @@ import { ScrollViewStyleReset } from 'expo-router/html';
 
 import { brand } from '@/config/brand';
 import { pwaIcons, pwaManifest, pwaSplashes, splashMedia, splashPath } from '@/config/pwa';
+import { darkColor } from '@/ui/theme';
 
 export default function Root({ children }: PropsWithChildren) {
   return (
@@ -12,7 +13,8 @@ export default function Root({ children }: PropsWithChildren) {
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
         <title>{brand.displayName}</title>
-        <meta name="theme-color" content={pwaManifest.theme_color} />
+        <meta name="theme-color" content={pwaManifest.theme_color} media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content={darkColor.paper} media="(prefers-color-scheme: dark)" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content={brand.homeScreenShortName} />
@@ -27,6 +29,7 @@ export default function Root({ children }: PropsWithChildren) {
             media={splashMedia(splash)}
           />
         ))}
+        <script src="/pwa-head.js" />
         <ScrollViewStyleReset />
       </head>
       <body>{children}</body>

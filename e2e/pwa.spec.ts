@@ -2,9 +2,10 @@ import { readFileSync } from 'node:fs';
 
 import { devices, expect, test, type Page } from '@playwright/test';
 
+import { pngCorner } from '../scripts/render-pwa-icons.js';
 import { brand } from '../src/config/brand';
-import { pwaIcons, pwaManifest } from '../src/config/pwa';
-import { theme } from '../src/ui/theme';
+import { pwaIcons, pwaManifest, pwaSplashes } from '../src/config/pwa';
+import { darkColor, theme } from '../src/ui/theme';
 import { accountingDay, authSession, installApi, signIn, weightRow } from './session';
 
 const shell = 'http://127.0.0.1:4173';
@@ -24,6 +25,20 @@ test('manifest, icons, and the service worker are served as files', async ({ pag
       { key: 'Content-Type', value: 'application/javascript; charset=utf-8' },
     ]),
   );
+  const iconHeader = vercel.headers.find((item) => item.headers.some((header) => header.value === 'image/png'));
+  expect(iconHeader?.source).toBe('/icons/(.*\\.png$)');
+  const pngOnly = new RegExp(String.raw`^/icons(?:/(.*\.png$))$`);
+  expect(pngOnly.test('/icons/icon-192.png')).toBe(true);
+  expect(pngOnly.test('/icons/maskable.json')).toBe(false);
+  expect(pngOnly.test('/icons/.stamp')).toBe(false);
+  const staticHeader = vercel.headers.find((item) => item.source === '/_expo/static/(.*)');
+  expect(staticHeader?.headers).toEqual([
+    { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+  ]);
+  const wellKnownHeader = vercel.headers.find((item) => item.source === '/.well-known/(.*)');
+  expect(wellKnownHeader?.headers).toEqual([
+    { key: 'Content-Type', value: 'application/json; charset=utf-8' },
+  ]);
 
   const manifestResponse = await page.request.get('/manifest.webmanifest');
   expect(manifestResponse.status()).toBe(200);
@@ -31,16 +46,37 @@ test('manifest, icons, and the service worker are served as files', async ({ pag
   expect(manifestResponse.headers()['cache-control']).toContain('no-cache');
   const manifest = await manifestResponse.json();
   expect(manifest).toMatchObject(pwaManifest);
-  expect(manifest.theme_color).toBe(theme.color.paper);
-  expect(manifest.background_color).toBe(theme.color.paper);
   expect(manifest.name).toBe(brand.homeScreenName);
   expect(manifest.short_name).toBe(brand.homeScreenShortName);
+  expect(manifest.start_url).toBe('/');
+  expect(manifest.scope).toBe('/');
+  expect(manifest.display).toBe('standalone');
+  expect(manifest.theme_color).toBe(theme.color.paper);
+  expect(manifest.background_color).toBe(theme.color.paper);
+  expect(manifest.icons).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ sizes: '192x192', type: 'image/png', purpose: 'any' }),
+      expect.objectContaining({ sizes: '512x512', type: 'image/png', purpose: 'any' }),
+      expect.objectContaining({ sizes: '512x512', type: 'image/png', purpose: 'maskable' }),
+    ]),
+  );
 
+  const paperRgb = [
+    Number.parseInt(theme.color.paper.slice(1, 3), 16),
+    Number.parseInt(theme.color.paper.slice(3, 5), 16),
+    Number.parseInt(theme.color.paper.slice(5, 7), 16),
+    255,
+  ];
   for (const icon of [pwaIcons.any192, pwaIcons.any512, pwaIcons.maskable512, pwaIcons.appleTouch]) {
     const iconResponse = await page.request.get(icon);
     expect(iconResponse.status(), icon).toBe(200);
     expect(iconResponse.headers()['content-type']).toContain('image/png');
+    expect(pngCorner(`public${icon}`), icon).toEqual(paperRgb);
   }
+  const maskableReport = await page.request.get('/icons/maskable.json');
+  expect(maskableReport.status()).toBe(200);
+  expect(maskableReport.headers()['content-type']).toContain('application/json');
+  expect(maskableReport.headers()['content-type']).not.toContain('image/png');
 
   const worker = await page.request.get('/sw.js');
   expect(worker.status()).toBe(200);
@@ -50,6 +86,16 @@ test('manifest, icons, and the service worker are served as files', async ({ pag
   expect(source).toContain('skipWaiting');
   expect(source).toContain('CLEAR_RUNTIME_CACHE');
   expect(source).toContain('/.well-known/');
+  expect(source.match(/const CACHE_NAME = '([^']+)'/)?.[1]).toMatch(/^shell-static-[0-9a-f]{12}$/);
+
+  const assetLinks = await page.request.get('/.well-known/assetlinks.json');
+  expect(assetLinks.status()).toBe(200);
+  expect(assetLinks.headers()['content-type']).toContain('application/json');
+  expect(await assetLinks.json()).toEqual([]);
+  const association = await page.request.get('/.well-known/apple-app-site-association');
+  expect(association.status()).toBe(200);
+  expect(association.headers()['content-type'] ?? '').not.toContain('text/html');
+  expect(JSON.parse(await association.text())).toMatchObject({ applinks: { details: [] } });
 
   const html = await (await page.request.get('/')).text();
   expect(html).toContain('apple-mobile-web-app-capable');
@@ -58,7 +104,23 @@ test('manifest, icons, and the service worker are served as files', async ({ pag
   expect(html).toContain('viewport-fit=cover');
   expect(html).toContain('/manifest.webmanifest');
   expect(html).toContain('apple-touch-startup-image');
-  expect(html).toContain(theme.color.paper);
+  expect(html).toContain(`content="${theme.color.paper}"`);
+  expect(html).toContain(`content="${darkColor.paper}"`);
+  expect(html).toContain('media="(prefers-color-scheme: light)"');
+  expect(html).toContain('media="(prefers-color-scheme: dark)"');
+  expect(html.match(/<meta[^>]*name="theme-color"/g)).toHaveLength(2);
+  expect(html.match(/<meta name="apple-mobile-web-app-capable"/g)).toHaveLength(1);
+  expect(html.match(/<link rel="manifest"/g)).toHaveLength(1);
+  expect(html.match(/rel="icon"/g)).toHaveLength(1);
+  expect(html.match(/src="\/pwa-head.js"/g)).toHaveLength(1);
+
+  await page.goto('/');
+  await expect(page.getByText('用邮箱登录')).toBeVisible();
+  await expect.poll(async () => page.locator('meta[name="theme-color"]:not([media])').count()).toBe(0);
+  expect(await page.locator('meta[name="theme-color"]').count()).toBe(2);
+  expect(await page.locator('meta[name="apple-mobile-web-app-capable"]').count()).toBe(1);
+  expect(await page.locator('link[rel="manifest"]').count()).toBe(1);
+  expect(await page.locator('link[rel="apple-touch-startup-image"]').count()).toBe(pwaSplashes.length);
 
   await signIn(page);
   await installApi(page, { weights: [] });
@@ -153,13 +215,15 @@ test('supabase responses stay out of Cache Storage, and sign-out hides the previ
   await page.reload();
   await expect(page.getByText('47.3').first()).toBeVisible();
 
-  const cachedUrls = await page.evaluate(async () => {
+  const cacheName = (await (await page.request.get('/sw.js')).text()).match(/const CACHE_NAME = '([^']+)'/)?.[1];
+  expect(cacheName).toMatch(/^shell-static-[0-9a-f]{12}$/);
+  const cachedUrls = await page.evaluate(async (name) => {
     await fetch('/icons/icon-192.png?auth-probe=1', { headers: { Authorization: 'Bearer probe' } });
     await fetch('https://project.supabase.co/rest/v1/weight_records', {
       headers: { Authorization: 'Bearer probe', apikey: 'public' },
     });
     await fetch('/.well-known/assetlinks.json');
-    const cache = await caches.open('shell-static-v1');
+    const cache = await caches.open(name);
     await cache.put('/__user_probe', new Response('yifeng@example.com 47.3'));
     const urls: string[] = [];
     for (const name of await caches.keys()) {
@@ -167,7 +231,7 @@ test('supabase responses stay out of Cache Storage, and sign-out hides the previ
       for (const request of await opened.keys()) urls.push(request.url);
     }
     return urls;
-  });
+  }, cacheName);
   expect(cachedUrls.join('\n')).not.toMatch(/:54321|supabase\.co|auth-probe|\/\.well-known\//);
 
   await page.getByRole('button', { name: '我的' }).click();
