@@ -64,22 +64,24 @@ type Priced = {
   currency: string;
   asOf: string;
   status: QuoteStatus;
+  source: QuoteSource;
   quantityMinor: bigint;
 };
 
 /**
  * Write today's snapshot only when every holding has a real Finnhub quote
- * (fresh or stale). Cost-basis estimates and unavailable holdings skip it.
- * No holdings and at least one cash balance still writes. An empty book does not.
+ * (fresh or stale, source finnhub). Cost-basis estimates and unavailable
+ * holdings skip it. No holdings and at least one cash balance still writes.
+ * An empty book does not.
  */
 export function snapshotAction(
-  holdingStatuses: readonly QuoteStatus[],
-  source: QuoteSource,
+  holdings: readonly { status: QuoteStatus; source: QuoteSource }[],
   hasCash: boolean,
 ): SnapshotState {
-  if (holdingStatuses.length === 0) return hasCash ? 'written' : 'skipped';
-  if (source !== 'finnhub') return 'skipped';
-  const real = holdingStatuses.every((status) => status === 'fresh' || status === 'stale');
+  if (holdings.length === 0) return hasCash ? 'written' : 'skipped';
+  const real = holdings.every(
+    (holding) => holding.source === 'finnhub' && (holding.status === 'fresh' || holding.status === 'stale'),
+  );
   return real ? 'written' : 'skipped';
 }
 
@@ -96,16 +98,15 @@ export async function valuate(input: ValuationInput): Promise<Valuation> {
   if (cashMinor === null) return { ok: false, error: 'fx_unavailable' };
   const securitiesMinor = valueSecurities(priced.rows, input.source);
   const totalMinor = cashMinor + securitiesMinor;
-  const holdingStatuses = priced.rows.map((row) => row.status);
   const currenciesKnown = priced.rows.every(
     (row) => row.status === 'unavailable' || row.currency === FX_BASE,
   );
   const state = currenciesKnown
-    ? snapshotAction(holdingStatuses, input.source, input.balances.length > 0)
+    ? snapshotAction(priced.rows, input.balances.length > 0)
     : 'skipped';
   const asOf = input.now.toISOString();
   const localDay = computeLocalDay(input.now, input.timeZone, input.daySwitch);
-  const quotes = responseQuotes(input.requested, heldSymbols, priced.rows, asOf);
+  const quotes = responseQuotes(input.requested, heldSymbols, priced.rows, asOf, input.source);
   const body: QuotesResponse = {
     quotes,
     rates: fx.lines,
@@ -113,8 +114,8 @@ export async function valuate(input: ValuationInput): Promise<Valuation> {
     total_usd: moneyNumber(totalMinor),
     cash_usd: moneyNumber(cashMinor),
     securities_usd: moneyNumber(securitiesMinor),
-    unpriced: holdingStatuses.filter((status) => status === 'unavailable').length,
-    stale: holdingStatuses.some((status) => status === 'stale'),
+    unpriced: priced.rows.filter((row) => row.status === 'unavailable').length,
+    stale: priced.rows.some((row) => row.status === 'stale'),
     snapshot: state,
   };
   const snapshot = state === 'written'
@@ -168,7 +169,10 @@ async function pricePositions(
   positions: readonly Position[],
 ): Promise<{ ok: true; rows: Priced[] } | { ok: false; error: 'quote_unavailable' }> {
   if (input.source === 'cost_basis') {
-    return { ok: true, rows: positions.map((position) => priceFromCost(position, input.now.toISOString())) };
+    return {
+      ok: true,
+      rows: positions.map((position) => priceFromCost(position, input.now.toISOString())),
+    };
   }
   if (!input.quoteProvider) return { ok: false, error: 'quote_unavailable' };
   if (positions.length === 0) return { ok: true, rows: [] };
@@ -215,7 +219,7 @@ async function pricePositions(
       for (const position of positions) {
         const hit = fresh.get(position.symbol) ?? cacheBySymbol.get(position.symbol);
         if (!hit || parsePrice(hit.price) === null) {
-          fallback.push(unavailablePosition(position, input.now.toISOString()));
+          fallback.push(unavailablePosition(position, input.now.toISOString(), 'finnhub'));
           continue;
         }
         anyCache = true;
@@ -231,9 +235,9 @@ async function pricePositions(
     const hit = fresh.get(position.symbol);
     if (hit) return fromCache(position, hit, 'fresh');
     const quote = fetched.get(position.symbol);
-    if (!quote || quote.price === null) return unavailablePosition(position, input.now.toISOString());
+    if (!quote || quote.price === null) return unavailablePosition(position, input.now.toISOString(), 'finnhub');
     const priceMinor = parsePrice(quote.price);
-    if (priceMinor === null) return unavailablePosition(position, input.now.toISOString());
+    if (priceMinor === null) return unavailablePosition(position, input.now.toISOString(), 'finnhub');
     return {
       symbol: position.symbol,
       priceMinor,
@@ -241,6 +245,7 @@ async function pricePositions(
       currency: quote.currency.toUpperCase(),
       asOf: quote.asOf,
       status: 'fresh' as const,
+      source: 'finnhub' as const,
       quantityMinor: position.quantityMinor,
     };
   });
@@ -249,10 +254,10 @@ async function pricePositions(
 
 function priceFromCost(position: Position, asOf: string): Priced {
   if (position.costMinor === null || position.quantityMinor <= 0n) {
-    return unavailablePosition(position, asOf);
+    return unavailablePosition(position, asOf, 'cost_basis');
   }
   const priceMinor = unitPriceMinor(position.costMinor, position.quantityMinor);
-  if (priceMinor === null) return unavailablePosition(position, asOf);
+  if (priceMinor === null) return unavailablePosition(position, asOf, 'cost_basis');
   return {
     symbol: position.symbol,
     priceMinor,
@@ -260,11 +265,12 @@ function priceFromCost(position: Position, asOf: string): Priced {
     currency: 'USD',
     asOf,
     status: 'fresh',
+    source: 'cost_basis',
     quantityMinor: position.quantityMinor,
   };
 }
 
-function unavailablePosition(position: Position, asOf: string): Priced {
+function unavailablePosition(position: Position, asOf: string, source: QuoteSource): Priced {
   return {
     symbol: position.symbol,
     priceMinor: null,
@@ -272,18 +278,22 @@ function unavailablePosition(position: Position, asOf: string): Priced {
     currency: 'USD',
     asOf,
     status: 'unavailable',
+    source,
     quantityMinor: position.quantityMinor,
   };
 }
 
 function fromCache(position: Position, row: QuoteCacheRow, status: QuoteStatus): Priced {
+  const priceMinor = parsePrice(row.price);
+  if (priceMinor === null) return unavailablePosition(position, row.asOf, 'finnhub');
   return {
     symbol: position.symbol,
-    priceMinor: parsePrice(row.price),
+    priceMinor,
     costMinor: position.costMinor,
     currency: row.currency.toUpperCase(),
     asOf: row.asOf,
     status,
+    source: 'finnhub',
     quantityMinor: position.quantityMinor,
   };
 }
@@ -384,6 +394,7 @@ function responseQuotes(
   held: ReadonlySet<string>,
   rows: readonly Priced[],
   asOf: string,
+  source: QuoteSource,
 ): QuoteLine[] {
   const bySymbol = new Map(rows.map((row) => [row.symbol, toLine(row)]));
   if (!requested || requested.length === 0) {
@@ -393,8 +404,8 @@ function responseQuotes(
   const seen = new Set<string>();
   for (const symbol of requested) {
     seen.add(symbol);
-    if (held.has(symbol)) lines.push(bySymbol.get(symbol) ?? unavailableLine(symbol, asOf));
-    else lines.push(unavailableLine(symbol, asOf));
+    if (held.has(symbol)) lines.push(bySymbol.get(symbol) ?? unavailableLine(symbol, asOf, source));
+    else lines.push(unavailableLine(symbol, asOf, source));
   }
   for (const [symbol, line] of bySymbol) {
     if (!seen.has(symbol)) lines.push(line);
@@ -403,17 +414,19 @@ function responseQuotes(
 }
 
 function toLine(row: Priced): QuoteLine {
+  const unavailable = row.status === 'unavailable' || row.priceMinor === null;
   return {
     symbol: row.symbol,
-    price: row.priceMinor === null ? null : priceNumber(row.priceMinor),
+    price: unavailable || row.priceMinor === null ? null : priceNumber(row.priceMinor),
     currency: row.currency,
     as_of: row.asOf,
-    status: row.status,
+    status: unavailable ? 'unavailable' : row.status,
+    source: row.source,
   };
 }
 
-function unavailableLine(symbol: string, asOf: string): QuoteLine {
-  return { symbol, price: null, currency: 'USD', as_of: asOf, status: 'unavailable' };
+function unavailableLine(symbol: string, asOf: string, source: QuoteSource): QuoteLine {
+  return { symbol, price: null, currency: 'USD', as_of: asOf, status: 'unavailable', source };
 }
 
 export function moneyText(value: number): string {

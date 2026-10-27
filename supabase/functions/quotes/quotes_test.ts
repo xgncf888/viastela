@@ -198,13 +198,17 @@ async function bodyOf(response: Response): Promise<QuotesResponse> {
   return await response.json() as QuotesResponse;
 }
 
-function assertLine(quote: QuoteLine, expected: { price: number | null; status: QuoteLine['status'] }): void {
-  eq(Object.keys(quote).sort(), ['as_of', 'currency', 'price', 'status', 'symbol']);
+function assertLine(
+  quote: QuoteLine,
+  expected: { price: number | null; status: QuoteLine['status']; source: QuoteLine['source'] },
+): void {
+  eq(Object.keys(quote).sort(), ['as_of', 'currency', 'price', 'source', 'status', 'symbol']);
   eq(quote.price, expected.price);
   eq(quote.status, expected.status);
-  if (expected.price === null) eq(quote.price, null);
+  eq(quote.source, expected.source);
+  if (expected.status === 'unavailable') eq(quote.price, null);
   else eq(typeof quote.price, 'number');
-  eq(JSON.stringify(quote).includes('fake'), false);
+  eq(quote.source === 'finnhub' || quote.source === 'cost_basis', true);
 }
 
 function assertNoFake(body: QuotesResponse): void {
@@ -287,7 +291,7 @@ Deno.test('gate 2: a symbol only A holds is unavailable to B', async () => {
   const body = await bodyOf(response);
   eq(body.quotes.length, 1);
   eq(body.quotes[0]?.symbol, 'AAA');
-  assertLine(body.quotes[0] as QuoteLine, { price: null, status: 'unavailable' });
+  assertLine(body.quotes[0] as QuoteLine, { price: null, status: 'unavailable', source: 'finnhub' });
   assertNoFake(body);
   eq(quotes.calls, 0);
   eq(quotes.seen, []);
@@ -373,7 +377,7 @@ Deno.test('gate 4: fake provider, cache hit, and stale fallback', async () => {
   const fresh = await bodyOf(first);
   eq(quotes.calls, 1);
   eq(quotes.seen, [['AAA']]);
-  assertLine(fresh.quotes[0] as QuoteLine, { price: 6, status: 'fresh' });
+  assertLine(fresh.quotes[0] as QuoteLine, { price: 6, status: 'fresh', source: 'finnhub' });
   eq(fresh.source, 'finnhub');
   eq(fresh.snapshot, 'written');
   eq(fresh.securities_usd, 12);
@@ -386,7 +390,7 @@ Deno.test('gate 4: fake provider, cache hit, and stale fallback', async () => {
   const second = await handleQuotes(post(token, { symbols: ['AAA'], tz: 'UTC' }), deps());
   const cached = await bodyOf(second);
   eq(quotes.calls, 1);
-  assertLine(cached.quotes[0] as QuoteLine, { price: 6, status: 'fresh' });
+  assertLine(cached.quotes[0] as QuoteLine, { price: 6, status: 'fresh', source: 'finnhub' });
   eq(cached.snapshot, 'written');
   eq(desk.snapshots.length, 1);
 
@@ -396,7 +400,7 @@ Deno.test('gate 4: fake provider, cache hit, and stale fallback', async () => {
   eq(third.status, 200);
   const stale = await bodyOf(third);
   eq(quotes.calls, 2);
-  assertLine(stale.quotes[0] as QuoteLine, { price: 6, status: 'stale' });
+  assertLine(stale.quotes[0] as QuoteLine, { price: 6, status: 'stale', source: 'finnhub' });
   eq(stale.stale, true);
   eq(stale.source, 'finnhub');
   eq(stale.snapshot, 'written');
@@ -463,8 +467,8 @@ Deno.test('gate 5: cost basis holdings write zero snapshot rows', async () => {
   eq(body.total_usd, 88);
   const priced = body.quotes.find((quote) => quote.symbol === 'AAA');
   const missing = body.quotes.find((quote) => quote.symbol === 'BBB');
-  assertLine(priced as QuoteLine, { price: 20, status: 'fresh' });
-  assertLine(missing as QuoteLine, { price: null, status: 'unavailable' });
+  assertLine(priced as QuoteLine, { price: 20, status: 'fresh', source: 'cost_basis' });
+  assertLine(missing as QuoteLine, { price: null, status: 'unavailable', source: 'cost_basis' });
   assertNoFake(body);
 });
 
@@ -558,8 +562,8 @@ Deno.test('an unavailable holding skips the snapshot', async () => {
   );
   const body = await bodyOf(response);
   eq(response.status, 200);
-  assertLine(body.quotes.find((quote) => quote.symbol === 'AAA') as QuoteLine, { price: 6, status: 'fresh' });
-  assertLine(body.quotes.find((quote) => quote.symbol === 'BBB') as QuoteLine, { price: null, status: 'unavailable' });
+  assertLine(body.quotes.find((quote) => quote.symbol === 'AAA') as QuoteLine, { price: 6, status: 'fresh', source: 'finnhub' });
+  assertLine(body.quotes.find((quote) => quote.symbol === 'BBB') as QuoteLine, { price: null, status: 'unavailable', source: 'finnhub' });
   eq(body.snapshot, 'skipped');
   eq(body.unpriced, 1);
   eq(desk.snapshots.length, 0);
@@ -606,7 +610,7 @@ Deno.test('gate 6: logs omit the provider key and the holdings', async () => {
     eq(response.status, 200);
     const body = await bodyOf(response);
     eq(body.source, 'finnhub');
-    assertLine(body.quotes[0] as QuoteLine, { price: 4, status: 'fresh' });
+    assertLine(body.quotes[0] as QuoteLine, { price: 4, status: 'fresh', source: 'finnhub' });
     eq(body.quotes[0]?.symbol, 'ZX.Y');
     assertNoFake(body);
     eq(JSON.stringify(body).includes(apiKey), false);

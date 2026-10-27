@@ -1,4 +1,8 @@
-/** Quote lines match `CachedQuote` in src/data/quoteCache.ts. `price` is null when unavailable. */
+/**
+ * Quote lines match `CachedQuote` in src/data/quoteCache.ts.
+ * `price` is a number for fresh and stale, and null for unavailable.
+ * `source` is finnhub or cost_basis. The string `fake` is never returned.
+ */
 
 export type QuoteStatus = 'fresh' | 'stale' | 'unavailable';
 
@@ -10,6 +14,7 @@ export type QuoteLine = {
   currency: string;
   as_of: string;
   status: QuoteStatus;
+  source: QuoteSource;
 };
 
 export type FxLine = {
