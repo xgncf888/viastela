@@ -1,0 +1,1 @@
+-- No seed rows. Sign in with an email OTP; local mail is the Supabase inbox on port 54324.

@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run check:brand
+      - run: npm run check:vectors
+      - name: Export web
+        run: npm run export:web
+        env:
+          # Placeholder so the client bundle has a URL shape. CI does not call a hosted project.
+          EXPO_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          # Supabase's public local-demo anon key, not a project secret.
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+
+  rls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v3.0.1
+        with:
+          version: 2.122.0
+      - run: node scripts/render-local-day-pgtap.mjs
+      - name: Start local database
+        run: |
+          set -euo pipefail
+          # db start can race its own container restart and leave 54322 bound.
+          reset_db() {
+            supabase stop --no-backup >/dev/null 2>&1 || true
+            docker ps -aq --filter label=com.supabase.cli.project=viastela | xargs -r docker rm -f >/dev/null 2>&1 || true
+          }
+          for attempt in 1 2 3 4 5; do
+            if supabase --yes db start; then
+              exit 0
+            fi
+            echo "db start failed on attempt ${attempt}; resetting containers"
+            reset_db
+            sleep $((attempt * 3))
+          done
+          exit 1
+      - run: supabase --yes test db --local
