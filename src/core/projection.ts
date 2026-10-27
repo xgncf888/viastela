@@ -145,15 +145,22 @@ export function projectNetWorthLines(
  *   expected = left + (days from left to the day) / (days from left to right) * (right - left)
  *
  * The denominator is the civil length of that month, so February weighs a
- * leap day as one of 29 days. Days outside the first and last points throw.
- * The goal month is chosen from the month points only, not from this blend.
+ * leap day as one of 29 days. The goal month is chosen from the month points
+ * only, not from this blend.
+ *
+ * `onDay` outside the projection throws. That is any civil day before the
+ * first point or after the last point. Callers clamp the day into that
+ * inclusive range before calling. This function does not clip it.
  *
  * `months` is `deltaUsd / monthlyNetUsd`. When `monthlyNetUsd` is zero or
  * negative, `months` is null.
  */
 export function projectionGap(input: {
   actualUsd: number;
-  /** Civil day `YYYY-MM-DD`. */
+  /**
+   * Civil day `YYYY-MM-DD`. Must fall on or between the line's first and last
+   * points. An earlier or later day throws; clamp it into range first.
+   */
   onDay: string;
   line: NetWorthProjection;
   monthlyNetUsd: number;
