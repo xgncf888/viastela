@@ -438,6 +438,39 @@ export type Database = {
         };
         Relationships: [];
       };
+      reminder_deliveries: {
+        Row: {
+          id: string;
+          kind: string;
+          local_day: string;
+          sent_at: string;
+          subscription_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          id?: string;
+          kind: string;
+          local_day: string;
+          sent_at?: string;
+          subscription_id: string;
+        };
+        Update: {
+          id?: string;
+          kind?: string;
+          local_day?: string;
+          sent_at?: string;
+          subscription_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "reminder_deliveries_subscription_id_fkey";
+            columns: ["subscription_id"];
+            isOneToOne: false;
+            referencedRelation: "push_subscriptions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       study_records: {
         Row: {
           created_at: string;

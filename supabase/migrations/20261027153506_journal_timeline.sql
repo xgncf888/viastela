@@ -229,6 +229,36 @@ with check (user_id = (select auth.uid()));
 revoke all on table public.push_subscriptions from public, anon, authenticated;
 grant select, insert, update on table public.push_subscriptions to authenticated;
 
+-- Server delivery log. RLS is on and no policy is granted, so anon and
+-- authenticated cannot read or write. Deleting a subscription removes its rows.
+create table public.reminder_deliveries (
+  id uuid primary key default gen_random_uuid(),
+  subscription_id uuid not null references public.push_subscriptions (id) on delete cascade,
+  kind text not null,
+  local_day date not null,
+  sent_at timestamptz not null default now(),
+  constraint reminder_deliveries_kind_check check (kind in ('training', 'month_end')),
+  constraint reminder_deliveries_subscription_kind_day_key unique (subscription_id, kind, local_day)
+);
+
+comment on table public.reminder_deliveries is
+  'One sent reminder per subscription, kind, and local day. Written by the server.';
+comment on column public.reminder_deliveries.subscription_id is
+  'The push subscription this reminder was sent to. Deletes cascade.';
+comment on column public.reminder_deliveries.kind is
+  'training or month_end.';
+comment on column public.reminder_deliveries.local_day is
+  'The local day this reminder was for. Together with kind it is sent at most once.';
+comment on column public.reminder_deliveries.sent_at is
+  'When the reminder was recorded as sent. Default now().';
+
+create index reminder_deliveries_subscription_id_idx
+  on public.reminder_deliveries (subscription_id);
+
+alter table public.reminder_deliveries enable row level security;
+
+revoke all on table public.reminder_deliveries from public, anon, authenticated;
+
 -- symbol and account_id identify the position. A later edit is a different holding.
 -- forbid_deleted_parent on balances is unchanged.
 create or replace function public.forbid_holding_immutable_column()

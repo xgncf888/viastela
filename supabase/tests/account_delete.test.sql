@@ -146,7 +146,7 @@ begin
 end;
 $$;
 
-select plan(77);
+select plan(81);
 
 do $$
 declare
@@ -524,6 +524,16 @@ select lives_ok(
 
 reset role;
 
+select lives_ok(
+  $$
+    insert into public.reminder_deliveries (subscription_id, kind, local_day)
+    values
+      ('f2f2f2f2-f2f2-42f2-82f2-f2f2f2f2f201', 'training', date '2026-10-27'),
+      ('f2f2f2f2-f2f2-42f2-82f2-f2f2f2f2f202', 'month_end', date '2026-10-27')
+  $$,
+  'both users have a reminder delivery before delete'
+);
+
 select isnt(
   tests.public_user_id_residue(current_setting('tests.user_a')::uuid),
   '',
@@ -564,6 +574,16 @@ select is(
   (select count(*) from public.push_subscriptions where user_id = current_setting('tests.user_a')::uuid),
   1::bigint,
   'user A push subscription exists before delete'
+);
+
+select is(
+  (
+    select count(*)
+    from public.reminder_deliveries
+    where subscription_id = 'f2f2f2f2-f2f2-42f2-82f2-f2f2f2f2f201'
+  ),
+  1::bigint,
+  'user A reminder delivery exists before delete'
 );
 
 select is(
@@ -656,6 +676,16 @@ select is(
 );
 
 select is(
+  (
+    select count(*)
+    from public.reminder_deliveries
+    where subscription_id = 'f2f2f2f2-f2f2-42f2-82f2-f2f2f2f2f201'
+  ),
+  0::bigint,
+  'deleted user reminder deliveries are gone'
+);
+
+select is(
   (select count(*) from public.asset_accounts where user_id = current_setting('tests.user_a')::uuid),
   0::bigint,
   'deleted user asset accounts are gone'
@@ -743,6 +773,16 @@ select is(
   (select count(*) from public.push_subscriptions where user_id = current_setting('tests.user_b')::uuid),
   1::bigint,
   'the other user push subscription remains'
+);
+
+select is(
+  (
+    select count(*)
+    from public.reminder_deliveries
+    where subscription_id = 'f2f2f2f2-f2f2-42f2-82f2-f2f2f2f2f202'
+  ),
+  1::bigint,
+  'the other user reminder delivery remains'
 );
 
 select is(
