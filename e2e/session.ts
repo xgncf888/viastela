@@ -7,11 +7,13 @@ function unsignedJwt(payload: Record<string, unknown>): string {
   return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.sig`;
 }
 
-export function authSession() {
+export function authSession(person?: { userId?: string; email?: string }) {
+  const id = person?.userId ?? userId;
+  const email = person?.email ?? 'yifeng@example.com';
   return {
     access_token: unsignedJwt({
-      sub: userId,
-      email: 'yifeng@example.com',
+      sub: id,
+      email,
       role: 'authenticated',
       exp: 4_000_000_000,
     }),
@@ -20,9 +22,9 @@ export function authSession() {
     expires_in: 3_600,
     token_type: 'bearer',
     user: {
-      id: userId,
+      id,
       aud: 'authenticated',
-      email: 'yifeng@example.com',
+      email,
       app_metadata: { provider: 'email' },
       user_metadata: {},
       created_at: '2026-10-24T00:00:00.000Z',

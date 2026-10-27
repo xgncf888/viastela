@@ -18,7 +18,7 @@
     "check:brand": "node scripts/check-brand.mjs",
     "check:vectors": "node scripts/render-local-day-pgtap.mjs && git diff --exit-code -- supabase/tests/local_day_vectors.test.sql",
     "test:e2e": "playwright test",
-    "export:web": "expo export --platform web",
+    "export:web": "expo export --platform web && node scripts/stamp-pwa-html.js",
     "prepare": "node scripts/install-hooks.mjs"
   },
   "dependencies": {

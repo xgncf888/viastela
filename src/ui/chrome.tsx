@@ -56,7 +56,10 @@ export function TabBar({ action, children }: { action: ReactNode; children: Reac
       style={[
         styles.bar,
         {
-          paddingBottom: Math.max(insets.bottom, theme.space.sm),
+          paddingBottom:
+            Platform.OS === 'web'
+              ? (`max(${theme.space.sm}px, env(safe-area-inset-bottom))` as unknown as number)
+              : Math.max(insets.bottom, theme.space.sm),
           backgroundColor: color.card,
           borderTopColor: color.line,
         },

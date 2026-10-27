@@ -120,3 +120,13 @@ Deleting a set happens on the per-set list opened from the status card, with the
 The study sheet is one screen: a topic (recent chips, or a typed name), a duration of 15, 30, 45, 60, or 自定义, and an optional 收获. 30 starts selected. Duration must be a whole number from 1 to 1440. 保存 closes the sheet and toasts `已记入 10月27日 · AI Infra 30 分钟`.
 
 When weight, training, and study all have a row for the accounting day, the header note says `今天都记完了`.
+
+## Installed web app
+
+The web export is an installable app. `display` is `standalone` and `start_url` is `/`. The installed name and short name live on `brand.homeScreenName` and `brand.homeScreenShortName`. `theme_color` and `background_color` are the light `paper` token. Icons are exported from `assets/icon.png`: 192, 512, a 512 maskable icon whose mark sits inside the center 80% circle, and a 180 apple touch icon. Startup images are a paper field with that icon centered.
+
+iOS uses `apple-mobile-web-app-capable` and `apple-mobile-web-app-status-bar-style: default`, with `viewport-fit=cover`. Screens pad the top with `safe-area-inset-top`. The tab bar pads its bottom with `safe-area-inset-bottom`, and the shell’s scroll padding grows by the same inset so the home indicator does not cover the bar or the last row. Pages without a tab bar pad the bottom inset too.
+
+The service worker caches only same-origin static files: JavaScript, CSS, images, fonts, and the `index.html` shell. Navigations are network-first and fall back to that shell, so a new deploy replaces the previous bundle. `sw.js` is served with `Cache-Control: no-cache` and registered with `updateViaCache: 'none'`. A worker that replaces one already in control reloads the page once. Supabase hosts, `/auth|rest|functions|storage|realtime/v1` paths, and any request carrying `Authorization` are not intercepted. `/.well-known/*` is not intercepted. Sign-out deletes the runtime Cache Storage.
+
+There is no install banner. 我的 shows one row, hidden when the page is already `display-mode: standalone`. On iPhone and iPad the row says `在 Safari 点分享 → 添加到主屏幕`. Elsewhere it says `在浏览器菜单里选择「添加到主屏幕」`. Notifications are not part of this install path.

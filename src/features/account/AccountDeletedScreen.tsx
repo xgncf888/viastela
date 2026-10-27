@@ -6,7 +6,7 @@ import { accountDeletedDetail } from '@/core/account-policy';
 import { signOutLocal } from '@/data/auth';
 import { Button } from '@/ui/Button';
 import { Content } from '@/ui/Content';
-import { Screen } from '@/ui/Screen';
+import { documentEdges, Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { theme } from '@/ui/theme';
 
@@ -32,7 +32,7 @@ export function AccountDeletedScreen() {
   if (!deleted) return <Redirect href="/login" />;
 
   return (
-    <Screen>
+    <Screen edges={documentEdges}>
       <Content inset={theme.space.xxl}>
         <Text variant="title" accessibilityRole="header">
           账号已删除

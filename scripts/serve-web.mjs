@@ -9,6 +9,7 @@ const types = {
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
@@ -36,7 +37,11 @@ const server = createServer(async (request, response) => {
       body = await readFile(path.join(root, 'index.html'));
       extension = '.html';
     }
-    response.writeHead(200, { 'content-type': types[extension] ?? 'application/octet-stream' });
+    const headers = { 'content-type': types[extension] ?? 'application/octet-stream' };
+    if (path.basename(filePath) === 'sw.js' || path.basename(filePath) === 'manifest.webmanifest') {
+      headers['cache-control'] = 'no-cache';
+    }
+    response.writeHead(200, headers);
     response.end(body);
   } catch {
     response.writeHead(500).end('failed to read export');

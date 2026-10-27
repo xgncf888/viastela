@@ -3,6 +3,9 @@
  */
 export const brand = {
   displayName: 'Viastela',
+  /** Installed PWA name. The product name literal stays in this file. */
+  homeScreenName: 'Viastela 星途',
+  homeScreenShortName: '星途',
   slug: 'viastela',
   scheme: 'viastela',
   iosBundleIdentifier: 'com.viastela.app',
