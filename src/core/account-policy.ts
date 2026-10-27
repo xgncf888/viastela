@@ -32,6 +32,10 @@ export function privacyParagraphs(displayName: string): readonly string[] {
   ];
 }
 
+export function accountDeletedDetail(): string {
+  return `你的记录已从星途中删除，数据库备份会在 ${backupPurgeDays} 天内清除`;
+}
+
 export function deletionFacts(): readonly string[] {
   return [
     '将删除你的体重记录。',

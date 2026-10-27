@@ -114,7 +114,7 @@ test('account deletion requires 删除, then shows the deleted page', async ({ p
 
   release();
   await expect(page.getByRole('heading', { name: '账号已删除' })).toBeVisible();
-  await expect(page.getByText('你的记录已全部清除')).toBeVisible();
+  await expect(page.getByText('你的记录已从星途中删除，数据库备份会在 30 天内清除')).toBeVisible();
   await page.getByRole('button', { name: '好的' }).click();
   await expect(page.getByRole('heading', { name: brand.displayName })).toBeVisible();
   await expect(page.getByText('用邮箱登录')).toBeVisible();

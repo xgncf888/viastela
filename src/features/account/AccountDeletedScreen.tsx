@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { Redirect, router, usePreventRemove } from 'expo-router';
 
+import { accountDeletedDetail } from '@/core/account-policy';
 import { signOutLocal } from '@/data/auth';
 import { Button } from '@/ui/Button';
 import { Content } from '@/ui/Content';
@@ -37,7 +38,7 @@ export function AccountDeletedScreen() {
           账号已删除
         </Text>
         <Text variant="body" style={styles.line}>
-          你的记录已全部清除
+          {accountDeletedDetail()}
         </Text>
         <Button label="好的" loading={leaving} onPress={() => void onOk()} />
       </Content>

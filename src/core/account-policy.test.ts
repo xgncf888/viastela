@@ -3,6 +3,7 @@ import { expect, test } from '@jest/globals';
 import {
   accountDeletionPhrase,
   backupPurgeDays,
+  accountDeletedDetail,
   deletionFacts,
   privacyContactEmail,
   privacyParagraphs,
@@ -49,4 +50,6 @@ test('deletion facts list weight, training, study, the profile, and the same pur
   expect(accountDeletionPhrase).toBe('删除');
   expect(dayCounts(privacy)).toEqual([backupPurgeDays]);
   expect(dayCounts(deletion)).toEqual([backupPurgeDays]);
+  expect(accountDeletedDetail()).toBe(`你的记录已从星途中删除，数据库备份会在 ${backupPurgeDays} 天内清除`);
+  expect(dayCounts(accountDeletedDetail())).toEqual([backupPurgeDays]);
 });

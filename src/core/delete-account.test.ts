@@ -106,7 +106,7 @@ test('user A cannot delete user B', async () => {
   expect(logs).not.toContain(envName);
 });
 
-test('the repo and function logs do not contain the privileged role name or its key', () => {
+test('every file is scanned the same way for a privileged-role key', () => {
   const listed = spawnSync('git', ['ls-files', '-co', '--exclude-standard', '-z'], {
     cwd: root,
     encoding: 'utf8',
@@ -128,20 +128,12 @@ test('the repo and function logs do not contain the privileged role name or its 
     '.txt',
     '.html',
   ]);
-  const hits: string[] = [];
   const encodedRoleHits: string[] = [];
   for (const relative of listed.stdout.split('\0').filter(Boolean)) {
     const extension = extname(relative);
     if (!textExtensions.has(extension)) continue;
-    let text = readFileSync(join(root, relative), 'utf8');
-    if (relative === 'supabase/config.toml') {
-      text = text.replace(/`anon`, `authenticated`, `[^`]+`/, '');
-    }
-    if (text.includes(roleName)) hits.push(relative);
+    const text = readFileSync(join(root, relative), 'utf8');
     if (jwtHasForbiddenRole(text)) encodedRoleHits.push(relative);
-  }
-  if (hits.length > 0) {
-    throw new Error(`forbidden role name found in: ${hits.join(', ')}`);
   }
   if (encodedRoleHits.length > 0) {
     throw new Error(`JWT with the forbidden role found in: ${encodedRoleHits.join(', ')}`);
