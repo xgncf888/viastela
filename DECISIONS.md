@@ -28,3 +28,7 @@
 - Week 1 has no offline queue.
 - CI on every push and pull request runs `tsc`, ESLint, Jest, pgTAP against the local Supabase stack, and a Playwright smoke test of the web export.
 - The pre-push hook runs typecheck and Jest.
+- 2026-10-27: Deleting an account calls the `delete-account` Edge Function. The function accepts only the caller's user JWT and deletes that auth user. Public `user_id` foreign keys are `on delete cascade`. The function reads `SUPABASE_SERVICE_ROLE_KEY` from the runtime environment. The value is not stored in the repo, the client, or CI logs. The function is not deployed from this repository.
+- Hosted database backups that still contain a deleted account are described as purged within 30 days, the longest published Supabase daily-backup retention. Revisit the copy if point-in-time recovery is kept longer.
+- Sign-in methods are email OTP, Google, and GitHub. The same verified email is one account. Provider buttons land in a later change, after the shared UI rewrite.
+- The privacy contact address is xgncf888@gmail.com.

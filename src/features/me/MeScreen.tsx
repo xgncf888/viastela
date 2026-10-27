@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { router } from 'expo-router';
 
 import { brand } from '@/config/brand';
 import { signOut } from '@/data/auth';
@@ -66,6 +67,8 @@ export function MeScreen() {
         <Card>
           <Text variant="body">训练、学习和时间块还在后面。现在可以记体重。</Text>
         </Card>
+        <Button label="隐私政策" variant="ghost" onPress={() => router.push('/privacy')} />
+        <Button label="删除账号" variant="secondary" onPress={() => router.push('/account/delete')} />
         <Button
           label="退出登录"
           variant="secondary"

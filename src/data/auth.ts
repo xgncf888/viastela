@@ -59,3 +59,8 @@ export async function signOut(): Promise<void> {
   const { error } = await getSupabase().auth.signOut();
   if (error) throw error;
 }
+
+export async function signOutLocal(): Promise<void> {
+  const { error } = await getSupabase().auth.signOut({ scope: 'local' });
+  if (error) throw error;
+}
