@@ -36,6 +36,17 @@ export function accountingDay(now = new Date()): string {
   return clock.toISOString().slice(0, 10);
 }
 
+export type StudyRow = {
+  id: string;
+  topic: string;
+  duration_minutes: number;
+  note: string | null;
+  recorded_at: string;
+  tz: string;
+  local_day: string;
+  updated_at: string;
+};
+
 export type TrainingRow = {
   id: string;
   exercise: string;
@@ -74,6 +85,29 @@ function idFromEq(url: string): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+function rememberStudy(rows: StudyRow[], body: string): void {
+  try {
+    const parsed = JSON.parse(body) as Partial<StudyRow> | Partial<StudyRow>[];
+    const row = Array.isArray(parsed) ? parsed[0] : parsed;
+    if (!row?.id || !row.topic || !row.local_day) return;
+    const next: StudyRow = {
+      id: row.id,
+      topic: row.topic,
+      duration_minutes: row.duration_minutes ?? 0,
+      note: row.note ?? null,
+      recorded_at: row.recorded_at ?? new Date().toISOString(),
+      tz: row.tz ?? 'UTC',
+      local_day: row.local_day,
+      updated_at: row.updated_at ?? row.recorded_at ?? new Date().toISOString(),
+    };
+    const index = rows.findIndex((item) => item.id === next.id);
+    if (index === -1) rows.push(next);
+    else rows[index] = next;
+  } catch {
+    // The spec still records the raw body when JSON is not a study record.
+  }
+}
+
 function rememberTraining(rows: TrainingRow[], body: string): void {
   try {
     const parsed = JSON.parse(body) as Partial<TrainingRow> | Partial<TrainingRow>[];
@@ -110,14 +144,19 @@ export async function installApi(
   options: {
     weights: WeightRow[];
     training?: TrainingRow[];
+    study?: StudyRow[];
     onWrite?: (route: Route) => Promise<void>;
     onSoftDelete?: (body: string) => void;
     onTrainingWrite?: (route: Route) => Promise<void>;
     onTrainingDelete?: (body: string) => void;
+    onStudyWrite?: (route: Route) => Promise<void>;
+    onStudyDelete?: (body: string) => void;
     emptyTrainingDelete?: boolean;
+    emptyStudyDelete?: boolean;
   },
 ): Promise<void> {
   const trainingRows: TrainingRow[] = [...(options.training ?? [])];
+  const studyRows: StudyRow[] = [...(options.study ?? [])];
   await page.route('**/*', async (route) => {
     const request = route.request();
     const url = request.url();
@@ -179,6 +218,31 @@ export async function installApi(
     }
     if (url.includes('/rest/v1/training_sets')) {
       await route.fulfill({ status: 200, headers: cors, body: JSON.stringify(trainingRows) });
+      return;
+    }
+    if (url.includes('/rest/v1/study_records') && request.method() !== 'GET') {
+      const body = request.postData() ?? '';
+      if (request.method() === 'PATCH' && body.includes('deleted_at')) {
+        options.onStudyDelete?.(`${url}\n${body}`);
+        const id = idFromEq(url);
+        if (!options.emptyStudyDelete && id) {
+          const index = studyRows.findIndex((row) => row.id === id);
+          if (index >= 0) studyRows.splice(index, 1);
+        }
+        const rows = options.emptyStudyDelete || !id ? [] : [{ id }];
+        await route.fulfill({ status: 200, headers: cors, body: JSON.stringify(rows) });
+        return;
+      }
+      rememberStudy(studyRows, body);
+      if (options.onStudyWrite) {
+        await options.onStudyWrite(route);
+        return;
+      }
+      await route.fulfill({ status: 201, headers: cors, body: '[]' });
+      return;
+    }
+    if (url.includes('/rest/v1/study_records')) {
+      await route.fulfill({ status: 200, headers: cors, body: JSON.stringify(studyRows) });
       return;
     }
     if (url.includes('/rest/v1/profiles')) {

@@ -18,10 +18,11 @@ Shipped in the skeleton:
 - GitHub Actions, a Playwright smoke test of the web export, and a pre-push hook.
 - Account deletion through the `delete-account` Edge Function, with pgTAP coverage that a deleted user's public rows are gone and that every `user_id` foreign key cascades. Deletion requires the session's newest `amr` timestamp to be within 10 minutes (exactly 10:00 passes).
 - Web privacy policy and account-deletion pages. Google and GitHub buttons are on the web login screen.
+- 训练 records sets on 今日, including the six home exercises when there is no history. `完成` confirms when a load field is unsaved. 学习 records a topic, a duration, and an optional note. 今日 shows a study card whose `记一笔` opens that form.
 
 Stubbed:
 
-- 训练 records sets on 今日: recent-exercise chips, kilograms or 轻/中/重/加重, reps, `保存这一组` keeps the sheet open, `完成` toasts the day and the count. Delete is on the per-set list behind the summary card, with the same deferred delete as weight. 学习 and 时间块 are visible in the record sheet and do not save.
+- 时间块 is visible in the record sheet and does not save.
 - No offline queue.
 - No EAS build, no store binaries, and no real EAS project id.
 - No hosted Supabase project in the repo.

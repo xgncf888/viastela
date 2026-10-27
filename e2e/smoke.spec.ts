@@ -114,6 +114,8 @@ test('signed-in shell switches tabs and opens the record sheet', async ({ page }
   await expect(page.getByRole('heading', { name: '记录' })).toBeVisible();
   await expect(page.getByRole('button', { name: '训练' })).toBeVisible();
   await page.getByRole('button', { name: '学习' }).click();
+  await expect(page.getByRole('textbox', { name: '主题' })).toBeVisible();
+  await page.getByRole('button', { name: '时间块' }).click();
   await expect(page.getByText('即将推出')).toBeVisible();
   await page.getByRole('button', { name: '关闭' }).click();
 

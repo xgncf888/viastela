@@ -3,18 +3,30 @@ import { useRef, useState, useSyncExternalStore } from 'react';
 import { createId } from '@/core/id';
 import { computeLocalDay, currentTimeZone, sheetAccountingHint } from '@/core/local-day';
 import {
+  DEFAULT_STUDY_MINUTES,
+  parseStudyDraft,
+  STUDY_MINUTE_CHOICES,
+  studySaveToast,
+  type StudyField,
+} from '@/core/study';
+import {
   BAND_LABEL,
   BAND_LEVELS,
+  BLANK_TRAINING_FORM,
+  exerciseChoices,
   formatTrainingKg,
   formatTrainingLoad,
   parseTrainingDraft,
   trainingFinishToast,
+  trainingFormHasUnsavedEdits,
   trainingSetsOnDay,
+  type TrainingFormFields,
   type TrainingMode,
   type TrainingSet,
 } from '@/core/training';
 import { parseWeightKg } from '@/core/weight-input';
 import { formatKg, latestRecord } from '@/core/weight-stats';
+import { useStudy } from '@/features/study/StudyProvider';
 import { useTraining } from '@/features/training/TrainingProvider';
 import { excludePending } from '@/features/weight/weight-copy';
 import { useWeight } from '@/features/weight/WeightProvider';
@@ -43,7 +55,8 @@ export function RecordSheet() {
   const sheet = useSyncExternalStore(subscribeRecordSheet, getRecordSheetSnapshot, getRecordSheetSnapshot);
   const { saving: weightSaving } = useWeight();
   const { saving: trainingSaving } = useTraining();
-  const saving = weightSaving || trainingSaving;
+  const { saving: studySaving } = useStudy();
+  const saving = weightSaving || trainingSaving || studySaving;
 
   return (
     <Sheet
@@ -68,24 +81,39 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
     daySwitch: trainingSwitch,
     recentExercises,
   } = useTraining();
-  const saving = weightSaving || trainingSaving;
+  const study = useStudy();
+  const saving = weightSaving || trainingSaving || study.saving;
   const [type, setType] = useState<TypeId>(initialType);
   const [value, setValue] = useState(prefillKg == null ? '' : formatKg(prefillKg));
   const [error, setError] = useState<string | null>(null);
-  const [customExercise, setCustomExercise] = useState(recentExercises.length === 0);
+  const [customExercise, setCustomExercise] = useState(false);
   const [exercise, setExercise] = useState('');
   const [reps, setReps] = useState('');
   const [mode, setMode] = useState<TrainingMode>('weight');
   const [load, setLoad] = useState('');
   const [band, setBand] = useState<string>('');
+  const [trainingBaseline, setTrainingBaseline] = useState<TrainingFormFields>(BLANK_TRAINING_FORM);
+  const [finishConfirm, setFinishConfirm] = useState(false);
   const [trainingError, setTrainingError] = useState<string | null>(null);
   const [trainingField, setTrainingField] = useState<string | null>(null);
   const [finishedExercise, setFinishedExercise] = useState<string | null>(null);
+  const [topic, setTopic] = useState('');
+  const [minutesChoice, setMinutesChoice] = useState<number | 'custom'>(DEFAULT_STUDY_MINUTES);
+  const [customMinutes, setCustomMinutes] = useState('');
+  const [note, setNote] = useState('');
+  const [studyError, setStudyError] = useState<string | null>(null);
+  const [studyField, setStudyField] = useState<StudyField | null>(null);
   const draftId = useRef<string | null>(null);
   const trainingId = useRef<string | null>(null);
+  const studyId = useRef<string | null>(null);
+  const exerciseNames = exerciseChoices(recentExercises);
   const last = latestRecord(records);
   const hint = sheetAccountingHint(new Date(), currentTimeZone(), daySwitch);
   const accountingDay = computeLocalDay(new Date(), currentTimeZone(), trainingSwitch);
+  const studyDay = computeLocalDay(new Date(), currentTimeZone(), study.daySwitch);
+  function currentTrainingForm(): TrainingFormFields {
+    return { exercise, reps, mode, weight: load, bandLevel: band };
+  }
   const exerciseSets = trainingSetsOnDay(excludePending(sets, pendingDeleteIds), accountingDay).filter(
     (set) => set.exercise === exercise.trim(),
   );
@@ -113,19 +141,22 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
   }
 
   function applySet(set: TrainingSet) {
-    const known = recentExercises.includes(set.exercise);
+    const known = exerciseNames.includes(set.exercise);
+    const next: TrainingFormFields = {
+      exercise: set.exercise,
+      reps: String(set.reps),
+      mode: set.weightKg != null ? 'weight' : 'band',
+      weight: set.weightKg != null ? formatTrainingKg(set.weightKg) : '',
+      bandLevel: set.weightKg != null ? '' : (set.bandLevel ?? ''),
+    };
     setCustomExercise(!known);
-    setExercise(set.exercise);
-    setReps(String(set.reps));
-    if (set.weightKg != null) {
-      setMode('weight');
-      setLoad(formatTrainingKg(set.weightKg));
-      setBand('');
-    } else {
-      setMode('band');
-      setLoad('');
-      setBand(set.bandLevel ?? '');
-    }
+    setExercise(next.exercise);
+    setReps(next.reps);
+    setMode(next.mode);
+    setLoad(next.weight);
+    setBand(next.bandLevel);
+    setTrainingBaseline(next);
+    setFinishConfirm(false);
     setTrainingField(null);
     setTrainingError(null);
   }
@@ -137,42 +168,102 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
     trainingId.current = null;
   }
 
-  async function onSaveTraining() {
+  function listedSets(name: string) {
+    return trainingSetsOnDay(excludePending(sets, pendingDeleteIds), accountingDay).filter((set) => set.exercise === name);
+  }
+
+  function closeFinished() {
+    if (finishedExercise) {
+      const count = listedSets(finishedExercise).length;
+      if (count > 0) showToast({ text: trainingFinishToast(finishedExercise, count, accountingDay) });
+    }
+    closeRecordSheet();
+  }
+
+  async function persistTraining(): Promise<'saved' | 'retry' | 'deleted' | 'invalid'> {
     const draft = parseTrainingDraft({ exercise, reps, mode, weight: load, bandLevel: band });
     if (!draft.ok) {
       setTrainingField(draft.field);
       setTrainingError(draft.error);
-      return;
+      setFinishConfirm(false);
+      return 'invalid';
     }
     if (!trainingId.current) trainingId.current = createId();
+    const id = trainingId.current;
     const outcome = await saveSet({
       exercise: draft.exercise,
       reps: draft.reps,
       weightKg: draft.weightKg,
       bandLevel: draft.bandLevel,
-      existingId: trainingId.current,
+      existingId: id,
     });
     if (outcome === 'deleted') {
       trainingId.current = null;
       setTrainingError(null);
       closeRecordSheet();
-      return;
+      return 'deleted';
     }
-    if (outcome !== 'saved') return;
+    if (outcome !== 'saved') {
+      setFinishConfirm(false);
+      return 'retry';
+    }
     trainingId.current = null;
     setFinishedExercise(draft.exercise);
     setExercise(draft.exercise);
+    setTrainingBaseline(currentTrainingForm());
     setTrainingField(null);
     setTrainingError(null);
+    setFinishConfirm(false);
+    return 'saved';
+  }
+
+  async function onSaveTraining() {
+    await persistTraining();
   }
 
   function onFinish() {
-    if (finishedExercise) {
-      const count = trainingSetsOnDay(excludePending(sets, pendingDeleteIds), accountingDay).filter(
-        (set) => set.exercise === finishedExercise,
-      ).length;
-      if (count > 0) showToast({ text: trainingFinishToast(finishedExercise, count, accountingDay) });
+    if (trainingFormHasUnsavedEdits(currentTrainingForm(), trainingBaseline)) {
+      setFinishConfirm(true);
+      return;
     }
+    closeFinished();
+  }
+
+  async function saveAndFinish() {
+    const draft = parseTrainingDraft({ exercise, reps, mode, weight: load, bandLevel: band });
+    const before = draft.ok ? listedSets(draft.exercise).length : 0;
+    const outcome = await persistTraining();
+    if (outcome !== 'saved' || !draft.ok) return;
+    const after = listedSets(draft.exercise);
+    const count = after.some((set) => set.exercise === draft.exercise) ? Math.max(after.length, before + 1) : before + 1;
+    showToast({ text: trainingFinishToast(draft.exercise, count, accountingDay) });
+    closeRecordSheet();
+  }
+
+  async function onSaveStudy() {
+    const minutes = minutesChoice === 'custom' ? customMinutes : String(minutesChoice);
+    const draft = parseStudyDraft({ topic, minutes, note });
+    if (!draft.ok) {
+      setStudyField(draft.field);
+      setStudyError(draft.error);
+      return;
+    }
+    if (!studyId.current) studyId.current = createId();
+    const outcome = await study.saveRecord({
+      topic: draft.topic,
+      durationMinutes: draft.durationMinutes,
+      note: draft.note,
+      existingId: studyId.current,
+    });
+    if (outcome === 'deleted') {
+      studyId.current = null;
+      setStudyError(null);
+      closeRecordSheet();
+      return;
+    }
+    if (outcome !== 'saved') return;
+    studyId.current = null;
+    showToast({ text: studySaveToast(draft.topic, draft.durationMinutes, studyDay) });
     closeRecordSheet();
   }
 
@@ -216,7 +307,7 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
       ) : type === 'training' ? (
         <Stack gap="md">
           <ChipGroup>
-            {recentExercises.map((name) => (
+            {exerciseNames.map((name) => (
               <Chip
                 key={name}
                 label={name}
@@ -224,6 +315,7 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
                 onPress={() => {
                   setCustomExercise(false);
                   setExercise(name);
+                  setFinishConfirm(false);
                   setTrainingError(null);
                 }}
               />
@@ -233,7 +325,8 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
               selected={customExercise}
               onPress={() => {
                 setCustomExercise(true);
-                if (recentExercises.includes(exercise)) setExercise('');
+                if (exerciseNames.includes(exercise)) setExercise('');
+                setFinishConfirm(false);
                 setTrainingError(null);
               }}
             />
@@ -317,9 +410,90 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
           {exerciseSets.map((set) => (
             <SetRow key={set.id} title={set.exercise} detail={`${set.reps} 次 · ${formatTrainingLoad(set)}`} />
           ))}
-          <Button label="保存这一组" onPress={() => void onSaveTraining()} loading={saving} />
           <Button label="+1 组" variant="secondary" onPress={addAnotherSet} disabled={saving || exerciseSets.length === 0} />
-          <Button label="完成" variant="secondary" onPress={onFinish} disabled={saving} />
+          <Button label="保存这一组" onPress={() => void onSaveTraining()} loading={saving} />
+          <Button label="完成" variant="ghost" onPress={onFinish} disabled={saving} />
+          {finishConfirm ? (
+            <Stack gap="sm">
+              <Text variant="muted">这一组还没保存</Text>
+              <Button label="保存这一组并完成" onPress={() => void saveAndFinish()} loading={saving} />
+              <Button label="不保存，直接完成" variant="secondary" onPress={closeFinished} disabled={saving} />
+            </Stack>
+          ) : null}
+        </Stack>
+      ) : type === 'study' ? (
+        <Stack gap="md">
+          {study.recentTopics.length > 0 ? (
+            <ChipGroup>
+              {study.recentTopics.map((name) => (
+                <Chip
+                  key={name}
+                  label={name}
+                  selected={topic === name}
+                  onPress={() => {
+                    setTopic(name);
+                    setStudyError(null);
+                  }}
+                />
+              ))}
+            </ChipGroup>
+          ) : null}
+          <TextField
+            label="主题"
+            value={topic}
+            onChangeText={(next) => {
+              setTopic(next);
+              setStudyError(null);
+            }}
+            placeholder="例如 AI Infra"
+            autoFocus
+            error={studyField === 'topic' ? studyError : null}
+          />
+          <ChipGroup>
+            {STUDY_MINUTE_CHOICES.map((minutes) => (
+              <Chip
+                key={minutes}
+                label={String(minutes)}
+                selected={minutesChoice === minutes}
+                onPress={() => {
+                  setMinutesChoice(minutes);
+                  setStudyError(null);
+                }}
+              />
+            ))}
+            <Chip
+              label="自定义"
+              selected={minutesChoice === 'custom'}
+              onPress={() => {
+                setMinutesChoice('custom');
+                setStudyError(null);
+              }}
+            />
+          </ChipGroup>
+          {minutesChoice === 'custom' ? (
+            <TextField
+              label="时长（分钟）"
+              value={customMinutes}
+              onChangeText={(next) => {
+                setCustomMinutes(next);
+                setStudyError(null);
+              }}
+              placeholder="例如 20"
+              keyboardType="number-pad"
+              error={studyField === 'duration' ? studyError : null}
+            />
+          ) : null}
+          <TextField
+            label="收获（选填）"
+            value={note}
+            onChangeText={(next) => {
+              setNote(next);
+              setStudyError(null);
+            }}
+            placeholder="一句话"
+            error={studyField === 'note' ? studyError : null}
+          />
+          <Button label="保存" onPress={() => void onSaveStudy()} loading={saving} />
         </Stack>
       ) : (
         <Stack gap="sm">

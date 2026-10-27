@@ -146,7 +146,7 @@ begin
 end;
 $$;
 
-select plan(24);
+select plan(34);
 
 do $$
 declare
@@ -160,8 +160,8 @@ begin
 end $$;
 
 select ok(
-  tests.user_id_cascade_fk_count() >= 2,
-  'profile and weight user_id foreign keys cascade'
+  tests.user_id_cascade_fk_count() >= 4,
+  'profile, weight, training, and study user_id foreign keys cascade'
 );
 
 select is(
@@ -221,6 +221,37 @@ select lives_ok(
   'user A can soft-delete the second weight record'
 );
 
+select lives_ok(
+  $$
+    insert into public.training_sets (id, exercise, reps, weight_kg, recorded_at, tz, local_day)
+    values (
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      '深蹲',
+      8,
+      60,
+      timestamptz '2026-10-27 08:00:00+00',
+      'Asia/Singapore',
+      date '2026-10-27'
+    )
+  $$,
+  'user A can insert a training set'
+);
+
+select lives_ok(
+  $$
+    insert into public.study_records (id, topic, duration_minutes, recorded_at, tz, local_day)
+    values (
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',
+      'AI Infra',
+      30,
+      timestamptz '2026-10-27 08:00:00+00',
+      'Asia/Singapore',
+      date '2026-10-27'
+    )
+  $$,
+  'user A can insert a study record'
+);
+
 reset role;
 
 select is(
@@ -255,6 +286,37 @@ select lives_ok(
   'user B can insert a weight record'
 );
 
+select lives_ok(
+  $$
+    insert into public.training_sets (id, exercise, reps, weight_kg, recorded_at, tz, local_day)
+    values (
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',
+      '卧推',
+      5,
+      40,
+      timestamptz '2026-10-27 08:00:00+00',
+      'Asia/Singapore',
+      date '2026-10-27'
+    )
+  $$,
+  'user B can insert a training set'
+);
+
+select lives_ok(
+  $$
+    insert into public.study_records (id, topic, duration_minutes, recorded_at, tz, local_day)
+    values (
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2',
+      '英语',
+      15,
+      timestamptz '2026-10-27 08:00:00+00',
+      'Asia/Singapore',
+      date '2026-10-27'
+    )
+  $$,
+  'user B can insert a study record'
+);
+
 reset role;
 
 select isnt(
@@ -273,6 +335,18 @@ select is(
   (select count(*) from public.profiles where user_id = current_setting('tests.user_a')::uuid),
   1::bigint,
   'user A profile exists before delete'
+);
+
+select is(
+  (select count(*) from public.training_sets where user_id = current_setting('tests.user_a')::uuid),
+  1::bigint,
+  'user A training set exists before delete'
+);
+
+select is(
+  (select count(*) from public.study_records where user_id = current_setting('tests.user_a')::uuid),
+  1::bigint,
+  'user A study record exists before delete'
 );
 
 select lives_ok(
@@ -299,6 +373,18 @@ select is(
 );
 
 select is(
+  (select count(*) from public.training_sets where user_id = current_setting('tests.user_a')::uuid),
+  0::bigint,
+  'deleted user training rows are gone'
+);
+
+select is(
+  (select count(*) from public.study_records where user_id = current_setting('tests.user_a')::uuid),
+  0::bigint,
+  'deleted user study rows are gone'
+);
+
+select is(
   (select count(*) from auth.users where id = current_setting('tests.user_a')::uuid),
   0::bigint,
   'deleted auth user row is gone'
@@ -320,6 +406,18 @@ select is(
   (select count(*) from public.profiles where user_id = current_setting('tests.user_b')::uuid),
   1::bigint,
   'the other user profile remains'
+);
+
+select is(
+  (select count(*) from public.training_sets where user_id = current_setting('tests.user_b')::uuid),
+  1::bigint,
+  'the other user training row remains'
+);
+
+select is(
+  (select count(*) from public.study_records where user_id = current_setting('tests.user_b')::uuid),
+  1::bigint,
+  'the other user study row remains'
 );
 
 select is(

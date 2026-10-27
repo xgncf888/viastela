@@ -71,8 +71,9 @@ Screens use these primitives. Do not add a `StyleSheet` or a raw color in a scre
 - `Field` — label, value, optional hint. `TextField` — label, input, error or helper.
 - `Button` — `primary` (clay, dark label), `secondary` (hairline), `ghost` (`accentText`), `danger` (`dangerFill` with light `onToast` text). `ghost` with `tone="danger"` is only an entry point to a dangerous action, for example 删除账号. The button that actually executes deletion uses `variant="danger"`. Solid `danger` is reserved for irreversible actions that have their own confirmation page, for example deleting an account. Deleting a list item uses a ghost text button, `删除`, in the card’s top-right, with a hit area of at least 44pt. The tap hides that row immediately and shows the toast `已删除 · 撤销` for 5 seconds. Further deletes in that window join the same toast, `已删除 N 条 · 撤销`, and restart the 5 seconds for every row still pending. 撤销 restores all of them and writes nothing. An error toast appears immediately, stacked above the undo toast, and both stay visible. A normal toast waits in a queue behind the undo toast and is not replaced. After the undo toast leaves, those queued toasts show in the order they were raised. A save confirmation does not cover the undo toast while a delete is pending. When the window ends with no undo, the app soft-deletes each pending row through the existing path. There is no confirm dialog. The pending delete is kept in memory only. If the app goes to the background, is closed, or the page reloads during those 5 seconds, every pending delete is dropped and the records are still there the next time the list opens.
 - `Chip` — single-select, 44pt, selected fill `accentSoft` and label `accentText`.
-- `ChipGroup` — a wrapping row of `Chip`s. One group is one choice: exercise, load kind, or band level.
-- `StatusCard` — a tappable card. Its accessible name is the summary, for example `深蹲 4 组 · 卧推 3 组`. Tap opens the per-set list.
+- `ChipGroup` — a wrapping row of `Chip`s. One group is one choice: exercise, load kind, band level, study topic, or duration.
+- `StatusCard` — a summary card at least 96 tall. Its accessible name is the summary, for example `深蹲 4 组 · 卧推 3 组`. A collapsed training card hints `查看每组`; tapping again collapses the list. An empty card says `未记录` and offers `记一笔`.
+- `CardRow` — status cards in a column below 960, and in a row from 960 up.
 - `SetRow` — one set. The title is the exercise, the detail is reps and load, and `删除` sits in the top-right when the row can be removed.
 - `Sheet` — centered on web, bottom sheet on native. One heading, an explicit close, an explicit save.
 - `EmptyState` — title, description, and one button. No second button repeating the same action. 今日 shows it only after `ready`. While the list is loading, the page shows `读取中` and nothing else.
@@ -106,8 +107,16 @@ Between midnight and the day switch (default 04:00), 今日 titles the accountin
 
 今日 shows one `StatusCard` for the accounting day. Before the day switch the heading is the accounting day, for example `10月26日的训练`, the same day weight uses. A record at 01:30 still belongs to the previous day when the switch is 04:00. After the switch the heading is `今天的训练`. With no sets, the section is a `记一笔` button that opens the record sheet on 训练.
 
-The set sheet stays open after `保存这一组` and lists today's sets for that exercise. `+1 组` copies the last of those sets into the form and writes nothing until `保存这一组`. Each save uses its own client id. `完成` closes the sheet and toasts `已记入 10月27日 · 深蹲 4 组`.
+The set sheet stays open after `保存这一组` and lists today's sets for that exercise. `+1 组` copies the last of those sets into the form and writes nothing until `保存这一组`. Each save uses its own client id. `完成` is a ghost button. It closes the sheet and toasts `已记入 10月27日 · 深蹲 4 组` when the form is empty, only an exercise is selected, or `+1 组` prefilled the fields and nothing changed. Any other field change asks first: `保存这一组并完成` writes the set and closes, and `不保存，直接完成` closes without a write.
 
-The exercise field is chips of the six most recent exercises, newest first, then `+ 其他` for a free-text name. Those chips come from a read of past sets, not from today's list. Field order is exercise, kilograms or band, then reps. Stored band levels are `light`, `medium`, `heavy`, and `extra_heavy`, labeled 轻, 中, 重, 加重. They are not converted to kilograms. A kilogram load uses `formatKg` and drops a trailing `.0`, so 40 reads `40 kg`.
+The exercise field is chips of the six most recent exercises, newest first, then `+ 其他` for a free-text name. Those chips come from a read of past sets, not from today's list. With no history, the chips are 哑铃卧推, 单臂划船, 肩推, 深蹲, 弹力带面拉, and 俯卧撑. Field order is exercise, kilograms or band, then reps. Stored band levels are `light`, `medium`, `heavy`, and `extra_heavy`, labeled 轻, 中, 重, 加重. They are not converted to kilograms. A kilogram load uses `formatKg` and drops a trailing `.0`, so 40 reads `40 kg`.
 
 Deleting a set happens on the per-set list opened from the status card, with the same 5 second undo as weight.
+
+## Study
+
+今日 shows one `StatusCard` for the accounting day, titled the same way as training. With no session, the card says `未记录` and `记一笔` opens the sheet on 学习. A saved day summarises minutes by topic, for example `AI Infra 30 分钟`. The hint is `查看记录`, and tapping again collapses the list.
+
+The study sheet is one screen: a topic (recent chips, or a typed name), a duration of 15, 30, 45, 60, or 自定义, and an optional 收获. 30 starts selected. Duration must be a whole number from 1 to 1440. 保存 closes the sheet and toasts `已记入 10月27日 · AI Infra 30 分钟`.
+
+When weight, training, and study all have a row for the accounting day, the header note says `今天都记完了`.
