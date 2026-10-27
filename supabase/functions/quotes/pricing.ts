@@ -1,7 +1,6 @@
 import { computeLocalDay } from '../../../src/core/local-day.ts';
 import {
   convertToUsdMinor,
-  formatMoney,
   moneyNumber,
   parseMoney,
   parsePrice,
@@ -444,8 +443,4 @@ function toLine(row: Priced): QuoteLine {
 
 function unavailableLine(symbol: string, asOf: string, source: QuoteSource): QuoteLine {
   return { symbol, price: null, currency: 'USD', as_of: asOf, status: 'unavailable', source };
-}
-
-export function moneyText(value: number): string {
-  return formatMoney(parseMoney(String(value)) ?? 0n);
 }

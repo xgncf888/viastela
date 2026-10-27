@@ -831,7 +831,10 @@ Deno.test('service role client is only used for quote and fx caches', async () =
   const writeCache = sliceFn(indexSource, 'async function writeQuoteCache');
   eq(writeCache.includes("from('quote_cache')"), true);
   eq(writeCache.includes('as_of'), true);
+  eq(writeCache.includes('currency'), false);
   eq(writeCache.includes('holdings'), false);
+  const readCache = sliceFn(indexSource, 'async function readQuoteCache');
+  eq(readCache.includes("select('symbol, price, as_of')"), true);
   const writeSnapshot = sliceFn(indexSource, 'async function upsertSnapshot');
   eq(writeSnapshot.includes("from('net_worth_snapshots')"), true);
   eq(writeSnapshot.includes('quote_cache'), false);

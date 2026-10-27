@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.118.0';
 
+import type { Database } from '../../../src/data/database.types.ts';
 import { handleQuotes, isCashCurrency, parseAllowedOrigins, unavailableQuotesResponse } from './handler.ts';
-import { moneyText } from './pricing.ts';
 import { FinnhubQuoteProvider, FrankfurterFxProvider } from './providers.ts';
 import type {
   AssetAccount,
@@ -24,8 +24,9 @@ import type {
  * This file is the only one that reads FINNHUB_API_KEY, QUOTES_ALLOWED_ORIGINS,
  * and SUPABASE_SERVICE_ROLE_KEY. None of those values are logged.
  *
- * Column names follow the asset-dashboard checklist. After that migration
- * lands, point this client at the regenerated `src/data/database.types.ts`.
+ * Table columns come from `src/data/database.types.ts`. `quote_cache` is
+ * `(symbol, price, as_of)`. `as_of` is the fetch time used for the 15-minute
+ * window. The table has no currency column; cached equity prices are USD.
  */
 
 const authOptions = {
@@ -106,25 +107,25 @@ function bearer(request: Request): string | null {
   return match?.[1] ?? null;
 }
 
-function userClient(url: string, anonKey: string, jwt: string): SupabaseClient {
-  return createClient(url, anonKey, {
+function userClient(url: string, anonKey: string, jwt: string): SupabaseClient<Database> {
+  return createClient<Database>(url, anonKey, {
     auth: authOptions,
     global: { headers: { Authorization: `Bearer ${jwt}` } },
   });
 }
 
-function cacheClient(url: string, serviceKey: string): SupabaseClient {
-  return createClient(url, serviceKey, { auth: authOptions });
+function cacheClient(url: string, serviceKey: string): SupabaseClient<Database> {
+  return createClient<Database>(url, serviceKey, { auth: authOptions });
 }
 
-async function readDaySwitch(client: SupabaseClient, userId: string): Promise<string> {
+async function readDaySwitch(client: SupabaseClient<Database>, userId: string): Promise<string> {
   const { data, error } = await client.from('profiles').select('day_switch').eq('user_id', userId).maybeSingle();
   if (error) throw new Error('portfolio failed');
   const row = data && typeof data === 'object' ? (data as { day_switch?: unknown }) : null;
   return typeof row?.day_switch === 'string' ? row.day_switch : '04:00';
 }
 
-async function loadPortfolio(client: SupabaseClient, userId: string): Promise<{
+async function loadPortfolio(client: SupabaseClient<Database>, userId: string): Promise<{
   holdings: HoldingRow[];
   balances: CashBalance[];
   accounts: AssetAccount[];
@@ -187,32 +188,30 @@ async function loadPortfolio(client: SupabaseClient, userId: string): Promise<{
   return { holdings, balances, accounts };
 }
 
-async function readQuoteCache(client: SupabaseClient, symbols: string[]): Promise<QuoteCacheRow[]> {
+async function readQuoteCache(client: SupabaseClient<Database>, symbols: string[]): Promise<QuoteCacheRow[]> {
   if (symbols.length === 0) return [];
   const { data, error } = await client
     .from('quote_cache')
-    .select('symbol, price, currency, as_of')
+    .select('symbol, price, as_of')
     .in('symbol', symbols);
   if (error) throw new Error('quote cache failed');
   const rows: QuoteCacheRow[] = [];
   for (const row of records(data)) {
     const symbol = text(row.symbol);
     const price = number(row.price);
-    const currency = text(row.currency);
     const asOf = text(row.as_of);
-    if (!symbol || price === null || price < 0 || !currency || !asOf) continue;
-    rows.push({ symbol, price, currency, asOf });
+    if (!symbol || price === null || price < 0 || !asOf) continue;
+    rows.push({ symbol, price, currency: 'USD', asOf });
   }
   return rows;
 }
 
-async function writeQuoteCache(client: SupabaseClient, rows: QuoteCacheRow[]): Promise<void> {
+async function writeQuoteCache(client: SupabaseClient<Database>, rows: QuoteCacheRow[]): Promise<void> {
   if (rows.length === 0) return;
   const { error } = await client.from('quote_cache').upsert(
     rows.map((row) => ({
       symbol: row.symbol,
       price: row.price,
-      currency: row.currency,
       as_of: row.asOf,
     })),
     { onConflict: 'symbol' },
@@ -221,7 +220,7 @@ async function writeQuoteCache(client: SupabaseClient, rows: QuoteCacheRow[]): P
 }
 
 async function readFxCache(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   base: string,
   quotes: string[],
   day: string,
@@ -231,7 +230,7 @@ async function readFxCache(
     .from('fx_rates')
     .select('base, quote, rate, as_of')
     .eq('base', base)
-    .eq('as_of', day)
+    .eq('as_of', fxInstant(day))
     .in('quote', quotes);
   if (error) throw new Error('fx cache failed');
   const rows: FxCacheRow[] = [];
@@ -246,34 +245,39 @@ async function readFxCache(
   return rows;
 }
 
-async function writeFxCache(client: SupabaseClient, rows: FxCacheRow[]): Promise<void> {
+async function writeFxCache(client: SupabaseClient<Database>, rows: FxCacheRow[]): Promise<void> {
   if (rows.length === 0) return;
   const { error } = await client.from('fx_rates').upsert(
     rows.map((row) => ({
       base: row.base,
       quote: row.quote,
       rate: row.rate,
-      as_of: row.asOf,
+      as_of: fxInstant(row.asOf),
     })),
     { onConflict: 'base,quote,as_of' },
   );
   if (error) throw new Error('fx cache failed');
 }
 
-async function upsertSnapshot(client: SupabaseClient, row: SnapshotWrite): Promise<void> {
+async function upsertSnapshot(client: SupabaseClient<Database>, row: SnapshotWrite): Promise<void> {
   const { error } = await client.from('net_worth_snapshots').upsert(
     {
       user_id: row.userId,
       local_day: row.localDay,
       tz: row.tz,
-      total_usd: moneyText(row.totalUsd),
-      cash_usd: moneyText(row.cashUsd),
-      securities_usd: moneyText(row.securitiesUsd),
+      total_usd: row.totalUsd,
+      cash_usd: row.cashUsd,
+      securities_usd: row.securitiesUsd,
       as_of: row.asOf,
     },
     { onConflict: 'user_id,local_day' },
   );
   if (error) throw new Error('snapshot failed');
+}
+
+/** Midnight UTC for a calendar day stored in a timestamptz column. */
+function fxInstant(day: string): string {
+  return day.includes('T') ? day : `${day}T00:00:00.000Z`;
 }
 
 function records(value: unknown): Record<string, unknown>[] {
