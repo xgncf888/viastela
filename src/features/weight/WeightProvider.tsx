@@ -299,7 +299,7 @@ export function WeightProvider({ children }: { children: ReactNode }) {
 
   const saveDaySwitch = useCallback(async (value: string) => {
     const normalized = value.trim();
-    if (!isDaySwitch(normalized)) throw new Error('日界时间格式是 04:00');
+    if (!isDaySwitch(normalized)) throw new Error('日切时间格式是 04:00');
     await updateDaySwitch(normalized);
     setDaySwitch(normalized);
     try {

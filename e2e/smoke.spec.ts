@@ -38,7 +38,7 @@ test('signed-in shell switches tabs and opens the record sheet', async ({ page }
   await page.getByRole('button', { name: '趋势' }).click();
   await expect(page.getByRole('heading', { name: '近 7 日' })).toBeVisible();
   await page.getByRole('button', { name: '我的' }).click();
-  await expect(page.getByText('日界时间')).toBeVisible();
+  await expect(page.getByText('日切时间')).toBeVisible();
   await expect(page.getByRole('button', { name: '退出登录' })).toBeVisible();
 
   await page.setViewportSize({ width: 1280, height: 800 });

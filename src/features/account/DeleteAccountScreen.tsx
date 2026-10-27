@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { router, usePreventRemove } from 'expo-router';
 
 import { accountDeletionPhrase, deletionFacts } from '@/core/account-policy';
@@ -53,6 +53,7 @@ export function DeleteAccountScreen() {
           <Text variant="title" accessibilityRole="header">
             正在删除账号
           </Text>
+          <ActivityIndicator color={theme.color.accent} accessibilityLabel="正在删除" />
           <Text variant="body" style={styles.body}>
             请稍候。这个过程不能取消。
           </Text>
@@ -88,7 +89,7 @@ export function DeleteAccountScreen() {
           helper="输入“删除”后才能继续"
           error={null}
         />
-        {/* TODO: switch to the danger variant from PR #2 once that Button lands. */}
+        {/* Merge gate: after PR #2, switch this clay primary button to the danger variant. */}
         <Button label="删除账号" disabled={!confirmed} onPress={() => void onDelete()} />
         <Button label="取消" variant="ghost" onPress={() => router.replace('/me')} />
       </Content>

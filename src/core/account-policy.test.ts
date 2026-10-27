@@ -19,11 +19,13 @@ test('privacy copy names the stored data, the limits on its use, and the contact
   expect(text).toContain('训练组');
   expect(text).toContain('学习记录');
   expect(text).toContain('邮箱');
-  expect(text).toContain('名字');
+  expect(text).toContain('显示名');
   expect(text).toContain('头像');
-  expect(text).toContain('我们不出售数据。');
-  expect(text).toContain('我们不把数据用于广告。');
-  expect(text).toContain('这一版不会把数据发给任何人工智能服务。');
+  expect(text).toContain('Google 或 GitHub 登录');
+  expect(text).toContain('个人资料目前只有日切时间这一项设置。');
+  expect(text).toContain('我们不出售数据，不展示广告，也不把你的数据发给任何人工智能服务。');
+  expect(text).toContain('前提是每种登录方式给出的是同一个邮箱');
+  expect(text).toContain('GitHub 的主邮箱');
   expect(text).toContain('邮箱验证码');
   expect(text).toContain('Google');
   expect(text).toContain('GitHub');
@@ -40,7 +42,7 @@ test('deletion facts list weight, training, study, the profile, and the same pur
   expect(deletion).toContain('学习记录');
   expect(deletion).toContain('个人资料');
   expect(deletion).toContain('邮箱');
-  expect(deletion).toContain('名字');
+  expect(deletion).toContain('显示名');
   expect(deletion).toContain('头像');
   expect(deletion).toContain('不能恢复');
   expect(deletion).toContain(privacyContactEmail);

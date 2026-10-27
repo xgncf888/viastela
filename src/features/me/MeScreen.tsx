@@ -48,7 +48,7 @@ export function MeScreen() {
         </Card>
         <Card>
           <TextField
-            label="日界时间"
+            label="日切时间"
             value={value}
             onChangeText={setDraft}
             placeholder="04:00"
@@ -68,7 +68,6 @@ export function MeScreen() {
           <Text variant="body">训练、学习和时间块还在后面。现在可以记体重。</Text>
         </Card>
         <Button label="隐私政策" variant="ghost" onPress={() => router.push('/privacy')} />
-        <Button label="删除账号" variant="secondary" onPress={() => router.push('/account/delete')} />
         <Button
           label="退出登录"
           variant="secondary"
@@ -78,6 +77,8 @@ export function MeScreen() {
             void signOut().finally(() => setSigningOut(false));
           }}
         />
+        {/* Merge gate: after PR #2, make this a danger text button with theme.space.lg below 退出登录. */}
+        <Button label="删除账号" variant="secondary" onPress={() => router.push('/account/delete')} />
       </Content>
     </Screen>
   );

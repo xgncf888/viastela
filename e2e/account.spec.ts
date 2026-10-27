@@ -56,15 +56,15 @@ test('privacy policy is a narrow document with the contact address', async ({ pa
   await expect(page.getByText('更新日期：2026年10月27日')).toBeVisible();
   await expect(page.getByRole('heading', { name: '隐私政策' })).toBeVisible();
   await expect(page.getByText('保存体重、训练组、学习记录', { exact: false })).toBeVisible();
-  await expect(page.getByText('邮箱、名字和头像', { exact: false }).first()).toBeVisible();
-  await expect(page.getByText('我们不出售数据。')).toBeVisible();
-  await expect(page.getByText('我们不把数据用于广告。')).toBeVisible();
-  await expect(page.getByText('这一版不会把数据发给任何人工智能服务。')).toBeVisible();
+  await expect(page.getByText('邮箱、显示名和头像', { exact: false }).first()).toBeVisible();
+  await expect(page.getByText('个人资料目前只有日切时间这一项设置。')).toBeVisible();
+  await expect(page.getByText('我们不出售数据，不展示广告，也不把你的数据发给任何人工智能服务。')).toBeVisible();
+  await expect(page.getByText('前提是每种登录方式给出的是同一个邮箱', { exact: false })).toBeVisible();
   await expect(page.getByText('邮箱验证码、Google 和 GitHub', { exact: false })).toBeVisible();
   await expect(page.getByText('xgncf888@gmail.com')).toBeVisible();
   await expect(page.getByText(brand.displayName, { exact: false }).first()).toBeVisible();
 
-  const body = page.getByText('我们不出售数据。');
+  const body = page.getByText('我们不出售数据，不展示广告，也不把你的数据发给任何人工智能服务。');
   const type = await body.evaluate((node) => {
     const style = getComputedStyle(node);
     return { fontSize: style.fontSize, lineHeight: style.lineHeight };
@@ -92,7 +92,7 @@ test('account deletion requires 删除, then shows the deleted page', async ({ p
   await expect(page.getByText('将删除你的体重记录。')).toBeVisible();
   await expect(page.getByText('将删除你的训练组。')).toBeVisible();
   await expect(page.getByText('将删除你的学习记录。')).toBeVisible();
-  await expect(page.getByText('将删除你的个人资料，包括邮箱、名字和头像。')).toBeVisible();
+  await expect(page.getByText('将删除你的个人资料，包括邮箱、显示名和头像。')).toBeVisible();
   await expect(page.getByText('删除后不能恢复。')).toBeVisible();
   await expect(page.getByText('xgncf888@gmail.com')).toBeVisible();
 
@@ -106,6 +106,7 @@ test('account deletion requires 删除, then shows the deleted page', async ({ p
   await submit.click();
 
   await expect(page.getByRole('heading', { name: '正在删除账号' })).toBeVisible();
+  await expect(page.getByRole('progressbar', { name: '正在删除' })).toBeVisible();
   await expect(page.getByRole('button', { name: '取消' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: '删除账号' })).toHaveCount(0);
   await page.goBack().catch(() => undefined);
@@ -113,6 +114,7 @@ test('account deletion requires 删除, then shows the deleted page', async ({ p
 
   release();
   await expect(page.getByRole('heading', { name: '账号已删除' })).toBeVisible();
+  await expect(page.getByText('你的记录已全部清除')).toBeVisible();
   await page.getByRole('button', { name: '好的' }).click();
   await expect(page.getByRole('heading', { name: brand.displayName })).toBeVisible();
   await expect(page.getByText('用邮箱登录')).toBeVisible();

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { StyleSheet } from 'react-native';
 import { Redirect, router, usePreventRemove } from 'expo-router';
 
 import { signOutLocal } from '@/data/auth';
@@ -35,8 +36,15 @@ export function AccountDeletedScreen() {
         <Text variant="title" accessibilityRole="header">
           账号已删除
         </Text>
+        <Text variant="body" style={styles.line}>
+          你的记录已全部清除
+        </Text>
         <Button label="好的" loading={leaving} onPress={() => void onOk()} />
       </Content>
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  line: { lineHeight: theme.space.lg },
+});
