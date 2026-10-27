@@ -5,7 +5,7 @@
 - The backend is Supabase Postgres with row level security and email OTP, and there is no second backend.
 - Migrations are applied only via the Supabase connector after review, and local files are renamed to the hosted version afterwards.
 - EAS Update uses the fingerprint `runtimeVersion` policy; preview and production channels are set in `eas.json`; week 1 does not run EAS builds.
-- The display name and icon paths live only in `src/config/brand.ts`; the bundle ids `com.personal.lifeapp` and the URL scheme `lifeapp` are neutral and configured in that same file.
+- The display name, icon paths, URL scheme `viastela`, and store ids `com.xgncf888.viastela` live only in `src/config/brand.ts`.
 - UI copy is Chinese.
 - Routes live in `app/`, feature UI in `src/features/`, business rules in `src/core/`, Supabase calls in `src/data/`, and tokens plus shared components in `src/ui/`.
 - ESLint rejects raw colors and raw sizes in `app/` and `src/features/`.

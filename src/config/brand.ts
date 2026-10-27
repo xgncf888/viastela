@@ -1,14 +1,12 @@
 /**
- * Product name and icon paths live here.
- * Bundle ids and the URL scheme are neutral on purpose: renaming the product
- * must not force a new store listing or a new deep-link scheme.
+ * Product name, URL scheme, store ids, and icon paths live here.
  */
 export const brand = {
   displayName: 'Viastela',
   slug: 'viastela',
-  scheme: 'lifeapp',
-  iosBundleIdentifier: 'com.personal.lifeapp',
-  androidPackage: 'com.personal.lifeapp',
+  scheme: 'viastela',
+  iosBundleIdentifier: 'com.xgncf888.viastela',
+  androidPackage: 'com.xgncf888.viastela',
   icon: './assets/icon.png',
   splash: './assets/splash-icon.png',
   favicon: './assets/favicon.png',
