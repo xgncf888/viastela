@@ -186,6 +186,7 @@ comment on table public.net_worth_snapshots is
 create table public.quote_cache (
   symbol text primary key,
   price numeric(20, 4) not null,
+  as_of timestamptz not null,
   constraint quote_cache_price_nonnegative check (price >= 0)
 );
 

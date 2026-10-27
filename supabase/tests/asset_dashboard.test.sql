@@ -96,7 +96,7 @@ $$;
 grant usage on schema tests to anon, authenticated;
 grant execute on function tests.deny_all(text[]) to anon, authenticated;
 
-select plan(107);
+select plan(109);
 
 do $$
 declare
@@ -1265,6 +1265,20 @@ select ok(
   'authenticated has no privileges on quote_cache'
 );
 
+select has_column(
+  'public',
+  'quote_cache',
+  'as_of',
+  'quote_cache.as_of exists'
+);
+
+select col_not_null(
+  'public',
+  'quote_cache',
+  'as_of',
+  'quote_cache.as_of is not null'
+);
+
 select ok(
   not has_table_privilege('authenticated', 'public.fx_rates', 'SELECT')
   and not has_table_privilege('authenticated', 'public.fx_rates', 'INSERT')
@@ -1325,7 +1339,7 @@ select throws_ok(
 select is(
   tests.deny_all(array[
     'select count(*) from public.quote_cache',
-    'insert into public.quote_cache (symbol, price) values (''ZZ'', 1)',
+    'insert into public.quote_cache (symbol, price, as_of) values (''ZZ'', 1, ''2026-10-27 08:00:00+00'')',
     'update public.quote_cache set price = price',
     'delete from public.quote_cache',
     'select count(*) from public.fx_rates',
@@ -1384,7 +1398,7 @@ select is(
     'update public.asset_events set kind = kind',
     'delete from public.asset_events',
     'select count(*) from public.quote_cache',
-    'insert into public.quote_cache (symbol, price) values (''ZZ'', 1)',
+    'insert into public.quote_cache (symbol, price, as_of) values (''ZZ'', 1, ''2026-10-27 08:00:00+00'')',
     'update public.quote_cache set price = price',
     'delete from public.quote_cache',
     'select count(*) from public.fx_rates',

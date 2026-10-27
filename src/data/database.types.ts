@@ -329,15 +329,18 @@ export type Database = {
       };
       quote_cache: {
         Row: {
+          as_of: string;
           price: number;
           symbol: string;
         };
         ComputedFields: never;
         Insert: {
+          as_of: string;
           price: number;
           symbol: string;
         };
         Update: {
+          as_of?: string;
           price?: number;
           symbol?: string;
         };
