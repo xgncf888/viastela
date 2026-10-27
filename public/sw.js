@@ -1,9 +1,10 @@
 /**
- * App-shell cache only.
+ * App-shell cache, plus Web Push display.
  * Static JS, CSS, images, fonts, and index.html may be stored.
  * Supabase hosts, API paths, and any request with Authorization are never touched.
  * /.well-known/* is not intercepted.
  * Navigations and index.html are network-first so a new deploy replaces the old bundle.
+ * A push click opens the payload url. Training falls back to /, month-end to the asset dashboard.
  */
 const CACHE_NAME = 'shell-static-v1';
 
@@ -96,6 +97,50 @@ async function networkFirst(request) {
     throw error;
   }
 }
+
+function notificationPath(data) {
+  if (data && typeof data.url === 'string' && data.url.startsWith('/') && !data.url.startsWith('//')) return data.url;
+  if (data && data.kind === 'month_end') return '/assets?updateBalances=1';
+  return '/';
+}
+
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = {};
+  }
+  const title = typeof data.title === 'string' && data.title ? data.title : '提醒';
+  const body = typeof data.body === 'string' ? data.body : '';
+  const url = notificationPath(data);
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: '/icons/icon-192.png',
+      data: { url, kind: data.kind },
+    }),
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = new URL(notificationPath(event.notification.data), self.location.origin).href;
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of windows) {
+        if (new URL(client.url).origin !== self.location.origin) continue;
+        if ('focus' in client) await client.focus();
+        if ('navigate' in client) {
+          await client.navigate(url);
+          return;
+        }
+      }
+      await self.clients.openWindow(url);
+    })(),
+  );
+});
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);

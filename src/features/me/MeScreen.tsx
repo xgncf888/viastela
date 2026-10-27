@@ -6,6 +6,7 @@ import { brand } from '@/config/brand';
 import { signOut } from '@/data/auth';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { homeScreenInstallHint } from '@/features/me/home-screen-hint';
+import { RemindersCard } from '@/features/me/RemindersCard';
 import { useShellInset } from '@/features/shell/AppShell';
 import { useWeight } from '@/features/weight/WeightProvider';
 import { Button } from '@/ui/Button';
@@ -79,6 +80,7 @@ export function MeScreen() {
             hint="每条记录写下当时的时区。之后换城市，旧记录的归属日不变。"
           />
         </Card>
+        <RemindersCard />
         <Card>
           <Text variant="body">体重、训练和学习可以在今日记。时间块还在后面。</Text>
         </Card>

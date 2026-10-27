@@ -129,4 +129,14 @@ iOS uses `apple-mobile-web-app-capable` and `apple-mobile-web-app-status-bar-sty
 
 The service worker caches only same-origin static files: JavaScript, CSS, images, fonts, and the `index.html` shell. Navigations are network-first and fall back to that shell, so a new deploy replaces the previous bundle. `sw.js` is served with `Cache-Control: no-cache` and registered with `updateViaCache: 'none'`. A worker that replaces one already in control reloads the page once. Supabase hosts, `/auth|rest|functions|storage|realtime/v1` paths, and any request carrying `Authorization` are not intercepted. `/.well-known/*` is not intercepted. Sign-out deletes the runtime Cache Storage.
 
-There is no install banner. 我的 shows one row, hidden when the page is already `display-mode: standalone`. On iPhone and iPad the row says `在 Safari 点分享 → 添加到主屏幕`. Elsewhere it says `在浏览器菜单里选择「添加到主屏幕」`. Notifications are not part of this install path.
+There is no install banner. 我的 shows one row, hidden when the page is already `display-mode: standalone`. On iPhone and iPad the row says `在 Safari 点分享 → 添加到主屏幕`. Elsewhere it says `在浏览器菜单里选择「添加到主屏幕」`.
+
+## Reminders
+
+我的 has one reminders card and exactly two switches: `训练日提醒` and `月底更新余额提醒`. There is no master switch. The first visit does not call `Notification.requestPermission`. Permission is requested only when a person turns a switch on.
+
+Training defaults to `08:00`. While that switch is on, a multi-select `ChipGroup` lists 周一 through 周日 (ISO weekdays 1 through 7) and a time field. Month-end defaults to `21:30` on the last civil day of the month in the subscription's own timezone. Both times can be changed. Turning training off and on again keeps the chosen weekdays. Turning a switch off keeps the row. A revoked notification permission, or a push service `404` / `410`, soft-deletes that row so nothing further is sent.
+
+One explanation is visible at a time, in this order: no `EXPO_PUBLIC_VAPID_PUBLIC_KEY` shows `推送还没配置，月底提醒会先显示在今日页` and disables both switches (the times can still be edited); iOS that is not installed to the home screen shows `先添加到主屏幕，才能收到提醒` and disables both switches; a denied permission turns the switches off and shows `通知权限已关闭，可以在系统设置里打开`. A browser without Push shows `这个浏览器不支持提醒`.
+
+今日 shows one extra card, and only in the last three civil days of the month, when no live balance was written in that month: `这个月还没更新资产余额`, a ghost `去更新` that opens `/assets?updateBalances=1`, and a ghost `关闭` that hides the card until next month. Training does not add a banner. The service worker opens `/` for a training notification and `/assets?updateBalances=1` for a month-end notification.

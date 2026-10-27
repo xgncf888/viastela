@@ -50,6 +50,10 @@ test('manifest, icons, and the service worker are served as files', async ({ pag
   expect(source).toContain('skipWaiting');
   expect(source).toContain('CLEAR_RUNTIME_CACHE');
   expect(source).toContain('/.well-known/');
+  expect(source).toContain('notificationclick');
+  expect(source).toContain("kind === 'month_end'");
+  expect(source).toContain('/assets?updateBalances=1');
+  expect(source).toContain('showNotification');
 
   const html = await (await page.request.get('/')).text();
   expect(html).toContain('apple-mobile-web-app-capable');

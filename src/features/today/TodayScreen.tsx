@@ -12,6 +12,7 @@ import { studyDaySummary, studyDetail, studyRecordsOnDay } from '@/core/study';
 import { formatTrainingLoad, trainingDaySummary, trainingSetsOnDay } from '@/core/training';
 import { formatKg, latestRecord, recordsOnDay } from '@/core/weight-stats';
 import { openRecordSheet } from '@/features/record/record-sheet-store';
+import { MonthEndNotice } from '@/features/today/MonthEndNotice';
 import { useShellInset } from '@/features/shell/AppShell';
 import { useStudy } from '@/features/study/StudyProvider';
 import { useTraining } from '@/features/training/TrainingProvider';
@@ -96,6 +97,8 @@ export function TodayScreen() {
           title={`${formatMonthDay(accounting)} ${shortWeekday(accounting)}`}
           note={note || undefined}
         />
+
+        <MonthEndNotice timeZone={timeZone} />
 
         {loadError ? (
           <Callout message={loadError} action={<Button label="重试" variant="secondary" onPress={() => void reload()} />} />
