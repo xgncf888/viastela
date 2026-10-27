@@ -7,7 +7,7 @@ Shipped in the skeleton:
 - Expo Router shell for web, iOS, and Android, with 今日 / 趋势 / 我的 and a centered `+ 记录` sheet.
 - Wide web layout uses a sidebar. Narrow screens and native use the bottom bar.
 - Email OTP login through Supabase.
-- Weight log from input to `weight_records`, with a 7-day average (hidden until 4 days of data) and an EMA trend chart.
+- Weight log from input to `weight_records`, with a 7-day average (hidden until 4 days of data) and a 28-day EMA trend chart (alpha 0.1).
 - Client UUID, `recorded_at`, `tz`, frozen `local_day`, `updated_at`, and nullable `deleted_at`.
 - Weight reads use a `local_day` window. Delete calls `soft_delete_weight_record`.
 - Optimistic save, error toast, and retry on the same id.

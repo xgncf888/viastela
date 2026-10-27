@@ -43,14 +43,20 @@ export function notesForDay(records: readonly WeightRecord[], localDay: string):
 
 export const MIN_DAYS_FOR_AVERAGE = 4;
 
+/** Local days the trend chart plots. The 7-day average keeps its own window. */
+export const TREND_WINDOW_DAYS = 28;
+
 export type SevenDayAverage =
   | { status: 'insufficient' }
   | { status: 'value'; kilograms: number };
 
-/** Inclusive local_day bounds for the same seven civil days the chart shows. */
-export function weightListWindow(endDay: string): { fromDay: string; toDay: string } {
-  const days = lastNLocalDays(endDay, 7);
-  return { fromDay: days[0] ?? endDay, toDay: endDay };
+/** Inclusive `local_day` bounds ending on `endDay`, `days` long. */
+export function weightListWindow(endDay: string, days: number): { fromDay: string; toDay: string } {
+  if (!Number.isInteger(days) || days < 1) {
+    throw new Error('Day count must be a positive integer');
+  }
+  const span = lastNLocalDays(endDay, days);
+  return { fromDay: span[0] ?? endDay, toDay: endDay };
 }
 
 function earliestInWindow(records: readonly WeightRecord[], endDay: string): WeightRecord[] {

@@ -15,8 +15,8 @@
 - Changing the day-switch or the device timezone does not rewrite stored `local_day` values.
 - The 7-day average uses the earliest row of each `local_day` and divides by the number of days that have a row; later rows that day are notes.
 - The 7-day average is insufficient data until 4 local days in the window have a weigh-in.
-- The trend chart series is an exponential moving average of those earliest weigh-ins; the headline number stays the 7-day average.
-- Weight list reads are a `local_day` window plus one latest row, and soft-deleted rows are excluded.
+- The trend chart series is an exponential moving average (alpha 0.1) of the earliest weigh-in on each `local_day`. Days with no row are skipped and are not interpolated. The headline number stays the 7-day average.
+- Weight list reads are the last 28 `local_day` values plus one latest row, and soft-deleted rows are excluded.
 - A weight row is removed by `soft_delete_weight_record`, which sets `deleted_at`. Hard `DELETE` is revoked. A direct update that leaves `deleted_at` set fails row-level security. `updated_at` stays on the server trigger from the init migration.
 - Upserting a soft-deleted weight id throws `record deleted` and that id is not retried.
 - `local_day` must be the civil date of `recorded_at` in `tz` or the previous day. `weight_kg` stays inside (0, 500).

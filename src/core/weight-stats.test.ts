@@ -1,11 +1,13 @@
 import { describe, expect, it } from '@jest/globals';
 
+import vectors from '../../fixtures/weight-ema.json';
 import {
   earliestPerDay,
   notesForDay,
   sevenDayAverage,
   sevenDayAverageView,
   summarizeWindow,
+  TREND_WINDOW_DAYS,
   weightListWindow,
   type WeightRecord,
 } from './weight-stats';
@@ -44,7 +46,10 @@ describe('seven day average', () => {
   it('ignores rows outside the seven day window', () => {
     const records = [record('old', '2026-10-01', '2026-10-01T00:00:00.000Z', 99), ...fourDays];
     expect(sevenDayAverage(records, '2026-10-24')).toBe(71);
-    expect(weightListWindow('2026-10-24')).toEqual({ fromDay: '2026-10-18', toDay: '2026-10-24' });
+    expect(weightListWindow('2026-10-24', 7)).toEqual({ fromDay: '2026-10-18', toDay: '2026-10-24' });
+    expect(TREND_WINDOW_DAYS).toBe(vectors.trendDays);
+    expect(weightListWindow(vectors.endDay, vectors.trendDays)).toEqual(vectors.window);
+    expect(() => weightListWindow('2026-10-24', 0)).toThrow(/Day count/);
   });
 
   it('returns insufficient data when the window has no rows', () => {

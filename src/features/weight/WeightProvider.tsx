@@ -5,7 +5,7 @@ import { createId } from '@/core/id';
 import { computeLocalDay, currentTimeZone, DEFAULT_DAY_SWITCH, isDaySwitch, saveToastMessage } from '@/core/local-day';
 import { beginSave, confirmSave, visibleRecords, type SaveState } from '@/core/save-state';
 import { RECORD_DELETED, weightSaveOutcome } from '@/core/weight-write';
-import { weightListWindow, type WeightRecord } from '@/core/weight-stats';
+import { TREND_WINDOW_DAYS, weightListWindow, type WeightRecord } from '@/core/weight-stats';
 import { getDaySwitch, updateDaySwitch } from '@/data/profile';
 import { latestWeightRecord, listWeightRecords, softDeleteWeightRecord, upsertWeightRecord } from '@/data/weights';
 import { showToast } from '@/ui/toast';
@@ -42,7 +42,7 @@ export function WeightProvider({ children }: { children: ReactNode }) {
   const loadSaved = useCallback(async (switchTime: string) => {
     const endDay = computeLocalDay(new Date(), currentTimeZone(), switchTime);
     const [rows, latest] = await Promise.all([
-      listWeightRecords(weightListWindow(endDay)),
+      listWeightRecords(weightListWindow(endDay, TREND_WINDOW_DAYS)),
       latestWeightRecord(),
     ]);
     if (!latest || rows.some((row) => row.id === latest.id)) return rows;

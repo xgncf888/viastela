@@ -1,0 +1,37 @@
+{
+  "alpha": 0.1,
+  "trendDays": 28,
+  "endDay": "2026-10-24",
+  "window": { "fromDay": "2026-09-27", "toDay": "2026-10-24" },
+  "blend": { "values": [10, 20, 30], "series": [10, 11, 12.9] },
+  "records": [
+    {
+      "id": "outside",
+      "localDay": "2026-09-26",
+      "recordedAt": "2026-09-26T00:30:00.000Z",
+      "weightKg": 50
+    },
+    {
+      "id": "early",
+      "localDay": "2026-10-18",
+      "recordedAt": "2026-10-18T00:30:00.000Z",
+      "weightKg": 10
+    },
+    {
+      "id": "note",
+      "localDay": "2026-10-18",
+      "recordedAt": "2026-10-18T12:00:00.000Z",
+      "weightKg": 99
+    },
+    {
+      "id": "later",
+      "localDay": "2026-10-20",
+      "recordedAt": "2026-10-20T00:30:00.000Z",
+      "weightKg": 20
+    }
+  ],
+  "series": [
+    { "localDay": "2026-10-18", "ema": 10 },
+    { "localDay": "2026-10-20", "ema": 11 }
+  ]
+}

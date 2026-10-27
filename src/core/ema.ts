@@ -1,7 +1,8 @@
-import { summarizeWindow, type WeightRecord } from './weight-stats';
+import { lastNLocalDays } from './local-day';
+import { earliestPerDay, TREND_WINDOW_DAYS, type WeightRecord } from './weight-stats';
 
 /** Smoothing used by the weight trend chart. The headline average is separate. */
-export const DEFAULT_WEIGHT_EMA_ALPHA = 0.5;
+export const DEFAULT_WEIGHT_EMA_ALPHA = 0.1;
 
 /**
  * Exponential moving average. The first sample is the seed.
@@ -20,22 +21,23 @@ export function exponentialMovingAverage(values: readonly number[], alpha: numbe
 }
 
 /**
- * Chart series for one 7-day window. Each point uses that day's earliest weigh-in.
- * A day with no row has a null point and does not reset the running average.
+ * Chart series for the trend window. Each point is that day's earliest weigh-in.
+ * A day with no row is left out. The gap is not filled, and it does not reset the running average.
  */
 export function weightTrendEma(
   records: readonly WeightRecord[],
   endDay: string,
   alpha: number = DEFAULT_WEIGHT_EMA_ALPHA,
-): { localDay: string; ema: number | null }[] {
-  if (!(alpha > 0 && alpha <= 1)) {
-    throw new Error('EMA alpha must be in (0, 1]');
-  }
-  let previous: number | undefined;
-  return summarizeWindow(records, endDay).map((day) => {
-    if (!day.primary) return { localDay: day.localDay, ema: null };
-    const ema = previous === undefined ? day.primary.weightKg : alpha * day.primary.weightKg + (1 - alpha) * previous;
-    previous = ema;
-    return { localDay: day.localDay, ema };
+): { localDay: string; ema: number }[] {
+  const window = new Set(lastNLocalDays(endDay, TREND_WINDOW_DAYS));
+  const samples = earliestPerDay(records.filter((record) => window.has(record.localDay)));
+  const values = exponentialMovingAverage(
+    samples.map((sample) => sample.weightKg),
+    alpha,
+  );
+  return samples.map((sample, index) => {
+    const ema = values[index];
+    if (ema === undefined) throw new Error('EMA series is shorter than the sampled days');
+    return { localDay: sample.localDay, ema };
   });
 }
