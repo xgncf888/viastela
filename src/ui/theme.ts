@@ -28,6 +28,8 @@ export type Palette = {
   danger: string;
   dangerFill: string;
   dangerSoft: string;
+  warning: string;
+  warningSoft: string;
   overlay: string;
 };
 
@@ -53,6 +55,8 @@ export const lightColor: Palette = {
   danger: '#9A463E',
   dangerFill: '#9A463E',
   dangerSoft: '#F8EEEB',
+  warning: '#8A5A12',
+  warningSoft: '#FBF3E4',
   overlay: 'rgba(38, 36, 31, 0.42)',
 };
 
@@ -78,6 +82,8 @@ export const darkColor: Palette = {
   danger: '#E29B90',
   dangerFill: '#9A463E',
   dangerSoft: '#3C2C2A',
+  warning: '#E3B26B',
+  warningSoft: '#3A3222',
   overlay: 'rgba(0, 0, 0, 0.62)',
 };
 
