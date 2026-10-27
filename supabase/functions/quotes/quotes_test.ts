@@ -192,10 +192,10 @@ async function verifyJwt(token: string): Promise<{ id: string } | null> {
 }
 
 function tamper(token: string): string {
-  const chars = token.split('');
-  const last = chars.length - 1;
-  chars[last] = chars[last] === 'a' ? 'b' : 'a';
-  return chars.join('');
+  const parts = token.split('.');
+  const signature = parts[2] ?? '';
+  const flipped = signature.startsWith('A') ? 'B' : 'A';
+  return `${parts[0]}.${parts[1]}.${flipped}${signature.slice(1)}`;
 }
 
 function futureExp(): number {
