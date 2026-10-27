@@ -1,3 +1,4 @@
+import { isSoftDeletedUpsert, RECORD_DELETED } from '@/core/weight-write';
 import type { WeightRecord } from '@/core/weight-stats';
 
 import { getSupabase } from './client';
@@ -85,7 +86,10 @@ export async function upsertWeightRecord(record: WeightRecord): Promise<void> {
     },
     { onConflict: 'id' },
   );
-  if (error) throw error;
+  if (error) {
+    if (isSoftDeletedUpsert(error)) throw new Error(RECORD_DELETED);
+    throw error;
+  }
 }
 
 /**

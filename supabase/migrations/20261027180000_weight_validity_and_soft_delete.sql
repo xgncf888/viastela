@@ -1,7 +1,9 @@
--- Applied after 20261024120000_init.sql (hosted version 20261027051825).
--- Do not edit the init migration. Future record tables copy this shape:
+-- Not applied on the hosted database. 20261027051825 is the hosted version of
+-- the init migration only (supabase/migrations/20261027051825_init.sql).
+-- Future record tables copy this shape:
 -- client uuid id, recorded_at, tz, local_day frozen at write, updated_at
 -- (touch_updated_at), deleted_at, own-row RLS, and enforce_record_local_day.
+-- Weight rows are soft-deleted. DELETE on weight_records is revoked.
 
 alter table public.weight_records
   add column if not exists deleted_at timestamptz;
@@ -28,7 +30,7 @@ comment on constraint weight_kg_range on public.weight_records is
 create or replace function public.enforce_record_local_day()
 returns trigger
 language plpgsql
-set search_path = public
+set search_path = ''
 as $$
 declare
   civil date;
@@ -63,14 +65,24 @@ create policy weight_select on public.weight_records
 for select to authenticated
 using (user_id = (select auth.uid()) and deleted_at is null);
 
--- A direct UPDATE that sets deleted_at fails: Postgres also applies the SELECT
--- policy to the new row, and the row no longer matches deleted_at is null.
+-- Owners can update a hidden row's other columns (USING matches user_id), but
+-- the new row must still be live. An upsert of a soft-deleted id therefore
+-- fails row-level security instead of rewriting the hidden row.
+drop policy if exists weight_update on public.weight_records;
+
+create policy weight_update on public.weight_records
+for update to authenticated
+using (user_id = (select auth.uid()))
+with check (user_id = (select auth.uid()) and deleted_at is null);
+
+-- A direct UPDATE that sets deleted_at fails that check, and Postgres would
+-- also apply the SELECT policy if the statement returned the new row.
 -- This function runs as the owner, checks auth.uid() itself, and does not RETURNING.
 create or replace function public.soft_delete_weight_record(target uuid)
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   affected integer;
@@ -105,3 +117,8 @@ for delete to authenticated
 using (user_id = (select auth.uid()));
 
 grant delete on table public.profiles to authenticated;
+
+-- Soft delete only. A hard DELETE must not remove a weight row.
+drop policy if exists weight_delete on public.weight_records;
+
+revoke delete on table public.weight_records from authenticated;

@@ -33,7 +33,7 @@ const config = {
   version: '1.0.0',
   orientation: 'portrait',
   icon: brand.icon,
-  userInterfaceStyle: 'light',
+  userInterfaceStyle: 'automatic',
   backgroundColor: theme.color.paper,
   runtimeVersion: {
     policy: 'fingerprint',

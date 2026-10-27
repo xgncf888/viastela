@@ -70,7 +70,7 @@ npm run export:web && npm run test:e2e
 ## Use a hosted Supabase project
 
 1. Create a project at https://supabase.com.
-2. Apply every file in `supabase/migrations/` in filename order (`npx supabase link` and `npx supabase db push` once the CLI is logged in). The init migration is already applied on the hosted project as version `20261027051825`; do not edit it. Later changes belong in a new migration file. This repository does not apply migrations to the hosted project.
+2. Migrations are applied only through the Supabase connector, after review. The init migration is already on the hosted project as version `20261027051825` (`supabase/migrations/20261027051825_init.sql`); do not edit it. Later changes belong in a new file. After the connector applies one, rename the local file to that hosted version. This repository does not apply migrations to the hosted project.
 3. Under Authentication, keep email OTP enabled.
 4. Put the project URL and the anon key in `.env.local`.
 5. Add `http://localhost:8081` to the auth redirect allow list if you also use magic links. The app signs in with the 6-digit code, so a redirect is not required for the OTP form.
@@ -97,7 +97,7 @@ Each record type gets its own table. Do not add a generic log table. A record ta
 - `tz text not null` — IANA zone at write time
 - `local_day date not null` — accounting day frozen at write time by `src/core` from `tz` and the user's day-switch. The database rejects a value that is not the civil date of `recorded_at` in `tz` or the previous civil date (`enforce_record_local_day`)
 - `updated_at timestamptz not null default now()` — maintained by the `touch_updated_at` trigger, including soft deletes
-- `deleted_at timestamptz` — null while the row is live. Selects exclude non-null rows. The app calls `soft_delete_weight_record` (security definer) instead of `DELETE` or a direct update, because the select policy would reject the row once `deleted_at` is set and roll the write back
+- `deleted_at timestamptz` — null while the row is live. Selects exclude non-null rows. The app calls `soft_delete_weight_record` (security definer) instead of `DELETE` or a direct update, because a direct update would fail once `deleted_at` is set and roll the write back. `DELETE` is revoked on `weight_records`. Upserting a soft-deleted id raises row-level security and the client reports `record deleted` instead of retrying that id
 - row level security so an authenticated user can only read and write their own rows, with pgTAP covering that matrix and the anon role
 - a check constraint for any numeric range, such as `weight_kg > 0 and weight_kg < 500`
 

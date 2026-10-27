@@ -65,7 +65,7 @@ begin
 end;
 $$;
 
-select plan(59);
+select plan(58);
 
 do $$
 declare
@@ -145,27 +145,41 @@ select is(
   'user A can read their own profile'
 );
 
-select is(
-  (with updated as (
-    update public.weight_records
-    set weight_kg = 71
-    where id = '11111111-1111-4111-8111-111111111111'
-    returning 1
-  )
-  select count(*) from updated),
-  1::bigint,
+select lives_ok(
+  $$
+    do $body$
+    declare
+      affected integer;
+    begin
+      update public.weight_records
+      set weight_kg = 71
+      where id = '11111111-1111-4111-8111-111111111111';
+      get diagnostics affected = row_count;
+      if affected is distinct from 1 then
+        raise exception 'updated % rows, expected 1', affected;
+      end if;
+    end
+    $body$;
+  $$,
   'user A can update their own weight record'
 );
 
-select is(
-  (with updated as (
-    update public.profiles
-    set day_switch = time '05:30'
-    where user_id = current_setting('tests.user_a')::uuid
-    returning 1
-  )
-  select count(*) from updated),
-  1::bigint,
+select lives_ok(
+  $$
+    do $body$
+    declare
+      affected integer;
+    begin
+      update public.profiles
+      set day_switch = time '05:30'
+      where user_id = current_setting('tests.user_a')::uuid;
+      get diagnostics affected = row_count;
+      if affected is distinct from 1 then
+        raise exception 'updated % rows, expected 1', affected;
+      end if;
+    end
+    $body$;
+  $$,
   'user A can update their own profile'
 );
 
@@ -207,49 +221,66 @@ select is(
   'user B can read their own profile'
 );
 
-select is(
-  (with updated as (
-    update public.weight_records
-    set weight_kg = 99
-    where id = '11111111-1111-4111-8111-111111111111'
-    returning 1
-  )
-  select count(*) from updated),
-  0::bigint,
+select lives_ok(
+  $$
+    do $body$
+    declare
+      affected integer;
+    begin
+      update public.weight_records
+      set weight_kg = 99
+      where id = '11111111-1111-4111-8111-111111111111';
+      get diagnostics affected = row_count;
+      if affected is distinct from 0 then
+        raise exception 'updated % rows, expected 0', affected;
+      end if;
+    end
+    $body$;
+  $$,
   'user B cannot update user A weight records'
 );
 
-select is(
-  (with updated as (
-    update public.profiles
-    set day_switch = time '06:00'
-    where user_id = current_setting('tests.user_a')::uuid
-    returning 1
-  )
-  select count(*) from updated),
-  0::bigint,
+select lives_ok(
+  $$
+    do $body$
+    declare
+      affected integer;
+    begin
+      update public.profiles
+      set day_switch = time '06:00'
+      where user_id = current_setting('tests.user_a')::uuid;
+      get diagnostics affected = row_count;
+      if affected is distinct from 0 then
+        raise exception 'updated % rows, expected 0', affected;
+      end if;
+    end
+    $body$;
+  $$,
   'user B cannot update user A profile'
 );
 
-select is(
-  (with deleted as (
-    delete from public.weight_records
-    where id = '11111111-1111-4111-8111-111111111111'
-    returning 1
-  )
-  select count(*) from deleted),
-  0::bigint,
-  'user B cannot delete user A weight records'
+select throws_ok(
+  $$delete from public.weight_records where id = '11111111-1111-4111-8111-111111111111'$$,
+  '42501',
+  NULL::text,
+  'authenticated hard delete of a weight record is rejected'
 );
 
-select is(
-  (with deleted as (
-    delete from public.profiles
-    where user_id = current_setting('tests.user_a')::uuid
-    returning 1
-  )
-  select count(*) from deleted),
-  0::bigint,
+select lives_ok(
+  $$
+    do $body$
+    declare
+      affected integer;
+    begin
+      delete from public.profiles
+      where user_id = current_setting('tests.user_a')::uuid;
+      get diagnostics affected = row_count;
+      if affected is distinct from 0 then
+        raise exception 'deleted % rows, expected 0', affected;
+      end if;
+    end
+    $body$;
+  $$,
   'user B cannot delete user A profile'
 );
 
@@ -276,6 +307,7 @@ select throws_ok(
 select throws_ok(
   $$select public.soft_delete_weight_record('11111111-1111-4111-8111-111111111111')$$,
   'P0002',
+  NULL::text,
   'user B cannot soft-delete user A weight record'
 );
 
@@ -309,34 +341,33 @@ set local role authenticated;
 
 select is(auth.uid()::text, current_setting('tests.user_a'), 'auth.uid() is user A again');
 
-select lives_ok(
-  $$
-    insert into public.weight_records (id, weight_kg, recorded_at, tz, local_day)
-    values (
-      '22222222-2222-4222-8222-222222222222',
-      70.50,
-      timestamptz '2026-10-23 20:00:00+00',
-      'Asia/Singapore',
-      date '2026-10-24'
-    )
-  $$,
-  'user A can insert a second weight record'
-);
-
-select is(
-  (with deleted as (
-    delete from public.weight_records
-    where id = '22222222-2222-4222-8222-222222222222'
-    returning 1
-  )
-  select count(*) from deleted),
-  1::bigint,
-  'user A can delete their own weight record'
+select throws_ok(
+  $$delete from public.weight_records where id = '11111111-1111-4111-8111-111111111111'$$,
+  '42501',
+  NULL::text,
+  'authenticated hard delete of their own weight record is rejected'
 );
 
 select lives_ok(
   $$select public.soft_delete_weight_record('11111111-1111-4111-8111-111111111111')$$,
   'user A can soft-delete their own weight record'
+);
+
+select throws_ok(
+  $$
+    insert into public.weight_records (id, weight_kg, recorded_at, tz, local_day)
+    values (
+      '11111111-1111-4111-8111-111111111111',
+      71,
+      timestamptz '2026-10-23 20:00:00+00',
+      'Asia/Singapore',
+      date '2026-10-24'
+    )
+    on conflict (id) do update set weight_kg = excluded.weight_kg
+  $$,
+  '42501',
+  NULL::text,
+  'upsert of a soft-deleted weight id is rejected by row level security'
 );
 
 select is(
@@ -345,14 +376,21 @@ select is(
   'user A cannot read a soft-deleted weight record'
 );
 
-select is(
-  (with deleted as (
-    delete from public.profiles
-    where user_id = auth.uid()
-    returning 1
-  )
-  select count(*) from deleted),
-  1::bigint,
+select lives_ok(
+  $$
+    do $body$
+    declare
+      affected integer;
+    begin
+      delete from public.profiles
+      where user_id = auth.uid();
+      get diagnostics affected = row_count;
+      if affected is distinct from 1 then
+        raise exception 'deleted % rows, expected 1', affected;
+      end if;
+    end
+    $body$;
+  $$,
   'user A can delete their own profile'
 );
 
@@ -370,12 +408,6 @@ select ok(
     where id = '11111111-1111-4111-8111-111111111111'
   ),
   'soft-deleted weight stays stored with the original kilograms'
-);
-
-select is(
-  (select count(*) from public.weight_records where id = '22222222-2222-4222-8222-222222222222'),
-  0::bigint,
-  'user A hard delete removed their extra weight row'
 );
 
 select is(
@@ -412,6 +444,7 @@ select throws_ok(
     )
   $$,
   '23514',
+  NULL::text,
   'weight of 0 kg is rejected'
 );
 
@@ -427,6 +460,7 @@ select throws_ok(
     )
   $$,
   '23514',
+  NULL::text,
   'weight of 500 kg is rejected'
 );
 
@@ -442,6 +476,7 @@ select throws_ok(
     )
   $$,
   '23514',
+  NULL::text,
   'negative weight is rejected'
 );
 
@@ -459,15 +494,11 @@ select lives_ok(
   'weight just under 500 kg is accepted'
 );
 
-select is(
-  (with deleted as (
-    delete from public.weight_records
-    where id = '33333333-3333-4333-8333-333333333333'
-    returning 1
-  )
-  select count(*) from deleted),
-  1::bigint,
-  'user A can delete the boundary weight row'
+select throws_ok(
+  $$delete from public.weight_records where id = '33333333-3333-4333-8333-333333333333'$$,
+  '42501',
+  NULL::text,
+  'authenticated hard delete of a weight record is rejected'
 );
 
 select throws_ok(
@@ -482,6 +513,7 @@ select throws_ok(
     )
   $$,
   '23514',
+  NULL::text,
   'local_day two days before the civil date is rejected'
 );
 
@@ -497,6 +529,7 @@ select throws_ok(
     )
   $$,
   '22023',
+  NULL::text,
   'an unknown timezone is rejected'
 );
 
@@ -514,7 +547,7 @@ select is(
 );
 set local role anon;
 
-select throws_ok($$select count(*) from public.weight_records$$, '42501', 'anon cannot select weight records');
+select throws_ok($$select count(*) from public.weight_records$$, '42501', NULL::text, 'anon cannot select weight records');
 select throws_ok(
   $$
     insert into public.weight_records (id, weight_kg, recorded_at, tz, local_day)
@@ -527,37 +560,44 @@ select throws_ok(
     )
   $$,
   '42501',
+  NULL::text,
   'anon cannot insert weight records'
 );
 select throws_ok(
   $$update public.weight_records set weight_kg = 80 where id = '11111111-1111-4111-8111-111111111111'$$,
   '42501',
+  NULL::text,
   'anon cannot update weight records'
 );
 select throws_ok(
   $$delete from public.weight_records where id = '11111111-1111-4111-8111-111111111111'$$,
   '42501',
+  NULL::text,
   'anon cannot delete weight records'
 );
-select throws_ok($$select count(*) from public.profiles$$, '42501', 'anon cannot select profiles');
+select throws_ok($$select count(*) from public.profiles$$, '42501', NULL::text, 'anon cannot select profiles');
 select throws_ok(
   $$insert into public.profiles (user_id) values ('11111111-1111-4111-8111-111111111111')$$,
   '42501',
+  NULL::text,
   'anon cannot insert profiles'
 );
 select throws_ok(
   $$update public.profiles set day_switch = time '04:00' where user_id = current_setting('tests.user_a')::uuid$$,
   '42501',
+  NULL::text,
   'anon cannot update profiles'
 );
 select throws_ok(
   $$delete from public.profiles where user_id = current_setting('tests.user_a')::uuid$$,
   '42501',
+  NULL::text,
   'anon cannot delete profiles'
 );
 select throws_ok(
   $$select public.soft_delete_weight_record('11111111-1111-4111-8111-111111111111')$$,
   '42501',
+  NULL::text,
   'anon cannot soft-delete weight records'
 );
 

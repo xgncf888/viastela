@@ -3,6 +3,7 @@
 - One Expo application, not a monorepo, targets web, iOS, and Android.
 - The client is Expo SDK 58, Expo Router, and react-native-web.
 - The backend is Supabase Postgres with row level security and email OTP, and there is no second backend.
+- Migrations are applied only via the Supabase connector after review, and local files are renamed to the hosted version afterwards.
 - EAS Update uses the fingerprint `runtimeVersion` policy; preview and production channels are set in `eas.json`; week 1 does not run EAS builds.
 - The display name and icon paths live only in `src/config/brand.ts`; the bundle ids `com.personal.lifeapp` and the URL scheme `lifeapp` are neutral and configured in that same file.
 - UI copy is Chinese.
@@ -16,7 +17,8 @@
 - The 7-day average is insufficient data until 4 local days in the window have a weigh-in.
 - The trend chart series is an exponential moving average of those earliest weigh-ins; the headline number stays the 7-day average.
 - Weight list reads are a `local_day` window plus one latest row, and soft-deleted rows are excluded.
-- A weight row is removed by `soft_delete_weight_record`, which sets `deleted_at`. A direct update fails the select policy and rolls back. `updated_at` stays on the server trigger from the init migration.
+- A weight row is removed by `soft_delete_weight_record`, which sets `deleted_at`. Hard `DELETE` is revoked. A direct update that leaves `deleted_at` set fails row-level security. `updated_at` stays on the server trigger from the init migration.
+- Upserting a soft-deleted weight id throws `record deleted` and that id is not retried.
 - `local_day` must be the civil date of `recorded_at` in `tz` or the previous day. `weight_kg` stays inside (0, 500).
 - `fixtures/local-day.json` is the shared vector file for the Jest local-day tests and the pgTAP trigger tests.
 - Future money columns are integer minor units, a currency code, and an FX snapshot taken at write time.

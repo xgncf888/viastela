@@ -4,6 +4,7 @@ import { useAuth } from '@/features/auth/AuthProvider';
 import { createId } from '@/core/id';
 import { computeLocalDay, currentTimeZone, DEFAULT_DAY_SWITCH, isDaySwitch, saveToastMessage } from '@/core/local-day';
 import { beginSave, confirmSave, visibleRecords, type SaveState } from '@/core/save-state';
+import { RECORD_DELETED, weightSaveOutcome } from '@/core/weight-write';
 import { weightListWindow, type WeightRecord } from '@/core/weight-stats';
 import { getDaySwitch, updateDaySwitch } from '@/data/profile';
 import { latestWeightRecord, listWeightRecords, softDeleteWeightRecord, upsertWeightRecord } from '@/data/weights';
@@ -130,7 +131,20 @@ export function WeightProvider({ children }: { children: ReactNode }) {
       }
       showToast({ text: saveToastMessage(recordedAt, tz, switchTime) });
       return true;
-    } catch {
+    } catch (error) {
+      if (weightSaveOutcome(error) === RECORD_DELETED) {
+        setSaveState((current) => ({
+          saved: current.saved.filter((row) => row.id !== id),
+          pending: current.pending.filter((row) => row.id !== id),
+        }));
+        setFailedIds((current) => {
+          const next = new Set(current);
+          next.delete(id);
+          return next;
+        });
+        showToast({ text: RECORD_DELETED, tone: 'error' });
+        return false;
+      }
       setFailedIds((current) => new Set(current).add(id));
       showToast({ text: '保存失败，请重试', tone: 'error' });
       return false;

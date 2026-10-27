@@ -49,6 +49,7 @@ const writes = cases.flatMap((item, index) => {
   $$insert into public.weight_records (id, weight_kg, recorded_at, tz, local_day)
     values ('${uuid(index + 101)}', 70.50, ${when}, ${zone}, date ${sqlString(rejected)})$$,
   '23514',
+  NULL::text,
   ${sqlString(`${item.id} rejects a local_day two days before the civil date`)}
 );`,
   ];

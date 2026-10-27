@@ -136,6 +136,7 @@ select throws_ok(
   $$insert into public.weight_records (id, weight_kg, recorded_at, tz, local_day)
     values ('44444444-4444-4444-8444-000000000101', 70.50, timestamptz '2026-10-23T17:30:00.000Z', 'Asia/Singapore', date '2026-10-22')$$,
   '23514',
+  NULL::text,
   'singapore-0130 rejects a local_day two days before the civil date'
 );
 select lives_ok(
@@ -147,6 +148,7 @@ select throws_ok(
   $$insert into public.weight_records (id, weight_kg, recorded_at, tz, local_day)
     values ('44444444-4444-4444-8444-000000000102', 70.50, timestamptz '2026-10-23T19:59:00.000Z', 'Asia/Singapore', date '2026-10-22')$$,
   '23514',
+  NULL::text,
   'singapore-0359 rejects a local_day two days before the civil date'
 );
 select lives_ok(
@@ -158,6 +160,7 @@ select throws_ok(
   $$insert into public.weight_records (id, weight_kg, recorded_at, tz, local_day)
     values ('44444444-4444-4444-8444-000000000103', 70.50, timestamptz '2026-10-23T20:00:00.000Z', 'Asia/Singapore', date '2026-10-22')$$,
   '23514',
+  NULL::text,
   'singapore-0400 rejects a local_day two days before the civil date'
 );
 select lives_ok(
@@ -169,6 +172,7 @@ select throws_ok(
   $$insert into public.weight_records (id, weight_kg, recorded_at, tz, local_day)
     values ('44444444-4444-4444-8444-000000000104', 70.50, timestamptz '2026-02-28T17:30:00.000Z', 'Asia/Singapore', date '2026-02-27')$$,
   '23514',
+  NULL::text,
   'singapore-month-boundary rejects a local_day two days before the civil date'
 );
 select lives_ok(
@@ -180,6 +184,7 @@ select throws_ok(
   $$insert into public.weight_records (id, weight_kg, recorded_at, tz, local_day)
     values ('44444444-4444-4444-8444-000000000105', 70.50, timestamptz '2026-10-23T19:30:00.000Z', 'Asia/Singapore', date '2026-10-22')$$,
   '23514',
+  NULL::text,
   'singapore-0330 rejects a local_day two days before the civil date'
 );
 select lives_ok(
@@ -191,6 +196,7 @@ select throws_ok(
   $$insert into public.weight_records (id, weight_kg, recorded_at, tz, local_day)
     values ('44444444-4444-4444-8444-000000000106', 70.50, timestamptz '2026-10-23T19:30:00.000Z', 'Asia/Tokyo', date '2026-10-22')$$,
   '23514',
+  NULL::text,
   'tokyo-0430-same-instant rejects a local_day two days before the civil date'
 );
 select lives_ok(
@@ -202,6 +208,7 @@ select throws_ok(
   $$insert into public.weight_records (id, weight_kg, recorded_at, tz, local_day)
     values ('44444444-4444-4444-8444-000000000107', 70.50, timestamptz '2026-10-23T21:30:00.000Z', 'Asia/Singapore', date '2026-10-22')$$,
   '23514',
+  NULL::text,
   'singapore-0530-switch-0600 rejects a local_day two days before the civil date'
 );
 

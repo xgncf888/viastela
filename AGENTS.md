@@ -40,5 +40,5 @@ The platform agent is the only agent that edits `package.json`, `package-lock.js
 - Record ids are client UUIDs. Retries reuse the same id.
 - `local_day` is written once. Do not recompute history when the day-switch or timezone changes.
 - No offline queue unless a task says so.
-- Do not edit a migration that has already been applied. Add a new file under `supabase/migrations/`. The init migration is already applied on the hosted database as version `20261027051825`.
+- Do not edit a migration that has already been applied. Add a new file under `supabase/migrations/`. The init migration is hosted version `20261027051825` (`supabase/migrations/20261027051825_init.sql`). After the connector applies a migration, rename the local file to that hosted version.
 - UI copy is Chinese.
