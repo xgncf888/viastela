@@ -150,3 +150,11 @@ iOS uses `apple-mobile-web-app-capable` and `apple-mobile-web-app-status-bar-sty
 The service worker caches only same-origin static files: JavaScript, CSS, images, fonts, and the `index.html` shell. Navigations are network-first and fall back to that shell, so a new deploy replaces the previous bundle. `sw.js` is served with `Cache-Control: no-cache` and registered with `updateViaCache: 'none'`. A worker that replaces one already in control reloads the page once. Supabase hosts, `/auth|rest|functions|storage|realtime/v1` paths, and any request carrying `Authorization` are not intercepted. `/.well-known/*` is not intercepted. Sign-out deletes the runtime Cache Storage.
 
 There is no install banner. 我的 shows one row, hidden when the page is already `display-mode: standalone`. On iPhone and iPad the row says `在 Safari 点分享 → 添加到主屏幕`. Elsewhere it says `在浏览器菜单里选择「添加到主屏幕」`. Notifications are not part of this install path.
+
+## Timeline
+
+`/timeline` is a `Screen` with a scrolling column. The top row is a `ChipGroup` of 全部 / 资金 / 日志 and a primary `写日志`. 资金 is every row that is not a journal entry. Days are grouped newest first. The heading is `今天`, `昨天`, or `10月25日 周日`. The accounting day for an asset event comes from `occurred_at`, the current IANA timezone, and the day switch stored on 我的. A journal or balance row keeps the `local_day` it was saved with. Each page is 50 rows and then continues through the last day, so one day is not split across pages. The next page loads at the bottom, which shows `读取中`.
+
+Automatic rows use `TimelineItem` and do not open or delete. Balance text is converted with that row’s `usd_rate`. A USD row with a null rate uses one-to-one. The first balance of an account says `首次记录` plus the new value. Holding titles do not include digits. A quantity change puts `10 → 15 股` in the detail; a cost-only change says `调整了成本价`. `holding_added` stays after `holding_removed`. Those details go through `MaskedAmount`. Journal text does not.
+
+A journal row opens the edit sheet. `删除` is a ghost button with the same 5 second undo as weight. The sheet trims the body to 1–2000 characters, shows the count after 1800, rejects a future day, and takes an optional mood (很差 / 差 / 一般 / 好 / 很好) plus up to 5 tags of 1–20 characters. Save toasts `已记下`. Empty timeline copy is `还没有记录` with `写一条日志`.

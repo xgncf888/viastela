@@ -13,19 +13,23 @@ import { ToastHost } from '@/ui/toast';
 
 const TABS = [
   { id: 'today', href: '/', label: '今日' },
+  { id: 'assets', href: '/assets', label: '资产' },
   { id: 'trend', href: '/trend', label: '趋势' },
+  { id: 'timeline', href: '/timeline', label: '时间线' },
   { id: 'me', href: '/me', label: '我的' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
 
 function currentTab(pathname: string): TabId {
+  if (pathname.startsWith('/assets')) return 'assets';
   if (pathname.startsWith('/trend')) return 'trend';
+  if (pathname.startsWith('/timeline')) return 'timeline';
   if (pathname.startsWith('/me')) return 'me';
   return 'today';
 }
 
-function go(href: '/' | '/trend' | '/me') {
+function go(href: '/' | '/assets' | '/trend' | '/timeline' | '/me') {
   router.replace(href);
 }
 
