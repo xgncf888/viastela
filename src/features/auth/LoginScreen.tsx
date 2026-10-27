@@ -1,17 +1,32 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { router } from 'expo-router';
+import { Platform } from 'react-native';
 
 import { brand } from '@/config/brand';
 import { isSupabaseConfigured } from '@/config/env';
-import { requestEmailOtp, verifyEmailOtp } from '@/data/auth';
+import { showProviderSignIn } from '@/core/provider-sign-in';
+import { requestEmailOtp, signInWithProvider, verifyEmailOtp } from '@/data/auth';
+import { captureOAuthFailure, clearOAuthFailureMessage, type OAuthProvider } from '@/data/oauth';
 import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
 import { Content } from '@/ui/Content';
-import { ScreenHeader, Stack } from '@/ui/layout';
+import { Callout, Row, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { TextField } from '@/ui/TextField';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const savedEmailKey = 'login-email';
+
+function rememberedEmail(): string {
+  if (typeof sessionStorage === 'undefined') return '';
+  return sessionStorage.getItem(savedEmailKey) ?? '';
+}
+
+function rememberEmail(value: string) {
+  if (typeof sessionStorage === 'undefined') return;
+  sessionStorage.setItem(savedEmailKey, value);
+}
 
 function messageFrom(error: unknown, fallback: string): string {
   const text = error instanceof Error ? error.message.toLowerCase() : '';
@@ -25,11 +40,41 @@ function messageFrom(error: unknown, fallback: string): string {
 
 export function LoginScreen() {
   const configured = isSupabaseConfigured();
+  const showProviders = showProviderSignIn(Platform.OS);
   const [phase, setPhase] = useState<'email' | 'code'>('email');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(rememberedEmail);
   const [code, setCode] = useState('');
+  const [providerNotice, setProviderNotice] = useState<string | null>(captureOAuthFailure);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    clearOAuthFailureMessage();
+  }, []);
   const [busy, setBusy] = useState(false);
+  const [provider, setProvider] = useState<OAuthProvider | null>(null);
+
+  function onEmailChange(value: string) {
+    setEmail(value);
+    rememberEmail(value);
+  }
+
+  async function startProvider(next: OAuthProvider) {
+    if (!configured) {
+      setProviderNotice('尚未配置 Supabase');
+      return;
+    }
+    setBusy(true);
+    setProvider(next);
+    setProviderNotice(null);
+    try {
+      await signInWithProvider(next);
+      clearOAuthFailureMessage();
+      setProviderNotice(null);
+    } catch (providerError) {
+      setProviderNotice(messageFrom(providerError, '登录没有完成，请重试'));
+      setBusy(false);
+      setProvider(null);
+    }
+  }
 
   async function sendCode() {
     const nextEmail = email.trim();
@@ -63,6 +108,8 @@ export function LoginScreen() {
     setError(null);
     try {
       await verifyEmailOtp(email, code.trim());
+      clearOAuthFailureMessage();
+      setProviderNotice(null);
     } catch (verifyError) {
       setError(messageFrom(verifyError, '验证码不正确或已过期'));
     } finally {
@@ -85,16 +132,38 @@ export function LoginScreen() {
         ) : null}
         {phase === 'email' ? (
           <Stack gap="md">
+            {showProviders ? (
+              <>
+                {providerNotice ? <Callout message={providerNotice} tone="danger" /> : null}
+                <Button
+                  label="使用 Google 登录"
+                  variant="secondary"
+                  onPress={() => void startProvider('google')}
+                  loading={provider === 'google'}
+                  disabled={busy && provider !== 'google'}
+                />
+                <Button
+                  label="使用 GitHub 登录"
+                  variant="secondary"
+                  onPress={() => void startProvider('github')}
+                  loading={provider === 'github'}
+                  disabled={busy && provider !== 'github'}
+                />
+                <Row justify="center">
+                  <Text variant="muted">或</Text>
+                </Row>
+              </>
+            ) : null}
             <TextField
               label="邮箱"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={onEmailChange}
               placeholder="name@example.com"
               keyboardType="email-address"
               autoComplete="email"
               error={error}
             />
-            <Button label="发送验证码" onPress={() => void sendCode()} loading={busy} />
+            <Button label="发送验证码" onPress={() => void sendCode()} loading={busy && provider === null} disabled={busy} />
           </Stack>
         ) : (
           <Stack gap="md">
@@ -121,6 +190,7 @@ export function LoginScreen() {
             />
           </Stack>
         )}
+        <Button label="隐私政策" variant="ghost" onPress={() => router.push('/privacy')} />
       </Content>
     </Screen>
   );

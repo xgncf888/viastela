@@ -1,0 +1,1 @@
+export { AccountDeletedScreen as default } from '@/features/account/AccountDeletedScreen';

@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { Card } from './Card';
 import { Text } from './Text';
 import { theme, type SpaceName } from './theme';
+import { useTheme } from './ThemeProvider';
 
 export function Stack({ gap = 'md', children }: { gap?: SpaceName; children: ReactNode }) {
   return <View style={{ gap: theme.space[gap] }}>{children}</View>;
@@ -18,11 +19,12 @@ export function Row({
 }: {
   gap?: SpaceName;
   align?: 'center' | 'start';
-  justify?: 'start' | 'between' | 'end';
+  justify?: 'start' | 'center' | 'between' | 'end';
   wrap?: boolean;
   children: ReactNode;
 }) {
-  const justifyContent = justify === 'between' ? 'space-between' : justify === 'end' ? 'flex-end' : 'flex-start';
+  const justifyContent =
+    justify === 'between' ? 'space-between' : justify === 'end' ? 'flex-end' : justify === 'center' ? 'center' : 'flex-start';
   return (
     <View
       style={{
@@ -75,7 +77,26 @@ export function Field({ label, value, hint }: { label: string; value: string; hi
   );
 }
 
-export function Callout({ message, action }: { message: string; action?: ReactNode }) {
+export function Callout({
+  message,
+  action,
+  tone,
+}: {
+  message: string;
+  action?: ReactNode;
+  tone?: 'danger';
+}) {
+  const theme = useTheme();
+  if (tone === 'danger') {
+    return (
+      <View accessibilityRole="alert" style={[styles.danger, { backgroundColor: theme.color.dangerSoft }]}>
+        <Text variant="body" tone="danger">
+          {message}
+        </Text>
+        {action}
+      </View>
+    );
+  }
   return (
     <Card>
       <Text variant="body">{message}</Text>
@@ -89,5 +110,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  danger: {
+    borderRadius: theme.radius.lg,
+    padding: theme.space.md,
+    gap: theme.space.sm,
   },
 });

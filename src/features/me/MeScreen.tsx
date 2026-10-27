@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { router } from 'expo-router';
 
 import { brand } from '@/config/brand';
 import { signOut } from '@/data/auth';
@@ -8,7 +9,7 @@ import { useWeight } from '@/features/weight/WeightProvider';
 import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
 import { Content } from '@/ui/Content';
-import { Field, ScreenHeader } from '@/ui/layout';
+import { Field, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { TextField } from '@/ui/TextField';
@@ -47,7 +48,7 @@ export function MeScreen() {
         </Card>
         <Card>
           <TextField
-            label="日界时间"
+            label="日切时间"
             value={value}
             onChangeText={setDraft}
             placeholder="04:00"
@@ -66,15 +67,19 @@ export function MeScreen() {
         <Card>
           <Text variant="body">训练、学习和时间块还在后面。现在可以记体重。</Text>
         </Card>
-        <Button
-          label="退出登录"
-          variant="secondary"
-          loading={signingOut}
-          onPress={() => {
-            setSigningOut(true);
-            void signOut().finally(() => setSigningOut(false));
-          }}
-        />
+        <Button label="隐私政策" variant="ghost" onPress={() => router.push('/privacy')} />
+        <Stack gap="lg">
+          <Button
+            label="退出登录"
+            variant="secondary"
+            loading={signingOut}
+            onPress={() => {
+              setSigningOut(true);
+              void signOut().finally(() => setSigningOut(false));
+            }}
+          />
+          <Button label="删除账号" variant="ghost" tone="danger" onPress={() => router.push('/account/delete')} />
+        </Stack>
       </Content>
     </Screen>
   );
