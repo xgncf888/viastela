@@ -38,6 +38,7 @@ function trainingSeed(
   recordedAt: string,
   localDay: string,
   reps = 5,
+  tz = 'UTC',
 ): TrainingRow {
   return {
     id,
@@ -46,7 +47,7 @@ function trainingSeed(
     weight_kg: 60,
     band_level: null,
     recorded_at: recordedAt,
-    tz: 'UTC',
+    tz,
     local_day: localDay,
     updated_at: recordedAt,
   };
@@ -221,32 +222,105 @@ test('the most recently used exercise is the first chip', async ({ page }) => {
   const chips = page.getByRole('button').filter({ hasText: /^(深蹲|卧推)$/ });
   await expect(chips.nth(0)).toHaveText('深蹲');
   await expect(chips.nth(1)).toHaveText('卧推');
+  await expect(page.getByRole('button', { name: '哑铃卧推' })).toHaveCount(0);
 });
 
-test('a record at 01:30 local counts for the previous day', async ({ page }) => {
+test('with no training history the form offers the six home exercises', async ({ page }) => {
   const writes = trackTraining();
-  await page.clock.install({ time: new Date('2026-10-27T01:29:00.000Z') });
-  await signIn(page);
-  await installApi(page, {
-    weights: [weightRow('w-1', '2026-10-26', 70, 1)],
-    training: [
-      trainingSeed('prev', '深蹲', '2026-10-27T01:30:00.000Z', '2026-10-26'),
-      trainingSeed('calendar', '卧推', '2026-10-27T01:30:00.000Z', '2026-10-27'),
-    ],
-    onTrainingWrite: writes.onTrainingWrite,
-    onTrainingDelete: writes.onTrainingDelete,
-  });
-  await page.goto('/');
-  await expect(page.getByText('10月26日的训练')).toBeVisible();
-  await page.clock.pauseAt('2026-10-27T01:30:00.000Z');
-  await expect(page.getByRole('button', { name: '深蹲 1 组' })).toBeVisible();
-  await expect(page.getByRole('button', { name: '卧推 1 组' })).toHaveCount(0);
+  await openPausedToday(page, writes);
+  await page.getByRole('button', { name: '记录', exact: true }).click();
+  await page.getByRole('button', { name: '训练' }).click();
+  for (const name of ['哑铃卧推', '单臂划船', '肩推', '深蹲', '弹力带面拉', '俯卧撑']) {
+    await expect(page.getByRole('button', { name })).toBeVisible();
+  }
+  await expect(page.getByRole('textbox', { name: '动作' })).toHaveCount(0);
+});
 
-  await saveSet(page, '硬拉', '3', { weight: '80' });
+test('完成 asks before leaving an edited set, and an unchanged +1 组 closes', async ({ page }) => {
+  const writes = trackTraining();
+  await openPausedToday(page, writes);
+
+  await page.getByRole('button', { name: '记录', exact: true }).click();
+  await page.getByRole('button', { name: '训练' }).click();
+  await page.getByRole('button', { name: '完成' }).click();
+  await expect(page.getByRole('button', { name: '保存这一组并完成' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '记录' })).toBeHidden();
+  expect(writes.posts).toHaveLength(0);
+
+  await page.getByRole('button', { name: '记录', exact: true }).click();
+  await page.getByRole('button', { name: '训练' }).click();
+  await page.getByRole('button', { name: '哑铃卧推' }).click();
+  await page.getByRole('button', { name: '完成' }).click();
+  await expect(page.getByRole('button', { name: '保存这一组并完成' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '记录' })).toBeHidden();
+  expect(writes.posts).toHaveLength(0);
+
+  await page.getByRole('button', { name: '记录', exact: true }).click();
+  await page.getByRole('button', { name: '训练' }).click();
+  await page.getByRole('button', { name: '哑铃卧推' }).click();
+  await page.getByRole('textbox', { name: '重量（kg）' }).fill('20');
+  await page.getByRole('textbox', { name: '次数' }).fill('10');
+  await page.getByRole('button', { name: '完成' }).click();
+  await expect(page.getByRole('button', { name: '保存这一组并完成' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '不保存，直接完成' })).toBeVisible();
+  await page.getByRole('button', { name: '不保存，直接完成' }).click();
+  await expect(page.getByRole('heading', { name: '记录' })).toBeHidden();
+  expect(writes.posts).toHaveLength(0);
+
+  await page.getByRole('button', { name: '记录', exact: true }).click();
+  await page.getByRole('button', { name: '训练' }).click();
+  await page.getByRole('button', { name: '哑铃卧推' }).click();
+  await page.getByRole('textbox', { name: '重量（kg）' }).fill('20');
+  await page.getByRole('textbox', { name: '次数' }).fill('10');
+  await page.getByRole('button', { name: '完成' }).click();
+  await page.getByRole('button', { name: '保存这一组并完成' }).click();
   await expect.poll(() => writes.posts.length).toBe(1);
-  const saved = JSON.parse(writes.posts[0] ?? '{}') as { local_day?: string; recorded_at?: string };
-  expect(saved.local_day).toBe('2026-10-26');
-  expect(saved.recorded_at?.startsWith('2026-10-27T01:30')).toBe(true);
+  await expect(page.getByRole('heading', { name: '记录' })).toBeHidden();
+  await expect(page.getByRole('button', { name: '哑铃卧推 1 组' })).toBeVisible();
+});
+
+test('an unchanged +1 组 prefill closes without another row', async ({ page }) => {
+  const writes = trackTraining();
+  await openPausedToday(page, writes, [trainingSeed('seed', '深蹲', `${day}T07:00:00.000Z`, day)]);
+  await page.getByRole('button', { name: '记录', exact: true }).click();
+  await page.getByRole('button', { name: '训练' }).click();
+  await page.getByRole('button', { name: '深蹲', exact: true }).click();
+  await page.getByRole('button', { name: '+1 组' }).click();
+  await page.getByRole('button', { name: '完成' }).click();
+  await expect(page.getByRole('button', { name: '保存这一组并完成' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '记录' })).toBeHidden();
+  expect(writes.posts).toHaveLength(0);
+});
+
+test.describe('Singapore accounting day', () => {
+  test.use({ timezoneId: 'Asia/Singapore', viewport: { width: 390, height: 844 } });
+
+  test('a record at 01:30 local counts for the previous day', async ({ page }) => {
+    const writes = trackTraining();
+    await page.clock.install({ time: new Date('2026-10-26T17:29:00.000Z') });
+    await signIn(page);
+    await installApi(page, {
+      weights: [weightRow('w-1', '2026-10-26', 70, 1)],
+      training: [
+        trainingSeed('prev', '深蹲', '2026-10-26T17:30:00.000Z', '2026-10-26', 5, 'Asia/Singapore'),
+        trainingSeed('calendar', '卧推', '2026-10-26T17:30:00.000Z', '2026-10-27', 5, 'Asia/Singapore'),
+      ],
+      onTrainingWrite: writes.onTrainingWrite,
+      onTrainingDelete: writes.onTrainingDelete,
+    });
+    await page.goto('/');
+    await expect(page.getByText('10月26日的训练')).toBeVisible();
+    await page.clock.pauseAt('2026-10-26T17:30:00.000Z');
+    await expect(page.getByRole('button', { name: '深蹲 1 组' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '卧推 1 组' })).toHaveCount(0);
+
+    await saveSet(page, '硬拉', '3', { weight: '80' });
+    await expect.poll(() => writes.posts.length).toBe(1);
+    const saved = JSON.parse(writes.posts[0] ?? '{}') as { local_day?: string; tz?: string; recorded_at?: string };
+    expect(saved.local_day).toBe('2026-10-26');
+    expect(saved.tz).toBe('Asia/Singapore');
+    expect(saved.recorded_at?.startsWith('2026-10-26T17:30')).toBe(true);
+  });
 });
 
 test('a soft delete that matches no row says delete failed', async ({ page }) => {

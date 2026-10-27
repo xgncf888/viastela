@@ -1,12 +1,17 @@
 import { describe, expect, it } from '@jest/globals';
 
 import {
+  BLANK_TRAINING_FORM,
+  exerciseChoices,
   formatTrainingLoad,
+  HOME_EXERCISES,
   parseTrainingDraft,
   recentExerciseNames,
   trainingDaySummary,
   trainingFinishToast,
+  trainingFormHasUnsavedEdits,
   trainingSetsOnDay,
+  type TrainingFormFields,
   type TrainingSet,
 } from './training';
 
@@ -84,5 +89,37 @@ describe('training list', () => {
 
   it('names the finished exercise and the accounting day', () => {
     expect(trainingFinishToast('深蹲', 4, '2026-10-27')).toBe('已记入 10月27日 · 深蹲 4 组');
+  });
+
+  it('uses the six home exercises until there is history', () => {
+    expect(exerciseChoices([])).toEqual(HOME_EXERCISES);
+    expect(exerciseChoices(['深蹲'])).toEqual(['深蹲']);
+  });
+});
+
+describe('training finish confirm', () => {
+  const prefilled: TrainingFormFields = {
+    exercise: '深蹲',
+    reps: '8',
+    mode: 'weight',
+    weight: '60',
+    bandLevel: '',
+  };
+
+  it('closes without a confirm when the form is empty or only an exercise is selected', () => {
+    expect(trainingFormHasUnsavedEdits(BLANK_TRAINING_FORM, BLANK_TRAINING_FORM)).toBe(false);
+    expect(
+      trainingFormHasUnsavedEdits({ ...BLANK_TRAINING_FORM, exercise: '哑铃卧推' }, BLANK_TRAINING_FORM),
+    ).toBe(false);
+  });
+
+  it('asks to confirm when a load field changed, including after +1 组', () => {
+    expect(trainingFormHasUnsavedEdits({ ...BLANK_TRAINING_FORM, exercise: '深蹲', reps: '8' }, BLANK_TRAINING_FORM)).toBe(
+      true,
+    );
+    expect(trainingFormHasUnsavedEdits({ ...BLANK_TRAINING_FORM, mode: 'band' }, BLANK_TRAINING_FORM)).toBe(true);
+    expect(trainingFormHasUnsavedEdits(prefilled, prefilled)).toBe(false);
+    expect(trainingFormHasUnsavedEdits({ ...prefilled, reps: '9' }, prefilled)).toBe(true);
+    expect(trainingFormHasUnsavedEdits({ ...prefilled, exercise: '卧推' }, prefilled)).toBe(true);
   });
 });

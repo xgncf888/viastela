@@ -1,4 +1,4 @@
-export const RECORD_TABLES = ['weight_records', 'training_sets'] as const;
+export const RECORD_TABLES = ['weight_records', 'training_sets', 'study_records'] as const;
 
 export type RecordTable = (typeof RECORD_TABLES)[number];
 

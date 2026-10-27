@@ -4,6 +4,7 @@ import { router, usePathname } from 'expo-router';
 import { brand } from '@/config/brand';
 import { RecordSheet } from '@/features/record/RecordSheet';
 import { openRecordSheet } from '@/features/record/record-sheet-store';
+import { useStudy } from '@/features/study/StudyProvider';
 import { useTraining } from '@/features/training/TrainingProvider';
 import { useWeight } from '@/features/weight/WeightProvider';
 import { NavItem, RecordButton, ShellFrame, SidebarFrame, TabBar, useShellInset, useWideWeb } from '@/ui/chrome';
@@ -33,6 +34,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const current = currentTab(usePathname());
   const { deletedNotice, dismissDeletedNotice } = useWeight();
   const trainingDeleted = useTraining();
+  const studyDeleted = useStudy();
   return (
     <ShellFrame
       sidebar={
@@ -63,10 +65,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       {children}
       <RecordSheet />
       <DeletedRecordNotice
-        visible={deletedNotice || trainingDeleted.deletedNotice}
+        visible={deletedNotice || trainingDeleted.deletedNotice || studyDeleted.deletedNotice}
         onClose={() => {
           dismissDeletedNotice();
           trainingDeleted.dismissDeletedNotice();
+          studyDeleted.dismissDeletedNotice();
         }}
       />
       <ToastHost />

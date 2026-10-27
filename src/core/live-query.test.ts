@@ -77,10 +77,18 @@ describe('live row reads', () => {
   it('soft-delete updates ask for the id and reject an empty match', () => {
     const fs = require('fs');
     const path = require('path');
-    for (const file of ['weights.ts', 'training.ts']) {
+    for (const file of ['weights.ts', 'training.ts', 'study.ts']) {
       const source = fs.readFileSync(path.join(process.cwd(), 'src/data', file), 'utf8');
       expect(source).toContain(".select('id')");
       expect(source).toContain('requireDeletedIds');
     }
+  });
+
+  it('caps the recent exercise read at 200 rows, newest first', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const source = fs.readFileSync(path.join(process.cwd(), 'src/data', 'training.ts'), 'utf8');
+    expect(source).toContain(".order('recorded_at', { ascending: false })");
+    expect(source).toContain('.limit(200)');
   });
 });

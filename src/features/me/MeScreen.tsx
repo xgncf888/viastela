@@ -65,7 +65,7 @@ export function MeScreen() {
           />
         </Card>
         <Card>
-          <Text variant="body">训练、学习和时间块还在后面。现在可以记体重。</Text>
+          <Text variant="body">体重、训练和学习可以在今日记。时间块还在后面。</Text>
         </Card>
         <Button label="隐私政策" variant="ghost" onPress={() => router.push('/privacy')} />
         <Stack gap="lg">

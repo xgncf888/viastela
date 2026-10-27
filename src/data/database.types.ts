@@ -56,6 +56,48 @@ export type Database = {
         };
         Relationships: [];
       };
+      study_records: {
+        Row: {
+          id: string;
+          user_id: string;
+          topic: string;
+          duration_minutes: number;
+          note: string | null;
+          recorded_at: string;
+          tz: string;
+          local_day: string;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id: string;
+          user_id?: string;
+          topic: string;
+          duration_minutes: number;
+          note?: string | null;
+          recorded_at: string;
+          tz: string;
+          local_day: string;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          topic?: string;
+          duration_minutes?: number;
+          note?: string | null;
+          recorded_at?: string;
+          tz?: string;
+          local_day?: string;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Relationships: [];
+      };
       training_sets: {
         Row: {
           id: string;

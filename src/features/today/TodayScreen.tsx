@@ -8,10 +8,12 @@ import {
   parseDaySwitch,
   weekdayLabel,
 } from '@/core/local-day';
+import { studyDaySummary, studyDetail, studyRecordsOnDay } from '@/core/study';
 import { formatTrainingLoad, trainingDaySummary, trainingSetsOnDay } from '@/core/training';
 import { formatKg, latestRecord, recordsOnDay } from '@/core/weight-stats';
 import { openRecordSheet } from '@/features/record/record-sheet-store';
 import { useShellInset } from '@/features/shell/AppShell';
+import { useStudy } from '@/features/study/StudyProvider';
 import { useTraining } from '@/features/training/TrainingProvider';
 import { AverageHeadline } from '@/features/weight/WeightSummary';
 import { excludePending, LOADING_TEXT, todayReadout, weighInLabel } from '@/features/weight/weight-copy';
@@ -19,7 +21,7 @@ import { useWeight } from '@/features/weight/WeightProvider';
 import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
 import { SetRow } from '@/ui/SetRow';
-import { StatusCard } from '@/ui/StatusCard';
+import { CardRow, StatusCard } from '@/ui/StatusCard';
 import { Content } from '@/ui/Content';
 import { EmptyState } from '@/ui/EmptyState';
 import { Callout, Row, ScreenHeader, Stack } from '@/ui/layout';
@@ -51,9 +53,11 @@ export function TodayScreen() {
     pendingDeleteIds,
   } = useWeight();
   const training = useTraining();
+  const study = useStudy();
   const inset = useShellInset();
   const [now, setNow] = useState(() => new Date());
   const [trainingDetail, setTrainingDetail] = useState(false);
+  const [studyOpen, setStudyOpen] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30_000);
@@ -67,7 +71,12 @@ export function TodayScreen() {
   const visibleToday = recordsOnDay(counted, accounting);
   const last = latestRecord(records);
   const trainingToday = trainingSetsOnDay(excludePending(training.sets, training.pendingDeleteIds), accounting);
+  const studyToday = studyRecordsOnDay(excludePending(study.records, study.pendingDeleteIds), accounting);
   const readout = todayReadout(ready, today.length, last !== null);
+  const trainingTitle = beforeSwitch ? `${formatMonthDay(accounting)}的训练` : '今天的训练';
+  const studyTitle = beforeSwitch ? `${formatMonthDay(accounting)}的学习` : '今天的学习';
+  const allLogged = visibleToday.length > 0 && trainingToday.length > 0 && studyToday.length > 0;
+  const note = [beforeSwitch ? nightLine(daySwitch) : null, allLogged ? '今天都记完了' : null].filter(Boolean).join(' · ');
 
   if (readout.loading) {
     return (
@@ -85,7 +94,7 @@ export function TodayScreen() {
         <ScreenHeader
           kicker="今日"
           title={`${formatMonthDay(accounting)} ${shortWeekday(accounting)}`}
-          note={beforeSwitch ? nightLine(daySwitch) : undefined}
+          note={note || undefined}
         />
 
         {loadError ? (
@@ -135,45 +144,110 @@ export function TodayScreen() {
           })}
         </Stack>
 
-        <Stack gap="md">
-          <Text variant="heading">{beforeSwitch ? `${formatMonthDay(accounting)}的训练` : '今天的训练'}</Text>
-          {training.loadError ? (
-            <Callout
-              message={training.loadError}
-              action={<Button label="重试" variant="secondary" onPress={() => void training.reload()} />}
-            />
-          ) : null}
-          {!training.ready ? <Text variant="body">{LOADING_TEXT}</Text> : null}
-          {training.ready && trainingToday.length === 0 ? (
-            <Button label="记一笔" onPress={() => openRecordSheet(undefined, 'training')} />
-          ) : null}
-          {trainingToday.length > 0 ? (
-            <StatusCard summary={trainingDaySummary(trainingToday)} onPress={() => setTrainingDetail(true)} />
-          ) : null}
-          {trainingDetail
-            ? trainingToday.map((set) => {
-                const failed = training.failedIds.has(set.id);
-                return (
-                  <SetRow
-                    key={set.id}
-                    title={set.exercise}
-                    detail={`${set.reps} 次 · ${formatTrainingLoad(set)}`}
-                    onDelete={failed ? undefined : () => training.scheduleDelete(set.id)}
-                  >
-                    {failed ? (
-                      <Row gap="sm" wrap>
-                        <Text variant="muted" tone="danger">
-                          未保存
-                        </Text>
-                        <Button label="重试" onPress={() => void training.retry(set.id)} loading={training.saving} />
-                        <Button label="放弃" variant="ghost" onPress={() => training.dismiss(set.id)} />
-                      </Row>
-                    ) : null}
-                  </SetRow>
-                );
-              })
-            : null}
-        </Stack>
+        <CardRow>
+          <Stack gap="sm">
+            <Text variant="heading">体重</Text>
+            {visibleToday.length === 0 ? (
+              <StatusCard
+                summary="未记录"
+                actionLabel="记一笔"
+                onAction={() => openRecordSheet()}
+              />
+            ) : (
+              <StatusCard
+                summary={`${formatKg(visibleToday[0].weightKg)} kg`}
+                hint={formatClock(visibleToday[0].recordedAt, visibleToday[0].tz)}
+              />
+            )}
+          </Stack>
+          <Stack gap="sm">
+            <Text variant="heading">{trainingTitle}</Text>
+            {training.loadError ? (
+              <Callout
+                message={training.loadError}
+                action={<Button label="重试" variant="secondary" onPress={() => void training.reload()} />}
+              />
+            ) : null}
+            {!training.ready ? <Text variant="body">{LOADING_TEXT}</Text> : null}
+            {training.ready && trainingToday.length === 0 ? (
+              <StatusCard summary="未记录" actionLabel="记一笔" onAction={() => openRecordSheet(undefined, 'training')} />
+            ) : null}
+            {trainingToday.length > 0 ? (
+              <StatusCard
+                summary={trainingDaySummary(trainingToday)}
+                hint={trainingDetail ? '收起' : '查看每组'}
+                onPress={() => setTrainingDetail((open) => !open)}
+              />
+            ) : null}
+          </Stack>
+          <Stack gap="sm">
+            <Text variant="heading">{studyTitle}</Text>
+            {study.loadError ? (
+              <Callout
+                message={study.loadError}
+                action={<Button label="重试" variant="secondary" onPress={() => void study.reload()} />}
+              />
+            ) : null}
+            {!study.ready ? <Text variant="body">{LOADING_TEXT}</Text> : null}
+            {study.ready && studyToday.length === 0 ? (
+              <StatusCard summary="未记录" actionLabel="记一笔" onAction={() => openRecordSheet(undefined, 'study')} />
+            ) : null}
+            {studyToday.length > 0 ? (
+              <StatusCard
+                summary={studyDaySummary(studyToday)}
+                hint={studyOpen ? '收起' : '查看记录'}
+                onPress={() => setStudyOpen((open) => !open)}
+              />
+            ) : null}
+          </Stack>
+        </CardRow>
+
+        {trainingDetail
+          ? trainingToday.map((set) => {
+              const failed = training.failedIds.has(set.id);
+              return (
+                <SetRow
+                  key={set.id}
+                  title={set.exercise}
+                  detail={`${set.reps} 次 · ${formatTrainingLoad(set)}`}
+                  onDelete={failed ? undefined : () => training.scheduleDelete(set.id)}
+                >
+                  {failed ? (
+                    <Row gap="sm" wrap>
+                      <Text variant="muted" tone="danger">
+                        未保存
+                      </Text>
+                      <Button label="重试" onPress={() => void training.retry(set.id)} loading={training.saving} />
+                      <Button label="放弃" variant="ghost" onPress={() => training.dismiss(set.id)} />
+                    </Row>
+                  ) : null}
+                </SetRow>
+              );
+            })
+          : null}
+        {studyOpen
+          ? studyToday.map((record) => {
+              const failed = study.failedIds.has(record.id);
+              return (
+                <SetRow
+                  key={record.id}
+                  title={record.topic}
+                  detail={studyDetail(record)}
+                  onDelete={failed ? undefined : () => study.scheduleDelete(record.id)}
+                >
+                  {failed ? (
+                    <Row gap="sm" wrap>
+                      <Text variant="muted" tone="danger">
+                        未保存
+                      </Text>
+                      <Button label="重试" onPress={() => void study.retry(record.id)} loading={study.saving} />
+                      <Button label="放弃" variant="ghost" onPress={() => study.dismiss(record.id)} />
+                    </Row>
+                  ) : null}
+                </SetRow>
+              );
+            })
+          : null}
 
         {last && today.length > 0 ? (
           <Button label={`再记 ${formatKg(last.weightKg)} kg`} onPress={() => openRecordSheet(last.weightKg)} />

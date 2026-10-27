@@ -115,6 +115,55 @@ export function trainingDaySummary(sets: readonly Pick<TrainingSet, 'exercise'>[
   return order.map((name) => `${name} ${counts.get(name)} 组`).join(' · ');
 }
 
+/** Shown when the person has no training history yet. */
+export const HOME_EXERCISES = ['哑铃卧推', '单臂划船', '肩推', '深蹲', '弹力带面拉', '俯卧撑'] as const;
+
+/** Recent names when any exist. Otherwise the built-in home exercises. */
+export function exerciseChoices(recent: readonly string[]): readonly string[] {
+  return recent.length > 0 ? recent : HOME_EXERCISES;
+}
+
+export type TrainingFormFields = {
+  exercise: string;
+  reps: string;
+  mode: TrainingMode;
+  weight: string;
+  bandLevel: string;
+};
+
+export const BLANK_TRAINING_FORM: TrainingFormFields = {
+  exercise: '',
+  reps: '',
+  mode: 'weight',
+  weight: '',
+  bandLevel: '',
+};
+
+function sameTrainingLoad(current: TrainingFormFields, baseline: TrainingFormFields): boolean {
+  return (
+    current.reps.trim() === baseline.reps.trim() &&
+    current.mode === baseline.mode &&
+    current.weight.trim() === baseline.weight.trim() &&
+    current.bandLevel.trim() === baseline.bandLevel.trim()
+  );
+}
+
+/**
+ * Unsaved means a load field changed.
+ * A blank form, an exercise with no load, and an unchanged +1 组 prefill are clean.
+ */
+export function trainingFormHasUnsavedEdits(current: TrainingFormFields, baseline: TrainingFormFields): boolean {
+  if (sameTrainingLoad(current, baseline)) {
+    const baselineHasLoad =
+      baseline.reps.trim() !== '' ||
+      baseline.weight.trim() !== '' ||
+      baseline.bandLevel.trim() !== '' ||
+      baseline.mode !== 'weight';
+    if (!baselineHasLoad) return false;
+  }
+  return current.exercise.trim() !== baseline.exercise.trim() || !sameTrainingLoad(current, baseline);
+}
+
 export function recentExerciseNames(rows: readonly RecentExerciseRow[], limit = 6): string[] {
   const ordered = [...rows].sort((left, right) => {
     const byTime = Date.parse(right.recordedAt) - Date.parse(left.recordedAt);

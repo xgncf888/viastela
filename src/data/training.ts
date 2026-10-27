@@ -50,10 +50,9 @@ export async function listTrainingSets(localDay: string): Promise<TrainingSet[]>
 
 /** Every live set, newest first. Callers dedupe. This is not today's list. */
 export async function listRecentExercises(): Promise<RecentExerciseRow[]> {
-  const { data, error } = await liveRows(getSupabase().from('training_sets').select('exercise, recorded_at')).order(
-    'recorded_at',
-    { ascending: false },
-  );
+  const { data, error } = await liveRows(getSupabase().from('training_sets').select('exercise, recorded_at'))
+    .order('recorded_at', { ascending: false })
+    .limit(200);
   if (error) throw error;
   return (data ?? []).map((row) => ({ exercise: row.exercise, recordedAt: row.recorded_at }));
 }
