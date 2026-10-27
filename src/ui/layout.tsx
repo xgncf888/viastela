@@ -18,11 +18,12 @@ export function Row({
 }: {
   gap?: SpaceName;
   align?: 'center' | 'start';
-  justify?: 'start' | 'between' | 'end';
+  justify?: 'start' | 'center' | 'between' | 'end';
   wrap?: boolean;
   children: ReactNode;
 }) {
-  const justifyContent = justify === 'between' ? 'space-between' : justify === 'end' ? 'flex-end' : 'flex-start';
+  const justifyContent =
+    justify === 'between' ? 'space-between' : justify === 'end' ? 'flex-end' : justify === 'center' ? 'center' : 'flex-start';
   return (
     <View
       style={{

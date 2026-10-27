@@ -89,8 +89,7 @@ export function DeleteAccountScreen() {
           helper="输入“删除”后才能继续"
           error={null}
         />
-        {/* Merge gate: after PR #2, switch this clay primary button to the danger variant. */}
-        <Button label="删除账号" disabled={!confirmed} onPress={() => void onDelete()} />
+        <Button label="删除账号" variant="danger" disabled={!confirmed} onPress={() => void onDelete()} />
         <Button label="取消" variant="ghost" onPress={() => router.replace('/me')} />
       </Content>
     </Screen>

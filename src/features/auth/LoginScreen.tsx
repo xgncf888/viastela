@@ -2,16 +2,53 @@ import { useState } from 'react';
 
 import { brand } from '@/config/brand';
 import { isSupabaseConfigured } from '@/config/env';
-import { requestEmailOtp, verifyEmailOtp } from '@/data/auth';
+import { requestEmailOtp, signInWithProvider, verifyEmailOtp } from '@/data/auth';
+import type { OAuthProvider } from '@/data/oauth';
 import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
 import { Content } from '@/ui/Content';
-import { ScreenHeader, Stack } from '@/ui/layout';
+import { Row, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { TextField } from '@/ui/TextField';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const savedEmailKey = 'login-email';
+
+function rememberedEmail(): string {
+  if (typeof sessionStorage === 'undefined') return '';
+  return sessionStorage.getItem(savedEmailKey) ?? '';
+}
+
+function rememberEmail(value: string) {
+  if (typeof sessionStorage === 'undefined') return;
+  sessionStorage.setItem(savedEmailKey, value);
+}
+
+function oauthFailedOnReturn(): boolean {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  return params.has('error') || params.has('error_code');
+}
+
+function clearOAuthErrorFromUrl() {
+  if (typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  url.searchParams.delete('error');
+  url.searchParams.delete('error_description');
+  url.searchParams.delete('error_code');
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
+let oauthFailureMessage: string | null | undefined;
+
+function initialOAuthError(): string | null {
+  if (oauthFailedOnReturn()) {
+    clearOAuthErrorFromUrl();
+    oauthFailureMessage = '登录没有完成，请重试';
+  }
+  return oauthFailureMessage ?? null;
+}
 
 function messageFrom(error: unknown, fallback: string): string {
   const text = error instanceof Error ? error.message.toLowerCase() : '';
@@ -26,10 +63,33 @@ function messageFrom(error: unknown, fallback: string): string {
 export function LoginScreen() {
   const configured = isSupabaseConfigured();
   const [phase, setPhase] = useState<'email' | 'code'>('email');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(rememberedEmail);
   const [code, setCode] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialOAuthError);
   const [busy, setBusy] = useState(false);
+  const [provider, setProvider] = useState<OAuthProvider | null>(null);
+
+  function onEmailChange(value: string) {
+    setEmail(value);
+    rememberEmail(value);
+  }
+
+  async function startProvider(next: OAuthProvider) {
+    if (!configured) {
+      setError('尚未配置 Supabase');
+      return;
+    }
+    setBusy(true);
+    setProvider(next);
+    setError(null);
+    try {
+      await signInWithProvider(next);
+    } catch (providerError) {
+      setError(messageFrom(providerError, '登录没有完成，请重试'));
+      setBusy(false);
+      setProvider(null);
+    }
+  }
 
   async function sendCode() {
     const nextEmail = email.trim();
@@ -85,16 +145,33 @@ export function LoginScreen() {
         ) : null}
         {phase === 'email' ? (
           <Stack gap="md">
+            <Button
+              label="使用 Google 登录"
+              variant="secondary"
+              onPress={() => void startProvider('google')}
+              loading={provider === 'google'}
+              disabled={busy && provider !== 'google'}
+            />
+            <Button
+              label="使用 GitHub 登录"
+              variant="secondary"
+              onPress={() => void startProvider('github')}
+              loading={provider === 'github'}
+              disabled={busy && provider !== 'github'}
+            />
+            <Row justify="center">
+              <Text variant="muted">或</Text>
+            </Row>
             <TextField
               label="邮箱"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={onEmailChange}
               placeholder="name@example.com"
               keyboardType="email-address"
               autoComplete="email"
               error={error}
             />
-            <Button label="发送验证码" onPress={() => void sendCode()} loading={busy} />
+            <Button label="发送验证码" onPress={() => void sendCode()} loading={busy && provider === null} disabled={busy} />
           </Stack>
         ) : (
           <Stack gap="md">

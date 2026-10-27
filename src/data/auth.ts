@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import { isSupabaseConfigured } from '@/config/env';
 
 import { getSupabase } from './client';
+import { currentOrigin, oauthRedirectTo, type OAuthProvider } from './oauth';
 
 export type AuthSession = {
   userId: string;
@@ -51,6 +52,15 @@ export async function verifyEmailOtp(email: string, token: string): Promise<void
     email,
     token,
     type: 'email',
+  });
+  if (error) throw error;
+}
+
+export async function signInWithProvider(provider: OAuthProvider): Promise<void> {
+  const redirectTo = oauthRedirectTo(currentOrigin());
+  const { error } = await getSupabase().auth.signInWithOAuth({
+    provider,
+    options: redirectTo ? { redirectTo } : undefined,
   });
   if (error) throw error;
 }

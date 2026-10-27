@@ -11,12 +11,15 @@ export function Button({
   label,
   onPress,
   variant = 'primary',
+  tone,
   disabled = false,
   loading = false,
 }: {
   label: string;
   onPress: () => void;
   variant?: Variant;
+  /** Ghost buttons stay accent unless this asks for danger text. */
+  tone?: 'danger';
   disabled?: boolean;
   loading?: boolean;
 }) {
@@ -36,9 +39,20 @@ export function Button({
             ? theme.color.fill
             : 'transparent'
           : hot
-            ? theme.color.accentSoft
+            ? tone === 'danger'
+              ? theme.color.dangerSoft
+              : theme.color.accentSoft
             : 'transparent';
-  const labelTone = variant === 'primary' ? 'onAccent' : variant === 'danger' ? 'inverse' : variant === 'ghost' ? 'accent' : 'ink';
+  const labelTone =
+    variant === 'primary'
+      ? 'onAccent'
+      : variant === 'danger'
+        ? 'inverse'
+        : variant === 'ghost'
+          ? tone === 'danger'
+            ? 'danger'
+            : 'accent'
+          : 'ink';
 
   return (
     <Pressable
@@ -71,7 +85,13 @@ export function Button({
       {loading ? (
         <ActivityIndicator
           color={
-            variant === 'primary' ? theme.color.accentInk : variant === 'danger' ? theme.color.onToast : theme.color.accent
+            variant === 'primary'
+              ? theme.color.accentInk
+              : variant === 'danger'
+                ? theme.color.onToast
+                : tone === 'danger'
+                  ? theme.color.danger
+                  : theme.color.accent
           }
         />
       ) : (

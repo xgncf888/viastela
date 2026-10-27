@@ -10,6 +10,9 @@ test('web build shows the email login screen', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: brand.displayName })).toBeVisible();
   await expect(page.getByText('用邮箱登录')).toBeVisible();
+  await expect(page.getByRole('button', { name: '使用 Google 登录' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '使用 GitHub 登录' })).toBeVisible();
+  await expect(page.getByText('或', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: '发送验证码' })).toBeVisible();
 
   await page.getByRole('button', { name: '发送验证码' }).click();

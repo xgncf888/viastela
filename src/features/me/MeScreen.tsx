@@ -9,7 +9,7 @@ import { useWeight } from '@/features/weight/WeightProvider';
 import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
 import { Content } from '@/ui/Content';
-import { Field, ScreenHeader } from '@/ui/layout';
+import { Field, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { TextField } from '@/ui/TextField';
@@ -68,17 +68,18 @@ export function MeScreen() {
           <Text variant="body">训练、学习和时间块还在后面。现在可以记体重。</Text>
         </Card>
         <Button label="隐私政策" variant="ghost" onPress={() => router.push('/privacy')} />
-        <Button
-          label="退出登录"
-          variant="secondary"
-          loading={signingOut}
-          onPress={() => {
-            setSigningOut(true);
-            void signOut().finally(() => setSigningOut(false));
-          }}
-        />
-        {/* Merge gate: after PR #2, make this a danger text button with theme.space.lg below 退出登录. */}
-        <Button label="删除账号" variant="secondary" onPress={() => router.push('/account/delete')} />
+        <Stack gap="lg">
+          <Button
+            label="退出登录"
+            variant="secondary"
+            loading={signingOut}
+            onPress={() => {
+              setSigningOut(true);
+              void signOut().finally(() => setSigningOut(false));
+            }}
+          />
+          <Button label="删除账号" variant="ghost" tone="danger" onPress={() => router.push('/account/delete')} />
+        </Stack>
       </Content>
     </Screen>
   );

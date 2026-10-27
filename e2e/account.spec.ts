@@ -87,6 +87,16 @@ test('account deletion requires 删除, then shows the deleted page', async ({ p
 
   await page.goto('/');
   await page.getByRole('button', { name: '我的' }).click();
+  const signOutBox = await page.getByRole('button', { name: '退出登录' }).boundingBox();
+  const deleteBox = await page.getByRole('button', { name: '删除账号' }).boundingBox();
+  expect(signOutBox).not.toBeNull();
+  expect(deleteBox).not.toBeNull();
+  expect(deleteBox!.y - (signOutBox!.y + signOutBox!.height)).toBeCloseTo(24, 0);
+  const deleteColor = await page.getByRole('button', { name: '删除账号' }).evaluate((node) => {
+    const label = node.querySelector('div') ?? node;
+    return getComputedStyle(label).color;
+  });
+  expect(deleteColor).toBe('rgb(154, 70, 62)');
   await page.getByRole('button', { name: '删除账号' }).click();
   await expect(page.getByRole('heading', { name: '删除账号' })).toBeVisible();
   await expect(page.getByText('将删除你的体重记录。')).toBeVisible();
@@ -103,6 +113,7 @@ test('account deletion requires 删除, then shows the deleted page', async ({ p
   await expect(submit).toBeDisabled();
   await confirm.fill('删除');
   await expect(submit).toBeEnabled();
+  await expect(submit).toHaveCSS('background-color', 'rgb(154, 70, 62)');
   await submit.click();
 
   await expect(page.getByRole('heading', { name: '正在删除账号' })).toBeVisible();
