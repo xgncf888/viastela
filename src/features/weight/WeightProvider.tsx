@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { AppState } from 'react-native';
 
 import { useAuth } from '@/features/auth/AuthProvider';
 import { createId } from '@/core/id';
@@ -8,7 +9,7 @@ import { RECORD_DELETED, weightSaveOutcome } from '@/core/weight-write';
 import { TREND_WINDOW_DAYS, weightListWindow, type WeightRecord } from '@/core/weight-stats';
 import { getDaySwitch, updateDaySwitch } from '@/data/profile';
 import { latestWeightRecord, listWeightRecords, softDeleteWeightRecord, upsertWeightRecord } from '@/data/weights';
-import { showToast } from '@/ui/toast';
+import { dismissShownToast, showToast } from '@/ui/toast';
 
 export type WeightSaveResult = 'saved' | 'retry' | 'deleted';
 
@@ -238,6 +239,14 @@ export function WeightProvider({ children }: { children: ReactNode }) {
     [revealPending],
   );
 
+  const cancelPendingDeletes = useCallback(() => {
+    if (pendingDeletes.current.size === 0) return;
+    for (const timer of pendingDeletes.current.values()) clearTimeout(timer);
+    pendingDeletes.current.clear();
+    setPendingDeleteIds(new Set());
+    dismissShownToast();
+  }, []);
+
   const scheduleDelete = useCallback(
     (id: string) => {
       if (pendingDeletes.current.has(id)) return;
@@ -253,13 +262,31 @@ export function WeightProvider({ children }: { children: ReactNode }) {
       });
       const timer = setTimeout(() => {
         if (!pendingDeletes.current.has(id)) return;
+        const state = AppState.currentState;
+        if (state === 'background' || state === 'inactive') {
+          cancelPendingDeletes();
+          return;
+        }
         pendingDeletes.current.delete(id);
         void removeRecordRef.current(id);
       }, DELETE_UNDO_MS);
       pendingDeletes.current.set(id, timer);
     },
-    [undoDelete],
+    [cancelPendingDeletes, undoDelete],
   );
+
+  useEffect(() => {
+    const onChange = (next: string) => {
+      if (next === 'background' || next === 'inactive') cancelPendingDeletes();
+    };
+    const subscription = AppState.isAvailable ? AppState.addEventListener('change', onChange) : null;
+    const onPageHide = () => cancelPendingDeletes();
+    if (typeof window !== 'undefined') window.addEventListener('pagehide', onPageHide);
+    return () => {
+      subscription?.remove();
+      if (typeof window !== 'undefined') window.removeEventListener('pagehide', onPageHide);
+    };
+  }, [cancelPendingDeletes]);
 
   useEffect(() => {
     if (session) return;

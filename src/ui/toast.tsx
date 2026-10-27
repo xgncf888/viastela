@@ -42,6 +42,10 @@ function dismissToast(id?: number) {
   emit();
 }
 
+export function dismissShownToast(): void {
+  dismissToast();
+}
+
 export function showToast(toast: ToastInput): void {
   if (timer) clearTimeout(timer);
   const tone = toast.tone ?? 'ok';

@@ -66,7 +66,11 @@ const cors = {
 
 export async function installApi(
   page: Page,
-  options: { weights: WeightRow[]; onWrite?: (route: Route) => Promise<void>; onSoftDelete?: () => void },
+  options: {
+    weights: WeightRow[];
+    onWrite?: (route: Route) => Promise<void>;
+    onSoftDelete?: (body: string) => void;
+  },
 ): Promise<void> {
   await page.route('**/*', async (route) => {
     const request = route.request();
@@ -89,7 +93,14 @@ export async function installApi(
       return;
     }
     if (url.includes('/rest/v1/weight_records')) {
-      await route.fulfill({ status: 200, headers: cors, body: JSON.stringify(options.weights) });
+      const single =
+        (request.headers().accept ?? '').includes('vnd.pgrst.object') || url.includes('limit=1');
+      const body = single
+        ? JSON.stringify(
+            [...options.weights].sort((a, b) => b.recorded_at.localeCompare(a.recorded_at))[0] ?? null,
+          )
+        : JSON.stringify(options.weights);
+      await route.fulfill({ status: 200, headers: cors, body });
       return;
     }
     if (url.includes('/rest/v1/profiles')) {
@@ -109,7 +120,7 @@ export async function installApi(
       return;
     }
     if (url.includes('soft_delete_weight_record')) {
-      options.onSoftDelete?.();
+      options.onSoftDelete?.(request.postData() ?? '');
       await route.fulfill({ status: 200, headers: cors, body: 'null' });
       return;
     }
