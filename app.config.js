@@ -19,8 +19,34 @@ if (!Module._extensions['.ts']) {
   };
 }
 
+const resolveFilename = Module._resolveFilename;
+Module._resolveFilename = function resolveTypeScript(request, parent, isMain, options) {
+  if (parent?.filename?.endsWith('.ts') && request.startsWith('.')) {
+    try {
+      return resolveFilename.call(this, `${request}.ts`, parent, isMain, options);
+    } catch {
+      // A relative import can still be a directory or a .js file.
+    }
+  }
+  return resolveFilename.call(this, request, parent, isMain, options);
+};
+
+const path = require('path');
+
 const { brand } = require('./src/config/brand.ts');
 const { theme } = require('./src/ui/theme.ts');
+const { pwaManifest, pwaSplashes } = require('./src/config/pwa.ts');
+const { renderPwaIcons } = require('./scripts/render-pwa-icons.js');
+
+const publicDir = path.resolve('public');
+fs.mkdirSync(publicDir, { recursive: true });
+renderPwaIcons({
+  source: path.resolve('assets/icon.png'),
+  outDir: path.join(publicDir, 'icons'),
+  splashes: pwaSplashes,
+  paper: theme.color.paper,
+});
+fs.writeFileSync(path.join(publicDir, 'manifest.webmanifest'), `${JSON.stringify(pwaManifest, null, 2)}\n`);
 
 const updateUrl =
   process.env.EXPO_PUBLIC_EAS_UPDATE_URL ?? 'https://u.expo.dev/00000000-0000-0000-0000-000000000000';

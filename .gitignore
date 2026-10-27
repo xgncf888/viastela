@@ -6,6 +6,9 @@ node_modules/
 dist/
 web-build/
 
+# Generated from src/config/brand.ts during export. The product name must not be committed outside that file.
+/public/manifest.webmanifest
+
 # Native
 .kotlin/
 *.orig.*

@@ -16,7 +16,7 @@ import { useAuth } from '@/features/auth/AuthProvider';
 import { Button } from '@/ui/Button';
 import { Content } from '@/ui/Content';
 import { Callout } from '@/ui/layout';
-import { Screen } from '@/ui/Screen';
+import { documentEdges, Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { TextField } from '@/ui/TextField';
 import { theme } from '@/ui/theme';
@@ -146,7 +146,7 @@ export function DeleteAccountScreen() {
 
   if (phase === 'processing' || phase === 'leaving') {
     return (
-      <Screen>
+      <Screen edges={documentEdges}>
         <Content inset={theme.space.xxl}>
           <Text variant="title" accessibilityRole="header">
             正在删除账号
@@ -162,7 +162,7 @@ export function DeleteAccountScreen() {
 
   if (phase === 'checking') {
     return (
-      <Screen>
+      <Screen edges={documentEdges}>
         <Content inset={theme.space.xxl}>
           <Text variant="title" accessibilityRole="header">
             删除账号
@@ -175,7 +175,7 @@ export function DeleteAccountScreen() {
 
   if (phase === 'reauth') {
     return (
-      <Screen>
+      <Screen edges={documentEdges}>
         <Content inset={theme.space.xxl}>
           <Text variant="title" accessibilityRole="header">
             删除账号
@@ -195,7 +195,7 @@ export function DeleteAccountScreen() {
 
   if (phase === 'code') {
     return (
-      <Screen keyboard>
+      <Screen keyboard edges={documentEdges}>
         <Content inset={theme.space.xxl}>
           <Text variant="title" accessibilityRole="header">
             删除账号
@@ -218,7 +218,7 @@ export function DeleteAccountScreen() {
   }
 
   return (
-    <Screen>
+    <Screen edges={documentEdges}>
       <Content inset={theme.space.xxl}>
         <Text variant="title" accessibilityRole="header">
           删除账号

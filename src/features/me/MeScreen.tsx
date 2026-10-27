@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { Platform } from 'react-native';
 import { router } from 'expo-router';
 
 import { brand } from '@/config/brand';
 import { signOut } from '@/data/auth';
 import { useAuth } from '@/features/auth/AuthProvider';
+import { homeScreenInstallHint } from '@/features/me/home-screen-hint';
 import { useShellInset } from '@/features/shell/AppShell';
 import { useWeight } from '@/features/weight/WeightProvider';
 import { Button } from '@/ui/Button';
@@ -15,6 +17,18 @@ import { Text } from '@/ui/Text';
 import { TextField } from '@/ui/TextField';
 import { showToast } from '@/ui/toast';
 
+function installHint(): string | null {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+  const nav = window.navigator as Navigator & { standalone?: boolean };
+  return homeScreenInstallHint({
+    web: true,
+    userAgent: nav.userAgent,
+    platform: nav.platform,
+    maxTouchPoints: nav.maxTouchPoints ?? 0,
+    standalone: window.matchMedia('(display-mode: standalone)').matches || nav.standalone === true,
+  });
+}
+
 export function MeScreen() {
   const { session } = useAuth();
   const { daySwitch, timeZone, saveDaySwitch } = useWeight();
@@ -24,6 +38,7 @@ export function MeScreen() {
   const [saving, setSaving] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const value = draft ?? daySwitch;
+  const hint = installHint();
 
   async function onSave() {
     setSaving(true);
@@ -67,6 +82,11 @@ export function MeScreen() {
         <Card>
           <Text variant="body">体重、训练和学习可以在今日记。时间块还在后面。</Text>
         </Card>
+        {hint ? (
+          <Card>
+            <Field label="添加到主屏幕" value={hint} />
+          </Card>
+        ) : null}
         <Button label="隐私政策" variant="ghost" onPress={() => router.push('/privacy')} />
         <Stack gap="lg">
           <Button

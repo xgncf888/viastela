@@ -3,13 +3,13 @@ import { StyleSheet, View } from 'react-native';
 import { brand } from '@/config/brand';
 import { privacyParagraphs, privacyUpdatedLabel } from '@/core/account-policy';
 import { Content } from '@/ui/Content';
-import { Screen } from '@/ui/Screen';
+import { documentEdges, Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { theme } from '@/ui/theme';
 
 export function PrivacyPolicyScreen() {
   return (
-    <Screen>
+    <Screen edges={documentEdges}>
       <Content inset={theme.space.xxl}>
         <Text variant="muted">{privacyUpdatedLabel()}</Text>
         <Text variant="title" accessibilityRole="header">

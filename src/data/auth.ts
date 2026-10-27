@@ -4,6 +4,7 @@ import { isSupabaseConfigured } from '@/config/env';
 
 import { getSupabase } from './client';
 import { currentOrigin, oauthRedirectTo, type OAuthProvider } from './oauth';
+import { clearServiceWorkerRuntimeCache } from './runtime-cache';
 
 export type AuthSession = {
   userId: string;
@@ -74,9 +75,11 @@ export async function signInWithProvider(provider: OAuthProvider, returnPath?: s
 export async function signOut(): Promise<void> {
   const { error } = await getSupabase().auth.signOut();
   if (error) throw error;
+  await clearServiceWorkerRuntimeCache();
 }
 
 export async function signOutLocal(): Promise<void> {
   const { error } = await getSupabase().auth.signOut({ scope: 'local' });
   if (error) throw error;
+  await clearServiceWorkerRuntimeCache();
 }
