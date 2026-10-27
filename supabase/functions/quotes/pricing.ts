@@ -13,6 +13,7 @@ import {
 import type { FxProvider, QuoteProvider } from './providers.ts';
 import {
   QUOTE_FRESH_MS,
+  type AssetAccount,
   type CashBalance,
   type CashCurrency,
   type FxCacheRow,
@@ -37,6 +38,7 @@ export type ValuationInput = {
   source: QuoteSource;
   holdings: readonly HoldingRow[];
   balances: readonly CashBalance[];
+  accounts: readonly AssetAccount[];
   requested: readonly string[] | null;
   quoteProvider: QuoteProvider | null;
   fxProvider: FxProvider;
@@ -86,15 +88,17 @@ export function snapshotAction(
 }
 
 export async function valuate(input: ValuationInput): Promise<Valuation> {
-  const positions = aggregate(input.holdings);
+  const balances = liveCashBalances(input.balances, input.accounts);
+  const scoped: ValuationInput = { ...input, balances };
+  const positions = aggregate(scoped.holdings);
   const heldSymbols = new Set(positions.map((position) => position.symbol));
-  const priced = await pricePositions(input, positions);
+  const priced = await pricePositions(scoped, positions);
   if (!priced.ok) return priced;
 
-  const fx = await loadFx(input, cashCurrencies(input.balances));
+  const fx = await loadFx(scoped, cashCurrencies(balances));
   if (!fx.ok) return fx;
 
-  const cashMinor = valueCash(input.balances, fx.rates);
+  const cashMinor = valueCash(balances, fx.rates);
   if (cashMinor === null) return { ok: false, error: 'fx_unavailable' };
   const securitiesMinor = valueSecurities(priced.rows, input.source);
   const totalMinor = cashMinor + securitiesMinor;
@@ -102,7 +106,7 @@ export async function valuate(input: ValuationInput): Promise<Valuation> {
     (row) => row.status === 'unavailable' || row.currency === FX_BASE,
   );
   const state = currenciesKnown
-    ? snapshotAction(priced.rows, input.balances.length > 0)
+    ? snapshotAction(priced.rows, balances.length > 0)
     : 'skipped';
   const asOf = input.now.toISOString();
   const localDay = computeLocalDay(input.now, input.timeZone, input.daySwitch);
@@ -188,7 +192,8 @@ async function pricePositions(
     else staleSymbols.push(symbol);
   }
 
-  const fetched = new Map<string, { price: number | null; currency: string; asOf: string }>();
+  const fetchedAt = input.now.toISOString();
+  const fetched = new Map<string, { price: number | null; currency: string }>();
   if (staleSymbols.length > 0) {
     try {
       const batch = await input.quoteProvider.getQuotes(staleSymbols);
@@ -196,7 +201,6 @@ async function pricePositions(
         fetched.set(quote.symbol, {
           price: quote.price,
           currency: quote.currency || 'USD',
-          asOf: quote.as_of,
         });
       }
       const writes: QuoteCacheRow[] = [];
@@ -209,7 +213,7 @@ async function pricePositions(
           symbol,
           price: priceNumber(priceMinor),
           currency: quote.currency.toUpperCase(),
-          asOf: quote.asOf,
+          asOf: fetchedAt,
         });
       }
       if (writes.length > 0) await input.writeQuoteCache(writes);
@@ -243,7 +247,7 @@ async function pricePositions(
       priceMinor,
       costMinor: position.costMinor,
       currency: quote.currency.toUpperCase(),
-      asOf: quote.asOf,
+      asOf: fetchedAt,
       status: 'fresh' as const,
       source: 'finnhub' as const,
       quantityMinor: position.quantityMinor,
@@ -340,6 +344,19 @@ async function loadFx(
     as_of: day,
   }));
   return { ok: true, lines, rates };
+}
+
+/** Drop soft-deleted balance rows and any balance whose account is missing or soft-deleted. */
+export function liveCashBalances(
+  balances: readonly CashBalance[],
+  accounts: readonly AssetAccount[],
+): CashBalance[] {
+  const live = new Set(
+    accounts.filter((account) => account.deletedAt === null).map((account) => account.id),
+  );
+  return balances.filter(
+    (balance) => live.has(balance.accountId) && (balance.deletedAt ?? null) === null,
+  );
 }
 
 function cashCurrencies(balances: readonly CashBalance[]): CashCurrency[] {

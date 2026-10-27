@@ -4,6 +4,7 @@ import { handleQuotes, isCashCurrency, parseAllowedOrigins, unavailableQuotesRes
 import { moneyText } from './pricing.ts';
 import { FinnhubQuoteProvider, FrankfurterFxProvider } from './providers.ts';
 import type {
+  AssetAccount,
   CashBalance,
   CashCurrency,
   FxCacheRow,
@@ -126,26 +127,30 @@ async function readDaySwitch(client: SupabaseClient, userId: string): Promise<st
 async function loadPortfolio(client: SupabaseClient, userId: string): Promise<{
   holdings: HoldingRow[];
   balances: CashBalance[];
+  accounts: AssetAccount[];
 }> {
   const [holdingsResult, balancesResult, accountsResult] = await Promise.all([
     client.from('holdings').select('symbol, quantity, cost_basis_usd').eq('user_id', userId).is('deleted_at', null),
     client
       .from('account_balances')
-      .select('account_id, amount, recorded_at, tz')
+      .select('account_id, amount, recorded_at, tz, deleted_at')
       .eq('user_id', userId)
-      .is('deleted_at', null)
       .order('recorded_at', { ascending: false }),
-    client.from('asset_accounts').select('id, currency').eq('user_id', userId).is('deleted_at', null),
+    client.from('asset_accounts').select('id, currency, deleted_at').eq('user_id', userId),
   ]);
   if (holdingsResult.error || balancesResult.error || accountsResult.error) {
     throw new Error('portfolio failed');
   }
 
+  const accounts: AssetAccount[] = [];
   const currencies = new Map<string, CashCurrency>();
   for (const row of records(accountsResult.data)) {
     const id = text(row.id);
+    if (!id) continue;
+    const deletedAt = text(row.deleted_at);
+    accounts.push({ id, deletedAt });
     const currency = text(row.currency);
-    if (id && currency && isCashCurrency(currency)) currencies.set(id, currency);
+    if (currency && isCashCurrency(currency)) currencies.set(id, currency);
   }
 
   const holdings: HoldingRow[] = [];
@@ -170,9 +175,16 @@ async function loadPortfolio(client: SupabaseClient, userId: string): Promise<{
     const tz = text(row.tz) ?? 'UTC';
     const currency = accountId ? currencies.get(accountId) : undefined;
     if (!accountId || !amount || !recordedAt || !currency) continue;
-    balances.push({ accountId, currency, amount, recordedAt, tz });
+    balances.push({
+      accountId,
+      currency,
+      amount,
+      recordedAt,
+      tz,
+      deletedAt: text(row.deleted_at),
+    });
   }
-  return { holdings, balances };
+  return { holdings, balances, accounts };
 }
 
 async function readQuoteCache(client: SupabaseClient, symbols: string[]): Promise<QuoteCacheRow[]> {

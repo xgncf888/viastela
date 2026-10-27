@@ -1,11 +1,12 @@
 import { isAllowedDeleteOrigin, parseAllowedOrigins } from '../../../src/core/delete-account-origin.ts';
 import { DEFAULT_DAY_SWITCH, isDaySwitch } from '../../../src/core/local-day.ts';
-import { valuate } from './pricing.ts';
+import { liveCashBalances, valuate } from './pricing.ts';
 import type { FxProvider, QuoteProvider } from './providers.ts';
 import {
   CASH_CURRENCIES,
   MAX_SYMBOLS,
   SYMBOL_PATTERN,
+  type AssetAccount,
   type CashBalance,
   type CashCurrency,
   type FxCacheRow,
@@ -25,7 +26,11 @@ export type QuotesDependencies = {
   source: QuoteSource;
   getUser: (jwt: string) => Promise<{ id: string } | null>;
   daySwitch: (userId: string) => Promise<string>;
-  portfolio: (userId: string) => Promise<{ holdings: HoldingRow[]; balances: CashBalance[] }>;
+  portfolio: (userId: string) => Promise<{
+    holdings: HoldingRow[];
+    balances: CashBalance[];
+    accounts: AssetAccount[];
+  }>;
   quoteProvider: QuoteProvider | null;
   fxProvider: FxProvider;
   readQuoteCache: (symbols: string[]) => Promise<QuoteCacheRow[]>;
@@ -99,7 +104,7 @@ export async function handleQuotes(request: Request, dependencies: QuotesDepende
     return fail(request, dependencies, 400, 'too_many_symbols', 'too_many_symbols');
   }
 
-  let book: { holdings: HoldingRow[]; balances: CashBalance[] };
+  let book: { holdings: HoldingRow[]; balances: CashBalance[]; accounts: AssetAccount[] };
   let daySwitch: string;
   try {
     book = await dependencies.portfolio(user.id);
@@ -109,6 +114,7 @@ export async function handleQuotes(request: Request, dependencies: QuotesDepende
     return fail(request, dependencies, 500, 'unavailable', 'portfolio_failed');
   }
 
+  const balances = liveCashBalances(book.balances, book.accounts);
   const holdings = book.holdings.filter((holding) => SYMBOL_PATTERN.test(holding.symbol));
   if (dependencies.source === 'finnhub') {
     const held = new Set(holdings.map((holding) => holding.symbol));
@@ -117,7 +123,7 @@ export async function handleQuotes(request: Request, dependencies: QuotesDepende
     }
   }
 
-  const timeZone = resolveTimeZone(parsed.timeZone, book.balances);
+  const timeZone = resolveTimeZone(parsed.timeZone, balances);
   let valuation;
   try {
     valuation = await valuate({
@@ -127,7 +133,8 @@ export async function handleQuotes(request: Request, dependencies: QuotesDepende
       userId: user.id,
       source: dependencies.source,
       holdings,
-      balances: book.balances,
+      balances,
+      accounts: book.accounts,
       requested: parsed.symbols,
       quoteProvider: dependencies.quoteProvider,
       fxProvider: dependencies.fxProvider,

@@ -39,10 +39,12 @@ const clockStart = '2026-10-27T08:00:00.000Z';
 
 type StoredHolding = HoldingRow & { userId: string };
 type StoredBalance = CashBalance & { userId: string };
+type StoredAccount = { userId: string; id: string; deletedAt: string | null };
 
 class Desk {
   holdings: StoredHolding[] = [];
   balances: StoredBalance[] = [];
+  accounts: StoredAccount[] = [];
   quotes: QuoteCacheRow[] = [];
   fx: FxCacheRow[] = [];
   snapshots: SnapshotWrite[] = [];
@@ -66,19 +68,29 @@ class Desk {
       daySwitch: async () => this.daySwitch,
       portfolio: async (userId) => {
         this.portfolioUsers.push(userId);
+        const balances = this.balances.filter((row) => row.userId === userId);
+        const accounts = this.accounts
+          .filter((row) => row.userId === userId)
+          .map(({ id, deletedAt }) => ({ id, deletedAt }));
+        const known = new Set(accounts.map((account) => account.id));
+        for (const balance of balances) {
+          if (known.has(balance.accountId)) continue;
+          accounts.push({ id: balance.accountId, deletedAt: null });
+          known.add(balance.accountId);
+        }
         return {
           holdings: this.holdings
             .filter((row) => row.userId === userId)
             .map(({ symbol, quantity, costBasisUsd }) => ({ symbol, quantity, costBasisUsd })),
-          balances: this.balances
-            .filter((row) => row.userId === userId)
-            .map(({ accountId, currency, amount, recordedAt, tz }) => ({
-              accountId,
-              currency,
-              amount,
-              recordedAt,
-              tz,
-            })),
+          balances: balances.map(({ accountId, currency, amount, recordedAt, tz, deletedAt }) => ({
+            accountId,
+            currency,
+            amount,
+            recordedAt,
+            tz,
+            deletedAt: deletedAt ?? null,
+          })),
+          accounts,
         };
       },
       quoteProvider: options.quotes,
@@ -513,6 +525,104 @@ Deno.test('cash only writes one snapshot row', async () => {
   assertNoFake(body);
 });
 
+Deno.test('quote_cache.as_of is the fetch time and drives the 15-minute window', async () => {
+  const fetchedAt = '2026-10-27T12:00:00.000Z';
+  const providerStamp = '2020-01-01T00:00:00.000Z';
+  const quotes = new FakeQuoteProvider({ ZZ: 3 }, () => providerStamp);
+  const fx = new FakeFxProvider({}, '2026-10-27');
+  const desk = new Desk();
+  desk.holdings.push({ userId: userB, symbol: 'ZZ', quantity: '2', costBasisUsd: null });
+  const deps = desk.deps({
+    source: 'finnhub',
+    quotes,
+    fx,
+    getUser: verifyJwt,
+    now: () => new Date(fetchedAt),
+  });
+  const first = await handleQuotes(post(await tokenFor(userB), { tz: 'UTC' }), deps);
+  eq(first.status, 200);
+  const body = await bodyOf(first);
+  eq(body.quotes[0]?.as_of, fetchedAt);
+  eq(body.quotes[0]?.status, 'fresh');
+  eq(body.quotes[0]?.source, 'finnhub');
+  eq(desk.quotes.length, 1);
+  eq(desk.quotes[0]?.asOf, fetchedAt);
+  eq(quotes.calls, 1);
+
+  const later = new Date(Date.parse(fetchedAt) + 10 * 60 * 1000);
+  const second = await handleQuotes(post(await tokenFor(userB), { tz: 'UTC' }), {
+    ...deps,
+    now: () => later,
+  });
+  eq(second.status, 200);
+  const again = await bodyOf(second);
+  eq(again.quotes[0]?.status, 'fresh');
+  eq(again.quotes[0]?.as_of, fetchedAt);
+  eq(quotes.calls, 1);
+  assertNoFake(body);
+  assertNoFake(again);
+});
+
+Deno.test('a soft-deleted account is left out of cash and the snapshot', async () => {
+  const quotes = new FakeQuoteProvider({ ZZ: 3 }, () => clockStart);
+  const fx = new FakeFxProvider({}, '2026-10-27');
+  const desk = new Desk();
+  desk.accounts.push({
+    userId: userB,
+    id: 'gone-account',
+    deletedAt: '2026-10-01T00:00:00.000Z',
+  });
+  desk.accounts.push({ userId: userB, id: 'live-account', deletedAt: null });
+  desk.balances.push({
+    userId: userB,
+    accountId: 'gone-account',
+    currency: 'USD',
+    amount: '40.0000',
+    recordedAt: '2026-10-27T05:00:00.000Z',
+    tz: 'UTC',
+    deletedAt: null,
+  });
+  desk.balances.push({
+    userId: userB,
+    accountId: 'live-account',
+    currency: 'USD',
+    amount: '8.0000',
+    recordedAt: '2026-10-27T02:00:00.000Z',
+    tz: 'UTC',
+    deletedAt: null,
+  });
+  desk.balances.push({
+    userId: userB,
+    accountId: 'live-account',
+    currency: 'USD',
+    amount: '7.0000',
+    recordedAt: '2026-10-27T04:00:00.000Z',
+    tz: 'UTC',
+    deletedAt: '2026-10-27T04:30:00.000Z',
+  });
+  desk.holdings.push({ userId: userB, symbol: 'ZZ', quantity: '1.000000', costBasisUsd: null });
+  const response = await handleQuotes(
+    post(await tokenFor(userB), { tz: 'UTC' }),
+    desk.deps({
+      source: 'finnhub',
+      quotes,
+      fx,
+      getUser: verifyJwt,
+      now: () => new Date(clockStart),
+    }),
+  );
+  eq(response.status, 200);
+  const body = await bodyOf(response);
+  eq(body.cash_usd, 8);
+  eq(body.securities_usd, 3);
+  eq(body.total_usd, 11);
+  eq(body.snapshot, 'written');
+  eq(desk.snapshots.length, 1);
+  eq(desk.snapshots[0]?.cashUsd, 8);
+  eq(desk.snapshots[0]?.totalUsd, 11);
+  assertNoFake(body);
+});
+
 Deno.test('fx rates are cached for the utc day', async () => {
   const quotes = new FakeQuoteProvider({}, () => clockStart);
   const fx = new FakeFxProvider({ CNY: 4 }, '2026-10-26');
@@ -715,9 +825,12 @@ Deno.test('service role client is only used for quote and fx caches', async () =
   const load = sliceFn(indexSource, 'async function loadPortfolio');
   eq(load.includes("from('holdings')"), true);
   eq(load.includes("from('account_balances')"), true);
+  eq(load.includes("from('asset_accounts')"), true);
+  eq(load.includes('deleted_at'), true);
   eq(load.includes('quote_cache'), false);
   const writeCache = sliceFn(indexSource, 'async function writeQuoteCache');
   eq(writeCache.includes("from('quote_cache')"), true);
+  eq(writeCache.includes('as_of'), true);
   eq(writeCache.includes('holdings'), false);
   const writeSnapshot = sliceFn(indexSource, 'async function upsertSnapshot');
   eq(writeSnapshot.includes("from('net_worth_snapshots')"), true);

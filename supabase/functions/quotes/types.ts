@@ -52,12 +52,19 @@ export type CashBalance = {
   amount: string;
   recordedAt: string;
   tz: string;
+  deletedAt?: string | null;
+};
+
+export type AssetAccount = {
+  id: string;
+  deletedAt: string | null;
 };
 
 export type QuoteCacheRow = {
   symbol: string;
   price: number;
   currency: string;
+  /** When this price was fetched, as an ISO timestamp. Drives the 15-minute window. */
   asOf: string;
 };
 
