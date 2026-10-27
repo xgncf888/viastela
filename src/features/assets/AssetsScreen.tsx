@@ -4,6 +4,7 @@ import { Pressable, StyleSheet } from 'react-native';
 import { assetSaveNotice } from '@/core/asset-errors';
 import { deletedAccountUndo } from '@/core/asset-form';
 import { dashboardTotalUsd } from '@/core/asset-summary';
+import { balanceAfterUsd, balanceUsdRate } from '@/core/balance-write';
 import { createId } from '@/core/id';
 import { civilLocalDay, computeLocalDay } from '@/core/local-day';
 import { formatMoney, formatShares } from '@/core/money-format';
@@ -379,7 +380,7 @@ export function AssetsScreen() {
               accountId: change.accountId,
               amount: change.amount,
               currency: change.currency,
-              observedRate: observedRate(book, change.currency),
+              unitsPerUsd: unitsPerUsd(book, change.currency),
               recordedAt: now.toISOString(),
               tz: timeZone,
               localDay: computeLocalDay(now, timeZone, daySwitch),
@@ -679,17 +680,14 @@ function approximateUsd(portfolio: Portfolio, book: CachedQuoteBook | null): Map
   for (const account of portfolio.accounts) {
     const balance = latestBalance(portfolio.balances, account.id);
     if (!balance) continue;
-    if (account.currency === 'USD') {
-      map.set(account.id, balance.amount);
-      continue;
-    }
-    const rate = observedRate(book, account.currency);
-    if (rate) map.set(account.id, balance.amount / rate);
+    const usd = balanceAfterUsd(balance.amount, balanceUsdRate(account.currency, unitsPerUsd(book, account.currency)));
+    if (usd !== null) map.set(account.id, usd);
   }
   return map;
 }
 
-function observedRate(book: CachedQuoteBook | null, currency: AssetCurrency): number | null {
+/** Quotes `rates` entry: units of `currency` per 1 USD. `usd_rate` stores the reciprocal. */
+function unitsPerUsd(book: CachedQuoteBook | null, currency: AssetCurrency): number | null {
   if (currency === 'USD') return 1;
   const rate = book?.rates.find((item) => item.base === 'USD' && item.quote === currency)?.rate;
   return rate && rate > 0 ? rate : null;

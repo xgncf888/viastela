@@ -223,7 +223,8 @@ export async function insertBalance(input: {
   accountId: string;
   amount: number;
   currency: string;
-  observedRate: number | null;
+  /** Quotes convention: units of `currency` per 1 USD. Stored `usd_rate` is the reciprocal. */
+  unitsPerUsd: number | null;
   recordedAt: string;
   tz: string;
   localDay: string;

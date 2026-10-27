@@ -1,14 +1,23 @@
 export type BalanceCurrency = 'USD' | 'CNY' | 'SGD' | 'HKD';
 
 /**
- * USD balance rows always store `usd_rate = 1` so a later timeline `after_usd` is not null.
- * Other currencies keep the observed FX snapshot, or null when the client does not have one.
- * The rate is units of that currency per 1 USD.
+ * Value stored in `account_balances.usd_rate`: USD per 1 unit of the account currency.
+ * The timeline computes `after_usd = amount * usd_rate`.
+ *
+ * `unitsPerUsd` is the quotes `rates` convention (units of the account currency per 1 USD).
+ * A quote of 1.25 SGD per USD is stored as `1 / 1.25`. USD is always 1, so `after_usd` is not null.
+ * A missing, non-finite, zero, or negative quote stays null.
  */
-export function balanceUsdRate(currency: string, observedRate: number | null | undefined): number | null {
+export function balanceUsdRate(currency: string, unitsPerUsd: number | null | undefined): number | null {
   if (currency === 'USD') return 1;
-  if (observedRate == null || !Number.isFinite(observedRate) || observedRate <= 0) return null;
-  return observedRate;
+  if (unitsPerUsd == null || !Number.isFinite(unitsPerUsd) || unitsPerUsd <= 0) return null;
+  return 1 / unitsPerUsd;
+}
+
+/** Timeline dollars. `usdRate` is USD per 1 unit of the account currency. */
+export function balanceAfterUsd(amount: number, usdRate: number | null): number | null {
+  if (!Number.isFinite(amount) || usdRate === null || !Number.isFinite(usdRate)) return null;
+  return amount * usdRate;
 }
 
 export type BalanceInsert = {
@@ -27,7 +36,8 @@ export function buildBalanceInsert(input: {
   accountId: string;
   amount: number;
   currency: string;
-  observedRate: number | null;
+  /** Quotes convention: units of `currency` per 1 USD. Not the stored column. */
+  unitsPerUsd: number | null;
   recordedAt: string;
   tz: string;
   localDay: string;
@@ -36,7 +46,7 @@ export function buildBalanceInsert(input: {
     id: input.id,
     account_id: input.accountId,
     amount: input.amount,
-    usd_rate: balanceUsdRate(input.currency, input.observedRate),
+    usd_rate: balanceUsdRate(input.currency, input.unitsPerUsd),
     recorded_at: input.recordedAt,
     tz: input.tz,
     local_day: input.localDay,

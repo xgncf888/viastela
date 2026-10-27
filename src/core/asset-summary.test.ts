@@ -61,6 +61,17 @@ test('unavailable and null prices are excluded even when a cost basis is present
   expect(priced.unpricedHoldings).toBe(0);
 });
 
+test('a non-USD balance uses USD per unit, so 1000 SGD at 1.25 per USD is 800', () => {
+  const split = splitLiveAssets({
+    accounts: [{ id: 'sgd', currency: 'SGD', deletedAt: null }],
+    balances: [{ accountId: 'sgd', amount: 1000, recordedAt: '2026-01-01T00:00:00.000Z', deletedAt: null }],
+    holdings: [],
+    quotes: [],
+    fxPerUsd: { SGD: 1.25 },
+  });
+  expect(split.cashUsd).toBe(800);
+});
+
 test('the dashboard total is the server total_usd, not the client split', () => {
   const split = splitLiveAssets({
     accounts: [cash],

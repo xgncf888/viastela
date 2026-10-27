@@ -1,3 +1,5 @@
+import { balanceAfterUsd, balanceUsdRate } from './balance-write';
+
 export type SummaryCurrency = 'USD' | 'CNY' | 'SGD' | 'HKD';
 
 export type SummaryAccount = {
@@ -44,7 +46,9 @@ export type AssetSplit = {
  * Display split for tests and per-row checks.
  * Balances and holdings on a soft-deleted account are left out.
  * A quote with a null price or `unavailable` adds nothing, even if the holding has a cost basis.
- * `fxPerUsd` is units of that currency per 1 USD. USD needs no rate.
+ * `fxPerUsd` is the quotes convention: units of that currency per 1 USD.
+ * Dollars are `amount * (1 / fxPerUsd)`, the same figure stored as `usd_rate`.
+ * USD needs no rate. The dashboard headline stays the server `total_usd`.
  */
 export function splitLiveAssets(input: {
   accounts: readonly SummaryAccount[];
@@ -105,10 +109,7 @@ function latestBalances(
 
 function toUsd(amount: number, currency: SummaryCurrency, fxPerUsd: Readonly<Record<string, number>>): number | null {
   if (!Number.isFinite(amount)) return null;
-  if (currency === 'USD') return amount;
-  const rate = fxPerUsd[currency];
-  if (rate === undefined || !Number.isFinite(rate) || rate <= 0) return null;
-  return amount / rate;
+  return balanceAfterUsd(amount, balanceUsdRate(currency, fxPerUsd[currency]));
 }
 
 function toCents(amount: number): number {
