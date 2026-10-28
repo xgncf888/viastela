@@ -48,7 +48,38 @@ export function formatQuoteClock(asOf: string, timeZone: string): string {
 /** Server `unpriced` count. Zero or missing hides the line. */
 export function unpricedHoldingsMessage(count: number | null | undefined): string | null {
   if (count == null || !Number.isInteger(count) || count <= 0) return null;
-  return `有 ${count} 个持仓没有价格`;
+  return `有 ${count} 个持仓没有价格，未计入总资产`;
+}
+
+export type QuoteSetQuote = {
+  source: QuoteLabelSource;
+  status: QuoteLabelStatus;
+  asOf: string;
+};
+
+/**
+ * One status for the whole quote set.
+ * Any `cost_basis` row wins, then any stale row, then a fresh Finnhub clock
+ * taken from the oldest `as_of`. Unavailable rows are ignored. An empty priced
+ * set returns null.
+ */
+export function quoteSetStatus(input: {
+  quotes: readonly QuoteSetQuote[];
+  timeZone: string;
+  possiblyExpired?: boolean;
+}): { text: string; tone: 'muted' | 'warning' } | null {
+  const priced = input.quotes.filter((quote) => quote.status !== 'unavailable');
+  if (priced.length === 0) return null;
+  if (priced.some((quote) => quote.source === 'cost_basis')) {
+    return { text: COST_BASIS_LABEL, tone: 'warning' };
+  }
+  if (input.possiblyExpired || priced.some((quote) => quote.status === 'stale')) {
+    return { text: STALE_LABEL, tone: 'warning' };
+  }
+  const fresh = priced.filter((quote) => quote.source === 'finnhub' && quote.status === 'fresh');
+  if (fresh.length !== priced.length) return null;
+  const oldest = fresh.reduce((left, right) => (left.asOf < right.asOf ? left : right));
+  return { text: `价格更新于 ${formatQuoteClock(oldest.asOf, input.timeZone)}`, tone: 'muted' };
 }
 
 /**

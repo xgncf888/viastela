@@ -1,9 +1,36 @@
 import { expect, test } from '@jest/globals';
 
 import { projectNetWorth } from './projection';
-import { clampProjectionDay, projectionConclusion, unreachableGoalCopy } from './projection-copy';
+import { clampProjectionDay, projectionConclusion, projectionSummary, unreachableGoalCopy } from './projection-copy';
 
 const RATES = [0.03, 0.05, 0.07] as const;
+
+test('no goal returns a summary with no gap, target, or reach date', () => {
+  const line = projectNetWorth({
+    startUsd: 10,
+    startMonth: '2026-01',
+    monthlyNetUsd: 2,
+    annualRate: 0.05,
+    targetUsd: null,
+    maxMonths: 2,
+  });
+  expect(line.goal).toBeNull();
+  const summary = projectionSummary({
+    rates: RATES,
+    mainRateIndex: 2,
+    line,
+    actualUsd: 10,
+    onDay: '2026-01-15',
+    monthlyNetUsd: 2,
+    targetUsd: null,
+  });
+  expect(summary).toEqual({ kind: 'no-goal' });
+  const text = JSON.stringify(summary);
+  expect(text).not.toContain('gap');
+  expect(text).not.toContain('个月');
+  expect(text).not.toContain('目标');
+  expect(text).not.toContain('monthLabel');
+});
 
 test('5% selected uses 按 5% 年化，50 年内达不到目标', () => {
   expect(unreachableGoalCopy(5)).toBe('按 5% 年化，50 年内达不到目标');

@@ -33,7 +33,8 @@ export function projectionChart(input: {
   rates: readonly [number, number, number];
   mainRateIndex: number;
   actual: readonly { month: string; totalUsd: number }[];
-  targetUsd: number;
+  /** Null omits the target line. There is no fallback goal. */
+  targetUsd: number | null;
   snapshot: 'written' | 'skipped' | null;
 }): ProjectionChart {
   const labels = input.rates.map((rate) => `${annualRatePercent(rate)}%`);
@@ -42,7 +43,7 @@ export function projectionChart(input: {
     .map((point) => ({ month: point.month.slice(0, 7), totalUsd: point.totalUsd }))
     .filter((point) => /^\d{4}-\d{2}$/.test(point.month));
   const values = [
-    input.targetUsd,
+    ...(input.targetUsd === null ? [] : [input.targetUsd]),
     ...input.lines.flatMap((line) => line.points.map((point) => point.netWorthUsd)),
     ...actualMonths.map((point) => point.totalUsd),
   ];
@@ -51,18 +52,20 @@ export function projectionChart(input: {
   const yOf = (value: number) => (max === min ? 0.5 : (value - min) / (max - min));
   const series: ProjectionChartSeries[] = [];
   const span = Math.max(input.lines[0].points.length - 1, 1);
-  series.push({
-    id: 'target',
-    label: '目标',
-    style: 'dotted',
-    tone: 'line',
-    markers: false,
-    thin: false,
-    points: [
-      { id: 'target-start', x: 0, y: yOf(input.targetUsd) },
-      { id: 'target-end', x: 1, y: yOf(input.targetUsd) },
-    ],
-  });
+  if (input.targetUsd !== null) {
+    series.push({
+      id: 'target',
+      label: '目标',
+      style: 'dotted',
+      tone: 'line',
+      markers: false,
+      thin: false,
+      points: [
+        { id: 'target-start', x: 0, y: yOf(input.targetUsd) },
+        { id: 'target-end', x: 1, y: yOf(input.targetUsd) },
+      ],
+    });
+  }
   input.lines.forEach((line, index) => {
     if (index === main) return;
     series.push(lineSeries(line, labels[index] ?? '', index, span, yOf, true));
@@ -92,7 +95,8 @@ export function projectionChart(input: {
   return {
     series,
     note: actualSeriesNote({ snapshot: input.snapshot, actualPoints: shownActual }),
-    accessibilityLabel: `实际、${labels.join('、')}、目标，预计达标月份`,
+    accessibilityLabel:
+      input.targetUsd === null ? `实际、${labels.join('、')}` : `实际、${labels.join('、')}、目标，预计达标月份`,
   };
 }
 

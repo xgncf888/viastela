@@ -10,11 +10,12 @@ import { civilLocalDay, computeLocalDay } from '@/core/local-day';
 import { formatMoney, formatShares } from '@/core/money-format';
 import { projectNetWorthLines } from '@/core/projection';
 import { projectionChart } from '@/core/projection-chart';
-import { formatYearMonth, projectionConclusion, type ProjectionSentence } from '@/core/projection-copy';
+import { formatYearMonth, projectionSummary, type ProjectionSentence } from '@/core/projection-copy';
 import {
   COST_BASIS_CALLOUT,
   OFFLINE_QUOTE_CALLOUT,
   formatQuoteClock,
+  quoteSetStatus,
   quoteStatusLabel,
   unpricedHoldingsMessage,
 } from '@/core/quote-label';
@@ -70,7 +71,6 @@ import { showToast } from '@/ui/toast';
 import { AccountForm, AssumptionsForm, BalanceForm, GoalForm, HoldingForm } from './sheets';
 
 const DEFAULT_RATES: [number, number, number] = [0.03, 0.05, 0.07];
-const DEFAULT_GOAL = 1_500_000;
 
 type Portfolio = {
   accounts: AssetAccountRow[];
@@ -414,7 +414,7 @@ export function AssetsScreen() {
       />
       <GoalForm
         visible={sheet === 'goal'}
-        initial={String(portfolio?.goal?.targetUsd ?? DEFAULT_GOAL)}
+        initial={portfolio?.goal ? String(portfolio.goal.targetUsd) : ''}
         onClose={() => setSheet(null)}
         onReload={reload}
         onSave={async (targetUsd) => {
@@ -472,13 +472,24 @@ function Overview({
       ) : (
         <Text variant="display">暂无价格</Text>
       )}
-      <ProgressBar value={model.progress} masked={masked || model.totalText === null} />
-      <Text variant="muted">
-        目标进度 <MaskedAmount text={model.progressText} masked={masked || model.totalText === null} variant="muted" />
-      </Text>
+      {model.quoteStatus ? (
+        <Text variant="muted" tone={model.quoteStatus.tone === 'warning' ? 'warning' : 'muted'} style={styles.quoteClock}>
+          {model.quoteStatus.text}
+        </Text>
+      ) : null}
+      {model.hasGoal ? (
+        <>
+          <ProgressBar value={model.progress} masked={masked || model.totalText === null} />
+          <Text variant="muted">
+            目标进度 <MaskedAmount text={model.progressText} masked={masked || model.totalText === null} variant="muted" />
+          </Text>
+          <Button label="调整目标" variant="ghost" onPress={onGoal} />
+        </>
+      ) : (
+        <Button label="设一个目标" onPress={onGoal} />
+      )}
       {model.ratio ? <Text variant="body">{model.ratio}</Text> : null}
       {model.unpriced ? <Text variant="muted">{model.unpriced}</Text> : null}
-      <Button label="调整目标" variant="ghost" onPress={onGoal} />
     </Card>
   );
 }
@@ -541,6 +552,7 @@ function Projection({
 
 function Conclusion({ sentence, masked }: { sentence: ProjectionSentence | null; masked: boolean }) {
   if (!sentence) return <Text variant="body">推算还不可用</Text>;
+  if (sentence.kind === 'no-goal') return null;
   if (sentence.kind === 'already') return <Text variant="body">已达成</Text>;
   if (sentence.kind === 'unreachable') return <Text variant="body">{sentence.text}</Text>;
   const direction = sentence.ahead ? '超前' : '落后';
@@ -565,6 +577,8 @@ type DashboardModel = {
   progressText: string;
   ratio: string | null;
   unpriced: string | null;
+  hasGoal: boolean;
+  quoteStatus: { text: string; tone: 'muted' | 'warning' } | null;
   sentence: ProjectionSentence | null;
   chart: ReturnType<typeof projectionChart> | null;
   chartStart: string;
@@ -586,7 +600,7 @@ function buildModel(input: {
   const assumptions = input.portfolio.assumptions;
   const rates = assumptions?.returnRates ?? DEFAULT_RATES;
   const mainRateIndex = assumptions?.mainRateIndex ?? 1;
-  const target = input.portfolio.goal?.targetUsd ?? DEFAULT_GOAL;
+  const target = input.portfolio.goal?.targetUsd ?? null;
   const startMonth = (assumptions?.startMonth ?? civilLocalDay(new Date(), input.timeZone)).slice(0, 7);
   const total = dashboardTotalUsd(input.book);
   let sentence: ProjectionSentence | null = null;
@@ -606,7 +620,7 @@ function buildModel(input: {
     const selected = lines[Math.min(2, Math.max(0, mainRateIndex - 1))] ?? lines[0];
     chartStart = formatYearMonth(lines[0].points[0]?.month ?? startMonth);
     chartEnd = formatYearMonth(lines[0].points[lines[0].points.length - 1]?.month ?? startMonth);
-    sentence = projectionConclusion({
+    sentence = projectionSummary({
       rates,
       mainRateIndex,
       line: selected,
@@ -656,13 +670,22 @@ function buildModel(input: {
   const cash = input.book?.cash_usd ?? 0;
   const securities = input.book?.securities_usd ?? 0;
   const mix = cash + securities;
-  const progress = target > 0 && total !== null ? Math.min(1, Math.max(0, total / target)) : 0;
+  const progress = target !== null && target > 0 && total !== null ? Math.min(1, Math.max(0, total / target)) : 0;
+  const visibleAccountIds = new Set(
+    input.portfolio.accounts.filter((account) => account.deletedAt === null && !input.pending.has(account.id)).map((account) => account.id),
+  );
   return {
     totalText: total === null ? null : formatMoney(total, 'USD'),
     progress: sentence?.kind === 'already' ? 1 : progress,
     progressText: `${Math.round((sentence?.kind === 'already' ? 1 : progress) * 100)}%`,
     ratio: input.book && mix !== 0 ? `现金 ${Math.round((cash / mix) * 100)}% · 股票 ${Math.round((securities / mix) * 100)}%` : null,
     unpriced: unpricedHoldingsMessage(input.book?.unpriced),
+    hasGoal: target !== null,
+    quoteStatus: quoteSetStatus({
+      quotes: (input.book?.quotes ?? []).map((quote) => ({ source: quote.source, status: quote.status, asOf: quote.as_of })),
+      timeZone: input.timeZone,
+      possiblyExpired: input.degraded,
+    }),
     sentence,
     chart,
     chartStart,
@@ -671,7 +694,7 @@ function buildModel(input: {
     mainRateIndex,
     priced,
     approx: approximateUsd(input.portfolio, input.book),
-    activity: activityItems(input.portfolio, input.timeZone).slice(0, 3),
+    activity: activityItems(input.portfolio, input.timeZone, visibleAccountIds).slice(0, 3),
   };
 }
 
@@ -735,7 +758,7 @@ function assumptionInitial(assumptions: AssumptionsRow | null) {
   };
 }
 
-function activityItems(portfolio: Portfolio, timeZone: string) {
+function activityItems(portfolio: Portfolio, timeZone: string, visibleAccountIds: ReadonlySet<string>) {
   const names = new Map(portfolio.accounts.map((account) => [account.id, account.name]));
   const items = [
     ...portfolio.events.map((event) => ({
@@ -744,7 +767,7 @@ function activityItems(portfolio: Portfolio, timeZone: string) {
       title: eventTitle(event),
       detail: undefined as string | undefined,
     })),
-    ...portfolio.balances.map((balance) => ({
+    ...portfolio.balances.filter((balance) => visibleAccountIds.has(balance.accountId)).map((balance) => ({
       id: balance.id,
       at: balance.recordedAt,
       title: `更新了 ${names.get(balance.accountId) ?? '账户'} 余额`,
@@ -771,6 +794,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  quoteClock: { fontVariant: ['tabular-nums'] },
   hiddenChart: {
     height: theme.layout.chart,
     borderRadius: theme.radius.lg,

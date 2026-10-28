@@ -20,6 +20,7 @@ export function selectedAnnualRate(rates: readonly number[], mainRateIndex: numb
 }
 
 export type ProjectionSentence =
+  | { kind: 'no-goal' }
   | { kind: 'already' }
   | { kind: 'unreachable'; text: string }
   | {
@@ -32,6 +33,17 @@ export type ProjectionSentence =
       /** 「约 n 个月存入」, or null when monthly net is not positive. */
       monthsLabel: string | null;
     };
+
+/**
+ * Selected-line summary. No stored goal returns `{ kind: 'no-goal' }` and
+ * nothing about a gap, a month count, or a reach date.
+ */
+export function projectionSummary(
+  input: Omit<Parameters<typeof projectionConclusion>[0], 'targetUsd'> & { targetUsd: number | null },
+): ProjectionSentence {
+  if (input.targetUsd === null) return { kind: 'no-goal' };
+  return projectionConclusion({ ...input, targetUsd: input.targetUsd });
+}
 
 /**
  * Conclusion for the selected line. The day is clamped into the line before

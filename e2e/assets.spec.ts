@@ -30,6 +30,17 @@ type AssetEvent = {
   occurred_at: string;
 };
 
+type Balance = {
+  id: string;
+  account_id: string;
+  amount: number;
+  usd_rate: number | null;
+  recorded_at: string;
+  tz: string;
+  local_day: string;
+  deleted_at: string | null;
+};
+
 function quotesBody() {
   return {
     quotes: [
@@ -66,11 +77,19 @@ async function installAssets(
   options: {
     holdings: Holding[];
     events: AssetEvent[];
+    balances?: Balance[];
     onHoldingPatch?: (body: string) => void;
+    onAccountPatch?: (body: string) => void;
     quotes?: { fail: boolean };
   },
 ): Promise<void> {
-  const account = {
+  const account: {
+    id: string;
+    name: string;
+    currency: string;
+    deleted_at: string | null;
+    created_at: string;
+  } = {
     id: accountId,
     name: '现金',
     currency: 'USD',
@@ -98,11 +117,19 @@ async function installAssets(
       return;
     }
     if (url.includes('/rest/v1/asset_accounts')) {
-      await fulfill(route, wantsObject(route) ? account : [account]);
+      if (request.method() === 'PATCH') {
+        const body = request.postData() ?? '';
+        options.onAccountPatch?.(body);
+        if (body.includes('deleted_at')) account.deleted_at = '2026-01-15T00:00:00.000Z';
+        await fulfill(route, [{ id: account.id }]);
+        return;
+      }
+      const shown = account.deleted_at === null || !url.includes('deleted_at=is.null');
+      await fulfill(route, wantsObject(route) ? (shown ? account : null) : shown ? [account] : []);
       return;
     }
     if (url.includes('/rest/v1/account_balances')) {
-      await fulfill(route, []);
+      await fulfill(route, options.balances ?? []);
       return;
     }
     if (url.includes('/rest/v1/holdings')) {
@@ -256,4 +283,69 @@ test('a holding delete commits once after 5 seconds', async ({ page }) => {
   expect(events.length).toBe(eventsBefore + 1);
   expect(events[0]?.kind).toBe('holding_removed');
   expect(holdings[0]?.deleted_at).not.toBeNull();
+});
+
+const balanceId = '66666666-6666-4666-8666-666666666666';
+const balanceTitle = '更新了 现金 余额';
+
+function cashBalance(): Balance {
+  return {
+    id: balanceId,
+    account_id: accountId,
+    amount: 40,
+    usd_rate: 1,
+    recorded_at: '2026-01-15T02:00:00.000Z',
+    tz: 'UTC',
+    local_day: '2026-01-15',
+    deleted_at: null,
+  };
+}
+
+async function openAssets(page: Page): Promise<void> {
+  await page.goto('/');
+  await page.evaluate((stored) => {
+    localStorage.setItem('sb-127-auth-token', JSON.stringify(stored));
+  }, authSession());
+  await page.goto('/assets');
+}
+
+test('a deleted account balance stays out of recent activity, and undo brings it back', async ({ page }) => {
+  const balances = [cashBalance()];
+  let patches = 0;
+  await installApi(page, { weights: [] });
+  await installAssets(page, {
+    holdings: [],
+    events: [],
+    balances,
+    onAccountPatch: (body) => {
+      if (body.includes('deleted_at')) patches += 1;
+    },
+  });
+  await openAssets(page);
+  await expect(page.getByText(balanceTitle)).toBeVisible();
+  await page.getByRole('button', { name: '删除' }).click();
+  await expect(page.getByText(balanceTitle)).toHaveCount(0);
+  await page.getByRole('button', { name: '撤销' }).click();
+  await expect(page.getByText(balanceTitle)).toBeVisible();
+  expect(patches).toBe(0);
+});
+
+test('after the undo window a deleted account balance is still absent from recent activity', async ({ page }) => {
+  const balances = [cashBalance()];
+  let patches = 0;
+  await installApi(page, { weights: [] });
+  await installAssets(page, {
+    holdings: [],
+    events: [],
+    balances,
+    onAccountPatch: (body) => {
+      if (body.includes('deleted_at')) patches += 1;
+    },
+  });
+  await openAssets(page);
+  await expect(page.getByText(balanceTitle)).toBeVisible();
+  await page.getByRole('button', { name: '删除' }).click();
+  await expect(page.getByText(balanceTitle)).toHaveCount(0);
+  await expect.poll(() => patches, { timeout: 8000 }).toBe(1);
+  await expect(page.getByText(balanceTitle)).toHaveCount(0);
 });

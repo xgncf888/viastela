@@ -1,8 +1,10 @@
 import { useState } from 'react';
 
 import {
-  COST_BASIS_HINT,
+  COST_TOTAL_HELPER,
+  COST_TOTAL_LABEL,
   HOLDING_CODE_HINT,
+  QUANTITY_COST_HINT,
   SYMBOL_HINT,
   accountNameError,
   normalizeSymbol,
@@ -279,8 +281,14 @@ function HoldingFields({
           error={symbol.length > 0 ? symbolError(symbol) : null}
         />
       )}
-      <TextField label="股数" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad" />
-      <TextField label="成本价" value={cost} onChangeText={setCost} keyboardType="decimal-pad" helper={COST_BASIS_HINT} />
+      <TextField
+        label="股数"
+        value={quantity}
+        onChangeText={setQuantity}
+        keyboardType="decimal-pad"
+        helper={editing ? QUANTITY_COST_HINT : undefined}
+      />
+      <TextField label={COST_TOTAL_LABEL} value={cost} onChangeText={setCost} keyboardType="decimal-pad" helper={COST_TOTAL_HELPER} />
       {error ? (
         <Text variant="body" tone="danger">
           {error}
@@ -302,7 +310,7 @@ function HoldingFields({
           if (cost.trim().length > 0) {
             const parsed = parseAmount(cost);
             if (parsed === null || parsed < 0) {
-              setError('成本价格式不对');
+              setError('总成本格式不对');
               return;
             }
             costBasis = parsed;

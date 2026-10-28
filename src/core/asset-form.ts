@@ -2,6 +2,14 @@ export const SYMBOL_PATTERN = /^[A-Z][A-Z.]{0,9}$/;
 export const SYMBOL_HINT = '代码只能是大写字母和点，例如 AAPL、BRK.B';
 export const HOLDING_CODE_HINT = '要换代码，请删除后重新添加';
 export const COST_BASIS_HINT = '不填就无法在取不到价格时估算';
+export const COST_TOTAL_LABEL = '总成本（US$）';
+export const COST_TOTAL_HELPER = '这笔持仓全部股数的总成本';
+export const QUANTITY_COST_HINT = '股数变了，请同时核对总成本';
+
+/** `totalCostUsd` is the whole holding, not a per-share price. */
+export function holdingCostEstimate(quantity: number, totalCostUsd: number): { unitUsd: number; totalUsd: number } {
+  return { unitUsd: totalCostUsd / quantity, totalUsd: totalCostUsd };
+}
 export const DELETED_ACCOUNT_UNDO = '已删除 {name}，它的余额不再计入总资产';
 
 export function normalizeSymbol(input: string): string {

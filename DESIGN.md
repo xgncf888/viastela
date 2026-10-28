@@ -149,6 +149,8 @@ When weight, training, and study all have a row for the accounting day, the head
 
 The headline is the server `total_usd`. Offline, that figure is the last cached quotes response. The client does not show a second total of its own. Money is `US$`, `S$`, `HK$`, or `¥`, with thousands separators and two decimals. A negative amount stays ink, not danger. Share counts keep up to six decimals and drop trailing zeros.
 
+With no goal row, the card does not invent one. It offers `设一个目标`, which opens the goal sheet. The progress bar, goal percent, dollar gap, month count, and reach date stay hidden. The projection still draws the three rate lines and leaves out the target line.
+
 ### Hide amounts
 
 Hiding amounts is on by default and stored on this device per user (`viastela.amount-mask.v1.${userId}`). Missing storage, or any value other than `0`, stays hidden. The eye button is `显示金额` or `隐藏金额`. Masking covers the total, the goal percent, the progress bar, profit and loss, share counts, and the projection chart. Cash and stock percents stay visible. Sheets show the real numbers. A hidden chart is a gray `fill` placeholder; tapping it turns masking off. It does not open the assumptions sheet. `调整假设` does.
@@ -163,7 +165,7 @@ The date passed into the gap is clamped to the line first, so a day outside the 
 
 ### Accounts and holdings
 
-A symbol matches `^[A-Z][A-Z.]{0,9}$`. Anything else says `代码只能是大写字母和点，例如 AAPL、BRK.B`. Editing a holding locks the symbol and the account in gray fields, with the hint `要换代码，请删除后重新添加`. The cost helper is `不填就无法在取不到价格时估算`. The balance helper is `负债填负数`. Saving a holding sends quantity and cost only.
+A symbol matches `^[A-Z][A-Z.]{0,9}$`. Anything else says `代码只能是大写字母和点，例如 AAPL、BRK.B`. Editing a holding locks the symbol and the account in gray fields, with the hint `要换代码，请删除后重新添加`. The cost field is `总成本（US$）`, the total cost of every share, with helper `这笔持仓全部股数的总成本`. Editing the share count also says `股数变了，请同时核对总成本`, because the server does not rescale that total. The balance helper is `负债填负数`. Saving a holding sends quantity and cost only.
 
 `全部更新余额` writes only accounts whose amount changed, then toasts `已更新 N 个账户`. `更新余额` on one account opens that account’s sheet directly. A USD balance always stores `usd_rate = 1`, so a later timeline `after_usd` is not null. `usd_rate` is USD per 1 unit of the account currency, and the timeline uses `after_usd = amount * usd_rate`. Quotes still arrive as units of currency per 1 USD, so a non-USD row stores `1 / rate` (1.25 SGD per USD becomes 0.8). A missing, zero, or negative quote stays null.
 
@@ -177,7 +179,7 @@ The client calls the quotes function and stores the last successful book on this
 
 `status: 'unavailable'` is always `暂无价格` and stays out of the total, even when the holding has `cost_basis_usd`. A row whose `source` is `cost_basis` and that still has a price says `按成本价估算`, including when the server called it fresh. It never says `价格更新于 HH:mm`. A fresh Finnhub price says `价格更新于 HH:mm` in the user’s time zone. A stale Finnhub price, or a cached Finnhub price kept after a failed fetch, says `价格可能过期`.
 
-When the quotes source fails with no server cache, the function returns 502 `{ error: 'quote_unavailable' }`. When FX is missing, it returns 502 `{ error: 'fx_unavailable' }`. On those responses and on a network error, the board keeps the last local book, marks those Finnhub rows possibly expired, and does not overwrite or clear the cache. With no cache, the board uses the empty and unavailable states above. A top-level `unpriced` count says `有 N 个持仓没有价格`.
+When the quotes source fails with no server cache, the function returns 502 `{ error: 'quote_unavailable' }`. When FX is missing, it returns 502 `{ error: 'fx_unavailable' }`. On those responses and on a network error, the board keeps the last local book, marks those Finnhub rows possibly expired, and does not overwrite or clear the cache. With no cache, the board uses the empty and unavailable states above. A top-level `unpriced` count says `有 N 个持仓没有价格，未计入总资产`.
 
 A book whose `source` is `cost_basis` adds the callout `还没接入真实行情，股票按成本价估算`. A failed fetch that fell back to the device cache adds `离线中，显示的是上次取到的价格`. Both use `Callout` `tone="warning"`.
 

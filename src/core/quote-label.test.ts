@@ -5,6 +5,7 @@ import {
   STALE_LABEL,
   UNAVAILABLE_LABEL,
   actualSeriesNote,
+  quoteSetStatus,
   quoteStatusLabel,
   unpricedHoldingsMessage,
 } from './quote-label';
@@ -73,8 +74,31 @@ test('finnhub fresh uses the user timezone, and stale or a failed refresh says �
 
 test('unpriced count and a skipped snapshot use the design copy', () => {
   expect(unpricedHoldingsMessage(0)).toBeNull();
-  expect(unpricedHoldingsMessage(2)).toBe('有 2 个持仓没有价格');
+  expect(unpricedHoldingsMessage(2)).toBe('有 2 个持仓没有价格，未计入总资产');
   expect(actualSeriesNote({ snapshot: 'skipped', actualPoints: 1 })).toBe('接入真实行情后开始记录实际走势');
   expect(actualSeriesNote({ snapshot: 'skipped', actualPoints: 2 })).toBeNull();
   expect(actualSeriesNote({ snapshot: 'written', actualPoints: 0 })).toBe('下个月开始显示实际走势');
+});
+
+test('the quote set uses the oldest fresh clock, any stale row, or cost basis', () => {
+  const fresh = (asOf: string) => ({ source: 'finnhub' as const, status: 'fresh' as const, asOf });
+  expect(
+    quoteSetStatus({
+      quotes: [fresh('2026-01-15T01:30:00.000Z'), fresh('2026-01-15T00:30:00.000Z')],
+      timeZone: 'Asia/Singapore',
+    }),
+  ).toEqual({ text: '价格更新于 08:30', tone: 'muted' });
+  expect(
+    quoteSetStatus({
+      quotes: [fresh(AS_OF), { source: 'finnhub', status: 'stale', asOf: AS_OF }],
+      timeZone: 'UTC',
+    }),
+  ).toEqual({ text: '价格可能过期', tone: 'warning' });
+  expect(
+    quoteSetStatus({
+      quotes: [{ source: 'cost_basis', status: 'fresh', asOf: AS_OF }],
+      timeZone: 'UTC',
+    }),
+  ).toEqual({ text: '按成本价估算', tone: 'warning' });
+  expect(quoteSetStatus({ quotes: [], timeZone: 'UTC' })).toBeNull();
 });

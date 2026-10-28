@@ -29,6 +29,7 @@ export type HoldingRow = {
   accountId: string;
   symbol: string;
   quantity: number;
+  /** Total cost of every share in this holding, in USD. Not a per-share price. */
   costBasisUsd: number | null;
   deletedAt: string | null;
 };
@@ -240,6 +241,7 @@ export async function insertHolding(input: {
   accountId: string;
   symbol: string;
   quantity: number;
+  /** Total cost of all shares, in USD. The server divides by quantity for a unit price. */
   costBasisUsd: number | null;
 }): Promise<void> {
   const userId = await requireUserId();
@@ -255,6 +257,7 @@ export async function insertHolding(input: {
 }
 
 /** Quantity and cost only. Symbol and account stay as they were stored. */
+/** `costBasisUsd` is the total cost of all shares, not a per-share price. Changing quantity does not rescale it. */
 export async function updateHolding(id: string, input: { quantity: number; costBasisUsd: number | null }): Promise<void> {
   const { error } = await getSupabase()
     .from('holdings')
