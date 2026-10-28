@@ -137,8 +137,8 @@ export function Button({
         locked != null ? { minWidth: locked } : null,
       ]}
     >
-      <View style={styles.content}>
-        {loading ? (
+      {loading ? (
+        <View style={styles.content}>
           <ActivityIndicator
             accessibilityElementsHidden
             importantForAccessibility="no"
@@ -146,11 +146,15 @@ export function Button({
             color={spinner}
             size={theme.space.md}
           />
-        ) : null}
+          <Text variant="body" tone={labelTone} style={styles.label}>
+            {visible}
+          </Text>
+        </View>
+      ) : (
         <Text variant="body" tone={labelTone} style={styles.label}>
           {visible}
         </Text>
-      </View>
+      )}
     </Pressable>
   );
 }
