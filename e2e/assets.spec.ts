@@ -328,6 +328,28 @@ async function openAssets(page: Page): Promise<void> {
   await page.goto('/assets');
 }
 
+test('masked amounts read as 已隐藏金额 in the total, balance, and activity', async ({ page }) => {
+  await installApi(page, { weights: [] });
+  await installAssets(page, { holdings: [], events: [], balances: [cashBalance()] });
+  await openAssets(page);
+  await expect(page.getByRole('heading', { name: '总资产' })).toBeVisible();
+  await expect(page.getByText('更新了 现金 余额')).toBeVisible();
+  const snapshot = await page.locator('body').ariaSnapshot();
+  const total = section(snapshot, '总资产', '预测');
+  const balance = section(snapshot, '账户', '持仓');
+  const activity = section(snapshot, '最近变动', '');
+  for (const part of [total, balance, activity]) {
+    expect(part).toContain('已隐藏金额');
+    expect(part).not.toContain('••••');
+  }
+});
+
+function section(snapshot: string, start: string, end: string): string {
+  const from = snapshot.indexOf(start);
+  const to = end.length === 0 ? snapshot.length : snapshot.indexOf(end, from + start.length);
+  return snapshot.slice(from, to === -1 ? undefined : to);
+}
+
 test('资产 opens from the bottom bar and the sidebar', async ({ page }) => {
   await installApi(page, { weights: [] });
   await installAssets(page, { holdings: [], events: [] });
