@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { brand } from '../src/config/brand';
 import { authSession, installApi, signIn } from './session';
+import { recordButton, recordSheetHeading, typeChip } from './selectors';
 
 test('web build shows the email login screen', async ({ page }) => {
   const pageErrors: string[] = [];
@@ -118,12 +119,12 @@ test('signed-in shell switches tabs and opens the record sheet', async ({ page }
   await expect(page.getByText('今日').first()).toBeVisible();
   await expect(page.getByText('先记第一笔').first()).toBeVisible();
 
-  await page.getByRole('button', { name: '记录' }).first().click();
-  await expect(page.getByRole('heading', { name: '记录' })).toBeVisible();
-  await expect(page.getByRole('button', { name: '训练' })).toBeVisible();
-  await page.getByRole('button', { name: '学习' }).click();
+  await recordButton(page).click();
+  await expect(recordSheetHeading(page)).toBeVisible();
+  await expect(typeChip(page, '训练')).toBeVisible();
+  await typeChip(page, '学习').click();
   await expect(page.getByRole('textbox', { name: '主题' })).toBeVisible();
-  await page.getByRole('button', { name: '时间块' }).click();
+  await typeChip(page, '时间块').click();
   await expect(page.getByText('即将推出')).toBeVisible();
   await page.getByRole('button', { name: '关闭' }).click();
 
