@@ -296,6 +296,7 @@
 - `Callout` — 加载失败加重试的卡片。`tone="danger"`：`dangerSoft` 底、`danger` 字、role alert，用于失败的操作，比如第三方登录没完成。
 - `ProgressBar`（随 #14）— 高 4、圆角 2，轨道 `line`，填充 `ink`（不用 `accent`，保证每屏只有一个实心 accent 块）。遮罩时只画轨道。
 - `MaskedAmount`（随 #14）— 隐藏金额时显示固定宽度的 `••••`（`layout.maskWidth` 64），依赖等宽数字，不再按字数估宽。
+  - **读屏（原生，#14 规则）：** 金额单独是一个 `Text` 时，这个 `Text` 设 `accessibilityLabel`「已隐藏金额」；金额嵌在别的文字里（例如「较上月 ••••」「目标 ••••」）时，内层不单独设 label，由外层那一行设整行的 `accessibilityLabel`（例如「较上月，已隐藏金额」），避免读屏把一行拆成几段或读出圆点。
 - `TimelineItem`（随 #14）— 时间放在左侧一栏（宽 44，`muted` 等宽数字），删掉灰色实心圆占位。
 - `LineChart` — 不带业务逻辑，由功能层传入点的位置（0 到 1）、刻度和单位。规则见 §6。
 - `BrandMark` ★ — V 字标，用 react-native-svg 画（已在依赖里），V 用 `ink`，星用 `accent`（品牌标识，不计入强调色预算）。

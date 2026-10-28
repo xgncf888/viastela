@@ -70,7 +70,7 @@ export function MeScreen() {
             helper="默认 04:00。改了只影响之后的新记录，已经记下的归属日不会变。"
             error={error}
           />
-          <Button label="保存" onPress={() => void onSave()} loading={saving} />
+          <Button label="保存" onPress={() => void onSave()} loading={saving} loadingLabel="保存中…" />
         </Card>
         <Card>
           <Field
