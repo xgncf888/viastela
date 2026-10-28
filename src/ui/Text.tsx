@@ -1,4 +1,10 @@
-import { Text as NativeText, Platform, StyleSheet, type StyleProp, type TextStyle } from 'react-native';
+import {
+  Text as NativeText,
+  Platform,
+  StyleSheet,
+  type StyleProp,
+  type TextStyle,
+} from 'react-native';
 
 import { theme as baseTheme } from './theme';
 import { useTheme } from './ThemeProvider';
@@ -44,6 +50,10 @@ export function Text({
   accessibilityRole,
   accessibilityLabel,
   accessibilityState,
+  accessibilityElementsHidden,
+  importantForAccessibility,
+  accessible,
+  'aria-hidden': ariaHidden,
 }: {
   children: React.ReactNode;
   variant?: Variant;
@@ -52,6 +62,10 @@ export function Text({
   accessibilityRole?: 'header' | 'text';
   accessibilityLabel?: string;
   accessibilityState?: { disabled?: boolean };
+  accessibilityElementsHidden?: boolean;
+  importantForAccessibility?: 'auto' | 'yes' | 'no' | 'no-hide-descendants';
+  accessible?: boolean;
+  'aria-hidden'?: boolean;
 }) {
   const theme = useTheme();
   const resolvedTone = tone ?? (variant === 'muted' ? 'muted' : 'ink');
@@ -71,6 +85,10 @@ export function Text({
       accessibilityRole={accessibilityRole}
       accessibilityLabel={accessibilityLabel}
       accessibilityState={accessibilityState}
+      accessibilityElementsHidden={accessibilityElementsHidden}
+      importantForAccessibility={importantForAccessibility}
+      accessible={accessible}
+      aria-hidden={ariaHidden}
       style={[
         styles.base,
         variantStyle[variant],

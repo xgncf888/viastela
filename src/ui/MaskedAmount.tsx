@@ -1,5 +1,8 @@
+import { StyleSheet } from 'react-native';
+
 import { Text } from './Text';
-import { maskedAmountMetrics, type MaskedAmountVariant } from './masked-amount';
+import { theme } from './theme';
+import { HIDDEN_AMOUNT_LABEL, maskedAmountMetrics, type MaskedAmountVariant } from './masked-amount';
 
 type Tone = 'ink' | 'muted' | 'inverse' | 'accent' | 'onAccent' | 'danger' | 'moss' | 'warning';
 
@@ -16,14 +19,41 @@ export function MaskedAmount({
   tone?: Tone;
 }) {
   const metrics = maskedAmountMetrics(text, variant);
+  const slot = { minWidth: metrics.minWidth, fontVariant: metrics.fontVariant };
+  if (!masked) {
+    return (
+      <Text variant={variant} tone={tone} style={slot}>
+        {text}
+      </Text>
+    );
+  }
   return (
-    <Text
-      variant={variant}
-      tone={tone}
-      accessibilityLabel={masked ? '已隐藏金额' : undefined}
-      style={{ minWidth: metrics.minWidth, fontVariant: metrics.fontVariant }}
-    >
-      {masked ? '••••' : text}
+    <Text variant={variant} tone={tone} accessible={false} style={[slot, styles.slot]}>
+      <Text
+        variant={variant}
+        tone={tone}
+        aria-hidden
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        style={slot}
+      >
+        ••••
+      </Text>
+      <Text variant="body" style={styles.screenReaderOnly}>
+        {HIDDEN_AMOUNT_LABEL}
+      </Text>
     </Text>
   );
 }
+
+const styles = StyleSheet.create({
+  slot: {
+    position: 'relative',
+  },
+  screenReaderOnly: {
+    position: 'absolute',
+    width: theme.border.width,
+    height: theme.border.width,
+    overflow: 'hidden',
+  },
+});

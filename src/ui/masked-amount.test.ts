@@ -1,20 +1,19 @@
 import { expect, test } from '@jest/globals';
 
 import { theme } from './theme';
-import { maskedAmountMetrics } from './masked-amount';
+import { HIDDEN_AMOUNT_LABEL, maskedAmountMetrics } from './masked-amount';
 
-test('minWidth scales with the text variant and matches for masked and unmasked', () => {
-  const text = 'US$100.00';
-  const body = maskedAmountMetrics(text, 'body');
-  const display = maskedAmountMetrics(text, 'display');
-  const bodyAgain = maskedAmountMetrics(text, 'body');
+test('a variant keeps one slot width for short and long amounts', () => {
+  const shortAmount = maskedAmountMetrics('US$1.00', 'body');
+  const longAmount = maskedAmountMetrics('US$100000.00', 'body');
+  const display = maskedAmountMetrics('US$1.00', 'display');
 
-  expect(body.fontVariant).toEqual(['tabular-nums']);
-  expect(display.fontVariant).toEqual(['tabular-nums']);
-  expect(display.minWidth).toBeGreaterThan(body.minWidth);
-  expect(display.minWidth / body.minWidth).toBeCloseTo(theme.font.display / theme.font.md);
-  expect(body.minWidth).toBe(text.length * theme.font.md * 0.62);
-  expect(display.minWidth).toBe(text.length * theme.font.display * 0.62);
-  expect(bodyAgain.minWidth).toBe(body.minWidth);
-  expect(bodyAgain.fontVariant).toEqual(body.fontVariant);
+  expect(HIDDEN_AMOUNT_LABEL).toBe('已隐藏金额');
+  expect(shortAmount.fontVariant).toEqual(['tabular-nums']);
+  expect(longAmount.fontVariant).toEqual(['tabular-nums']);
+  expect(shortAmount.minWidth).toBe(longAmount.minWidth);
+  expect(shortAmount.minWidth).toBe(8 * theme.font.md * 0.62);
+  expect(display.minWidth).toBeGreaterThan(shortAmount.minWidth);
+  expect(display.minWidth / shortAmount.minWidth).toBeCloseTo(theme.font.display / theme.font.md);
+  expect(display.minWidth).toBe(maskedAmountMetrics('US$100000.00', 'display').minWidth);
 });

@@ -10,20 +10,24 @@ const FONT_SIZE: Record<MaskedAmountVariant, number> = {
   muted: theme.font.sm,
 };
 
+export const HIDDEN_AMOUNT_LABEL = '已隐藏金额';
+
+/** Glyphs reserved for every amount of one variant. The real length is not used. */
+const SLOT_GLYPHS = 8;
+
 export type MaskedAmountMetrics = {
   minWidth: number;
   fontVariant: ['tabular-nums'];
 };
 
 /**
- * Width reserved for the real amount, at the variant's font size.
- * Masked and unmasked text share this so toggling the mask does not jump.
- * Tabular figures keep digits the same width.
+ * One slot width per variant. Masked and unmasked text share it, and the
+ * width does not change with the number of digits. Tabular figures stay on.
  */
-export function maskedAmountMetrics(text: string, variant: MaskedAmountVariant): MaskedAmountMetrics {
+export function maskedAmountMetrics(_text: string, variant: MaskedAmountVariant): MaskedAmountMetrics {
   const fontSize = FONT_SIZE[variant];
   return {
-    minWidth: text.length * fontSize * 0.62,
+    minWidth: SLOT_GLYPHS * fontSize * 0.62,
     fontVariant: ['tabular-nums'],
   };
 }

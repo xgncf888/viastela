@@ -1,5 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
+import { HIDDEN_AMOUNT_LABEL } from './masked-amount';
 import { theme as baseTheme } from './theme';
 import { useTheme } from './ThemeProvider';
 
@@ -10,7 +11,7 @@ export function ProgressBar({ value, masked }: { value: number; masked: boolean 
   return (
     <View
       accessibilityRole="progressbar"
-      accessibilityLabel={masked ? '已隐藏' : undefined}
+      accessibilityLabel={masked ? HIDDEN_AMOUNT_LABEL : undefined}
       accessibilityValue={masked ? undefined : { min: 0, max: 100, now: Math.round(width * 100) }}
       style={[styles.track, { backgroundColor: theme.color.fill }]}
     >
