@@ -1,6 +1,8 @@
 import { useEffect, type ReactNode } from 'react';
 import { AccessibilityInfo, Platform, Pressable, StyleSheet, View } from 'react-native';
 
+import { formatQuoteClock } from '@/core/quote-label';
+
 import { Text } from './Text';
 import { theme } from './theme';
 
@@ -9,18 +11,15 @@ export const REFRESH_FAILED_TEXT = '更新失败';
 export const REFRESH_RETRY_LABEL = '重试';
 export const REFRESH_CACHED_PREFIX = '行情更新于';
 
-/** Local clock, zero-padded. Invalid timestamps return null so the retry line stays. */
-export function formatRefreshClock(asOf: string): string | null {
-  const date = new Date(asOf);
-  if (Number.isNaN(date.getTime())) return null;
-  const hour = String(date.getHours()).padStart(2, '0');
-  const minute = String(date.getMinutes()).padStart(2, '0');
-  return `${hour}:${minute}`;
+/** User-timezone clock. Invalid timestamps return null so the plain retry line stays. */
+export function cachedQuoteClock(asOf: string | null | undefined, timeZone: string): string | null {
+  if (!asOf || Number.isNaN(new Date(asOf).getTime())) return null;
+  return formatQuoteClock(asOf, timeZone);
 }
 
-export function refreshFailedText(cachedAt?: string | null): string {
-  const clock = cachedAt ? formatRefreshClock(cachedAt) : null;
-  if (clock) return `${REFRESH_FAILED_TEXT} · ${REFRESH_CACHED_PREFIX} ${clock}`;
+export function refreshFailedText(cachedAt: string | null | undefined, timeZone: string): string {
+  const clock = cachedQuoteClock(cachedAt, timeZone);
+  if (clock) return `${REFRESH_FAILED_TEXT} · ${REFRESH_CACHED_PREFIX} ${clock} · ${REFRESH_RETRY_LABEL}`;
   return `${REFRESH_FAILED_TEXT} · ${REFRESH_RETRY_LABEL}`;
 }
 
@@ -33,12 +32,15 @@ export function RefreshStatus({
   onRetry,
   idle = null,
   cachedAt = null,
+  timeZone,
 }: {
   status: 'idle' | 'refreshing' | 'failed';
   onRetry: () => void;
   idle?: ReactNode;
-  /** ISO time of the last cached quote. Failed status then shows the local clock instead of retry. */
+  /** ISO time of the last cached quote. */
   cachedAt?: string | null;
+  /** Profile timezone. The cached clock is formatted with this, not the device zone. */
+  timeZone: string;
 }) {
   useEffect(() => {
     if (status !== 'failed' || Platform.OS !== 'ios') return undefined;
@@ -54,25 +56,17 @@ export function RefreshStatus({
       </Text>
     );
   }
-  const clock = cachedAt ? formatRefreshClock(cachedAt) : null;
-  if (clock) {
-    return (
-      <Text
-        variant="muted"
-        accessibilityLiveRegion={Platform.OS === 'android' ? 'polite' : undefined}
-        role={Platform.OS === 'web' ? 'status' : undefined}
-      >
-        {refreshFailedText(cachedAt)}
-      </Text>
-    );
-  }
+  const clock = cachedQuoteClock(cachedAt, timeZone);
+  const lead = clock ? `${REFRESH_FAILED_TEXT} · ${REFRESH_CACHED_PREFIX} ${clock} · ` : `${REFRESH_FAILED_TEXT} · `;
   return (
     <View
       accessibilityLiveRegion={Platform.OS === 'android' ? 'polite' : undefined}
       role={Platform.OS === 'web' ? 'status' : undefined}
       style={styles.row}
     >
-      <Text variant="muted">{`${REFRESH_FAILED_TEXT} · `}</Text>
+      <Text variant="muted" tone={clock ? 'warning' : undefined}>
+        {lead}
+      </Text>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={REFRESH_RETRY_LABEL}

@@ -404,6 +404,25 @@ function cashBalance(): Balance {
   };
 }
 
+test('the assets title stays visible while the page is loading', async ({ page }) => {
+  const held: Route[] = [];
+  await installApi(page, { weights: [] });
+  await installAssets(page, { holdings: [], events: [] });
+  await page.route('**/rest/v1/asset_accounts*', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+    held.push(route);
+  });
+  await openAssets(page);
+  await expect(page.getByRole('heading', { name: '总资产' })).toBeVisible();
+  await expect(page.locator('[role="status"]')).toHaveText('正在加载资产');
+  await expect(page.getByRole('heading', { name: '总资产' })).toBeVisible();
+  await expect(page.getByText('还没有账户')).toHaveCount(0);
+  await Promise.all(held.map((route) => route.abort().catch(() => undefined)));
+});
+
 async function openAssets(page: Page): Promise<void> {
   await page.goto('/');
   await page.evaluate((stored) => {
@@ -768,9 +787,20 @@ test('a failed quotes refresh shows the cached time and not a balance total', as
       },
     },
   );
+  let quotePosts = 0;
+  page.on('request', (request) => {
+    if (request.url().includes('/functions/v1/quotes') && request.method() === 'POST') quotePosts += 1;
+  });
   await page.goto('/assets');
-  await expect(page.getByText(/更新失败 · 行情更新于 \d{2}:\d{2}/)).toBeVisible();
-  await expect(page.getByRole('button', { name: '重试' })).toHaveCount(0);
+  await expect(page.getByText(/更新失败 · 行情更新于 \d{2}:\d{2} · 重试/)).toBeVisible();
+  const failure = page.getByText(/更新失败 · 行情更新于 \d{2}:\d{2} · $/);
+  await expect(failure).toHaveCSS('color', hexColor(lightColor.warning));
+  const retry = page.getByRole('button', { name: '重试' });
+  await expect(retry.getByText('重试', { exact: true })).toHaveCSS('color', hexColor(lightColor.accentText));
+  const seen = quotePosts;
+  expect(seen).toBeGreaterThan(0);
+  await retry.click();
+  await expect.poll(() => quotePosts).toBeGreaterThan(seen);
   await expect(page.getByText(quoteMissReason)).toHaveCount(0);
   await expect(page.getByText(quoteMissLine)).toHaveCount(0);
   const text = await page.locator('body').innerText();

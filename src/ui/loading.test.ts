@@ -5,6 +5,7 @@ import { afterEach, expect, jest, test } from '@jest/globals';
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
+import { formatQuoteClock } from '@/core/quote-label';
 import { PULSE_DURATION_MS } from '@/lib/timing';
 
 import { lockedButtonMinWidth, nextMeasuredWidth, visibleButtonLabel, Button } from './Button';
@@ -14,7 +15,6 @@ import {
   REFRESH_RETRY_LABEL,
   REFRESHING_TEXT,
   RefreshStatus,
-  formatRefreshClock,
   refreshFailedText,
 } from './RefreshStatus';
 import { resetSkeletonPulseForTests, SKELETON_PULSE_LOW, SKELETON_REDUCED_OPACITY, skeletonHiddenProps, Skeleton, SkeletonText } from './Skeleton';
@@ -469,13 +469,13 @@ test('skeletons use the skeleton token, hide from assistive tech, and stay still
 
 test('refresh status copies the three states and only announces a failure', () => {
   const retry = jest.fn();
-  const refreshing = mount(createElement(RefreshStatus, { status: 'refreshing', onRetry: retry }));
+  const refreshing = mount(createElement(RefreshStatus, { status: 'refreshing', onRetry: retry, timeZone: 'UTC' }));
   expect(refreshing.textContent).toBe(REFRESHING_TEXT);
   expect(host().__announcements).toEqual([]);
 
   Platform.OS = 'ios';
   const failed = mount(
-    createElement(RefreshStatus, { status: 'failed', onRetry: retry, idle: createElement('span', null, '闲置') }),
+    createElement(RefreshStatus, { status: 'failed', onRetry: retry, timeZone: 'UTC', idle: createElement('span', null, '闲置') }),
   );
   expect(failed.textContent).toContain(REFRESH_FAILED_TEXT);
   expect(failed.textContent).toContain(REFRESH_RETRY_LABEL);
@@ -483,22 +483,51 @@ test('refresh status copies the three states and only announces a failure', () =
   expect(markup(failed)).toContain('role="button"');
   expect(host().__announcements).toEqual([REFRESH_FAILED_TEXT]);
 
-  const idle = mount(createElement(RefreshStatus, { status: 'idle', onRetry: retry, idle: createElement('span', null, '闲置') }));
+  const idle = mount(
+    createElement(RefreshStatus, { status: 'idle', onRetry: retry, timeZone: 'UTC', idle: createElement('span', null, '闲置') }),
+  );
   expect(idle.textContent).toBe('闲置');
 
   const cachedAt = '2026-01-15T00:30:00.000Z';
-  const clock = formatRefreshClock(cachedAt);
-  const date = new Date(cachedAt);
-  expect(clock).toBe(`${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`);
-  const cached = mount(createElement(RefreshStatus, { status: 'failed', onRetry: retry, cachedAt }));
-  expect(cached.textContent).toBe(refreshFailedText(cachedAt));
-  expect(cached.textContent).toBe(`更新失败 · 行情更新于 ${clock}`);
-  expect(cached.textContent).not.toContain(REFRESH_RETRY_LABEL);
-  const plain = mount(createElement(RefreshStatus, { status: 'failed', onRetry: retry }));
+  const zone = 'Asia/Singapore';
+  const clock = formatQuoteClock(cachedAt, zone);
+  expect(clock).toBe('08:30');
+  expect(refreshFailedText(cachedAt, 'UTC')).toBe('更新失败 · 行情更新于 00:30 · 重试');
+  const cached = mount(createElement(RefreshStatus, { status: 'failed', onRetry: retry, cachedAt, timeZone: zone }));
+  expect(cached.textContent).toBe(refreshFailedText(cachedAt, zone));
+  expect(cached.textContent).toBe(`更新失败 · 行情更新于 ${clock} · 重试`);
+  const cachedLead = findText(cached, `更新失败 · 行情更新于 ${clock} · `);
+  expect(textColor(cachedLead as HTMLElement).replace(/\s/g, '')).toContain('138,90,18');
+  const cachedRetry = findRole(cached, 'button');
+  expect(cachedRetry?.textContent).toBe(REFRESH_RETRY_LABEL);
+  expect(textColor(cachedRetry as HTMLElement).replace(/\s/g, '')).toContain('148,74,52');
+  act(() => {
+    cachedRetry?.dispatchEvent(clickEvent(cachedRetry));
+  });
+  expect(retry).toHaveBeenCalledTimes(1);
+  const plain = mount(createElement(RefreshStatus, { status: 'failed', onRetry: retry, timeZone: 'UTC' }));
   const retryText = findRole(plain, 'button');
   expect(retryText?.textContent).toBe(REFRESH_RETRY_LABEL);
   expect(textColor(retryText as HTMLElement).replace(/\s/g, '')).toContain('148,74,52');
 });
+
+function findText(node: ParentNode, text: string): HTMLElement | null {
+  const walk = (current: Node): HTMLElement | null => {
+    if (current.nodeType !== 1) return null;
+    const element = current as HTMLElement;
+    if (element.textContent === text) return element;
+    for (const child of element.childNodes) {
+      const found = walk(child);
+      if (found) return found;
+    }
+    return null;
+  };
+  for (const child of node.childNodes) {
+    const found = walk(child);
+    if (found) return found;
+  }
+  return null;
+}
 
 function findRole(node: ParentNode, role: string): HTMLElement | null {
   const walk = (current: Node): HTMLElement | null => {

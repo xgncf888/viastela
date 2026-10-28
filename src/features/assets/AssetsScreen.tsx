@@ -236,6 +236,7 @@ export function AssetsScreen() {
   return (
     <Screen>
       <Content width="wide" inset={inset}>
+        <ScreenHeader kicker="资产" title="总资产" />
         <LoadingRegion
           name="资产"
           loading={loading && ready === null}
@@ -248,8 +249,7 @@ export function AssetsScreen() {
             </Stack>
           }
         >
-        <Row justify="between" align="start">
-          <ScreenHeader kicker="资产" title="总资产" />
+        <Row justify="end" align="start">
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={masked ? '显示金额' : '隐藏金额'}
@@ -275,6 +275,7 @@ export function AssetsScreen() {
               onGoal={() => setSheet('goal')}
               refresh={quoteRefresh}
               onRetry={() => void reload()}
+              timeZone={timeZone}
             />
             <Projection
               model={model}
@@ -553,12 +554,14 @@ function Overview({
   onGoal,
   refresh,
   onRetry,
+  timeZone,
 }: {
   model: DashboardModel;
   masked: boolean;
   onGoal: () => void;
   refresh: 'idle' | 'refreshing' | 'failed';
   onRetry: () => void;
+  timeZone: string;
 }) {
   return (
     <Card>
@@ -574,6 +577,7 @@ function Overview({
         status={refresh}
         onRetry={onRetry}
         cachedAt={model.quoteCachedAt}
+        timeZone={timeZone}
         idle={
           model.quoteStatus ? (
             <Text variant="muted" tone={model.quoteStatus.tone === 'warning' ? 'warning' : 'muted'} style={styles.quoteClock}>
