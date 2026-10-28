@@ -10,7 +10,7 @@ export function AverageHeadline({ records, endDay }: { records: readonly WeightR
   return (
     <Card>
       <Text variant="muted">7 日均重</Text>
-      <Text variant={insufficient ? 'heading' : 'display'} tone={insufficient ? 'ink' : 'accent'}>
+      <Text variant={insufficient ? 'heading' : 'display'}>
         {caption.headline}
       </Text>
       <Text variant="muted">{caption.detail}</Text>

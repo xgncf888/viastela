@@ -195,7 +195,7 @@ export function AssetsScreen() {
   if (loading && !ready) {
     return (
       <Screen>
-        <Content inset={inset}>
+        <Content width="wide" inset={inset}>
           <Text variant="body">读取中</Text>
         </Content>
       </Screen>
@@ -204,7 +204,7 @@ export function AssetsScreen() {
 
   return (
     <Screen>
-      <Content inset={inset}>
+      <Content width="wide" inset={inset}>
         <Row justify="between" align="start">
           <ScreenHeader kicker="资产" title="总资产" />
           <Pressable

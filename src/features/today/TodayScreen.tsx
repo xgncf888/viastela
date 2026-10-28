@@ -81,7 +81,7 @@ export function TodayScreen() {
   if (readout.loading) {
     return (
       <Screen>
-        <Content inset={inset}>
+        <Content width="wide" inset={inset}>
           <Text variant="body">{LOADING_TEXT}</Text>
         </Content>
       </Screen>
@@ -90,7 +90,7 @@ export function TodayScreen() {
 
   return (
     <Screen>
-      <Content inset={inset}>
+      <Content width="wide" inset={inset}>
         <ScreenHeader
           kicker="今日"
           title={`${formatMonthDay(accounting)} ${shortWeekday(accounting)}`}
@@ -251,6 +251,7 @@ export function TodayScreen() {
               );
             })
           : null}
+        <Button label="记录" onPress={() => openRecordSheet()} />
       </Content>
     </Screen>
   );
