@@ -37,6 +37,8 @@ export type Palette = {
   warning: string;
   warningSoft: string;
   overlay: string;
+  /** Skeleton blocks sitting on `card`. */
+  skeleton: string;
 };
 
 export const lightColor: Palette = {
@@ -69,6 +71,7 @@ export const lightColor: Palette = {
   warning: '#8A5A12',
   warningSoft: '#FBF3E4',
   overlay: 'rgba(38, 36, 31, 0.42)',
+  skeleton: '#E2DFD5',
 };
 
 export const darkColor: Palette = {
@@ -101,6 +104,7 @@ export const darkColor: Palette = {
   warning: '#E3B26B',
   warningSoft: '#3A3222',
   overlay: 'rgba(0, 0, 0, 0.62)',
+  skeleton: '#363632',
 };
 
 export const theme = {

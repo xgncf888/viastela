@@ -90,6 +90,7 @@ function AccountFields({
       <Button
         label="保存"
         loading={saving}
+        loadingLabel="保存中…"
         onPress={() => {
           const nameError = accountNameError(name);
           if (nameError) {
@@ -173,6 +174,7 @@ function BalanceFields({
       <Button
         label="保存"
         loading={saving}
+        loadingLabel="保存中…"
         onPress={() => {
           const changes: { accountId: string; amount: number; currency: AssetCurrency }[] = [];
           for (const row of rows) {
@@ -299,6 +301,7 @@ function HoldingFields({
       <Button
         label="保存"
         loading={saving}
+        loadingLabel="保存中…"
         onPress={() => {
           const nextSymbol = editing ? (initial?.symbol ?? '') : symbol;
           const symbolMessage = symbolError(nextSymbol);
@@ -389,6 +392,7 @@ function AssumptionFields({
       <Button
         label="保存"
         loading={saving}
+        loadingLabel="保存中…"
         onPress={() => {
           const start = parseAmount(startUsd);
           const net = parseAmount(monthlyNet);
@@ -462,6 +466,7 @@ function GoalFields({
       <Button
         label="保存"
         loading={saving}
+        loadingLabel="保存中…"
         onPress={() => {
           if (!claimSave(savingRef)) return;
           const amount = parseAmount(target);

@@ -302,7 +302,7 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
               }}
             />
           ) : null}
-          <Button label="保存" onPress={() => void onSave()} loading={saving} />
+          <Button label="保存" onPress={() => void onSave()} loading={saving} loadingLabel="保存中…" />
         </Stack>
       ) : type === 'training' ? (
         <Stack gap="md">
@@ -411,12 +411,12 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
             <SetRow key={set.id} title={set.exercise} detail={`${set.reps} 次 · ${formatTrainingLoad(set)}`} />
           ))}
           <Button label="+1 组" variant="secondary" onPress={addAnotherSet} disabled={saving || exerciseSets.length === 0} />
-          <Button label="保存这一组" onPress={() => void onSaveTraining()} loading={saving} />
+          <Button label="保存这一组" onPress={() => void onSaveTraining()} loading={saving} loadingLabel="保存中…" />
           <Button label="完成" variant="ghost" onPress={onFinish} disabled={saving} />
           {finishConfirm ? (
             <Stack gap="sm">
               <Text variant="muted">这一组还没保存</Text>
-              <Button label="保存这一组并完成" onPress={() => void saveAndFinish()} loading={saving} />
+              <Button label="保存这一组并完成" onPress={() => void saveAndFinish()} loading={saving} loadingLabel="保存中…" />
               <Button label="不保存，直接完成" variant="secondary" onPress={closeFinished} disabled={saving} />
             </Stack>
           ) : null}
@@ -493,7 +493,7 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
             placeholder="一句话"
             error={studyField === 'note' ? studyError : null}
           />
-          <Button label="保存" onPress={() => void onSaveStudy()} loading={saving} />
+          <Button label="保存" onPress={() => void onSaveStudy()} loading={saving} loadingLabel="保存中…" />
         </Stack>
       ) : (
         <Stack gap="sm">

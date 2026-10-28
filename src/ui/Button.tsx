@@ -1,11 +1,39 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
 import { Text } from './Text';
 import { theme as baseTheme } from './theme';
-import { useTheme } from './ThemeProvider';
+import { useTheme, type AppTheme } from './ThemeProvider';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type Tone = 'ink' | 'muted' | 'inverse' | 'accent' | 'onAccent' | 'danger' | 'moss' | 'warning';
+
+export function visibleButtonLabel(label: string, loading: boolean, loadingLabel?: string): string {
+  if (loading && loadingLabel) return loadingLabel;
+  return label;
+}
+
+/** Ignore layout ticks while loading so the locked width stays the resting width. */
+export function nextMeasuredWidth(current: number | null, next: number, loading: boolean): number | null {
+  return loading ? current : next;
+}
+
+/** `minWidth` while loading, taken from the width measured before the spinner appeared. */
+export function lockedButtonMinWidth(measured: number | null, loading: boolean): number | null {
+  if (!loading || measured == null) return null;
+  return measured;
+}
+
+function colorForTone(theme: AppTheme, tone: Tone): string {
+  if (tone === 'onAccent') return theme.color.accentInk;
+  if (tone === 'inverse') return theme.color.onToast;
+  if (tone === 'danger') return theme.color.danger;
+  if (tone === 'accent') return theme.color.accentText;
+  if (tone === 'moss') return theme.color.moss;
+  if (tone === 'warning') return theme.color.warning;
+  if (tone === 'muted') return theme.color.muted;
+  return theme.color.ink;
+}
 
 export function Button({
   label,
@@ -14,6 +42,7 @@ export function Button({
   tone,
   disabled = false,
   loading = false,
+  loadingLabel,
   fill = false,
 }: {
   label: string;
@@ -23,12 +52,22 @@ export function Button({
   tone?: 'danger';
   disabled?: boolean;
   loading?: boolean;
+  /** Shown in place of `label` while loading. Omit it to keep the resting label. */
+  loadingLabel?: string;
   /** Stretch to the column so stacked buttons share one width. */
   fill?: boolean;
 }) {
   const theme = useTheme();
   const [hovered, setHovered] = useState(false);
+  const [measured, setMeasured] = useState<number | null>(null);
+  const [seenLoading, setSeenLoading] = useState(loading);
+  const [locked, setLocked] = useState<number | null>(null);
+  if (seenLoading !== loading) {
+    setSeenLoading(loading);
+    setLocked(lockedButtonMinWidth(measured, loading));
+  }
   const inactive = disabled || loading;
+  const visible = visibleButtonLabel(label, loading, loadingLabel);
   const hot = hovered && !inactive;
   const background =
     variant === 'primary'
@@ -46,7 +85,7 @@ export function Button({
               ? theme.color.dangerSoft
               : theme.color.accentSoft
             : 'transparent';
-  const labelTone =
+  const labelTone: Tone =
     variant === 'primary'
       ? 'onAccent'
       : variant === 'danger'
@@ -56,14 +95,25 @@ export function Button({
             ? 'danger'
             : 'accent'
           : 'ink';
+  const spinner = colorForTone(theme, labelTone);
+
+  function onLayout(event: LayoutChangeEvent) {
+    const next = nextMeasuredWidth(measured, event.nativeEvent.layout.width, loading);
+    if (next !== measured) setMeasured(next);
+  }
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={visible}
       accessibilityState={{ disabled: inactive, busy: loading }}
+      aria-busy={loading ? true : undefined}
       disabled={inactive}
-      onPress={onPress}
+      onLayout={onLayout}
+      onPress={() => {
+        if (inactive) return;
+        onPress();
+      }}
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}
       style={({ pressed }) => [
@@ -84,23 +134,25 @@ export function Button({
           : null,
         inactive ? styles.inactive : null,
         fill ? styles.fill : null,
+        locked != null ? { minWidth: locked } : null,
       ]}
     >
       {loading ? (
-        <ActivityIndicator
-          color={
-            variant === 'primary'
-              ? theme.color.accentInk
-              : variant === 'danger'
-                ? theme.color.onToast
-                : tone === 'danger'
-                  ? theme.color.danger
-                  : theme.color.accent
-          }
-        />
+        <View style={styles.content}>
+          <ActivityIndicator
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+            aria-hidden
+            color={spinner}
+            size={theme.space.md}
+          />
+          <Text variant="body" tone={labelTone} style={styles.label}>
+            {visible}
+          </Text>
+        </View>
       ) : (
         <Text variant="body" tone={labelTone} style={styles.label}>
-          {label}
+          {visible}
         </Text>
       )}
     </Pressable>
@@ -117,6 +169,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: baseTheme.space.md,
     paddingVertical: baseTheme.space.sm,
     minWidth: baseTheme.layout.control,
+  },
+  content: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: baseTheme.space.sm,
   },
   label: { fontWeight: '500' },
   inactive: { opacity: 0.55 },

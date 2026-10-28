@@ -71,7 +71,9 @@ export function Text({
   accessibilityState,
   accessibilityElementsHidden,
   importantForAccessibility,
+  accessibilityLiveRegion,
   accessible,
+  role,
   'aria-hidden': ariaHidden,
 }: {
   children: React.ReactNode;
@@ -83,7 +85,9 @@ export function Text({
   accessibilityState?: { disabled?: boolean };
   accessibilityElementsHidden?: boolean;
   importantForAccessibility?: 'auto' | 'yes' | 'no' | 'no-hide-descendants';
+  accessibilityLiveRegion?: 'none' | 'polite' | 'assertive';
   accessible?: boolean;
+  role?: 'status' | 'alert';
   'aria-hidden'?: boolean;
 }) {
   const theme = useTheme();
@@ -105,7 +109,9 @@ export function Text({
       accessibilityState={accessibilityState}
       accessibilityElementsHidden={accessibilityElementsHidden}
       importantForAccessibility={importantForAccessibility}
+      accessibilityLiveRegion={accessibilityLiveRegion}
       accessible={accessible}
+      role={role}
       aria-hidden={ariaHidden}
       maxFontSizeMultiplier={maxFontSizeMultiplierFor(variant)}
       style={[styles.base, variantStyle[variant], { color: toneColor[resolvedTone] }, style]}
