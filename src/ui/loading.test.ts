@@ -8,7 +8,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { PULSE_DURATION_MS } from '@/lib/timing';
 
 import { lockedButtonMinWidth, nextMeasuredWidth, visibleButtonLabel, Button } from './Button';
-import { LoadingRegion } from './LoadingRegion';
+import { LOAD_ERROR_TEXT, LOAD_RETRY_LABEL, LoadingRegion, showLoadError } from './LoadingRegion';
 import { REFRESH_FAILED_TEXT, REFRESH_RETRY_LABEL, REFRESHING_TEXT, RefreshStatus } from './RefreshStatus';
 import { resetSkeletonPulseForTests, SKELETON_PULSE_LOW, SKELETON_REDUCED_OPACITY, skeletonHiddenProps, Skeleton, SkeletonText } from './Skeleton';
 import { darkColor, lightColor } from './theme';
@@ -239,6 +239,106 @@ test('a fast load never mounts the status node past the response', async () => {
   expect(container.textContent).toBe('正文');
   expect(markup(container)).not.toContain('aria-busy');
   expect(markup(container)).not.toContain('role="status"');
+});
+
+test('showLoadError stays off until the caller opts in', () => {
+  const retry = () => undefined;
+  expect(showLoadError(true, undefined, undefined)).toBe(false);
+  expect(showLoadError(false, undefined, undefined)).toBe(false);
+  expect(showLoadError(false, false, undefined)).toBe(false);
+  expect(showLoadError(true, false, undefined)).toBe(false);
+  expect(showLoadError(true, undefined, retry)).toBe(true);
+  expect(showLoadError(false, true, undefined)).toBe(true);
+  expect(showLoadError(false, true, retry)).toBe(true);
+});
+
+test('a timed-out region without error or onRetry keeps the skeleton and the status node', async () => {
+  jest.useFakeTimers({ now: 1_700_000_000_000 });
+  const container = mount(
+    // eslint-disable-next-line react/no-children-prop
+    createElement(LoadingRegion, {
+      name: '今日',
+      loading: true,
+      skeleton: createElement('span', null, '骨架'),
+      children: createElement('span', null, '正文'),
+    }),
+  );
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(1000);
+  });
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(7000);
+  });
+  expect(container.textContent).toContain('骨架');
+  expect(container.textContent).toContain('正在加载今日');
+  expect(container.textContent).not.toContain(LOAD_ERROR_TEXT);
+  expect(markup(container)).toContain('aria-busy="true"');
+  expect(markup(container)).toContain('role="status"');
+});
+
+test('timeout with onRetry, or a passed error, swaps the skeleton for the callout', async () => {
+  jest.useFakeTimers({ now: 1_700_000_000_000 });
+  const retry = jest.fn();
+  const timedOut = mount(
+    // eslint-disable-next-line react/no-children-prop
+    createElement(LoadingRegion, {
+      name: '今日',
+      loading: true,
+      onRetry: retry,
+      skeleton: createElement('span', null, '骨架'),
+      children: createElement('span', null, '正文'),
+    }),
+  );
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(1000);
+  });
+  expect(timedOut.textContent).toContain('骨架');
+  expect(timedOut.textContent).not.toContain(LOAD_ERROR_TEXT);
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(7000);
+  });
+  expect(timedOut.textContent).toContain(LOAD_ERROR_TEXT);
+  expect(timedOut.textContent).toContain(LOAD_RETRY_LABEL);
+  expect(timedOut.textContent).not.toContain('骨架');
+  expect(timedOut.textContent).not.toContain('正在加载今日');
+  expect(timedOut.textContent).not.toContain('正文');
+  expect(markup(timedOut)).not.toContain('aria-busy');
+  expect(markup(timedOut)).not.toContain('role="status"');
+  expect(markup(timedOut)).toContain('role="alert"');
+  expect(markup(timedOut)).toContain('role="button"');
+  expect(host().__announcements).toEqual([]);
+
+  const failed = mount(
+    // eslint-disable-next-line react/no-children-prop
+    createElement(LoadingRegion, {
+      name: '资产',
+      loading: true,
+      error: true,
+      onRetry: retry,
+      skeleton: createElement('span', null, '骨架'),
+      children: createElement('span', null, '正文'),
+    }),
+  );
+  expect(failed.textContent).toContain(LOAD_ERROR_TEXT);
+  expect(failed.textContent).not.toContain('正在加载资产');
+  expect(failed.textContent).not.toContain('骨架');
+  expect(markup(failed)).not.toContain('aria-busy');
+  expect(markup(failed)).not.toContain('role="status"');
+
+  Platform.OS = 'ios';
+  host().__announcements = [];
+  mount(
+    // eslint-disable-next-line react/no-children-prop
+    createElement(LoadingRegion, {
+      name: '资产',
+      loading: true,
+      error: true,
+      onRetry: retry,
+      skeleton: createElement('span', null, '骨架'),
+      children: createElement('span', null, '正文'),
+    }),
+  );
+  expect(host().__announcements).toEqual([LOAD_ERROR_TEXT]);
 });
 
 test('skeletons use the skeleton token, hide from assistive tech, and stay still when motion is reduced', async () => {
