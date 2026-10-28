@@ -1,3 +1,4 @@
+import { maxFontSizeMultiplierFor } from './text-scale';
 import { theme } from './theme';
 
 export type MaskedAmountVariant = 'display' | 'title' | 'heading' | 'body' | 'muted';
@@ -37,11 +38,12 @@ export type MaskedAmountMetrics = {
 /**
  * One slot width per variant. Masked and unmasked text share it, and the
  * width does not change with the number of digits. Tabular figures stay on.
+ * The reserved width includes the same font-scale cap `Text` uses for that variant.
  */
 export function maskedAmountMetrics(_text: string, variant: MaskedAmountVariant): MaskedAmountMetrics {
   const fontSize = FONT_SIZE[variant];
   return {
-    minWidth: SLOT_GLYPHS * fontSize * 0.62,
+    minWidth: SLOT_GLYPHS * fontSize * 0.62 * maxFontSizeMultiplierFor(variant),
     fontVariant: ['tabular-nums'],
   };
 }
