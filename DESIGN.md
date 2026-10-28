@@ -12,6 +12,28 @@ Sources:
 
 `userInterfaceStyle` is `automatic`. The app follows the system scheme. `src/ui/theme.ts` stays free of React Native because `app.config.js` imports it; `ThemeProvider` swaps `lightColor` and `darkColor`.
 
+## §0 组件
+
+Shared pieces for a later finance screen. Screens still take colors and sizes from tokens.
+
+`warning` is `#8A5A12` in light and `#E3B26B` in dark. `warningSoft` is `#FBF3E4` in light and `#3A3222` in dark. `warning` on `warningSoft` is 5.36:1 in light and 6.54:1 in dark. Light `warning` on a white card is 5.91:1 and on `paper` is 5.42:1. Dark `warning` on `card` is 6.83:1 and on `paper` is 9.52:1. Small warning text clears 4.5:1 on those surfaces.
+
+`Text` accepts the tone `warning`, plus `accessibilityLabel` and `accessibilityState`.
+
+`Field` takes `locked`. A locked value is muted and `accessibilityState` disabled. The hint stays under it.
+
+`Callout` `tone="warning"` uses the `warningSoft` wash, `warning` text, and `role="status"`. It is a status, not an alert. `tone="danger"` is unchanged. The two tones do not share a style named `danger`.
+
+`LineChart` still draws the weight chart from `points`, `rawLabel`, and `trendLabel`. A second prop shape is `series`: each item has `id`, `label`, points already scaled from 0 to 1 (`x` and `y`), `style` (`solid`, `dashed`, or `dotted`), `tone` (`accent`, `moss`, `muted`, or `line`), and optional `markers` and `thin`. The chart does not know the domain. The series legend sits below the plot. A dotted series uses a dotted swatch and a dashed series uses a dashed swatch, so the target line is not told apart by color alone.
+
+`ProgressBar` takes `value` from 0 to 1. The fill is `accent` and the track is `fill`. `masked` draws the track only and the accessible name is `已隐藏金额`.
+
+`MaskedAmount` shows the formatted text, or `••••`. While masked, the real figure is not in the tree. The dots are hidden from assistive tech (`aria-hidden` on web, `importantForAccessibility="no-hide-descendants"` and `accessibilityElementsHidden` on native). A visually clipped text node reads `已隐藏金额`, including when this amount sits inside another `Text`. Digits use tabular figures. Each variant has one fixed slot width, shared by the masked and unmasked states, so the width does not reveal how many digits the amount has and does not jump when the mask toggles. 等宽数字，遮罩前后宽度不跳.
+
+`TimelineItem` is one row: a 24px `fill` dot, a title, an optional detail (a string or any node, including a masked amount), and a muted `HH:mm` clock in tabular figures.
+
+`Callout` warning and danger share a neutrally named layout style. The warning wash is `warningSoft`, not the danger style, so a later change to the danger treatment does not recolor the warning.
+
 ## Color
 
 Body text meets WCAG AA (4.5:1). The clay fill `#CC785C` is for buttons, chart dots, and the large display figure only. On a white card it is about 3.3:1, which passes for large text (the 40px figure) and for non-text marks. It does not pass for small text, so small accent copy uses `accentText`.

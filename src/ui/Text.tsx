@@ -1,10 +1,16 @@
-import { Text as NativeText, Platform, StyleSheet, type StyleProp, type TextStyle } from 'react-native';
+import {
+  Text as NativeText,
+  Platform,
+  StyleSheet,
+  type StyleProp,
+  type TextStyle,
+} from 'react-native';
 
 import { theme as baseTheme } from './theme';
 import { useTheme } from './ThemeProvider';
 
 type Variant = 'display' | 'title' | 'heading' | 'body' | 'muted';
-type Tone = 'ink' | 'muted' | 'inverse' | 'accent' | 'onAccent' | 'danger' | 'moss';
+type Tone = 'ink' | 'muted' | 'inverse' | 'accent' | 'onAccent' | 'danger' | 'moss' | 'warning';
 
 const variantStyle: Record<Variant, TextStyle> = {
   display: {
@@ -42,12 +48,24 @@ export function Text({
   tone,
   style,
   accessibilityRole,
+  accessibilityLabel,
+  accessibilityState,
+  accessibilityElementsHidden,
+  importantForAccessibility,
+  accessible,
+  'aria-hidden': ariaHidden,
 }: {
   children: React.ReactNode;
   variant?: Variant;
   tone?: Tone;
   style?: StyleProp<TextStyle>;
   accessibilityRole?: 'header' | 'text';
+  accessibilityLabel?: string;
+  accessibilityState?: { disabled?: boolean };
+  accessibilityElementsHidden?: boolean;
+  importantForAccessibility?: 'auto' | 'yes' | 'no' | 'no-hide-descendants';
+  accessible?: boolean;
+  'aria-hidden'?: boolean;
 }) {
   const theme = useTheme();
   const resolvedTone = tone ?? (variant === 'muted' ? 'muted' : 'ink');
@@ -60,10 +78,17 @@ export function Text({
     onAccent: theme.color.accentInk,
     danger: theme.color.danger,
     moss: theme.color.moss,
+    warning: theme.color.warning,
   };
   return (
     <NativeText
       accessibilityRole={accessibilityRole}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={accessibilityState}
+      accessibilityElementsHidden={accessibilityElementsHidden}
+      importantForAccessibility={importantForAccessibility}
+      accessible={accessible}
+      aria-hidden={ariaHidden}
       style={[
         styles.base,
         variantStyle[variant],
