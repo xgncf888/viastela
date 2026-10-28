@@ -146,7 +146,7 @@ begin
 end;
 $$;
 
-select plan(67);
+select plan(81);
 
 do $$
 declare
@@ -264,6 +264,33 @@ select lives_ok(
     )
   $$,
   'user A can insert a study record'
+);
+
+select lives_ok(
+  $$
+    insert into public.journal_entries (id, body, entry_day, tz)
+    values (
+      'e2e2e2e2-e2e2-42e2-82e2-e2e2e2e2e201',
+      '100',
+      (now() at time zone 'Asia/Singapore')::date,
+      'Asia/Singapore'
+    )
+  $$,
+  'user A can insert a journal entry'
+);
+
+select lives_ok(
+  $$
+    insert into public.push_subscriptions (id, endpoint, p256dh, auth, tz)
+    values (
+      'f2f2f2f2-f2f2-42f2-82f2-f2f2f2f2f201',
+      'https://push.example.test/1001',
+      'k1001',
+      's1001',
+      'Asia/Singapore'
+    )
+  $$,
+  'user A can insert a push subscription'
 );
 
 select lives_ok(
@@ -402,6 +429,33 @@ select lives_ok(
 
 select lives_ok(
   $$
+    insert into public.journal_entries (id, body, entry_day, tz)
+    values (
+      'e2e2e2e2-e2e2-42e2-82e2-e2e2e2e2e202',
+      '100',
+      (now() at time zone 'Asia/Singapore')::date,
+      'Asia/Singapore'
+    )
+  $$,
+  'user B can insert a journal entry'
+);
+
+select lives_ok(
+  $$
+    insert into public.push_subscriptions (id, endpoint, p256dh, auth, tz)
+    values (
+      'f2f2f2f2-f2f2-42f2-82f2-f2f2f2f2f202',
+      'https://push.example.test/1002',
+      'k1002',
+      's1002',
+      'Asia/Singapore'
+    )
+  $$,
+  'user B can insert a push subscription'
+);
+
+select lives_ok(
+  $$
     insert into public.asset_accounts (id, name, currency)
     values ('dddddddd-dddd-4ddd-8ddd-ddddddddddd1', 'Cash', 'HKD')
   $$,
@@ -470,6 +524,16 @@ select lives_ok(
 
 reset role;
 
+select lives_ok(
+  $$
+    insert into public.reminder_deliveries (subscription_id, kind, local_day)
+    values
+      ('f2f2f2f2-f2f2-42f2-82f2-f2f2f2f2f201', 'training', date '2026-10-27'),
+      ('f2f2f2f2-f2f2-42f2-82f2-f2f2f2f2f202', 'month_end', date '2026-10-27')
+  $$,
+  'both users have a reminder delivery before delete'
+);
+
 select isnt(
   tests.public_user_id_residue(current_setting('tests.user_a')::uuid),
   '',
@@ -498,6 +562,28 @@ select is(
   (select count(*) from public.study_records where user_id = current_setting('tests.user_a')::uuid),
   1::bigint,
   'user A study record exists before delete'
+);
+
+select is(
+  (select count(*) from public.journal_entries where user_id = current_setting('tests.user_a')::uuid),
+  1::bigint,
+  'user A journal entry exists before delete'
+);
+
+select is(
+  (select count(*) from public.push_subscriptions where user_id = current_setting('tests.user_a')::uuid),
+  1::bigint,
+  'user A push subscription exists before delete'
+);
+
+select is(
+  (
+    select count(*)
+    from public.reminder_deliveries
+    where subscription_id = 'f2f2f2f2-f2f2-42f2-82f2-f2f2f2f2f201'
+  ),
+  1::bigint,
+  'user A reminder delivery exists before delete'
 );
 
 select is(
@@ -578,6 +664,28 @@ select is(
 );
 
 select is(
+  (select count(*) from public.journal_entries where user_id = current_setting('tests.user_a')::uuid),
+  0::bigint,
+  'deleted user journal entries are gone'
+);
+
+select is(
+  (select count(*) from public.push_subscriptions where user_id = current_setting('tests.user_a')::uuid),
+  0::bigint,
+  'deleted user push subscriptions are gone'
+);
+
+select is(
+  (
+    select count(*)
+    from public.reminder_deliveries
+    where subscription_id = 'f2f2f2f2-f2f2-42f2-82f2-f2f2f2f2f201'
+  ),
+  0::bigint,
+  'deleted user reminder deliveries are gone'
+);
+
+select is(
   (select count(*) from public.asset_accounts where user_id = current_setting('tests.user_a')::uuid),
   0::bigint,
   'deleted user asset accounts are gone'
@@ -653,6 +761,28 @@ select is(
   (select count(*) from public.study_records where user_id = current_setting('tests.user_b')::uuid),
   1::bigint,
   'the other user study row remains'
+);
+
+select is(
+  (select count(*) from public.journal_entries where user_id = current_setting('tests.user_b')::uuid),
+  1::bigint,
+  'the other user journal entry remains'
+);
+
+select is(
+  (select count(*) from public.push_subscriptions where user_id = current_setting('tests.user_b')::uuid),
+  1::bigint,
+  'the other user push subscription remains'
+);
+
+select is(
+  (
+    select count(*)
+    from public.reminder_deliveries
+    where subscription_id = 'f2f2f2f2-f2f2-42f2-82f2-f2f2f2f2f202'
+  ),
+  1::bigint,
+  'the other user reminder delivery remains'
 );
 
 select is(

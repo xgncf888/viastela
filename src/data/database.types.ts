@@ -200,6 +200,46 @@ export type Database = {
           },
         ];
       };
+      journal_entries: {
+        Row: {
+          body: string;
+          created_at: string;
+          deleted_at: string | null;
+          entry_day: string;
+          id: string;
+          mood: number | null;
+          tags: string[];
+          tz: string;
+          updated_at: string;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          body: string;
+          created_at?: string;
+          deleted_at?: string | null;
+          entry_day: string;
+          id: string;
+          mood?: number | null;
+          tags?: string[];
+          tz: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          body?: string;
+          created_at?: string;
+          deleted_at?: string | null;
+          entry_day?: string;
+          id?: string;
+          mood?: number | null;
+          tags?: string[];
+          tz?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       net_worth_goals: {
         Row: {
           created_at: string;
@@ -327,6 +367,58 @@ export type Database = {
         };
         Relationships: [];
       };
+      push_subscriptions: {
+        Row: {
+          auth: string;
+          created_at: string;
+          deleted_at: string | null;
+          endpoint: string;
+          id: string;
+          month_end_enabled: boolean;
+          month_end_time: string;
+          p256dh: string;
+          training_days: number[];
+          training_enabled: boolean;
+          training_time: string;
+          tz: string;
+          updated_at: string;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          auth: string;
+          created_at?: string;
+          deleted_at?: string | null;
+          endpoint: string;
+          id: string;
+          month_end_enabled?: boolean;
+          month_end_time?: string;
+          p256dh: string;
+          training_days?: number[];
+          training_enabled?: boolean;
+          training_time?: string;
+          tz: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          auth?: string;
+          created_at?: string;
+          deleted_at?: string | null;
+          endpoint?: string;
+          id?: string;
+          month_end_enabled?: boolean;
+          month_end_time?: string;
+          p256dh?: string;
+          training_days?: number[];
+          training_enabled?: boolean;
+          training_time?: string;
+          tz?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       quote_cache: {
         Row: {
           as_of: string;
@@ -345,6 +437,39 @@ export type Database = {
           symbol?: string;
         };
         Relationships: [];
+      };
+      reminder_deliveries: {
+        Row: {
+          id: string;
+          kind: string;
+          local_day: string;
+          sent_at: string;
+          subscription_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          id?: string;
+          kind: string;
+          local_day: string;
+          sent_at?: string;
+          subscription_id: string;
+        };
+        Update: {
+          id?: string;
+          kind?: string;
+          local_day?: string;
+          sent_at?: string;
+          subscription_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "reminder_deliveries_subscription_id_fkey";
+            columns: ["subscription_id"];
+            isOneToOne: false;
+            referencedRelation: "push_subscriptions";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       study_records: {
         Row: {
@@ -471,7 +596,18 @@ export type Database = {
       };
     };
     Views: {
-      [_ in never]: never;
+      timeline: {
+        Row: {
+          id: string | null;
+          kind: string | null;
+          local_day: string | null;
+          occurred_at: string | null;
+          payload: Json | null;
+          ref_id: string | null;
+        };
+        ComputedFields: never;
+        Relationships: [];
+      };
     };
     Functions: {
       [_ in never]: never;
