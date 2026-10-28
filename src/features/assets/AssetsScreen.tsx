@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
+import { Platform, Pressable, StyleSheet } from 'react-native';
 
 import { assetSaveNotice } from '@/core/asset-errors';
 import { deletedAccountUndo } from '@/core/asset-form';
@@ -67,6 +67,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { LineChart } from '@/ui/LineChart';
 import { Callout, Row, ScreenHeader, Stack } from '@/ui/layout';
 import { MaskedAmount } from '@/ui/MaskedAmount';
+import { nativeAmountRowLabel } from '@/ui/masked-amount';
 import { ProgressBar } from '@/ui/ProgressBar';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
@@ -249,7 +250,21 @@ export function AssetsScreen() {
                 const balance = latestBalance(portfolio?.balances ?? [], account.id);
                 const blocked = (portfolio?.holdings ?? []).some((holding) => holding.accountId === account.id);
                 return (
-                  <Stack key={account.id} gap="xs">
+                  <Stack
+                    key={account.id}
+                    gap="xs"
+                    accessibilityLabel={nativeAmountRowLabel(
+                      [
+                        account.name,
+                        ' ',
+                        {
+                          text: balance ? formatMoney(balance.amount, account.currency) : '暂无价格',
+                          masked: masked && Boolean(balance),
+                        },
+                      ],
+                      Platform.OS,
+                    )}
+                  >
                     <Row justify="between">
                       <Text variant="body">{account.name}</Text>
                       <Button label="更新余额" variant="ghost" onPress={() => setSheet({ kind: 'balance', accountId: account.id })} />
@@ -260,7 +275,13 @@ export function AssetsScreen() {
                       variant="heading"
                     />
                     {balance && account.currency !== 'USD' && model.approx.get(account.id) != null ? (
-                      <Text variant="muted">
+                      <Text
+                        variant="muted"
+                        accessibilityLabel={nativeAmountRowLabel(
+                          ['≈ ', { text: formatMoney(model.approx.get(account.id) ?? 0, 'USD'), masked }],
+                          Platform.OS,
+                        )}
+                      >
                         ≈{' '}
                         <MaskedAmount text={formatMoney(model.approx.get(account.id) ?? 0, 'USD')} masked={masked} variant="muted" />
                       </Text>
@@ -324,7 +345,13 @@ export function AssetsScreen() {
                         />
                       </Row>
                     </Row>
-                    <Text variant="muted">
+                    <Text
+                      variant="muted"
+                      accessibilityLabel={nativeAmountRowLabel(
+                        [{ text: `${formatShares(holding.quantity)} 股`, masked }],
+                        Platform.OS,
+                      )}
+                    >
                       <MaskedAmount text={`${formatShares(holding.quantity)} 股`} masked={masked} variant="muted" />
                     </Text>
                     {priced ? (
@@ -336,7 +363,13 @@ export function AssetsScreen() {
                       {priced?.label.text ?? '暂无价格'}
                     </Text>
                     {priced && holding.costBasisUsd !== null ? (
-                      <Text variant="muted">
+                      <Text
+                        variant="muted"
+                        accessibilityLabel={nativeAmountRowLabel(
+                          ['盈亏 ', { text: formatMoney(priced.value - holding.costBasisUsd, 'USD'), masked }],
+                          Platform.OS,
+                        )}
+                      >
                         盈亏 <MaskedAmount text={formatMoney(priced.value - holding.costBasisUsd, 'USD')} masked={masked} variant="muted" />
                       </Text>
                     ) : null}
@@ -354,6 +387,9 @@ export function AssetsScreen() {
                   title={item.title}
                   time={item.time}
                   detail={item.detail ? <MaskedAmount text={item.detail} masked={masked} variant="muted" /> : undefined}
+                  accessibilityLabel={
+                    item.detail ? nativeAmountRowLabel([item.title, ' ', { text: item.detail, masked }], Platform.OS) : undefined
+                  }
                 />
               ))}
             </Card>
@@ -487,7 +523,13 @@ function Overview({
       {model.hasGoal ? (
         <>
           <ProgressBar value={model.progress} masked={masked || model.totalText === null} />
-          <Text variant="muted">
+          <Text
+            variant="muted"
+            accessibilityLabel={nativeAmountRowLabel(
+              ['目标进度 ', { text: model.progressText, masked: masked || model.totalText === null }],
+              Platform.OS,
+            )}
+          >
             目标进度 <MaskedAmount text={model.progressText} masked={masked || model.totalText === null} variant="muted" />
           </Text>
           <Button label="调整目标" variant="ghost" onPress={onGoal} />
@@ -566,8 +608,15 @@ function Conclusion({ sentence, masked }: { sentence: ProjectionSentence | null;
   if (sentence.kind === 'already') return <Text variant="body">已达成</Text>;
   if (sentence.kind === 'unreachable') return <Text variant="body">{sentence.text}</Text>;
   const direction = sentence.ahead ? '超前' : '落后';
+  const pieces = [
+    `按 ${sentence.ratePercent}% 年化，预计 ${sentence.monthLabel}达到 `,
+    { text: sentence.targetText, masked },
+    ...(sentence.gapText
+      ? [`，比计划${direction} `, { text: sentence.gapText, masked }, sentence.monthsLabel ? `，${sentence.monthsLabel}` : '']
+      : []),
+  ];
   return (
-    <Text variant="body">
+    <Text variant="body" accessibilityLabel={nativeAmountRowLabel(pieces, Platform.OS)}>
       {`按 ${sentence.ratePercent}% 年化，预计 ${sentence.monthLabel}达到 `}
       <MaskedAmount text={sentence.targetText} masked={masked} />
       {sentence.gapText ? (

@@ -28,7 +28,7 @@ Shared pieces for a later finance screen. Screens still take colors and sizes fr
 
 `ProgressBar` takes `value` from 0 to 1. The fill is `accent` and the track is `fill`. `masked` draws the track only and the accessible name is `已隐藏金额`.
 
-`MaskedAmount` shows the formatted text, or `••••`. While masked, the real figure is not in the tree. The dots are hidden from assistive tech (`aria-hidden` on web, `importantForAccessibility="no-hide-descendants"` and `accessibilityElementsHidden` on native). A visually clipped text node reads `已隐藏金额`, including when this amount sits inside another `Text`. Digits use tabular figures. Each variant has one fixed slot width, shared by the masked and unmasked states, so the width does not reveal how many digits the amount has and does not jump when the mask toggles. 等宽数字，遮罩前后宽度不跳.
+`MaskedAmount` shows the formatted text, or `••••`. While masked, the real figure is not in the tree. On web the dots are `aria-hidden` and a clipped text node reads `已隐藏金额`. On iOS and Android the amount is one `Text` whose `accessibilityLabel` is `已隐藏金额` and whose only visible characters are the dots. A row that nests an amount puts that same phrase in the outer row's `accessibilityLabel`, because a nested `Text` cannot hide or label itself. Digits use tabular figures. Each variant has one fixed slot width, shared by the masked and unmasked states, so the width does not reveal how many digits the amount has and does not jump when the mask toggles. 等宽数字，遮罩前后宽度不跳.
 
 `TimelineItem` is one row: a 24px `fill` dot, a title, an optional detail (a string or any node, including a masked amount), and a muted `HH:mm` clock in tabular figures.
 
