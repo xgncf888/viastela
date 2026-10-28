@@ -1,4 +1,5 @@
 import { classifyQuoteFailure, planQuoteLoad, type QuoteFailureKind } from '@/core/quote-load';
+import { QUOTES_TIMEOUT_MS } from '@/lib/timing';
 
 import { getSupabase } from './client';
 import {
@@ -87,17 +88,77 @@ export async function describeQuoteError(
   return { network: true, status: null, body: null };
 }
 
+export type QuoteInvokeResult = { data: unknown; error: unknown };
+
+type QuoteInvoke = (tz: string, signal: AbortSignal | undefined) => Promise<QuoteInvokeResult>;
+
+let quoteInvokeOverride: QuoteInvoke | null = null;
+
+/** Tests replace the Edge Function call. Production uses `functions.invoke`. */
+export function setQuoteInvokeForTests(invoke: QuoteInvoke | null): void {
+  quoteInvokeOverride = invoke;
+}
+
+/** Timeout and abort are the same outcome as quotes being unavailable. */
+export function isQuoteTimeout(error: unknown, seen = new Set<unknown>()): boolean {
+  if (!error || typeof error !== 'object') return false;
+  if (seen.has(error)) return false;
+  seen.add(error);
+  const name = 'name' in error ? (error as { name?: unknown }).name : undefined;
+  if (name === 'TimeoutError' || name === 'AbortError') return true;
+  if ('context' in error && isQuoteTimeout((error as { context?: unknown }).context, seen)) return true;
+  if ('cause' in error && isQuoteTimeout((error as { cause?: unknown }).cause, seen)) return true;
+  return false;
+}
+
+/**
+ * Passes `AbortSignal.timeout` when the runtime and `functions.invoke` support
+ * `signal`. Otherwise the call races a timer so it cannot spin forever.
+ */
+export async function settleQuoteInvoke(
+  ms: number,
+  run: QuoteInvoke,
+  tz: string,
+  useSignal = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function',
+): Promise<QuoteInvokeResult> {
+  if (useSignal) return run(tz, AbortSignal.timeout(ms));
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      run(tz, undefined),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new DOMException('The operation was aborted due to timeout', 'TimeoutError'));
+        }, ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function invokeQuotes(tz: string): Promise<QuoteInvokeResult> {
+  const run: QuoteInvoke = (zone, signal) => {
+    if (quoteInvokeOverride) return quoteInvokeOverride(zone, signal);
+    const options: { body: { tz: string }; signal?: AbortSignal } = { body: { tz: zone } };
+    if (signal) options.signal = signal;
+    return getSupabase().functions.invoke('quotes', options);
+  };
+  return settleQuoteInvoke(QUOTES_TIMEOUT_MS, run, tz);
+}
+
 /** Asks the quotes function for the caller's book. Does not touch the device cache. */
 export async function requestQuotes(tz: string): Promise<CachedQuoteBook> {
   let data: unknown;
   let error: unknown;
   try {
-    const result = await getSupabase().functions.invoke('quotes', { body: { tz } });
+    const result = await invokeQuotes(tz);
     data = result.data;
     error = result.error;
-  } catch {
-    throw new QuoteRequestError('network');
+  } catch (caught) {
+    throw new QuoteRequestError(isQuoteTimeout(caught) ? 'timeout' : 'network');
   }
+  if (isQuoteTimeout(error)) throw new QuoteRequestError('timeout');
   if (error) {
     const described = await describeQuoteError(error, data);
     throw new QuoteRequestError(classifyQuoteFailure(described));
@@ -111,17 +172,20 @@ export async function requestQuotes(tz: string): Promise<CachedQuoteBook> {
  * Successful responses replace the device cache.
  * 502 `quote_unavailable`, `fx_unavailable`, and network errors keep the previous book and do not write.
  */
-export async function loadQuoteBook(userId: string, tz: string): Promise<{ book: CachedQuoteBook | null; degraded: boolean }> {
+export async function loadQuoteBook(
+  userId: string,
+  tz: string,
+): Promise<{ book: CachedQuoteBook | null; degraded: boolean; failure: QuoteFailureKind | null }> {
   try {
     const live = await requestQuotes(tz);
     const plan = planQuoteLoad({ failure: null, live, cached: null });
     if (plan.persist && plan.book) await writeCachedQuoteBook(userId, plan.book);
-    return { book: plan.book, degraded: plan.degraded };
+    return { book: plan.book, degraded: plan.degraded, failure: null };
   } catch (error) {
     const kind = error instanceof QuoteRequestError ? error.kind : 'network';
     const cached = await readCachedQuoteBook(userId);
     const plan = planQuoteLoad({ failure: kind, live: null, cached });
-    return { book: plan.book, degraded: plan.degraded };
+    return { book: plan.book, degraded: plan.degraded, failure: kind };
   }
 }
 

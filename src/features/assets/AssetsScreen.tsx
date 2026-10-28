@@ -6,11 +6,13 @@ import { deletedAccountUndo } from '@/core/asset-form';
 import { dashboardTotalUsd } from '@/core/asset-summary';
 import { balanceAfterUsd, balanceUsdRate } from '@/core/balance-write';
 import { createId } from '@/core/id';
+import { createResultSequence } from '@/core/latest-result';
 import { civilLocalDay, computeLocalDay } from '@/core/local-day';
 import { formatMoney, formatShares } from '@/core/money-format';
 import { projectNetWorthLines } from '@/core/projection';
 import { projectionChart } from '@/core/projection-chart';
 import {
+  MASKED_PROGRESS_HINT,
   NO_GOAL_BUTTON_LABEL,
   NO_GOAL_BUTTON_VARIANT,
   NO_GOAL_HINT,
@@ -21,11 +23,14 @@ import {
 import {
   COST_BASIS_CALLOUT,
   OFFLINE_QUOTE_CALLOUT,
+  cachedQuoteAsOf,
   formatQuoteClock,
+  quoteFailurePresentation,
   quoteSetStatus,
   quoteStatusLabel,
   unpricedHoldingsMessage,
 } from '@/core/quote-label';
+import type { QuoteFailureKind } from '@/core/quote-load';
 import {
   insertAccount,
   insertBalance,
@@ -94,6 +99,7 @@ type Ready = {
   portfolio: Portfolio;
   book: CachedQuoteBook | null;
   degraded: boolean;
+  quoteFailure: QuoteFailureKind | null;
   masked: boolean;
 };
 
@@ -110,6 +116,8 @@ export function AssetsScreen() {
   >(null);
   const userId = session?.userId ?? null;
   const reloadRef = useRef<() => Promise<void>>(async () => undefined);
+  const loads = useRef(createResultSequence());
+  const mounted = useRef(true);
 
   const fetchReady = useCallback(async () => {
     if (!userId) return null;
@@ -128,22 +136,32 @@ export function AssetsScreen() {
       portfolio: { accounts, balances, holdings, goal, assumptions, snapshots, events },
       book: quotes.book,
       degraded: quotes.degraded,
+      quoteFailure: quotes.failure,
       masked,
     };
   }, [timeZone, userId]);
 
   const reload = useCallback(async () => {
+    const token = loads.current.next();
     try {
       const next = await fetchReady();
-      if (!next) return;
+      if (!mounted.current || !loads.current.isCurrent(token) || !next) return;
       setReady(next);
       setFailed(false);
       setLoading(false);
     } catch {
+      if (!mounted.current || !loads.current.isCurrent(token)) return;
       setFailed(true);
       setLoading(false);
     }
   }, [fetchReady]);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     reloadRef.current = reload;
@@ -151,15 +169,16 @@ export function AssetsScreen() {
 
   useEffect(() => {
     let cancelled = false;
+    const token = loads.current.next();
     void fetchReady().then(
       (next) => {
-        if (cancelled || !next) return;
+        if (cancelled || !mounted.current || !loads.current.isCurrent(token) || !next) return;
         setReady(next);
         setFailed(false);
         setLoading(false);
       },
       () => {
-        if (cancelled) return;
+        if (cancelled || !mounted.current || !loads.current.isCurrent(token)) return;
         setFailed(true);
         setLoading(false);
       },
@@ -181,6 +200,7 @@ export function AssetsScreen() {
   }
 
   const degraded = ready?.degraded ?? false;
+  const quoteFailure = ready?.quoteFailure ?? null;
   const model = useMemo(() => {
     if (!portfolio) return null;
     return buildModel({
@@ -189,8 +209,9 @@ export function AssetsScreen() {
       timeZone,
       pending,
       degraded,
+      failure: quoteFailure,
     });
-  }, [book, degraded, pending, portfolio, timeZone]);
+  }, [book, degraded, pending, portfolio, quoteFailure, timeZone]);
 
   if (loading && !ready) {
     return (
@@ -219,7 +240,7 @@ export function AssetsScreen() {
         {failed && !ready ? (
           <Callout message="读取失败，请重试" action={<Button label="重试" variant="secondary" onPress={() => void reload()} />} />
         ) : null}
-        {ready?.degraded ? <Callout tone="warning" message={OFFLINE_QUOTE_CALLOUT} /> : null}
+        {ready?.degraded && book ? <Callout tone="warning" message={OFFLINE_QUOTE_CALLOUT} /> : null}
         {book?.source === 'cost_basis' ? <Callout tone="warning" message={COST_BASIS_CALLOUT} /> : null}
         {visibleAccounts.length === 0 ? (
           <EmptyState
@@ -356,11 +377,13 @@ export function AssetsScreen() {
                     </Text>
                     {priced ? (
                       <MaskedAmount text={formatMoney(priced.value, 'USD')} masked={masked} variant="heading" />
+                    ) : model.missLine ? (
+                      <Text variant="body">{model.missLine}</Text>
                     ) : (
                       <Text variant="body">暂无价格</Text>
                     )}
                     <Text variant="muted" tone={priced?.label.tone === 'warning' ? 'warning' : 'muted'}>
-                      {priced?.label.text ?? '暂无价格'}
+                      {priced ? priced.label.text : model.missReason ? model.missReason : '暂无价格'}
                     </Text>
                     {priced && holding.costBasisUsd !== null ? (
                       <Text
@@ -460,10 +483,9 @@ export function AssetsScreen() {
         initial={portfolio?.goal ? String(portfolio.goal.targetUsd) : ''}
         onClose={() => setSheet(null)}
         onReload={reload}
-        onSave={async (targetUsd) => {
-          await saveGoal({ id: portfolio?.goal?.id ?? createId(), targetUsd, targetDate: portfolio?.goal?.targetDate ?? null });
-          await reload();
-        }}
+        onSave={(targetUsd) =>
+          saveGoal({ id: portfolio?.goal?.id ?? createId(), targetUsd, targetDate: portfolio?.goal?.targetDate ?? null })
+        }
       />
     </Screen>
   );
@@ -510,12 +532,25 @@ function Overview({
 }) {
   return (
     <Card>
-      {model.totalText ? (
+      {model.missLine ? (
+        <Text variant="heading">{model.missLine}</Text>
+      ) : model.totalText ? (
         <MaskedAmount text={model.totalText} masked={masked} variant="display" tone="accent" />
       ) : (
         <Text variant="display">暂无价格</Text>
       )}
-      {model.quoteStatus ? (
+      {model.quoteFailureLabel ? (
+        <Text variant="muted" tone="warning">
+          {model.quoteFailureLabel}
+        </Text>
+      ) : null}
+      {model.cacheLabel ? (
+        <Text variant="muted" style={styles.quoteClock}>
+          {model.cacheLabel}
+        </Text>
+      ) : null}
+      {model.missReason ? <Text variant="muted">{model.missReason}</Text> : null}
+      {!model.quoteFailureLabel && model.quoteStatus ? (
         <Text variant="muted" tone={model.quoteStatus.tone === 'warning' ? 'warning' : 'muted'} style={styles.quoteClock}>
           {model.quoteStatus.text}
         </Text>
@@ -523,15 +558,11 @@ function Overview({
       {model.hasGoal ? (
         <>
           <ProgressBar value={model.progress} masked={masked || model.totalText === null} />
-          <Text
-            variant="muted"
-            accessibilityLabel={nativeAmountRowLabel(
-              ['目标进度 ', { text: model.progressText, masked: masked || model.totalText === null }],
-              Platform.OS,
-            )}
-          >
-            目标进度 <MaskedAmount text={model.progressText} masked={masked || model.totalText === null} variant="muted" />
-          </Text>
+          {masked ? (
+            <Text variant="muted">{MASKED_PROGRESS_HINT}</Text>
+          ) : model.totalText !== null ? (
+            <Text variant="muted">{`目标进度 ${model.progressText}`}</Text>
+          ) : null}
           <Button label="调整目标" variant="ghost" onPress={onGoal} />
         </>
       ) : (
@@ -638,6 +669,10 @@ type DashboardModel = {
   unpriced: string | null;
   hasGoal: boolean;
   quoteStatus: { text: string; tone: 'muted' | 'warning' } | null;
+  quoteFailureLabel: string | null;
+  cacheLabel: string | null;
+  missLine: string | null;
+  missReason: string | null;
   sentence: ProjectionSentence | null;
   chart: ReturnType<typeof projectionChart> | null;
   chartStart: string;
@@ -655,6 +690,7 @@ function buildModel(input: {
   timeZone: string;
   pending: ReadonlySet<string>;
   degraded: boolean;
+  failure: QuoteFailureKind | null;
 }): DashboardModel {
   const assumptions = input.portfolio.assumptions;
   const rates = assumptions?.returnRates ?? DEFAULT_RATES;
@@ -704,6 +740,14 @@ function buildModel(input: {
     sentence = null;
     chart = null;
   }
+  const failureCopy = quoteFailurePresentation({
+    failed: input.failure !== null,
+    hasCache: input.book !== null,
+    cachedAsOf: input.book
+      ? cachedQuoteAsOf(input.book.quotes.map((quote) => ({ asOf: quote.as_of, status: quote.status })))
+      : null,
+    timeZone: input.timeZone,
+  });
   const quotes = new Map((input.book?.quotes ?? []).map((quote) => [quote.symbol, quote]));
   const priced = new Map<string, { value: number; label: ReturnType<typeof quoteStatusLabel> }>();
   for (const holding of input.portfolio.holdings) {
@@ -745,6 +789,10 @@ function buildModel(input: {
       timeZone: input.timeZone,
       possiblyExpired: input.degraded,
     }),
+    quoteFailureLabel: failureCopy.failedLabel,
+    cacheLabel: failureCopy.cacheLabel,
+    missLine: failureCopy.missLine,
+    missReason: failureCopy.missReason,
     sentence,
     chart,
     chartStart,

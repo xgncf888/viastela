@@ -13,7 +13,7 @@ test('a live quotes payload is what gets stored', () => {
   });
 });
 
-test.each(['quote_unavailable', 'fx_unavailable', 'network'] as const)(
+test.each(['quote_unavailable', 'fx_unavailable', 'network', 'timeout'] as const)(
   '%s keeps the previous cache, marks it expired, and does not write',
   (failure) => {
     expect(planQuoteLoad({ failure, live: null, cached })).toEqual({
