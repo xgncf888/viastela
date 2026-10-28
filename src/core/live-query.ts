@@ -7,6 +7,8 @@ export const RECORD_TABLES = [
   'holdings',
   'net_worth_goals',
   'projection_assumptions',
+  'journal_entries',
+  'push_subscriptions',
 ] as const;
 
 export type RecordTable = (typeof RECORD_TABLES)[number];
