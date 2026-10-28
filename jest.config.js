@@ -11,6 +11,6 @@ module.exports = {
     '<rootDir>/src/ui/**/*.test.ts',
   ],
   transform: {
-    '^.+\\.ts$': ['ts-jest', { diagnostics: false }],
+    '^.+\\.tsx?$': ['ts-jest', { diagnostics: false }],
   },
 };

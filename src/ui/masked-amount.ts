@@ -12,6 +12,20 @@ const FONT_SIZE: Record<MaskedAmountVariant, number> = {
 
 export const HIDDEN_AMOUNT_LABEL = '已隐藏金额';
 
+export type AmountRowPiece = string | { text: string; masked: boolean };
+
+/** Screen-reader line. A masked amount is spoken as 已隐藏金额; a visible one keeps its text. */
+export function amountRowLabel(pieces: readonly AmountRowPiece[]): string {
+  return pieces.map((piece) => (typeof piece === 'string' ? piece : piece.masked ? HIDDEN_AMOUNT_LABEL : piece.text)).join('');
+}
+
+/** Native rows own the label because a nested Text cannot. Web keeps the clipped text node. */
+export function nativeAmountRowLabel(pieces: readonly AmountRowPiece[], os: string): string | undefined {
+  if (os === 'web') return undefined;
+  if (!pieces.some((piece) => typeof piece !== 'string' && piece.masked)) return undefined;
+  return amountRowLabel(pieces);
+}
+
 /** Glyphs reserved for every amount of one variant. The real length is not used. */
 const SLOT_GLYPHS = 8;
 

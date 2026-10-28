@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 
 import { Text } from './Text';
 import { theme } from './theme';
@@ -24,6 +24,13 @@ export function MaskedAmount({
     return (
       <Text variant={variant} tone={tone} style={slot}>
         {text}
+      </Text>
+    );
+  }
+  if (Platform.OS !== 'web') {
+    return (
+      <Text variant={variant} tone={tone} accessible accessibilityLabel={HIDDEN_AMOUNT_LABEL} style={slot}>
+        ••••
       </Text>
     );
   }

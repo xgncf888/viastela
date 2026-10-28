@@ -6,8 +6,20 @@ import { Text } from './Text';
 import { theme, type SpaceName } from './theme';
 import { useTheme } from './ThemeProvider';
 
-export function Stack({ gap = 'md', children }: { gap?: SpaceName; children: ReactNode }) {
-  return <View style={{ gap: theme.space[gap] }}>{children}</View>;
+export function Stack({
+  gap = 'md',
+  children,
+  accessibilityLabel,
+}: {
+  gap?: SpaceName;
+  children: ReactNode;
+  accessibilityLabel?: string;
+}) {
+  return (
+    <View accessibilityLabel={accessibilityLabel} style={{ gap: theme.space[gap] }}>
+      {children}
+    </View>
+  );
 }
 
 export function Row({
@@ -16,17 +28,20 @@ export function Row({
   justify = 'start',
   wrap = false,
   children,
+  accessibilityLabel,
 }: {
   gap?: SpaceName;
   align?: 'center' | 'start';
   justify?: 'start' | 'center' | 'between' | 'end';
   wrap?: boolean;
   children: ReactNode;
+  accessibilityLabel?: string;
 }) {
   const justifyContent =
     justify === 'between' ? 'space-between' : justify === 'end' ? 'flex-end' : justify === 'center' ? 'center' : 'flex-start';
   return (
     <View
+      accessibilityLabel={accessibilityLabel}
       style={{
         flexDirection: 'row',
         flexWrap: wrap ? 'wrap' : 'nowrap',
