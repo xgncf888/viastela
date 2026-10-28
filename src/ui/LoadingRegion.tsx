@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
-import { AccessibilityInfo, Platform, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, Text, View, type TextStyle } from 'react-native';
 
 import { Button } from './Button';
 import { Callout } from './layout';
@@ -16,13 +16,9 @@ export function loadingStatusLabel(name: string): string {
   return `正在加载${name}`;
 }
 
-/**
- * The error card is opt-in. A timed-out load keeps the skeleton unless the
- * caller passed `onRetry` or a truthy `error`, so existing call sites stay put.
- */
-export function showLoadError(timedOut: boolean, error: boolean | undefined, onRetry: (() => void) | undefined): boolean {
-  if (error) return true;
-  return timedOut && onRetry !== undefined;
+/** Timeout and a caller-supplied error both replace the skeleton with the callout. */
+export function showLoadError(timedOut: boolean, error: boolean | undefined): boolean {
+  return error === true || timedOut;
 }
 
 /**
@@ -43,10 +39,10 @@ export function LoadingRegion({
   skeleton: ReactNode;
   children: ReactNode;
   error?: boolean;
-  onRetry?: () => void;
+  onRetry: () => void;
 }) {
   const gate = useLoadGate(loading);
-  const failed = showLoadError(gate.timedOut, error, onRetry);
+  const failed = showLoadError(gate.timedOut, error);
   const busy = gate.busy && !failed;
 
   useEffect(() => {
@@ -58,7 +54,7 @@ export function LoadingRegion({
   return (
     <View {...(busy ? { accessibilityState: { busy: true as const }, 'aria-busy': true as const } : {})}>
       {busy ? (
-        <Text accessibilityLiveRegion="polite" role="status" style={styles.hidden}>
+        <Text accessibilityLiveRegion="polite" role="status" style={hiddenStatusStyle}>
           {loadingStatusLabel(name)}
         </Text>
       ) : null}
@@ -66,7 +62,7 @@ export function LoadingRegion({
         <View accessibilityRole="alert">
           <Callout
             message={LOAD_ERROR_TEXT}
-            action={<Button label={LOAD_RETRY_LABEL} variant="secondary" onPress={() => onRetry?.()} />}
+            action={<Button label={LOAD_RETRY_LABEL} variant="secondary" tone="accent" onPress={onRetry} />}
           />
         </View>
       ) : gate.showSkeleton ? (
@@ -85,3 +81,19 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 });
+
+/**
+ * Visually hidden, but still read. Clip keeps the 1px box from painting a
+ * glyph on the web; the node stays in the tree for the status role.
+ */
+const webStatusClip = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  clipPath: 'inset(50%)',
+  whiteSpace: 'nowrap',
+} as unknown as TextStyle;
+
+const hiddenStatusStyle = Platform.OS === 'web' ? webStatusClip : styles.hidden;

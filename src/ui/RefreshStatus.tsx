@@ -7,6 +7,22 @@ import { theme } from './theme';
 export const REFRESHING_TEXT = '正在更新…';
 export const REFRESH_FAILED_TEXT = '更新失败';
 export const REFRESH_RETRY_LABEL = '重试';
+export const REFRESH_CACHED_PREFIX = '行情更新于';
+
+/** Local clock, zero-padded. Invalid timestamps return null so the retry line stays. */
+export function formatRefreshClock(asOf: string): string | null {
+  const date = new Date(asOf);
+  if (Number.isNaN(date.getTime())) return null;
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  return `${hour}:${minute}`;
+}
+
+export function refreshFailedText(cachedAt?: string | null): string {
+  const clock = cachedAt ? formatRefreshClock(cachedAt) : null;
+  if (clock) return `${REFRESH_FAILED_TEXT} · ${REFRESH_CACHED_PREFIX} ${clock}`;
+  return `${REFRESH_FAILED_TEXT} · ${REFRESH_RETRY_LABEL}`;
+}
 
 /**
  * Background refresh line. Idle can show the caller's own "更新于" text.
@@ -16,10 +32,13 @@ export function RefreshStatus({
   status,
   onRetry,
   idle = null,
+  cachedAt = null,
 }: {
   status: 'idle' | 'refreshing' | 'failed';
   onRetry: () => void;
   idle?: ReactNode;
+  /** ISO time of the last cached quote. Failed status then shows the local clock instead of retry. */
+  cachedAt?: string | null;
 }) {
   useEffect(() => {
     if (status !== 'failed' || Platform.OS !== 'ios') return undefined;
@@ -32,6 +51,18 @@ export function RefreshStatus({
     return (
       <Text variant="muted" accessibilityLiveRegion="none">
         {REFRESHING_TEXT}
+      </Text>
+    );
+  }
+  const clock = cachedAt ? formatRefreshClock(cachedAt) : null;
+  if (clock) {
+    return (
+      <Text
+        variant="muted"
+        accessibilityLiveRegion={Platform.OS === 'android' ? 'polite' : undefined}
+        role={Platform.OS === 'web' ? 'status' : undefined}
+      >
+        {refreshFailedText(cachedAt)}
       </Text>
     );
   }
@@ -49,7 +80,9 @@ export function RefreshStatus({
         onPress={onRetry}
         style={styles.retry}
       >
-        <Text variant="muted">{REFRESH_RETRY_LABEL}</Text>
+        <Text variant="body" tone="accent">
+          {REFRESH_RETRY_LABEL}
+        </Text>
       </Pressable>
     </View>
   );

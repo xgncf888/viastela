@@ -9,7 +9,14 @@ import { PULSE_DURATION_MS } from '@/lib/timing';
 
 import { lockedButtonMinWidth, nextMeasuredWidth, visibleButtonLabel, Button } from './Button';
 import { LOAD_ERROR_TEXT, LOAD_RETRY_LABEL, LoadingRegion, showLoadError } from './LoadingRegion';
-import { REFRESH_FAILED_TEXT, REFRESH_RETRY_LABEL, REFRESHING_TEXT, RefreshStatus } from './RefreshStatus';
+import {
+  REFRESH_FAILED_TEXT,
+  REFRESH_RETRY_LABEL,
+  REFRESHING_TEXT,
+  RefreshStatus,
+  formatRefreshClock,
+  refreshFailedText,
+} from './RefreshStatus';
 import { resetSkeletonPulseForTests, SKELETON_PULSE_LOW, SKELETON_REDUCED_OPACITY, skeletonHiddenProps, Skeleton, SkeletonText } from './Skeleton';
 import { darkColor, lightColor } from './theme';
 import { useLoadGate } from './use-load-gate';
@@ -121,6 +128,12 @@ test('button loading keeps the resting label unless the caller passes one, and l
 
   const idle = mount(createElement(Button, { label: '保存', onPress: pressed }));
   expect(markup(idle)).not.toContain('aria-busy');
+
+  const busy = findRole(loading, 'button');
+  expect(busy?.style.opacity ?? '').not.toBe('0.55');
+  const off = mount(createElement(Button, { label: '保存', disabled: true, onPress: pressed }));
+  const disabled = findRole(off, 'button');
+  expect(disabled?.style.opacity).toBe('0.55');
 });
 
 test('the load gate waits, holds the skeleton, then times out', async () => {
@@ -187,6 +200,7 @@ test('LoadingRegion mounts the status node while loading and removes it when loa
       loading,
       skeleton: createElement('span', null, '骨架'),
       children: createElement('span', null, '正文'),
+      onRetry: () => undefined,
     });
   }
   const container = mount(createElement(Probe));
@@ -195,6 +209,15 @@ test('LoadingRegion mounts the status node while loading and removes it when loa
   expect(container.textContent).not.toContain('正文');
   expect(markup(container)).toContain('aria-busy="true"');
   expect(markup(container)).toContain('role="status"');
+  const status = findRole(container, 'status');
+  expect(status?.style.position).toBe('absolute');
+  expect(status?.style.clip).toBe('rect(0 0 0 0)');
+  expect(status?.style.clipPath).toBe('inset(50%)');
+  expect(status?.style.overflowX).toBe('hidden');
+  expect(status?.style.overflowY).toBe('hidden');
+  expect(status?.style.width).toBe('1px');
+  expect(status?.style.height).toBe('1px');
+  expect(status?.style.whiteSpace).toBe('nowrap');
 
   await act(async () => {
     await jest.advanceTimersByTimeAsync(1000);
@@ -228,6 +251,7 @@ test('a fast load never mounts the status node past the response', async () => {
       loading,
       skeleton: createElement('span', null, '骨架'),
       children: createElement('span', null, '正文'),
+      onRetry: () => undefined,
     });
   }
   const container = mount(createElement(Probe));
@@ -241,39 +265,20 @@ test('a fast load never mounts the status node past the response', async () => {
   expect(markup(container)).not.toContain('role="status"');
 });
 
-test('showLoadError stays off until the caller opts in', () => {
-  const retry = () => undefined;
-  expect(showLoadError(true, undefined, undefined)).toBe(false);
-  expect(showLoadError(false, undefined, undefined)).toBe(false);
-  expect(showLoadError(false, false, undefined)).toBe(false);
-  expect(showLoadError(true, false, undefined)).toBe(false);
-  expect(showLoadError(true, undefined, retry)).toBe(true);
-  expect(showLoadError(false, true, undefined)).toBe(true);
-  expect(showLoadError(false, true, retry)).toBe(true);
+test('showLoadError is on for a timeout or a passed error', () => {
+  expect(showLoadError(true, undefined)).toBe(true);
+  expect(showLoadError(false, undefined)).toBe(false);
+  expect(showLoadError(false, false)).toBe(false);
+  expect(showLoadError(true, false)).toBe(true);
+  expect(showLoadError(false, true)).toBe(true);
 });
 
-test('a timed-out region without error or onRetry keeps the skeleton and the status node', async () => {
-  jest.useFakeTimers({ now: 1_700_000_000_000 });
-  const container = mount(
-    // eslint-disable-next-line react/no-children-prop
-    createElement(LoadingRegion, {
-      name: '今日',
-      loading: true,
-      skeleton: createElement('span', null, '骨架'),
-      children: createElement('span', null, '正文'),
-    }),
-  );
-  await act(async () => {
-    await jest.advanceTimersByTimeAsync(1000);
-  });
-  await act(async () => {
-    await jest.advanceTimersByTimeAsync(7000);
-  });
-  expect(container.textContent).toContain('骨架');
-  expect(container.textContent).toContain('正在加载今日');
-  expect(container.textContent).not.toContain(LOAD_ERROR_TEXT);
-  expect(markup(container)).toContain('aria-busy="true"');
-  expect(markup(container)).toContain('role="status"');
+type LoadingRegionProps = Parameters<typeof LoadingRegion>[0];
+type OnRetryRequired = undefined extends LoadingRegionProps['onRetry'] ? false : true;
+
+test('onRetry is required so a timeout cannot stay on the skeleton', () => {
+  const onRetryIsRequired: OnRetryRequired = true;
+  expect(onRetryIsRequired).toBe(true);
 });
 
 test('timeout with onRetry, or a passed error, swaps the skeleton for the callout', async () => {
@@ -341,6 +346,81 @@ test('timeout with onRetry, or a passed error, swaps the skeleton for the callou
   expect(host().__announcements).toEqual([LOAD_ERROR_TEXT]);
 });
 
+test('a timeout shows retry and recovers when the load finishes', async () => {
+  jest.useFakeTimers({ now: 1_700_000_000_000 });
+  const retry = jest.fn();
+  let loading = true;
+  function Probe() {
+    // eslint-disable-next-line react/no-children-prop
+    return createElement(LoadingRegion, {
+      name: '今日',
+      loading,
+      onRetry: retry,
+      skeleton: createElement('span', null, '骨架'),
+      children: createElement('span', null, '正文'),
+    });
+  }
+  const container = mount(createElement(Probe));
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(1000);
+  });
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(7000);
+  });
+  expect(container.textContent).toContain(LOAD_ERROR_TEXT);
+  expect(container.textContent).toContain(LOAD_RETRY_LABEL);
+  expect(container.textContent).not.toContain('骨架');
+  const button = findRole(container, 'button');
+  expect(button).not.toBeNull();
+  const colored = textColor(button as HTMLElement);
+  expect(colored.replace(/\s/g, '')).toContain('148,74,52');
+  act(() => {
+    button?.dispatchEvent(clickEvent(button));
+  });
+  expect(retry).toHaveBeenCalledTimes(1);
+  loading = false;
+  await act(async () => {
+    roots[0]?.render(createElement(Probe));
+  });
+  expect(container.textContent).toContain('正文');
+  expect(container.textContent).not.toContain(LOAD_ERROR_TEXT);
+});
+
+test('a load that restarts during the 400ms hold keeps the skeleton', async () => {
+  jest.useFakeTimers({ now: 1_700_000_000_000 });
+  let loading = true;
+  function Probe() {
+    const gate = useLoadGate(loading);
+    return createElement('span', null, `${gate.phase}|${gate.showSkeleton}`);
+  }
+  const container = mount(createElement(Probe));
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(1000);
+  });
+  expect(container.textContent).toBe('skeleton|true');
+  loading = false;
+  await act(async () => {
+    roots[0]?.render(createElement(Probe));
+  });
+  expect(container.textContent).toBe('hold|true');
+  loading = true;
+  await act(async () => {
+    roots[0]?.render(createElement(Probe));
+  });
+  expect(container.textContent).toBe('skeleton|true');
+});
+
+test('a skeleton does not animate when reduced motion is on', async () => {
+  setReducedMotion(true);
+  const reduced = mount(createElement(Skeleton, { width: 80, height: 16 }));
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(loop).not.toHaveBeenCalled();
+  const block = reduced.firstElementChild as HTMLElement;
+  expect(block.style.opacity).toBe(String(SKELETON_REDUCED_OPACITY));
+});
+
 test('skeletons use the skeleton token, hide from assistive tech, and stay still when motion is reduced', async () => {
   expect(lightColor.skeleton).toBe('#E2DFD5');
   expect(darkColor.skeleton).toBe('#363632');
@@ -405,7 +485,69 @@ test('refresh status copies the three states and only announces a failure', () =
 
   const idle = mount(createElement(RefreshStatus, { status: 'idle', onRetry: retry, idle: createElement('span', null, '闲置') }));
   expect(idle.textContent).toBe('闲置');
+
+  const cachedAt = '2026-01-15T00:30:00.000Z';
+  const clock = formatRefreshClock(cachedAt);
+  const date = new Date(cachedAt);
+  expect(clock).toBe(`${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`);
+  const cached = mount(createElement(RefreshStatus, { status: 'failed', onRetry: retry, cachedAt }));
+  expect(cached.textContent).toBe(refreshFailedText(cachedAt));
+  expect(cached.textContent).toBe(`更新失败 · 行情更新于 ${clock}`);
+  expect(cached.textContent).not.toContain(REFRESH_RETRY_LABEL);
+  const plain = mount(createElement(RefreshStatus, { status: 'failed', onRetry: retry }));
+  const retryText = findRole(plain, 'button');
+  expect(retryText?.textContent).toBe(REFRESH_RETRY_LABEL);
+  expect(textColor(retryText as HTMLElement).replace(/\s/g, '')).toContain('148,74,52');
 });
+
+function findRole(node: ParentNode, role: string): HTMLElement | null {
+  const walk = (current: Node): HTMLElement | null => {
+    if (current.nodeType !== 1) return null;
+    const element = current as HTMLElement;
+    if (element.getAttribute('role') === role) return element;
+    for (const child of element.childNodes) {
+      const found = walk(child);
+      if (found) return found;
+    }
+    return null;
+  };
+  for (const child of node.childNodes) {
+    const found = walk(child);
+    if (found) return found;
+  }
+  return null;
+}
+
+function textColor(node: HTMLElement): string {
+  if (node.style.color) return node.style.color;
+  for (const child of node.childNodes) {
+    if (child.nodeType !== 1) continue;
+    const color = textColor(child as HTMLElement);
+    if (color) return color;
+  }
+  return '';
+}
+
+function clickEvent(target: HTMLElement): Event {
+  const event = {
+    type: 'click',
+    bubbles: true,
+    cancelable: true,
+    defaultPrevented: false,
+    altKey: false,
+    button: 0,
+    ctrlKey: false,
+    metaKey: false,
+    shiftKey: false,
+    target,
+    currentTarget: target,
+    preventDefault() {
+      event.defaultPrevented = true;
+    },
+    stopPropagation() {},
+  };
+  return event as unknown as Event;
+}
 
 function markup(node: ParentNode): string {
   const parts: string[] = [];

@@ -519,8 +519,9 @@ test('after the undo window a deleted account balance is still absent from recen
 
 const goalAmountLabel = '目标金额';
 const goalSaved = '目标已更新';
+const totalUnavailable = '总资产暂时算不出来';
 const quoteMissReason = '行情暂时取不到';
-const quoteRefreshFailed = '行情更新失败';
+const refreshFailed = '更新失败';
 const quoteMissLine = '暂无价格，未计入总资产';
 const maskedProgressHint = '金额已隐藏，点「显示」查看进度';
 
@@ -556,15 +557,26 @@ test('a hanging quotes request still closes the goal sheet and then explains the
   });
   await installApi(page, { weights: [] });
   await installAssets(page, {
-    holdings: [],
+    holdings: [
+      {
+        id: holdingId,
+        account_id: accountId,
+        symbol: 'ZZZ',
+        quantity: 3,
+        cost_basis_usd: null,
+        deleted_at: null,
+      },
+    ],
     events: [],
     goalLog,
     quotePlan: () => 'hang',
     hangQuote: hangUntilClientAborts,
   });
   await openAssets(page);
-  await expect(page.getByText(quoteMissReason)).toBeVisible({ timeout: QUOTES_TIMEOUT_MS + 4_000 });
-  await expect(page.getByText(quoteRefreshFailed)).toBeVisible();
+  await expect(page.getByText(totalUnavailable)).toBeVisible({ timeout: QUOTES_TIMEOUT_MS + 4_000 });
+  await expect(page.getByText(quoteMissReason)).toBeVisible();
+  await expect(page.getByText(refreshFailed)).toBeVisible();
+  await expect(page.getByRole('button', { name: '重试' })).toBeVisible();
   await expect(page.getByText(quoteMissLine)).toBeVisible();
   await expect(page.getByText('读取中')).toHaveCount(0);
   expect(aborts.some((text) => /abort/i.test(text))).toBe(true);
@@ -588,8 +600,9 @@ for (const mode of ['preflight-403', 'http-500'] as const) {
       quotePlan: (method) => (mode === 'preflight-403' && method === 'OPTIONS' ? 'preflight-403' : 'http-500'),
     });
     await openAssets(page);
+    await expect(page.getByText(totalUnavailable)).toBeVisible();
     await expect(page.getByText(quoteMissReason)).toBeVisible();
-    await expect(page.getByText(quoteRefreshFailed)).toBeVisible();
+    await expect(page.getByText(refreshFailed)).toBeVisible();
     await expect(page.getByText('读取中')).toHaveCount(0);
     await saveGoalAmount(page, '500000');
     expect(goalLog.writes).toBe(1);
@@ -756,8 +769,8 @@ test('a failed quotes refresh shows the cached time and not a balance total', as
     },
   );
   await page.goto('/assets');
-  await expect(page.getByText(quoteRefreshFailed)).toBeVisible();
-  await expect(page.getByText(/行情更新于 \d{2}:\d{2}/)).toBeVisible();
+  await expect(page.getByText(/更新失败 · 行情更新于 \d{2}:\d{2}/)).toBeVisible();
+  await expect(page.getByRole('button', { name: '重试' })).toHaveCount(0);
   await expect(page.getByText(quoteMissReason)).toHaveCount(0);
   await expect(page.getByText(quoteMissLine)).toHaveCount(0);
   const text = await page.locator('body').innerText();

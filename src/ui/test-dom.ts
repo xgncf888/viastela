@@ -83,8 +83,25 @@ class El {
     return Object.keys(this.attributes);
   }
 
-  addEventListener(): void {}
-  removeEventListener(): void {}
+  private listeners = new Map<string, Set<(event: Event) => void>>();
+
+  addEventListener(type: string, listener: (event: Event) => void): void {
+    const bucket = this.listeners.get(type) ?? new Set<(event: Event) => void>();
+    bucket.add(listener);
+    this.listeners.set(type, bucket);
+  }
+
+  removeEventListener(type: string, listener: (event: Event) => void): void {
+    this.listeners.get(type)?.delete(listener);
+  }
+
+  dispatchEvent(event: Event): boolean {
+    const bucket = this.listeners.get(event.type);
+    bucket?.forEach((listener) => listener(event));
+    const bubbling = 'bubbles' in event && event.bubbles === true;
+    if (bubbling && this.parentNode) this.parentNode.dispatchEvent(event);
+    return true;
+  }
   getElementById(id: string): El | null {
     const walk = (node: El): El | null => {
       if (node.getAttribute('id') === id) return node;

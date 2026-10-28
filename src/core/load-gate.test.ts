@@ -60,3 +60,24 @@ test('a load that is still running at the timeout is timed out', () => {
   expect(cleared.phase).toBe('idle');
   expect(cleared.timedOut).toBe(false);
 });
+
+test('a new load during the minimum hold keeps the skeleton', () => {
+  const waiting = at(idleMemory, true, start);
+  const shown = at(waiting, true, start + LOADING_DELAY_MS);
+  const finished = at(shown, false, start + LOADING_DELAY_MS + 100);
+  expect(finished.phase).toBe('hold');
+
+  const again = at(finished, true, start + LOADING_DELAY_MS + 200);
+  expect(again.phase).toBe('skeleton');
+  expect(again.showSkeleton).toBe(true);
+  expect(again.busy).toBe(true);
+  expect(again.timedOut).toBe(false);
+  expect(again.shownAt).toBe(shown.shownAt);
+  expect(wakeDelay(again, start + LOADING_DELAY_MS + 200)).not.toBe(LOADING_DELAY_MS);
+  expect(wakeDelay(again, start + LOADING_DELAY_MS + 200)).toBe(LOAD_TIMEOUT_MS - LOADING_DELAY_MS);
+
+  const released = at(finished, false, start + LOADING_DELAY_MS + LOADING_MIN_VISIBLE_MS);
+  expect(released.phase).toBe('idle');
+  const later = at(released, true, start + LOADING_DELAY_MS + LOADING_MIN_VISIBLE_MS);
+  expect(later).toMatchObject({ phase: 'delay', showSkeleton: false, startedAt: start + LOADING_DELAY_MS + LOADING_MIN_VISIBLE_MS });
+});

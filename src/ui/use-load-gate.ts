@@ -18,13 +18,15 @@ export function useLoadGate(loading: boolean): LoadDecision {
   let active = clock;
   if (clock.loading !== loading) {
     // The new episode has to start at this prop change, before paint. A stale
-    // `now` would turn a fresh request into an instant timeout.
+    // `now` would turn a fresh request into an instant timeout. Keep the
+    // previous phase so a restart inside the minimum hold does not drop the
+    // skeleton and wait out the delay again.
     // eslint-disable-next-line react-hooks/purity
     const now = Date.now();
     const decision = decideLoad({
       loading,
       now,
-      memory: loading ? idleMemory : clock.memory,
+      memory: clock.memory,
     });
     active = { loading, now, memory: memoryOf(decision) };
     setClock(active);
