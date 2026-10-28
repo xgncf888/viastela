@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import {
   COST_TOTAL_HELPER,
@@ -22,6 +22,8 @@ import { Sheet } from '@/ui/Sheet';
 import { Text } from '@/ui/Text';
 import { TextField } from '@/ui/TextField';
 import { showToast } from '@/ui/toast';
+
+import { claimSave, commitGoalSave, releaseSave } from './goal-save';
 
 const CURRENCIES: readonly AssetCurrency[] = ['USD', 'CNY', 'SGD', 'HKD'];
 
@@ -450,30 +452,38 @@ function GoalFields({
   const [target, setTarget] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   return (
     <>
       <Text variant="title" accessibilityRole="header">
         目标
       </Text>
-      <TextField label="目标金额" value={target} onChangeText={setTarget} keyboardType="decimal-pad" />
-      {error ? (
-        <Text variant="body" tone="danger">
-          {error}
-        </Text>
-      ) : null}
+      <TextField label="目标金额" value={target} onChangeText={setTarget} keyboardType="decimal-pad" error={error} />
       <Button
         label="保存"
         loading={saving}
         onPress={() => {
+          if (!claimSave(savingRef)) return;
           const amount = parseAmount(target);
           if (amount === null || amount <= 0) {
+            releaseSave(savingRef);
             setError('目标金额要大于 0');
             return;
           }
+          setError(null);
           setSaving(true);
-          void runSave(() => onSave(amount), onClose, onReload).then((message) => {
-            setError(message);
+          void commitGoalSave({
+            write: () => onSave(amount),
+            close: onClose,
+            toast: (text) => showToast({ text }),
+            reload: () => {
+              void onReload();
+            },
+          }).then((message) => {
+            if (message === null) return;
+            releaseSave(savingRef);
             setSaving(false);
+            setError(message);
           });
         }}
       />

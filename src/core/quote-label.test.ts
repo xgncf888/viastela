@@ -2,9 +2,14 @@ import { expect, test } from '@jest/globals';
 
 import {
   COST_BASIS_LABEL,
+  QUOTE_MISS_LINE,
+  QUOTE_MISS_REASON,
+  QUOTE_REFRESH_FAILED,
   STALE_LABEL,
   UNAVAILABLE_LABEL,
   actualSeriesNote,
+  cachedQuoteAsOf,
+  quoteFailurePresentation,
   quoteSetStatus,
   quoteStatusLabel,
   unpricedHoldingsMessage,
@@ -78,6 +83,37 @@ test('unpriced count and a skipped snapshot use the design copy', () => {
   expect(actualSeriesNote({ snapshot: 'skipped', actualPoints: 1 })).toBe('接入真实行情后开始记录实际走势');
   expect(actualSeriesNote({ snapshot: 'skipped', actualPoints: 2 })).toBeNull();
   expect(actualSeriesNote({ snapshot: 'written', actualPoints: 0 })).toBe('下个月开始显示实际走势');
+});
+
+test('a failed refresh uses the cache time, or the same miss copy for a timeout and a hard failure', () => {
+  expect(
+    quoteFailurePresentation({
+      failed: true,
+      hasCache: true,
+      cachedAsOf: AS_OF,
+      timeZone: 'Asia/Singapore',
+    }),
+  ).toEqual({
+    failedLabel: QUOTE_REFRESH_FAILED,
+    cacheLabel: '行情更新于 08:30',
+    missLine: null,
+    missReason: null,
+  });
+  const missed = {
+    failedLabel: QUOTE_REFRESH_FAILED,
+    cacheLabel: null,
+    missLine: QUOTE_MISS_LINE,
+    missReason: QUOTE_MISS_REASON,
+  };
+  expect(quoteFailurePresentation({ failed: true, hasCache: false, cachedAsOf: null, timeZone: 'UTC' })).toEqual(missed);
+  expect(quoteFailurePresentation({ failed: false, hasCache: false, cachedAsOf: null, timeZone: 'UTC' }).failedLabel).toBeNull();
+  expect(
+    cachedQuoteAsOf([
+      { asOf: '2026-01-15T01:30:00.000Z', status: 'fresh' },
+      { asOf: AS_OF, status: 'fresh' },
+      { asOf: '2026-01-14T00:00:00.000Z', status: 'unavailable' },
+    ]),
+  ).toBe(AS_OF);
 });
 
 test('the quote set uses the oldest fresh clock, any stale row, or cost basis', () => {

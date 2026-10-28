@@ -20,6 +20,8 @@ export function selectedAnnualRate(rates: readonly number[], mainRateIndex: numb
 }
 
 export const NO_GOAL_HINT = '还没设目标';
+/** Shown instead of the goal percent while amounts are hidden. A percent would leak the ratio. */
+export const MASKED_PROGRESS_HINT = '金额已隐藏，点「显示」查看进度';
 export const NO_GOAL_BUTTON_LABEL = '设一个目标';
 export const NO_GOAL_BUTTON_VARIANT = 'ghost' as const;
 export const NO_GOAL_CONCLUSION = '设一个目标后，这里会显示预计哪个月达成';

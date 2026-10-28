@@ -10,6 +10,9 @@ export const OFFLINE_QUOTE_CALLOUT = '离线中，显示的是上次取到的价
 export const COST_BASIS_CALLOUT = '还没接入真实行情，股票按成本价估算';
 export const SNAPSHOT_SKIPPED_NOTE = '接入真实行情后开始记录实际走势';
 export const ACTUAL_LINE_LATER_NOTE = '下个月开始显示实际走势';
+export const QUOTE_REFRESH_FAILED = '行情更新失败';
+export const QUOTE_MISS_LINE = '暂无价格，未计入总资产';
+export const QUOTE_MISS_REASON = '行情暂时取不到';
 
 export type QuoteLabelTone = 'muted' | 'warning' | 'plain';
 
@@ -36,6 +39,57 @@ export function quoteStatusLabel(input: {
     return { text: STALE_LABEL, tone: 'warning' };
   }
   return { text: `价格更新于 ${formatQuoteClock(input.asOf, input.timeZone)}`, tone: 'muted' };
+}
+
+export type QuoteFailureCopy = {
+  failedLabel: string | null;
+  cacheLabel: string | null;
+  missLine: string | null;
+  missReason: string | null;
+};
+
+const QUIET_FAILURE: QuoteFailureCopy = {
+  failedLabel: null,
+  cacheLabel: null,
+  missLine: null,
+  missReason: null,
+};
+
+/**
+ * A failed or timed-out quotes call.
+ * A device cache keeps the last prices and says when they were cached.
+ * With no cache, the board says the prices are missing and why. Timeouts
+ * and other failures share that sentence. Balances are not a substitute.
+ */
+export function quoteFailurePresentation(input: {
+  failed: boolean;
+  hasCache: boolean;
+  cachedAsOf: string | null;
+  timeZone: string;
+}): QuoteFailureCopy {
+  if (!input.failed) return QUIET_FAILURE;
+  if (input.hasCache) {
+    return {
+      failedLabel: QUOTE_REFRESH_FAILED,
+      cacheLabel: input.cachedAsOf ? `行情更新于 ${formatQuoteClock(input.cachedAsOf, input.timeZone)}` : null,
+      missLine: null,
+      missReason: null,
+    };
+  }
+  return {
+    failedLabel: QUOTE_REFRESH_FAILED,
+    cacheLabel: null,
+    missLine: QUOTE_MISS_LINE,
+    missReason: QUOTE_MISS_REASON,
+  };
+}
+
+/** Oldest priced quote time, else any quote time. Null when the book has none. */
+export function cachedQuoteAsOf(quotes: readonly { asOf: string; status: QuoteLabelStatus }[]): string | null {
+  if (quotes.length === 0) return null;
+  const priced = quotes.filter((quote) => quote.status !== 'unavailable');
+  const pool = priced.length > 0 ? priced : quotes;
+  return pool.reduce((left, right) => (left.asOf < right.asOf ? left : right)).asOf;
 }
 
 export function formatQuoteClock(asOf: string, timeZone: string): string {

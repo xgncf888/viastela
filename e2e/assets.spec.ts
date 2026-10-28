@@ -1,5 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 
+import { QUOTES_TIMEOUT_MS } from '../src/lib/timing';
 import { lightColor } from '../src/ui/theme';
 import { authSession, installApi, userId } from './session';
 
@@ -47,6 +48,44 @@ type Balance = {
   deleted_at: string | null;
 };
 
+type GoalRow = {
+  id: string;
+  target_usd: number;
+  target_date: string | null;
+  updated_at: string;
+};
+
+type GoalLog = {
+  writes: number;
+  reads: number;
+  failuresLeft: number;
+  rows: GoalRow[];
+};
+
+function emptyGoalLog(): GoalLog {
+  return { writes: 0, reads: 0, failuresLeft: 0, rows: [] };
+}
+
+function latestGoal(log: GoalLog): GoalRow | null {
+  return [...log.rows].sort((left, right) => right.updated_at.localeCompare(left.updated_at))[0] ?? null;
+}
+
+function rememberGoal(log: GoalLog, body: string): void {
+  log.writes += 1;
+  const parsed = JSON.parse(body) as Partial<GoalRow> | Partial<GoalRow>[];
+  const row = Array.isArray(parsed) ? parsed[0] : parsed;
+  if (!row?.id || typeof row.target_usd !== 'number') return;
+  const next: GoalRow = {
+    id: row.id,
+    target_usd: row.target_usd,
+    target_date: row.target_date ?? null,
+    updated_at: new Date(Date.UTC(2026, 0, 15, 0, 0, log.writes)).toISOString(),
+  };
+  const index = log.rows.findIndex((item) => item.id === next.id);
+  if (index === -1) log.rows.push(next);
+  else log.rows[index] = next;
+}
+
 function quotesBody() {
   return {
     quotes: [
@@ -87,8 +126,14 @@ async function installAssets(
     onHoldingPatch?: (body: string) => void;
     onAccountPatch?: (body: string) => void;
     quotes?: { fail: boolean };
+    quotePlan?: (method: string) => 'ok' | 'hang' | 'hold' | 'preflight-403' | 'http-500';
+    quoteBody?: () => unknown;
+    hangQuote?: (route: Route) => Promise<void>;
+    holdQuote?: (route: Route) => Promise<void>;
+    goalLog?: GoalLog;
   },
 ): Promise<void> {
+  const goalLog = options.goalLog ?? emptyGoalLog();
   const account: {
     id: string;
     name: string;
@@ -110,16 +155,37 @@ async function installAssets(
       await route.fallback();
       return;
     }
-    if (request.method() === 'OPTIONS') {
-      await route.fulfill({ status: 204, headers: cors });
-      return;
-    }
     if (url.includes('/functions/v1/quotes')) {
-      if (options.quotes?.fail) {
+      if (request.method() === 'OPTIONS') {
+        if (options.quotePlan?.('OPTIONS') === 'preflight-403') {
+          await route.fulfill({ status: 403, headers: cors, body: 'forbidden' });
+          return;
+        }
+        await route.fulfill({ status: 204, headers: cors });
+        return;
+      }
+      const plan = options.quotePlan?.(request.method()) ?? (options.quotes?.fail ? 'fail' : 'ok');
+      if (plan === 'hang') {
+        await options.hangQuote?.(route);
+        return;
+      }
+      if (plan === 'hold') {
+        await options.holdQuote?.(route);
+        return;
+      }
+      if (plan === 'http-500') {
+        await fulfill(route, { error: 'quote_unavailable' }, 500);
+        return;
+      }
+      if (plan === 'fail' || options.quotes?.fail) {
         await fulfill(route, { error: 'quote_unavailable' }, 502);
         return;
       }
-      await fulfill(route, quotesBody());
+      await fulfill(route, options.quoteBody?.() ?? quotesBody());
+      return;
+    }
+    if (request.method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers: cors });
       return;
     }
     if (url.includes('/rest/v1/asset_accounts')) {
@@ -159,7 +225,25 @@ async function installAssets(
       await fulfill(route, wantsObject(route) ? (live[0] ?? null) : live);
       return;
     }
-    if (url.includes('/rest/v1/net_worth_goals') || url.includes('/rest/v1/projection_assumptions')) {
+    if (url.includes('/rest/v1/net_worth_goals')) {
+      const log = goalLog;
+      if (request.method() !== 'GET' && request.method() !== 'HEAD') {
+        if (log.failuresLeft > 0) {
+          log.failuresLeft -= 1;
+          log.writes += 1;
+          await fulfill(route, { code: '42501', message: 'permission denied for table net_worth_goals' }, 403);
+          return;
+        }
+        rememberGoal(log, request.postData() ?? '');
+        await fulfill(route, [], 201);
+        return;
+      }
+      log.reads += 1;
+      const latest = latestGoal(log);
+      await fulfill(route, wantsObject(route) ? latest : latest ? [latest] : []);
+      return;
+    }
+    if (url.includes('/rest/v1/projection_assumptions')) {
       await fulfill(route, wantsObject(route) ? null : []);
       return;
     }
@@ -431,4 +515,252 @@ test('after the undo window a deleted account balance is still absent from recen
   await expect(page.getByText(balanceTitle)).toHaveCount(0);
   await expect.poll(() => patches, { timeout: 8000 }).toBe(1);
   await expect(page.getByText(balanceTitle)).toHaveCount(0);
+});
+
+const goalAmountLabel = '目标金额';
+const goalSaved = '目标已更新';
+const quoteMissReason = '行情暂时取不到';
+const quoteRefreshFailed = '行情更新失败';
+const quoteMissLine = '暂无价格，未计入总资产';
+const maskedProgressHint = '金额已隐藏，点「显示」查看进度';
+
+async function hangUntilClientAborts(route: Route): Promise<void> {
+  await route.request().response();
+  try {
+    await route.abort();
+  } catch {
+    // The page already aborted the fetch.
+  }
+}
+
+async function saveGoalAmount(page: Page, amount: string): Promise<void> {
+  const create = page.getByRole('button', { name: '设一个目标' });
+  if ((await create.count()) > 0) await create.click();
+  else await page.getByRole('button', { name: '调整目标' }).click();
+  await page.getByRole('textbox', { name: goalAmountLabel }).fill(amount);
+  const started = Date.now();
+  await page.getByRole('button', { name: '保存' }).click();
+  await expect(page.getByText(goalSaved)).toBeVisible({ timeout: 1000 });
+  await expect(page.getByRole('heading', { name: '目标', exact: true })).toBeHidden({ timeout: 1000 });
+  expect(Date.now() - started).toBeLessThan(1000);
+}
+
+test('a hanging quotes request still closes the goal sheet and then explains the miss', async ({ page }) => {
+  test.setTimeout(QUOTES_TIMEOUT_MS + 20_000);
+  const goalLog = emptyGoalLog();
+  const aborts: string[] = [];
+  page.on('requestfailed', (request) => {
+    if (request.url().includes('/functions/v1/quotes') && request.method() === 'POST') {
+      aborts.push(request.failure()?.errorText ?? '');
+    }
+  });
+  await installApi(page, { weights: [] });
+  await installAssets(page, {
+    holdings: [],
+    events: [],
+    goalLog,
+    quotePlan: () => 'hang',
+    hangQuote: hangUntilClientAborts,
+  });
+  await openAssets(page);
+  await expect(page.getByText(quoteMissReason)).toBeVisible({ timeout: QUOTES_TIMEOUT_MS + 4_000 });
+  await expect(page.getByText(quoteRefreshFailed)).toBeVisible();
+  await expect(page.getByText(quoteMissLine)).toBeVisible();
+  await expect(page.getByText('读取中')).toHaveCount(0);
+  expect(aborts.some((text) => /abort/i.test(text))).toBe(true);
+
+  await saveGoalAmount(page, '500000');
+  expect(goalLog.writes).toBe(1);
+  await expect(page.getByText('读取中')).toHaveCount(0);
+  await page.waitForTimeout(400);
+  expect(goalLog.writes).toBe(1);
+  await expect.poll(() => aborts.length, { timeout: QUOTES_TIMEOUT_MS + 4_000 }).toBeGreaterThanOrEqual(2);
+});
+
+for (const mode of ['preflight-403', 'http-500'] as const) {
+  test(`quotes ${mode} still saves the goal and reopens the new amount`, async ({ page }) => {
+    const goalLog = emptyGoalLog();
+    await installApi(page, { weights: [] });
+    await installAssets(page, {
+      holdings: [],
+      events: [],
+      goalLog,
+      quotePlan: (method) => (mode === 'preflight-403' && method === 'OPTIONS' ? 'preflight-403' : 'http-500'),
+    });
+    await openAssets(page);
+    await expect(page.getByText(quoteMissReason)).toBeVisible();
+    await expect(page.getByText(quoteRefreshFailed)).toBeVisible();
+    await expect(page.getByText('读取中')).toHaveCount(0);
+    await saveGoalAmount(page, '500000');
+    expect(goalLog.writes).toBe(1);
+    await expect(page.getByRole('button', { name: '调整目标' })).toBeVisible();
+    await page.getByRole('button', { name: '调整目标' }).click();
+    await expect(page.getByRole('textbox', { name: goalAmountLabel })).toHaveValue('500000');
+  });
+}
+
+test('a failed goal write stays in the sheet and a retry saves once', async ({ page }) => {
+  const goalLog = emptyGoalLog();
+  goalLog.failuresLeft = 1;
+  await installApi(page, { weights: [] });
+  await installAssets(page, { holdings: [], events: [], goalLog });
+  await openAssets(page);
+  await page.getByRole('button', { name: '设一个目标' }).click();
+  await page.getByRole('textbox', { name: goalAmountLabel }).fill('500000');
+  await page.getByRole('button', { name: '保存' }).click();
+  await expect(page.getByText('保存失败，请重试')).toBeVisible();
+  await expect(page.getByText(goalSaved)).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '目标', exact: true })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: goalAmountLabel })).toHaveValue('500000');
+  expect(goalLog.writes).toBe(1);
+  expect(goalLog.rows).toHaveLength(0);
+  await page.getByRole('button', { name: '保存' }).click();
+  await expect(page.getByText(goalSaved)).toBeVisible({ timeout: 1000 });
+  await expect(page.getByRole('heading', { name: '目标', exact: true })).toBeHidden();
+  expect(goalLog.writes).toBe(2);
+  expect(goalLog.rows[0]?.target_usd).toBe(500000);
+});
+
+test('two goal saves during a reload keep the second amount', async ({ page }) => {
+  const goalLog = emptyGoalLog();
+  let quotePosts = 0;
+  let releaseHold: (() => Promise<void>) | null = null;
+  await installApi(page, { weights: [] });
+  await installAssets(page, {
+    holdings: [],
+    events: [],
+    goalLog,
+    quotePlan: (method) => {
+      if (method === 'OPTIONS') return 'ok';
+      quotePosts += 1;
+      return quotePosts === 2 ? 'hold' : 'ok';
+    },
+    holdQuote: (route) =>
+      new Promise((resolve, reject) => {
+        releaseHold = async () => {
+          try {
+            await fulfill(route, quotesBody());
+            resolve();
+          } catch (error) {
+            reject(error instanceof Error ? error : new Error('hold failed'));
+          }
+        };
+      }),
+  });
+  await openAssets(page);
+  await expect(page.getByRole('button', { name: '设一个目标' })).toBeVisible();
+  await saveGoalAmount(page, '500000');
+  await expect.poll(() => goalLog.reads).toBeGreaterThanOrEqual(2);
+  await expect.poll(() => quotePosts).toBe(2);
+  const alert = page.getByRole('alert');
+  if ((await alert.count()) > 0) await alert.click();
+  await saveGoalAmount(page, '700000');
+  await expect(page.getByRole('button', { name: '调整目标' })).toBeVisible();
+  await page.getByRole('button', { name: '调整目标' }).click();
+  await expect(page.getByRole('textbox', { name: goalAmountLabel })).toHaveValue('700000');
+  await page.getByRole('button', { name: '关闭' }).click();
+  if (!releaseHold) throw new Error('the first reload never held the quotes request');
+  await releaseHold();
+  await page.waitForTimeout(500);
+  await page.getByRole('button', { name: '调整目标' }).click();
+  await expect(page.getByRole('textbox', { name: goalAmountLabel })).toHaveValue('700000');
+  expect(goalLog.writes).toBe(2);
+});
+
+test('masked amounts hide the goal percent as well as the figures', async ({ page }) => {
+  const goalLog = emptyGoalLog();
+  goalLog.rows.push({
+    id: '99999999-9999-4999-8999-999999999999',
+    target_usd: 500000,
+    target_date: null,
+    updated_at: '2026-01-15T00:00:00.000Z',
+  });
+  await installApi(page, { weights: [] });
+  await installAssets(page, {
+    holdings: [],
+    events: [],
+    goalLog,
+    quoteBody: () => ({
+      quotes: [],
+      rates: [],
+      source: 'finnhub',
+      total_usd: 12345,
+      cash_usd: 0,
+      securities_usd: 0,
+      unpriced: 0,
+      stale: false,
+      snapshot: 'skipped',
+    }),
+  });
+  await openAssets(page);
+  await expect(page.getByText(maskedProgressHint)).toBeVisible();
+  const text = await page.locator('body').innerText();
+  const aria = await page.locator('body').ariaSnapshot();
+  for (const blob of [text, aria]) {
+    expect(blob).not.toContain('500000');
+    expect(blob).not.toContain('500,000');
+    expect(blob).not.toContain('12345');
+    expect(blob).not.toContain('12,345');
+    expect(blob).not.toContain('2%');
+    expect(blob).not.toContain('目标进度');
+  }
+  const overview = section(aria, '总资产', '预测');
+  expect(overview).toContain(maskedProgressHint);
+  expect(overview).not.toContain('%');
+  expect(overview).not.toContain('500000');
+  expect(overview).not.toContain('12345');
+  expect(overview).not.toContain('目标进度');
+  const bar = page.getByRole('progressbar');
+  await expect(bar).toHaveCount(1);
+  expect(await bar.getAttribute('aria-valuenow')).toBeNull();
+  const barLabel = (await bar.getAttribute('aria-label')) ?? '';
+  expect(barLabel).not.toMatch(/\d|%/);
+});
+
+test('a failed quotes refresh shows the cached time and not a balance total', async ({ page }) => {
+  await installApi(page, { weights: [] });
+  await installAssets(page, {
+    holdings: [],
+    events: [],
+    quotePlan: () => 'http-500',
+  });
+  await page.goto('/');
+  await page.evaluate(
+    ({ session, key, book }) => {
+      localStorage.setItem('sb-127-auth-token', JSON.stringify(session));
+      localStorage.setItem(key, JSON.stringify(book));
+    },
+    {
+      session: authSession(),
+      key: quoteKey(userId),
+      book: {
+        quotes: [
+          {
+            symbol: 'AAA',
+            price: 11,
+            currency: 'USD',
+            as_of: '2026-01-15T00:30:00.000Z',
+            status: 'fresh',
+            source: 'finnhub',
+          },
+        ],
+        rates: [],
+        source: 'finnhub',
+        total_usd: 12345,
+        cash_usd: 0,
+        securities_usd: 0,
+        unpriced: 0,
+        stale: false,
+        snapshot: 'skipped',
+      },
+    },
+  );
+  await page.goto('/assets');
+  await expect(page.getByText(quoteRefreshFailed)).toBeVisible();
+  await expect(page.getByText(/行情更新于 \d{2}:\d{2}/)).toBeVisible();
+  await expect(page.getByText(quoteMissReason)).toHaveCount(0);
+  await expect(page.getByText(quoteMissLine)).toHaveCount(0);
+  const text = await page.locator('body').innerText();
+  expect(text).not.toContain('12345');
+  expect(text).not.toContain('12,345');
 });

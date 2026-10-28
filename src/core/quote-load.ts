@@ -1,9 +1,10 @@
-export type QuoteFailureKind = 'quote_unavailable' | 'fx_unavailable' | 'network' | 'other';
+export type QuoteFailureKind = 'quote_unavailable' | 'fx_unavailable' | 'network' | 'timeout' | 'other';
 
 /**
  * A failed quotes call keeps the previous device cache and does not write.
- * `quote_unavailable` (502, no provider cache), `fx_unavailable`, and network
- * errors all mark that cache as possibly expired. With no cache there is nothing to show.
+ * `quote_unavailable` (502, no provider cache), `fx_unavailable`, a timeout,
+ * and network errors all mark that cache as possibly expired. With no cache
+ * there is nothing to show. A timeout is the same path as quotes unavailable.
  */
 export function planQuoteLoad<T>(input: {
   failure: QuoteFailureKind | null;
@@ -17,6 +18,7 @@ export function planQuoteLoad<T>(input: {
     input.failure === 'quote_unavailable' ||
     input.failure === 'fx_unavailable' ||
     input.failure === 'network' ||
+    input.failure === 'timeout' ||
     input.failure === 'other';
   if (reuse && input.cached) {
     return { book: input.cached, degraded: true, persist: false };
