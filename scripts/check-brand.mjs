@@ -9,7 +9,7 @@ if (!match) {
 }
 
 const name = match[1];
-// DECISIONS.md records the naming decision, including the product name.
+// DECISIONS.md records the naming decision. DESIGN.md names the future serif face.
 // The hosted email sender is written out as the short name plus the display name
 // in the dashboard checklist and the disabled local SMTP sender_name.
 const result = spawnSync(
@@ -24,6 +24,7 @@ const result = spawnSync(
     '.',
     ':!src/config/brand.ts',
     ':!DECISIONS.md',
+    ':!DESIGN.md',
     ':!docs/email-otp-hosted.md',
     ':!supabase/config.toml',
   ],

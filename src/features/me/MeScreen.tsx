@@ -56,7 +56,7 @@ export function MeScreen() {
 
   return (
     <Screen>
-      <Content inset={inset}>
+      <Content width="wide" inset={inset}>
         <ScreenHeader kicker="我的" title={brand.displayName} />
         <Card>
           <Field label="邮箱" value={session?.email ?? '未登录'} />

@@ -471,8 +471,8 @@ test('资产 opens from the bottom bar and the sidebar', async ({ page }) => {
     if (ariaSelected != null || (ariaCurrent != null && ariaCurrent !== 'false')) {
       expect(ariaSelected === 'true' || (ariaCurrent != null && ariaCurrent !== 'false')).toBe(true);
     }
-    expect(await labelColor('资产')).toBe(hexColor(lightColor.accentText));
-    expect(await labelColor('今日')).not.toBe(hexColor(lightColor.accentText));
+    expect(await labelColor('资产')).toBe(hexColor(lightColor.ink));
+    expect(await labelColor('今日')).not.toBe(hexColor(lightColor.ink));
   }
 });
 
