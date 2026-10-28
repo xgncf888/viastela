@@ -22,15 +22,17 @@ Shared pieces for a later finance screen. Screens still take colors and sizes fr
 
 `Field` takes `locked`. A locked value is muted and `accessibilityState` disabled. The hint stays under it.
 
-`Callout` `tone="warning"` uses the `warningSoft` wash, `warning` text, and `role="status"`. It is a status, not an alert. `tone="danger"` is unchanged.
+`Callout` `tone="warning"` uses the `warningSoft` wash, `warning` text, and `role="status"`. It is a status, not an alert. `tone="danger"` is unchanged. The two tones do not share a style named `danger`.
 
-`LineChart` still draws the weight chart from `points`, `rawLabel`, and `trendLabel`. A second prop shape is `series`: each item has `id`, `label`, points already scaled from 0 to 1 (`x` and `y`), `style` (`solid`, `dashed`, or `dotted`), `tone` (`accent`, `moss`, `muted`, or `line`), and optional `markers` and `thin`. The chart does not know the domain.
+`LineChart` still draws the weight chart from `points`, `rawLabel`, and `trendLabel`. A second prop shape is `series`: each item has `id`, `label`, points already scaled from 0 to 1 (`x` and `y`), `style` (`solid`, `dashed`, or `dotted`), `tone` (`accent`, `moss`, `muted`, or `line`), and optional `markers` and `thin`. The chart does not know the domain. The series legend sits below the plot. A dotted series uses a dotted swatch and a dashed series uses a dashed swatch, so the target line is not told apart by color alone.
 
 `ProgressBar` takes `value` from 0 to 1. The fill is `accent` and the track is `fill`. `masked` draws the track only and the accessible name is `已隐藏`.
 
-`MaskedAmount` shows the formatted text, or `••••` with accessible name `已隐藏金额`. While masked, the real figure is not in the tree. `minWidth` follows the unmasked text so the row does not jump.
+`MaskedAmount` shows the formatted text, or `••••` with accessible name `已隐藏金额`. While masked, the real figure is not in the tree. Digits use tabular figures. `minWidth` follows the unmasked text at that variant's font size, so a display total does not shrink when hidden. 等宽数字，遮罩前后宽度不跳.
 
-`TimelineItem` is one row: a 24px `fill` dot, a title, an optional detail (a string or any node, including a masked amount), and a muted `HH:mm` clock.
+`TimelineItem` is one row: a 24px `fill` dot, a title, an optional detail (a string or any node, including a masked amount), and a muted `HH:mm` clock in tabular figures.
+
+`Callout` warning and danger share a neutrally named layout style. The warning wash is `warningSoft`, not the danger style, so a later change to the danger treatment does not recolor the warning.
 
 ## Color
 

@@ -16,7 +16,9 @@ export function TimelineItem({ title, detail, time }: { title: string; detail?: 
         <Text variant="body">{title}</Text>
         {typeof detail === 'string' ? <Text variant="muted">{detail}</Text> : detail}
       </View>
-      <Text variant="muted">{time}</Text>
+      <Text variant="muted" style={styles.time}>
+        {time}
+      </Text>
     </Row>
   );
 }
@@ -28,4 +30,5 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.pill,
   },
   copy: { flex: 1, gap: theme.space.xs },
+  time: { fontVariant: ['tabular-nums'] },
 });

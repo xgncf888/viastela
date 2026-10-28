@@ -314,28 +314,31 @@ function SeriesLineChart({
   const plot = buildSeriesPlot(series, width, theme.layout.chart);
   return (
     <View accessibilityRole="image" accessibilityLabel={accessibilityLabel}>
+      <View style={styles.frame} onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
+        {plot ? Platform.OS === 'web' ? <SeriesWeb plot={plot} color={color} /> : <SeriesNative plot={plot} color={color} /> : null}
+      </View>
       <Row gap="md" wrap>
         {series.map((item) => (
           <Row key={item.id} gap="xs">
-            <View
-              style={[
-                item.style === 'solid' ? styles.dot : styles.dash,
-                { backgroundColor: toneColor(item.tone, color) },
-              ]}
-            />
+            <LegendSwatch styleName={item.style} color={toneColor(item.tone, color)} />
             <Text variant="muted">{item.label}</Text>
           </Row>
         ))}
       </Row>
-      <View style={styles.frame} onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
-        {plot ? Platform.OS === 'web' ? <SeriesWeb plot={plot} color={color} /> : <SeriesNative plot={plot} color={color} /> : null}
-      </View>
       <Row justify="between">
         <Text variant="muted">{startLabel}</Text>
         <Text variant="muted">{endLabel}</Text>
       </Row>
     </View>
   );
+}
+
+function LegendSwatch({ styleName, color }: { styleName: ChartStyle; color: string }) {
+  if (styleName === 'solid') return <View style={[styles.dot, { backgroundColor: color }]} />;
+  if (styleName === 'dotted') {
+    return <View style={[styles.swatch, styles.dotted, { borderColor: color }]} />;
+  }
+  return <View style={[styles.swatch, styles.dashed, { borderColor: color }]} />;
 }
 
 function LegacyLineChart({
@@ -390,6 +393,19 @@ const styles = StyleSheet.create({
     width: theme.space.md,
     height: theme.layout.stroke,
     borderRadius: theme.radius.pill,
+  },
+  swatch: {
+    width: theme.space.md,
+    height: theme.space.sm,
+    backgroundColor: 'transparent',
+  },
+  dashed: {
+    borderBottomWidth: theme.layout.stroke,
+    borderStyle: 'dashed',
+  },
+  dotted: {
+    borderBottomWidth: theme.layout.stroke,
+    borderStyle: 'dotted',
   },
   frame: { height: theme.layout.chart, width: '100%' },
 });

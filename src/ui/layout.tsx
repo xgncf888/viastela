@@ -102,7 +102,7 @@ export function Callout({
   const theme = useTheme();
   if (tone === 'danger') {
     return (
-      <View accessibilityRole="alert" style={[styles.danger, { backgroundColor: theme.color.dangerSoft }]}>
+      <View accessibilityRole="alert" style={[styles.tone, { backgroundColor: theme.color.dangerSoft }]}>
         <Text variant="body" tone="danger">
           {message}
         </Text>
@@ -112,7 +112,7 @@ export function Callout({
   }
   if (tone === 'warning') {
     return (
-      <View accessibilityRole="text" role="status" style={[styles.danger, { backgroundColor: theme.color.warningSoft }]}>
+      <View accessibilityRole="text" role="status" style={[styles.tone, { backgroundColor: theme.color.warningSoft }]}>
         <Text variant="body" tone="warning">
           {message}
         </Text>
@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  danger: {
+  tone: {
     borderRadius: theme.radius.lg,
     padding: theme.space.md,
     gap: theme.space.sm,
