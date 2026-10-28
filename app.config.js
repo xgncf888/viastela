@@ -33,7 +33,7 @@ Module._resolveFilename = function resolveTypeScript(request, parent, isMain, op
 
 const path = require('path');
 
-const { brand } = require('./src/config/brand.ts');
+const { brand, webDocumentTitle } = require('./src/config/brand.ts');
 const { theme } = require('./src/ui/theme.ts');
 const { pwaManifest, pwaSplashes } = require('./src/config/pwa.ts');
 const { renderPwaIcons } = require('./scripts/render-pwa-icons.js');
@@ -41,7 +41,7 @@ const { renderPwaIcons } = require('./scripts/render-pwa-icons.js');
 const publicDir = path.resolve('public');
 fs.mkdirSync(publicDir, { recursive: true });
 renderPwaIcons({
-  source: path.resolve('assets/icon.png'),
+  source: path.join(publicDir, 'icons', 'apple-touch-icon.png'),
   outDir: path.join(publicDir, 'icons'),
   splashes: pwaSplashes,
   paper: theme.color.paper,
@@ -87,7 +87,7 @@ const config = {
     bundler: 'metro',
     // One index.html. vercel.json rewrites client routes onto it; the host still serves real files first.
     output: 'single',
-    favicon: brand.favicon,
+    name: webDocumentTitle,
   },
   plugins: [
     'expo-router',

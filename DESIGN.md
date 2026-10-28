@@ -123,7 +123,7 @@ When weight, training, and study all have a row for the accounting day, the head
 
 ## Installed web app
 
-The web export is an installable app. `display` is `standalone` and `start_url` is `/`. The installed name and short name live on `brand.homeScreenName` and `brand.homeScreenShortName`. `theme_color` and `background_color` are the light `paper` token. Icons are exported from `assets/icon.png`: 192, 512, a 512 maskable icon whose mark sits inside the center 80% circle, and a 180 apple touch icon. Startup images are a paper field with that icon centered.
+The web export is an installable app. `display` is `standalone` and `start_url` is `/`. The home-screen label, manifest `short_name`, and `apple-mobile-web-app-title` are `brand.webName`. The manifest `name` is the product name followed by `webName`, and the browser tab title is `webName`, a middle dot, then the product name. `theme_color` and `background_color` are the light `paper` token. Web icons are the committed scheme-C files in `public/` (`favicon.svg`, `favicon.ico`, 192, 512, maskable 192 and 512, and the 180 apple touch icon). `scripts/render-pwa-icons.js` paints the apple startup images from that apple touch icon, centered on a `paper` field.
 
 iOS uses `apple-mobile-web-app-capable` and `apple-mobile-web-app-status-bar-style: default`, with `viewport-fit=cover`. Screens pad the top with `safe-area-inset-top`. The tab bar pads its bottom with `safe-area-inset-bottom`, and the shell’s scroll padding grows by the same inset so the home indicator does not cover the bar or the last row. Pages without a tab bar pad the bottom inset too.
 
