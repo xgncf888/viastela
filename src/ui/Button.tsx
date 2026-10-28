@@ -48,8 +48,8 @@ export function Button({
   label: string;
   onPress: () => void;
   variant?: Variant;
-  /** Ghost buttons stay accent unless this asks for danger text. */
-  tone?: 'danger';
+  /** Ghost stays accent unless this asks for danger. `accent` uses `accentText` on the label. */
+  tone?: 'danger' | 'accent';
   disabled?: boolean;
   loading?: boolean;
   /** Shown in place of `label` while loading. Omit it to keep the resting label. */
@@ -94,7 +94,9 @@ export function Button({
           ? tone === 'danger'
             ? 'danger'
             : 'accent'
-          : 'ink';
+          : tone === 'accent'
+            ? 'accent'
+            : 'ink';
   const spinner = colorForTone(theme, labelTone);
 
   function onLayout(event: LayoutChangeEvent) {
@@ -132,7 +134,7 @@ export function Button({
               elevation: 1,
             }
           : null,
-        inactive ? styles.inactive : null,
+        disabled ? { opacity: 0.55 } : null,
         fill ? styles.fill : null,
         locked != null ? { minWidth: locked } : null,
       ]}
@@ -176,6 +178,5 @@ const styles = StyleSheet.create({
     gap: baseTheme.space.sm,
   },
   label: { fontWeight: '500' },
-  inactive: { opacity: 0.55 },
   fill: { alignSelf: 'stretch', width: '100%' },
 });

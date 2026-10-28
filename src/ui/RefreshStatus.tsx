@@ -1,12 +1,27 @@
 import { useEffect, type ReactNode } from 'react';
 import { AccessibilityInfo, Platform, Pressable, StyleSheet, View } from 'react-native';
 
+import { formatQuoteClock } from '@/core/quote-label';
+
 import { Text } from './Text';
 import { theme } from './theme';
 
 export const REFRESHING_TEXT = '正在更新…';
 export const REFRESH_FAILED_TEXT = '更新失败';
 export const REFRESH_RETRY_LABEL = '重试';
+export const REFRESH_CACHED_PREFIX = '行情更新于';
+
+/** User-timezone clock. Invalid timestamps return null so the plain retry line stays. */
+export function cachedQuoteClock(asOf: string | null | undefined, timeZone: string): string | null {
+  if (!asOf || Number.isNaN(new Date(asOf).getTime())) return null;
+  return formatQuoteClock(asOf, timeZone);
+}
+
+export function refreshFailedText(cachedAt: string | null | undefined, timeZone: string): string {
+  const clock = cachedQuoteClock(cachedAt, timeZone);
+  if (clock) return `${REFRESH_FAILED_TEXT} · ${REFRESH_CACHED_PREFIX} ${clock} · ${REFRESH_RETRY_LABEL}`;
+  return `${REFRESH_FAILED_TEXT} · ${REFRESH_RETRY_LABEL}`;
+}
 
 /**
  * Background refresh line. Idle can show the caller's own "更新于" text.
@@ -16,10 +31,16 @@ export function RefreshStatus({
   status,
   onRetry,
   idle = null,
+  cachedAt = null,
+  timeZone,
 }: {
   status: 'idle' | 'refreshing' | 'failed';
   onRetry: () => void;
   idle?: ReactNode;
+  /** ISO time of the last cached quote. */
+  cachedAt?: string | null;
+  /** Profile timezone. The cached clock is formatted with this, not the device zone. */
+  timeZone: string;
 }) {
   useEffect(() => {
     if (status !== 'failed' || Platform.OS !== 'ios') return undefined;
@@ -35,13 +56,17 @@ export function RefreshStatus({
       </Text>
     );
   }
+  const clock = cachedQuoteClock(cachedAt, timeZone);
+  const lead = clock ? `${REFRESH_FAILED_TEXT} · ${REFRESH_CACHED_PREFIX} ${clock} · ` : `${REFRESH_FAILED_TEXT} · `;
   return (
     <View
       accessibilityLiveRegion={Platform.OS === 'android' ? 'polite' : undefined}
       role={Platform.OS === 'web' ? 'status' : undefined}
       style={styles.row}
     >
-      <Text variant="muted">{`${REFRESH_FAILED_TEXT} · `}</Text>
+      <Text variant="muted" tone={clock ? 'warning' : undefined}>
+        {lead}
+      </Text>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={REFRESH_RETRY_LABEL}
@@ -49,7 +74,9 @@ export function RefreshStatus({
         onPress={onRetry}
         style={styles.retry}
       >
-        <Text variant="muted">{REFRESH_RETRY_LABEL}</Text>
+        <Text variant="body" tone="accent">
+          {REFRESH_RETRY_LABEL}
+        </Text>
       </Pressable>
     </View>
   );

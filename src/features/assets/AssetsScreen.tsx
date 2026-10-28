@@ -23,6 +23,7 @@ import {
 import {
   COST_BASIS_CALLOUT,
   OFFLINE_QUOTE_CALLOUT,
+  QUOTE_MISS_LINE,
   cachedQuoteAsOf,
   formatQuoteClock,
   quoteFailurePresentation,
@@ -70,7 +71,10 @@ import { ChipGroup } from '@/ui/ChipGroup';
 import { Content } from '@/ui/Content';
 import { EmptyState } from '@/ui/EmptyState';
 import { LineChart } from '@/ui/LineChart';
+import { LoadingRegion } from '@/ui/LoadingRegion';
 import { Callout, Row, ScreenHeader, Stack } from '@/ui/layout';
+import { RefreshStatus } from '@/ui/RefreshStatus';
+import { Skeleton, SkeletonText } from '@/ui/Skeleton';
 import { MaskedAmount } from '@/ui/MaskedAmount';
 import { nativeAmountRowLabel } from '@/ui/masked-amount';
 import { ProgressBar } from '@/ui/ProgressBar';
@@ -110,11 +114,13 @@ export function AssetsScreen() {
   const pending = useDeferredDeleteIds();
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [ready, setReady] = useState<Ready | null>(null);
   const [sheet, setSheet] = useState<
     null | 'account' | 'balances' | 'holding' | 'assumptions' | 'goal' | { kind: 'balance'; accountId: string } | { kind: 'holding'; id: string }
   >(null);
   const userId = session?.userId ?? null;
+  const readyRef = useRef<Ready | null>(null);
   const reloadRef = useRef<() => Promise<void>>(async () => undefined);
   const loads = useRef(createResultSequence());
   const mounted = useRef(true);
@@ -143,6 +149,12 @@ export function AssetsScreen() {
 
   const reload = useCallback(async () => {
     const token = loads.current.next();
+    const background = readyRef.current !== null;
+    if (background) setRefreshing(true);
+    else {
+      setLoading(true);
+      setFailed(false);
+    }
     try {
       const next = await fetchReady();
       if (!mounted.current || !loads.current.isCurrent(token) || !next) return;
@@ -153,6 +165,8 @@ export function AssetsScreen() {
       if (!mounted.current || !loads.current.isCurrent(token)) return;
       setFailed(true);
       setLoading(false);
+    } finally {
+      if (mounted.current && loads.current.isCurrent(token)) setRefreshing(false);
     }
   }, [fetchReady]);
 
@@ -188,6 +202,10 @@ export function AssetsScreen() {
     };
   }, [fetchReady]);
 
+  useEffect(() => {
+    readyRef.current = ready;
+  }, [ready]);
+
   const portfolio = ready?.portfolio;
   const book = ready?.book ?? null;
   const masked = ready?.masked ?? true;
@@ -213,21 +231,25 @@ export function AssetsScreen() {
     });
   }, [book, degraded, pending, portfolio, quoteFailure, timeZone]);
 
-  if (loading && !ready) {
-    return (
-      <Screen>
-        <Content width="wide" inset={inset}>
-          <Text variant="body">读取中</Text>
-        </Content>
-      </Screen>
-    );
-  }
+  const quoteRefresh = refreshing ? 'refreshing' : ready?.quoteFailure ? 'failed' : 'idle';
 
   return (
     <Screen>
       <Content width="wide" inset={inset}>
-        <Row justify="between" align="start">
-          <ScreenHeader kicker="资产" title="总资产" />
+        <ScreenHeader kicker="资产" title="总资产" />
+        <LoadingRegion
+          name="资产"
+          loading={loading && ready === null}
+          error={failed && ready === null}
+          onRetry={() => void reload()}
+          skeleton={
+            <Stack gap="md">
+              <Skeleton height={theme.font.display} width="48%" />
+              <SkeletonText lines={4} />
+            </Stack>
+          }
+        >
+        <Row justify="end" align="start">
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={masked ? '显示金额' : '隐藏金额'}
@@ -237,9 +259,6 @@ export function AssetsScreen() {
             <Text variant="muted">{masked ? '显示' : '隐藏'}</Text>
           </Pressable>
         </Row>
-        {failed && !ready ? (
-          <Callout message="读取失败，请重试" action={<Button label="重试" variant="secondary" onPress={() => void reload()} />} />
-        ) : null}
         {ready?.degraded && book ? <Callout tone="warning" message={OFFLINE_QUOTE_CALLOUT} /> : null}
         {book?.source === 'cost_basis' ? <Callout tone="warning" message={COST_BASIS_CALLOUT} /> : null}
         {visibleAccounts.length === 0 ? (
@@ -250,7 +269,14 @@ export function AssetsScreen() {
           />
         ) : model ? (
           <>
-            <Overview model={model} masked={masked} onGoal={() => setSheet('goal')} />
+            <Overview
+              model={model}
+              masked={masked}
+              onGoal={() => setSheet('goal')}
+              refresh={quoteRefresh}
+              onRetry={() => void reload()}
+              timeZone={timeZone}
+            />
             <Projection
               model={model}
               masked={masked}
@@ -377,14 +403,14 @@ export function AssetsScreen() {
                     </Text>
                     {priced ? (
                       <MaskedAmount text={formatMoney(priced.value, 'USD')} masked={masked} variant="heading" />
-                    ) : model.missLine ? (
-                      <Text variant="body">{model.missLine}</Text>
                     ) : (
-                      <Text variant="body">暂无价格</Text>
+                      <Text variant="body">{QUOTE_MISS_LINE}</Text>
                     )}
-                    <Text variant="muted" tone={priced?.label.tone === 'warning' ? 'warning' : 'muted'}>
-                      {priced ? priced.label.text : model.missReason ? model.missReason : '暂无价格'}
-                    </Text>
+                    {priced ? (
+                      <Text variant="muted" tone={priced.label.tone === 'warning' ? 'warning' : 'muted'}>
+                        {priced.label.text}
+                      </Text>
+                    ) : null}
                     {priced && holding.costBasisUsd !== null ? (
                       <Text
                         variant="muted"
@@ -418,6 +444,7 @@ export function AssetsScreen() {
             </Card>
           </>
         ) : null}
+        </LoadingRegion>
       </Content>
       <AccountForm
         visible={sheet === 'account'}
@@ -525,10 +552,16 @@ function Overview({
   model,
   masked,
   onGoal,
+  refresh,
+  onRetry,
+  timeZone,
 }: {
   model: DashboardModel;
   masked: boolean;
   onGoal: () => void;
+  refresh: 'idle' | 'refreshing' | 'failed';
+  onRetry: () => void;
+  timeZone: string;
 }) {
   return (
     <Card>
@@ -539,22 +572,20 @@ function Overview({
       ) : (
         <Text variant="display">暂无价格</Text>
       )}
-      {model.quoteFailureLabel ? (
-        <Text variant="muted" tone="warning">
-          {model.quoteFailureLabel}
-        </Text>
-      ) : null}
-      {model.cacheLabel ? (
-        <Text variant="muted" style={styles.quoteClock}>
-          {model.cacheLabel}
-        </Text>
-      ) : null}
       {model.missReason ? <Text variant="muted">{model.missReason}</Text> : null}
-      {!model.quoteFailureLabel && model.quoteStatus ? (
-        <Text variant="muted" tone={model.quoteStatus.tone === 'warning' ? 'warning' : 'muted'} style={styles.quoteClock}>
-          {model.quoteStatus.text}
-        </Text>
-      ) : null}
+      <RefreshStatus
+        status={refresh}
+        onRetry={onRetry}
+        cachedAt={model.quoteCachedAt}
+        timeZone={timeZone}
+        idle={
+          model.quoteStatus ? (
+            <Text variant="muted" tone={model.quoteStatus.tone === 'warning' ? 'warning' : 'muted'} style={styles.quoteClock}>
+              {model.quoteStatus.text}
+            </Text>
+          ) : null
+        }
+      />
       {model.hasGoal ? (
         <>
           <ProgressBar value={model.progress} masked={masked || model.totalText === null} />
@@ -669,8 +700,7 @@ type DashboardModel = {
   unpriced: string | null;
   hasGoal: boolean;
   quoteStatus: { text: string; tone: 'muted' | 'warning' } | null;
-  quoteFailureLabel: string | null;
-  cacheLabel: string | null;
+  quoteCachedAt: string | null;
   missLine: string | null;
   missReason: string | null;
   sentence: ProjectionSentence | null;
@@ -789,8 +819,10 @@ function buildModel(input: {
       timeZone: input.timeZone,
       possiblyExpired: input.degraded,
     }),
-    quoteFailureLabel: failureCopy.failedLabel,
-    cacheLabel: failureCopy.cacheLabel,
+    quoteCachedAt:
+      input.failure !== null
+        ? cachedQuoteAsOf((input.book?.quotes ?? []).map((quote) => ({ asOf: quote.as_of, status: quote.status })))
+        : null,
     missLine: failureCopy.missLine,
     missReason: failureCopy.missReason,
     sentence,

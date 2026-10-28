@@ -13,6 +13,7 @@ export const ACTUAL_LINE_LATER_NOTE = '下个月开始显示实际走势';
 export const QUOTE_REFRESH_FAILED = '行情更新失败';
 export const QUOTE_MISS_LINE = '暂无价格，未计入总资产';
 export const QUOTE_MISS_REASON = '行情暂时取不到';
+export const TOTAL_UNAVAILABLE_TITLE = '总资产暂时算不出来';
 
 export type QuoteLabelTone = 'muted' | 'warning' | 'plain';
 
@@ -79,7 +80,7 @@ export function quoteFailurePresentation(input: {
   return {
     failedLabel: QUOTE_REFRESH_FAILED,
     cacheLabel: null,
-    missLine: QUOTE_MISS_LINE,
+    missLine: TOTAL_UNAVAILABLE_TITLE,
     missReason: QUOTE_MISS_REASON,
   };
 }

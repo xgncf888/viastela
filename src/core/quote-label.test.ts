@@ -2,9 +2,9 @@ import { expect, test } from '@jest/globals';
 
 import {
   COST_BASIS_LABEL,
-  QUOTE_MISS_LINE,
   QUOTE_MISS_REASON,
   QUOTE_REFRESH_FAILED,
+  TOTAL_UNAVAILABLE_TITLE,
   STALE_LABEL,
   UNAVAILABLE_LABEL,
   actualSeriesNote,
@@ -102,7 +102,7 @@ test('a failed refresh uses the cache time, or the same miss copy for a timeout 
   const missed = {
     failedLabel: QUOTE_REFRESH_FAILED,
     cacheLabel: null,
-    missLine: QUOTE_MISS_LINE,
+    missLine: TOTAL_UNAVAILABLE_TITLE,
     missReason: QUOTE_MISS_REASON,
   };
   expect(quoteFailurePresentation({ failed: true, hasCache: false, cachedAsOf: null, timeZone: 'UTC' })).toEqual(missed);

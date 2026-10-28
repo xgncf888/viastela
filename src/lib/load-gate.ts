@@ -50,6 +50,16 @@ export function decideLoad(input: { loading: boolean; now: number; memory: LoadM
     return pack('idle', null, null, false, false, false);
   }
 
+  // A new load during the minimum visible window keeps the skeleton. Going
+  // back to `delay` would hide it and wait another second.
+  if (
+    memory.phase === 'hold' &&
+    memory.shownAt !== null &&
+    now - memory.shownAt < LOADING_MIN_VISIBLE_MS
+  ) {
+    return pack('skeleton', now - LOADING_DELAY_MS, memory.shownAt, true, true, false);
+  }
+
   if (memory.phase === 'idle' || memory.phase === 'hold') {
     return pack('delay', now, null, false, true, false);
   }
