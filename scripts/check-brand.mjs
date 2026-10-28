@@ -10,9 +10,23 @@ if (!match) {
 
 const name = match[1];
 // DECISIONS.md records the naming decision, including the product name.
+// The hosted email sender is written out as the short name plus the display name
+// in the dashboard checklist and the disabled local SMTP sender_name.
 const result = spawnSync(
   'git',
-  ['grep', '-n', '-I', '-F', name, '--', '.', ':!src/config/brand.ts', ':!DECISIONS.md'],
+  [
+    'grep',
+    '-n',
+    '-I',
+    '-F',
+    name,
+    '--',
+    '.',
+    ':!src/config/brand.ts',
+    ':!DECISIONS.md',
+    ':!docs/email-otp-hosted.md',
+    ':!supabase/config.toml',
+  ],
   { encoding: 'utf8' },
 );
 

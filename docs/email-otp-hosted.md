@@ -10,8 +10,7 @@ Local `supabase start` leaves `[auth.email.smtp]` disabled and delivers mail to 
 - Port: `465`
 - Username: `resend`
 - Password: the Resend API key. Yifeng enters it in the dashboard.
-- Sender: `星途 <displayName> <noreply@<verified domain>>`
-  - `<displayName>` is `displayName` in `src/config/brand.ts`.
+- Sender: `星途 Viastela <noreply@<verified domain>>`
   - `<verified domain>` is the domain verified at Resend.
 
 ## Email OTP

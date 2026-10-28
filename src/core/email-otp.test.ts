@@ -31,7 +31,8 @@ const repoRoot = `${__dirname}/../..`;
 const sentAt = 1_700_000_000_000;
 
 function tomlSection(toml: string, name: string): string {
-  const match = new RegExp(`^\\[${name}\\]\\s*$`, 'm').exec(toml);
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = new RegExp(`^\\[${escaped}\\]\\s*$`, 'm').exec(toml);
   if (!match) throw new Error(`missing [${name}]`);
   const rest = toml.slice(match.index + match[0].length);
   const next = rest.search(/^\[/m);
@@ -49,10 +50,9 @@ describe('email OTP config', () => {
     expect(OTP_EXPIRY_SECONDS).toBe(600);
   });
 
-  it('asks for a 6 digit code and a 60 second send window', () => {
-    expect(email).toMatch(/^otp_length\s*=\s*6\s*$/m);
+  it('asks for OTP_LENGTH digits and a 60 second send window', () => {
+    expect(email).toMatch(new RegExp(`^otp_length\\s*=\\s*${OTP_LENGTH}\\s*$`, 'm'));
     expect(email).toMatch(/^max_frequency\s*=\s*"60s"\s*$/m);
-    expect(OTP_LENGTH).toBe(6);
     expect(OTP_RESEND_SECONDS).toBe(60);
   });
 

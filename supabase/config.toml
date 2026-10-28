@@ -245,7 +245,7 @@ port = 465
 user = "resend"
 pass = "env(RESEND_API_KEY)"
 admin_email = "env(SMTP_ADMIN_EMAIL)"
-sender_name = "星途"
+sender_name = "星途 Viastela"
 
 # Code only. Both templates omit {{ .ConfirmationURL }} so the mail is not a magic link.
 [auth.email.template.magic_link]
