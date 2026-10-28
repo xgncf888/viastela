@@ -1,11 +1,17 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 
+import { lightColor } from '../src/ui/theme';
 import { authSession, installApi, userId } from './session';
 
 const otherUserId = '22222222-2222-4222-8222-222222222222';
 const accountId = '44444444-4444-4444-8444-444444444444';
 const holdingId = '33333333-3333-4333-8333-333333333333';
 const quoteKey = (id: string) => `viastela.quote-cache.v1.${id}`;
+
+function hexColor(hex: string): string {
+  const value = Number.parseInt(hex.slice(1), 16);
+  return `rgb(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255})`;
+}
 
 const cors = {
   'access-control-allow-origin': '*',
@@ -321,6 +327,48 @@ async function openAssets(page: Page): Promise<void> {
   }, authSession());
   await page.goto('/assets');
 }
+
+test('资产 opens from the bottom bar and the sidebar', async ({ page }) => {
+  await installApi(page, { weights: [] });
+  await installAssets(page, { holdings: [], events: [] });
+  await page.goto('/');
+  await page.evaluate((stored) => {
+    localStorage.setItem('sb-127-auth-token', JSON.stringify(stored));
+  }, authSession());
+
+  for (const size of [
+    { width: 390, height: 844 },
+    { width: 1280, height: 800 },
+  ]) {
+    await page.setViewportSize(size);
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: '资产', exact: true })).toBeVisible();
+    const order = await page.getByRole('button').evaluateAll((nodes) =>
+      nodes
+        .map((node) => (node.textContent || '').replace(/\s+/g, ''))
+        .filter((text) => ['今日', '资产', '趋势', '我的'].includes(text)),
+    );
+    expect(order).toEqual(['今日', '资产', '趋势', '我的']);
+
+    await page.getByRole('button', { name: '资产', exact: true }).click();
+    await expect(page).toHaveURL(/\/assets$/);
+    await expect(page.getByRole('heading', { name: '总资产' })).toBeVisible();
+
+    const labelColor = (name: string) =>
+      page.getByRole('button', { name, exact: true }).evaluate((node, label) => {
+        const match = Array.from(node.querySelectorAll('*')).find((el) => el.textContent === label);
+        return getComputedStyle((match as HTMLElement) ?? (node as HTMLElement)).color;
+      }, name);
+    const selected = await page.getByRole('button', { name: '资产', exact: true });
+    const ariaSelected = await selected.getAttribute('aria-selected');
+    const ariaCurrent = await selected.getAttribute('aria-current');
+    if (ariaSelected != null || (ariaCurrent != null && ariaCurrent !== 'false')) {
+      expect(ariaSelected === 'true' || (ariaCurrent != null && ariaCurrent !== 'false')).toBe(true);
+    }
+    expect(await labelColor('资产')).toBe(hexColor(lightColor.accentText));
+    expect(await labelColor('今日')).not.toBe(hexColor(lightColor.accentText));
+  }
+});
 
 test('a deleted account balance stays out of recent activity, and undo brings it back', async ({ page }) => {
   const balances = [cashBalance()];
