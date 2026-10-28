@@ -101,6 +101,8 @@ export function TodayScreen() {
           <Callout message={loadError} action={<Button label="重试" variant="secondary" onPress={() => void reload()} />} />
         ) : null}
 
+        <Button label="记录" onPress={() => openRecordSheet()} />
+
         <AverageHeadline records={counted} endDay={accounting} />
 
         <Stack gap="md">
@@ -251,7 +253,6 @@ export function TodayScreen() {
               );
             })
           : null}
-        <Button label="记录" onPress={() => openRecordSheet()} />
       </Content>
     </Screen>
   );
