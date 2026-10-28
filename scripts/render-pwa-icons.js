@@ -3,7 +3,7 @@ const { existsSync, mkdirSync, readFileSync, writeFileSync } = require('node:fs'
 const path = require('node:path');
 const { deflateSync, inflateSync } = require('node:zlib');
 
-const SCRIPT_VERSION = '2';
+const SCRIPT_VERSION = '3';
 
 function crc32(buffer) {
   let crc = ~0;
@@ -242,6 +242,8 @@ function writeIfChanged(file, bytes) {
  * source mark extends past that safe zone. Returns whether the source already fit.
  */
 function renderPwaIcons({ source, outDir, splashes, paper }) {
+  // App config loads this on every export, before Expo copies public/ into dist.
+  require('./stamp-pwa-html.js').preparePwaPublicFiles();
   mkdirSync(outDir, { recursive: true });
   const sourceBytes = readFileSync(source);
   const stamp = createHash('sha256').update(SCRIPT_VERSION).update(sourceBytes).update(JSON.stringify(splashes)).update(paper).digest('hex');
@@ -261,18 +263,19 @@ function renderPwaIcons({ source, outDir, splashes, paper }) {
   const decoded = decodePng(sourceBytes);
   const measured = contentRadius(decoded.pixels, decoded.width, decoded.height);
   const fits = measured.bounds !== null && measured.farthest <= measured.safeRadius + 0.5;
-  const icon192 = resize(decoded.pixels, decoded.width, decoded.height, 192, 192);
-  const icon512 = resize(decoded.pixels, decoded.width, decoded.height, 512, 512);
-  const apple = resize(decoded.pixels, decoded.width, decoded.height, 180, 180);
+  const paperRgb = parseHex(paper);
+  // DESIGN.md paper, not the source file's own background.
+  const paperSource = recolorBackground(decoded.pixels, decoded.width, decoded.height, measured.background, paperRgb);
+  const icon192 = resize(paperSource, decoded.width, decoded.height, 192, 192);
+  const icon512 = resize(paperSource, decoded.width, decoded.height, 512, 512);
+  const apple = resize(paperSource, decoded.width, decoded.height, 180, 180);
 
   const maskable = Buffer.alloc(512 * 512 * 4);
-  const paperRgb = parseHex(paper);
   fill(maskable, paperRgb);
   // The safe zone is the center circle with diameter 80% of the canvas.
   // Scale the whole source so its farthest mark pixel lands inside that circle.
   const scale = fits ? 1 : Math.min(1, (512 * 0.4) / (measured.farthest * (512 / decoded.width)));
   const markSize = Math.max(1, Math.round(512 * scale));
-  const paperSource = recolorBackground(decoded.pixels, decoded.width, decoded.height, measured.background, paperRgb);
   const mark = resize(paperSource, decoded.width, decoded.height, markSize, markSize);
   const offset = Math.floor((512 - markSize) / 2);
   blit(maskable, 512, mark, markSize, markSize, offset, offset);
@@ -313,7 +316,12 @@ function renderPwaIcons({ source, outDir, splashes, paper }) {
   return report;
 }
 
-module.exports = { renderPwaIcons };
+function pngCorner(file) {
+  const { pixels } = decodePng(readFileSync(file));
+  return [pixels[0], pixels[1], pixels[2], pixels[3]];
+}
+
+module.exports = { renderPwaIcons, pngCorner };
 
 if (require.main === module) {
   const fs = require('node:fs');
