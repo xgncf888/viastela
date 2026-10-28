@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, Platform, StyleSheet, Text, View, type TextStyle } from 'react-native';
 
 import { Button } from './Button';
@@ -41,9 +41,15 @@ export function LoadingRegion({
   error?: boolean;
   onRetry: () => void;
 }) {
-  const gate = useLoadGate(loading);
+  const [attempt, setAttempt] = useState(0);
+  const gate = useLoadGate(loading, attempt);
   const failed = showLoadError(gate.timedOut, error);
   const busy = gate.busy && !failed;
+
+  function retry() {
+    setAttempt((current) => current + 1);
+    onRetry();
+  }
 
   useEffect(() => {
     if (!failed || Platform.OS !== 'ios') return undefined;
@@ -62,7 +68,7 @@ export function LoadingRegion({
         <View accessibilityRole="alert">
           <Callout
             message={LOAD_ERROR_TEXT}
-            action={<Button label={LOAD_RETRY_LABEL} variant="secondary" tone="accent" onPress={onRetry} />}
+            action={<Button label={LOAD_RETRY_LABEL} variant="secondary" tone="accent" onPress={retry} />}
           />
         </View>
       ) : gate.showSkeleton ? (

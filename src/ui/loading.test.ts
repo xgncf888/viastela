@@ -386,6 +386,57 @@ test('a timeout shows retry and recovers when the load finishes', async () => {
   expect(container.textContent).not.toContain(LOAD_ERROR_TEXT);
 });
 
+test('retry after a timeout starts a new 8 second budget while loading stays true', async () => {
+  jest.useFakeTimers({ now: 1_700_000_000_000 });
+  const retry = jest.fn();
+  function Probe() {
+    // eslint-disable-next-line react/no-children-prop
+    return createElement(LoadingRegion, {
+      name: '今日',
+      loading: true,
+      onRetry: retry,
+      skeleton: createElement('span', null, '骨架'),
+      children: createElement('span', null, '正文'),
+    });
+  }
+  const container = mount(createElement(Probe));
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(1000);
+  });
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(7000);
+  });
+  expect(container.textContent).toContain(LOAD_ERROR_TEXT);
+  expect(container.textContent).not.toContain('正在加载今日');
+
+  const button = findRole(container, 'button');
+  act(() => {
+    button?.dispatchEvent(clickEvent(button as HTMLElement));
+  });
+  expect(retry).toHaveBeenCalledTimes(1);
+  expect(container.textContent).toContain('正在加载今日');
+  expect(container.textContent).not.toContain(LOAD_ERROR_TEXT);
+  expect(container.textContent).not.toContain('骨架');
+
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(1000);
+  });
+  expect(container.textContent).toContain('骨架');
+  expect(container.textContent).toContain('正在加载今日');
+  expect(container.textContent).not.toContain(LOAD_ERROR_TEXT);
+
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(6999);
+  });
+  expect(container.textContent).not.toContain(LOAD_ERROR_TEXT);
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(1);
+  });
+  expect(container.textContent).toContain(LOAD_ERROR_TEXT);
+  expect(container.textContent).not.toContain('正在加载今日');
+  expect(container.textContent).not.toContain('骨架');
+});
+
 test('a load that restarts during the 400ms hold keeps the skeleton', async () => {
   jest.useFakeTimers({ now: 1_700_000_000_000 });
   let loading = true;

@@ -4,6 +4,7 @@ import { decideLoad, idleMemory, sameMemory, wakeDelay, type LoadDecision, type 
 
 type Clock = {
   loading: boolean;
+  attempt: number;
   now: number;
   memory: LoadMemory;
 };
@@ -12,23 +13,23 @@ function memoryOf(decision: LoadDecision): LoadMemory {
   return { phase: decision.phase, startedAt: decision.startedAt, shownAt: decision.shownAt };
 }
 
-export function useLoadGate(loading: boolean): LoadDecision {
-  const [clock, setClock] = useState<Clock>(() => ({ loading, now: Date.now(), memory: idleMemory }));
+export function useLoadGate(loading: boolean, attempt = 0): LoadDecision {
+  const [clock, setClock] = useState<Clock>(() => ({ loading, attempt, now: Date.now(), memory: idleMemory }));
 
   let active = clock;
-  if (clock.loading !== loading) {
-    // The new episode has to start at this prop change, before paint. A stale
-    // `now` would turn a fresh request into an instant timeout. Keep the
-    // previous phase so a restart inside the minimum hold does not drop the
-    // skeleton and wait out the delay again.
+  if (clock.attempt !== attempt || clock.loading !== loading) {
+    // A new attempt starts at the delay even when `loading` never flipped
+    // back to false. A loading flip keeps the previous phase so a restart
+    // inside the minimum hold does not drop the skeleton. `now` is read here
+    // so a stale clock cannot skip straight to timeout.
     // eslint-disable-next-line react-hooks/purity
     const now = Date.now();
     const decision = decideLoad({
       loading,
       now,
-      memory: clock.memory,
+      memory: clock.attempt !== attempt ? idleMemory : clock.memory,
     });
-    active = { loading, now, memory: memoryOf(decision) };
+    active = { loading, attempt, now, memory: memoryOf(decision) };
     setClock(active);
   }
 

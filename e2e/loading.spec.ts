@@ -52,3 +52,34 @@ test('a hung today load shows retry and recovers', async ({ page }) => {
   await expect(page.getByText('没加载出来，检查网络后再试')).toHaveCount(0);
   await Promise.all(held.map((route) => route.abort().catch(() => undefined)));
 });
+
+test('a second hung request starts over at the skeleton and times out again', async ({ page }) => {
+  test.setTimeout(LOAD_TIMEOUT_MS * 2 + 20_000);
+  const day = accountingDay();
+  const held: Route[] = [];
+  await signIn(page);
+  await installApi(page, { weights: [weightRow('w-held', day, 61.5)] });
+  await page.route('**/rest/v1/weight_records*', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+    held.push(route);
+  });
+  await page.goto('/');
+  await expect(page.getByText('没加载出来，检查网络后再试')).toBeVisible({ timeout: LOAD_TIMEOUT_MS + 4_000 });
+  await expect(page.locator('[role="status"]')).toHaveCount(0);
+
+  await page.getByRole('button', { name: '重试' }).click();
+  const busy = page.locator('[aria-busy="true"]');
+  await expect(busy.locator('[role="status"]')).toHaveText('正在加载今日');
+  await expect(page.getByText('没加载出来，检查网络后再试')).toHaveCount(0);
+  await expect.poll(() => busy.locator('[aria-hidden="true"]').count()).toBeGreaterThan(0);
+  const box = await busy.locator('[aria-hidden="true"]').first().boundingBox();
+  expect(box?.height ?? 0).toBeGreaterThan(0);
+  await expect(page.getByText('没加载出来，检查网络后再试')).toHaveCount(0);
+
+  await expect(page.getByText('没加载出来，检查网络后再试')).toBeVisible({ timeout: LOAD_TIMEOUT_MS });
+  await expect(page.locator('[role="status"]')).toHaveCount(0);
+  await Promise.all(held.map((route) => route.abort().catch(() => undefined)));
+});
