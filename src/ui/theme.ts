@@ -107,6 +107,7 @@ export const theme = {
   fontFamily: {
     sans: 'ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif',
     serif: 'Georgia, "Songti SC", "Noto Serif SC", serif',
+    mono: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
   },
   radius: {
     sm: 8,
@@ -120,6 +121,10 @@ export const theme = {
   layout: {
     sidebar: 228,
     content: 680,
+    /** Login column on web once the viewport is wider than a phone. */
+    auth: 360,
+    /** Up to this width the login column stays full bleed. Covers 320 and 390. */
+    authFull: 480,
     tabBar: 88,
     wide: 960,
     chart: 176,

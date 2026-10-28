@@ -105,6 +105,18 @@ export function Field({
   );
 }
 
+/** Hairline with a short label in the middle, for example 或. */
+export function LabeledDivider({ label }: { label: string }) {
+  const theme = useTheme();
+  return (
+    <Row gap="sm">
+      <View accessible={false} style={[styles.rule, { backgroundColor: theme.color.line }]} />
+      <Text variant="muted">{label}</Text>
+      <View accessible={false} style={[styles.rule, { backgroundColor: theme.color.line }]} />
+    </Row>
+  );
+}
+
 export function Callout({
   message,
   action,
@@ -153,5 +165,9 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.lg,
     padding: theme.space.md,
     gap: theme.space.sm,
+  },
+  rule: {
+    flex: 1,
+    height: theme.border.width,
   },
 });

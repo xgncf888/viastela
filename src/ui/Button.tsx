@@ -14,6 +14,7 @@ export function Button({
   tone,
   disabled = false,
   loading = false,
+  fill = false,
 }: {
   label: string;
   onPress: () => void;
@@ -22,6 +23,8 @@ export function Button({
   tone?: 'danger';
   disabled?: boolean;
   loading?: boolean;
+  /** Stretch to the column so stacked buttons share one width. */
+  fill?: boolean;
 }) {
   const theme = useTheme();
   const [hovered, setHovered] = useState(false);
@@ -80,6 +83,7 @@ export function Button({
             }
           : null,
         inactive ? styles.inactive : null,
+        fill ? styles.fill : null,
       ]}
     >
       {loading ? (
@@ -116,4 +120,5 @@ const styles = StyleSheet.create({
   },
   label: { fontWeight: '500' },
   inactive: { opacity: 0.55 },
+  fill: { alignSelf: 'stretch', width: '100%' },
 });

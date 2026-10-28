@@ -79,19 +79,27 @@ test('a failed provider return keeps the email and clears the error from the URL
 });
 
 test('email sign-in after a provider failure shows no error after sign-out', async ({ page }) => {
+  const otpBodies: Record<string, unknown>[] = [];
+  const verifyBodies: Record<string, unknown>[] = [];
   await installApi(page, { weights: [] });
   await page.route('**/auth/v1/otp**', async (route) => {
+    if (route.request().method() === 'POST') otpBodies.push(route.request().postDataJSON());
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
   });
   await page.route('**/auth/v1/verify**', async (route) => {
+    if (route.request().method() === 'POST') verifyBodies.push(route.request().postDataJSON());
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(authSession()) });
   });
   await page.goto('/?error=access_denied');
   await expect(page.getByRole('alert')).toHaveText('登录没有完成，请重试');
   await page.getByRole('textbox', { name: '邮箱' }).fill('yifeng@example.com');
   await page.getByRole('button', { name: '发送验证码' }).click();
+  await expect.poll(() => otpBodies[0]).toMatchObject({ email: 'yifeng@example.com', create_user: true });
+  await expect(page.getByRole('heading', { name: '验证码已发送，请查收邮箱' })).toBeVisible();
   await page.getByRole('textbox', { name: '验证码', exact: true }).fill('123456');
-  await page.getByRole('button', { name: '验证并进入' }).click();
+  await expect
+    .poll(() => verifyBodies[0])
+    .toMatchObject({ email: 'yifeng@example.com', token: '123456', type: 'email' });
   await expect(page.getByText('今日').first()).toBeVisible();
   await page.getByRole('button', { name: '我的' }).click();
   await page.getByRole('button', { name: '退出登录' }).click();
