@@ -228,27 +228,33 @@ double_confirm_changes = true
 enable_confirmations = false
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
-# Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
-max_frequency = "1s"
+# Minimum time before another signup confirmation or password reset email.
+# Also the per-address window for an email OTP. Matches the 60s resend countdown.
+max_frequency = "60s"
 # Number of characters used in the email OTP.
 otp_length = 6
-# Number of seconds before the email OTP expires (defaults to 1 hour).
-otp_expiry = 3600
+# Seconds before the email OTP expires. The login screen reads this same 600.
+otp_expiry = 600
 
-# Use a production-ready SMTP server
-# [auth.email.smtp]
-# enabled = true
-# host = "smtp.sendgrid.net"
-# port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# Hosted SMTP only. Disabled here so local mail stays in Mailpit ([local_smtp]).
+# Password and sender address are env names. Do not put keys in this file.
+[auth.email.smtp]
+enabled = false
+host = "smtp.resend.com"
+port = 465
+user = "resend"
+pass = "env(RESEND_API_KEY)"
+admin_email = "env(SMTP_ADMIN_EMAIL)"
+sender_name = "星途"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+# Code only. Both templates omit {{ .ConfirmationURL }} so the mail is not a magic link.
+[auth.email.template.magic_link]
+subject = "星途登录验证码：{{ .Token }}"
+content_path = "./supabase/templates/email-otp.html"
+
+[auth.email.template.confirmation]
+subject = "星途登录验证码：{{ .Token }}"
+content_path = "./supabase/templates/email-otp.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

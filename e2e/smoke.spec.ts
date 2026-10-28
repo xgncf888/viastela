@@ -90,8 +90,8 @@ test('email sign-in after a provider failure shows no error after sign-out', asy
   await expect(page.getByRole('alert')).toHaveText('登录没有完成，请重试');
   await page.getByRole('textbox', { name: '邮箱' }).fill('yifeng@example.com');
   await page.getByRole('button', { name: '发送验证码' }).click();
+  await expect(page.getByRole('heading', { name: '验证码已发送，请查收邮箱' })).toBeVisible();
   await page.getByRole('textbox', { name: '验证码', exact: true }).fill('123456');
-  await page.getByRole('button', { name: '验证并进入' }).click();
   await expect(page.getByText('今日').first()).toBeVisible();
   await page.getByRole('button', { name: '我的' }).click();
   await page.getByRole('button', { name: '退出登录' }).click();
