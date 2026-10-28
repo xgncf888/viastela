@@ -171,6 +171,19 @@ async function installAssets(
 
 test.use({ serviceWorkers: 'allow' });
 
+test('no goal shows the guide, the conclusion, and no target legend', async ({ page }) => {
+  await installApi(page, { weights: [] });
+  await installAssets(page, { holdings: [], events: [] });
+  await openAssets(page);
+  await expect(page.getByText('还没设目标')).toBeVisible();
+  const setGoal = page.getByRole('button', { name: '设一个目标' });
+  await expect(setGoal).toBeVisible();
+  await expect(setGoal).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(page.getByText('设一个目标后，这里会显示预计哪个月达成')).toBeVisible();
+  await expect(page.getByText('目标', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('目标进度')).toHaveCount(0);
+});
+
 test('signing out clears the quote cache before the next person loads offline', async ({ page, context }) => {
   const events: AssetEvent[] = [];
   const quotes = { fail: false };

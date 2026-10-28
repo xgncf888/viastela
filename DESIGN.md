@@ -149,7 +149,7 @@ When weight, training, and study all have a row for the accounting day, the head
 
 The headline is the server `total_usd`. Offline, that figure is the last cached quotes response. The client does not show a second total of its own. Money is `US$`, `S$`, `HK$`, or `¥`, with thousands separators and two decimals. A negative amount stays ink, not danger. Share counts keep up to six decimals and drop trailing zeros.
 
-With no goal row, the card does not invent one. It offers `设一个目标`, which opens the goal sheet. The progress bar, goal percent, dollar gap, month count, and reach date stay hidden. The projection still draws the three rate lines and leaves out the target line.
+With no goal row, the card does not invent one. Under the total, one muted line says `还没设目标`, and a ghost button `设一个目标` opens the goal sheet. There is no progress bar and no `目标进度`. The projection still draws the three rate lines, leaves out the target line and its legend, and the conclusion is exactly `设一个目标后，这里会显示预计哪个月达成`. The dollar gap, month count, and reach date stay hidden.
 
 ### Hide amounts
 

@@ -1,7 +1,16 @@
 import { expect, test } from '@jest/globals';
 
 import { projectNetWorth } from './projection';
-import { clampProjectionDay, projectionConclusion, projectionSummary, unreachableGoalCopy } from './projection-copy';
+import {
+  NO_GOAL_BUTTON_LABEL,
+  NO_GOAL_BUTTON_VARIANT,
+  NO_GOAL_CONCLUSION,
+  NO_GOAL_HINT,
+  clampProjectionDay,
+  projectionConclusion,
+  projectionSummary,
+  unreachableGoalCopy,
+} from './projection-copy';
 
 const RATES = [0.03, 0.05, 0.07] as const;
 
@@ -24,12 +33,16 @@ test('no goal returns a summary with no gap, target, or reach date', () => {
     monthlyNetUsd: 2,
     targetUsd: null,
   });
-  expect(summary).toEqual({ kind: 'no-goal' });
-  const text = JSON.stringify(summary);
-  expect(text).not.toContain('gap');
-  expect(text).not.toContain('个月');
-  expect(text).not.toContain('目标');
-  expect(text).not.toContain('monthLabel');
+  expect(summary).toEqual({ kind: 'no-goal', text: NO_GOAL_CONCLUSION });
+  expect(summary.kind === 'no-goal' ? summary.text : '').toBe('设一个目标后，这里会显示预计哪个月达成');
+  expect(NO_GOAL_HINT).toBe('还没设目标');
+  expect(NO_GOAL_BUTTON_LABEL).toBe('设一个目标');
+  expect(NO_GOAL_BUTTON_VARIANT).toBe('ghost');
+  const text = summary.kind === 'no-goal' ? summary.text : '';
+  expect(text).not.toContain('还差');
+  expect(text).not.toContain('约');
+  expect(text).not.toMatch(/\d+ 个月/);
+  expect(text).not.toContain('年');
 });
 
 test('5% selected uses 按 5% 年化，50 年内达不到目标', () => {

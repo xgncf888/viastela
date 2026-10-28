@@ -10,7 +10,14 @@ import { civilLocalDay, computeLocalDay } from '@/core/local-day';
 import { formatMoney, formatShares } from '@/core/money-format';
 import { projectNetWorthLines } from '@/core/projection';
 import { projectionChart } from '@/core/projection-chart';
-import { formatYearMonth, projectionSummary, type ProjectionSentence } from '@/core/projection-copy';
+import {
+  NO_GOAL_BUTTON_LABEL,
+  NO_GOAL_BUTTON_VARIANT,
+  NO_GOAL_HINT,
+  formatYearMonth,
+  projectionSummary,
+  type ProjectionSentence,
+} from '@/core/projection-copy';
 import {
   COST_BASIS_CALLOUT,
   OFFLINE_QUOTE_CALLOUT,
@@ -486,7 +493,10 @@ function Overview({
           <Button label="调整目标" variant="ghost" onPress={onGoal} />
         </>
       ) : (
-        <Button label="设一个目标" onPress={onGoal} />
+        <>
+          <Text variant="muted">{NO_GOAL_HINT}</Text>
+          <Button label={NO_GOAL_BUTTON_LABEL} variant={NO_GOAL_BUTTON_VARIANT} onPress={onGoal} />
+        </>
       )}
       {model.ratio ? <Text variant="body">{model.ratio}</Text> : null}
       {model.unpriced ? <Text variant="muted">{model.unpriced}</Text> : null}
@@ -552,7 +562,7 @@ function Projection({
 
 function Conclusion({ sentence, masked }: { sentence: ProjectionSentence | null; masked: boolean }) {
   if (!sentence) return <Text variant="body">推算还不可用</Text>;
-  if (sentence.kind === 'no-goal') return null;
+  if (sentence.kind === 'no-goal') return <Text variant="body">{sentence.text}</Text>;
   if (sentence.kind === 'already') return <Text variant="body">已达成</Text>;
   if (sentence.kind === 'unreachable') return <Text variant="body">{sentence.text}</Text>;
   const direction = sentence.ahead ? '超前' : '落后';

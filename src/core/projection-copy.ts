@@ -19,8 +19,13 @@ export function selectedAnnualRate(rates: readonly number[], mainRateIndex: numb
   return rates[0] ?? 0.03;
 }
 
+export const NO_GOAL_HINT = '还没设目标';
+export const NO_GOAL_BUTTON_LABEL = '设一个目标';
+export const NO_GOAL_BUTTON_VARIANT = 'ghost' as const;
+export const NO_GOAL_CONCLUSION = '设一个目标后，这里会显示预计哪个月达成';
+
 export type ProjectionSentence =
-  | { kind: 'no-goal' }
+  | { kind: 'no-goal'; text: string }
   | { kind: 'already' }
   | { kind: 'unreachable'; text: string }
   | {
@@ -35,13 +40,13 @@ export type ProjectionSentence =
     };
 
 /**
- * Selected-line summary. No stored goal returns `{ kind: 'no-goal' }` and
- * nothing about a gap, a month count, or a reach date.
+ * Selected-line summary. No stored goal returns the guide sentence only:
+ * no gap, no 「还差」, no 「约 n 个月」, and no reach date.
  */
 export function projectionSummary(
   input: Omit<Parameters<typeof projectionConclusion>[0], 'targetUsd'> & { targetUsd: number | null },
 ): ProjectionSentence {
-  if (input.targetUsd === null) return { kind: 'no-goal' };
+  if (input.targetUsd === null) return { kind: 'no-goal', text: NO_GOAL_CONCLUSION };
   return projectionConclusion({ ...input, targetUsd: input.targetUsd });
 }
 
