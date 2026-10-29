@@ -1,8 +1,12 @@
 import { Text as NativeText, Platform, StyleSheet, type StyleProp, type TextStyle } from 'react-native';
 
+import { installWebSerifFace, webTitleFontFamily } from './serif-face';
+import { plainText, serifCovers } from './serif-glyphs';
 import { maxFontSizeMultiplierFor, type TextVariant } from './text-scale';
 import { theme as baseTheme } from './theme';
 import { useTheme } from './ThemeProvider';
+
+installWebSerifFace();
 
 type Variant = TextVariant;
 type Tone = 'ink' | 'muted' | 'inverse' | 'accent' | 'onAccent' | 'danger' | 'moss' | 'warning';
@@ -18,7 +22,7 @@ const variantStyle: Record<Variant, TextStyle> = {
     lineHeight: baseTheme.lineHeight.xl,
     fontWeight: baseTheme.fontWeight.semibold,
     fontFamily: Platform.select({
-      web: baseTheme.fontFamily.serif,
+      web: webTitleFontFamily(),
       default: undefined,
     }),
   },
@@ -92,6 +96,7 @@ export function Text({
 }) {
   const theme = useTheme();
   const resolvedTone = tone ?? (mutedVariants.has(variant) ? 'muted' : 'ink');
+  const titleUsesSans = variant === 'title' && Platform.OS === 'web' && !serifCovers(plainText(children));
   const toneColor: Record<Tone, string> = {
     ink: theme.color.ink,
     muted: theme.color.muted,
@@ -114,7 +119,13 @@ export function Text({
       role={role}
       aria-hidden={ariaHidden}
       maxFontSizeMultiplier={maxFontSizeMultiplierFor(variant)}
-      style={[styles.base, variantStyle[variant], { color: toneColor[resolvedTone] }, style]}
+      style={[
+        styles.base,
+        variantStyle[variant],
+        { color: toneColor[resolvedTone] },
+        style,
+        titleUsesSans ? { fontFamily: baseTheme.fontFamily.sans } : null,
+      ]}
     >
       {children}
     </NativeText>
