@@ -140,7 +140,7 @@ function NativePlot({ plot, color }: { plot: Plot; color: AppTheme['color'] }) {
   );
 }
 
-export type ChartTone = 'accent' | 'moss' | 'muted' | 'line';
+export type ChartTone = 'accent' | 'moss' | 'muted' | 'target';
 export type ChartStyle = 'solid' | 'dashed' | 'dotted';
 
 export type ChartSeries = {
@@ -201,8 +201,16 @@ function buildSeriesPlot(series: readonly ChartSeries[], width: number, height: 
 function toneColor(tone: ChartTone, color: AppTheme['color']): string {
   if (tone === 'accent') return color.accent;
   if (tone === 'moss') return color.moss;
-  if (tone === 'line') return color.line;
+  if (tone === 'target') return color.target;
   return color.muted;
+}
+
+/** Selected projection line is 1.8, the other rates are 1.2, the target is the 1px token. Actual stays the data stroke. */
+function seriesStrokeWidth(series: { thin: boolean; tone: ChartTone }): number {
+  if (series.tone === 'target') return theme.border.width;
+  if (series.tone === 'accent') return theme.layout.stroke;
+  if (series.thin) return theme.layout.strokeMinor;
+  return theme.layout.strokeSelected;
 }
 
 function SeriesWeb({ plot, color }: { plot: SeriesPlot; color: AppTheme['color'] }) {
@@ -218,7 +226,7 @@ function SeriesWeb({ plot, color }: { plot: SeriesPlot; color: AppTheme['color']
         points: series.points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' '),
         fill: 'none',
         stroke: toneColor(series.tone, color),
-        strokeWidth: series.thin ? theme.border.width : theme.layout.stroke,
+        strokeWidth: seriesStrokeWidth(series),
         strokeDasharray: DASH[series.style],
         strokeLinejoin: 'round',
         strokeLinecap: 'round',
@@ -252,7 +260,7 @@ function SeriesNative({ plot, color }: { plot: SeriesPlot; color: AppTheme['colo
           points={series.points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ')}
           fill="none"
           stroke={toneColor(series.tone, color)}
-          strokeWidth={series.thin ? theme.border.width : theme.layout.stroke}
+          strokeWidth={seriesStrokeWidth(series)}
           strokeDasharray={DASH[series.style]}
           strokeLinejoin="round"
           strokeLinecap="round"

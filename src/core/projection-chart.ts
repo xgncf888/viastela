@@ -1,8 +1,9 @@
+import { moneyAxisDomain } from './money-axis';
 import { actualSeriesNote } from './quote-label';
 import type { NetWorthProjection } from './projection';
 import { annualRatePercent } from './projection-copy';
 
-export type ChartTone = 'accent' | 'moss' | 'muted' | 'line';
+export type ChartTone = 'accent' | 'moss' | 'muted' | 'target';
 export type ChartStyle = 'solid' | 'dashed' | 'dotted';
 
 export type ProjectionChartPoint = { id: string; x: number; y: number };
@@ -24,9 +25,10 @@ export type ProjectionChart = {
 };
 
 /**
- * Positions are 0 to 1. The chart does not know dollars.
+ * Positions are 0 to 1 inside the money-axis domain, not the raw data min and max.
+ * The chart does not know dollars.
  * The selected line is moss. The other two are thinner muted dashes.
- * Actual points are omitted until there are two of them.
+ * The target line uses the target tone and a dotted stroke. Actual points are omitted until there are two of them.
  */
 export function projectionChart(input: {
   lines: readonly [NetWorthProjection, NetWorthProjection, NetWorthProjection];
@@ -47,9 +49,9 @@ export function projectionChart(input: {
     ...input.lines.flatMap((line) => line.points.map((point) => point.netWorthUsd)),
     ...actualMonths.map((point) => point.totalUsd),
   ];
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const yOf = (value: number) => (max === min ? 0.5 : (value - min) / (max - min));
+  const domain = moneyAxisDomain(values);
+  const domainSpan = domain.max - domain.min;
+  const yOf = (value: number) => (domainSpan === 0 ? 0.5 : (value - domain.min) / domainSpan);
   const series: ProjectionChartSeries[] = [];
   const span = Math.max(input.lines[0].points.length - 1, 1);
   if (input.targetUsd !== null) {
@@ -57,7 +59,7 @@ export function projectionChart(input: {
       id: 'target',
       label: '目标',
       style: 'dotted',
-      tone: 'line',
+      tone: 'target',
       markers: false,
       thin: false,
       points: [
