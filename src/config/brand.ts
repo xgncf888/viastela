@@ -8,6 +8,11 @@ export const brand = {
   webName: '星途',
   slug: 'viastela',
   scheme: 'viastela',
+  /**
+   * Native auth return path. The custom-scheme form is `viastela://auth/callback`.
+   * The https App Link uses this exact path on the production origin.
+   */
+  authCallbackPath: '/auth/callback',
   iosBundleIdentifier: 'com.viastela.app',
   androidPackage: 'com.viastela.app',
   icon: './assets/icon.png',

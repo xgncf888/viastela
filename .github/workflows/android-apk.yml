@@ -1,0 +1,81 @@
+name: Android APK
+
+# Manual only. A missing EXPO_TOKEN skips the build job and does not fail pull-request CI.
+on:
+  workflow_dispatch:
+    inputs:
+      expo_owner:
+        description: Expo account owner. Used when the EXPO_OWNER repository variable is empty.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: EXPO_TOKEN
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      token: ${{ steps.token.outputs.present }}
+    steps:
+      - id: token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${EXPO_TOKEN}" ]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Android APK skipped::EXPO_TOKEN is not set. The build job was skipped. Add the EXPO_TOKEN secret when you want an APK. This is not a CI failure."
+            {
+              echo "## Android APK skipped"
+              echo ""
+              echo "EXPO_TOKEN is not set, so no build ran. Add that secret under GitHub Actions to build."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Build preview APK
+    needs: gate
+    if: needs.gate.outputs.token == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      EXPO_OWNER: ${{ inputs.expo_owner || vars.EXPO_OWNER }}
+      EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
+      EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+      EXPO_PUBLIC_EAS_UPDATE_URL: ${{ vars.EXPO_PUBLIC_EAS_UPDATE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check Android config
+        run: node scripts/check-android-config.mjs
+      - name: Build Android APK
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: npx --yes eas-cli@16 build --platform android --profile preview --non-interactive --wait --json > eas-build.json
+      - name: Download APK and write sha256
+        run: node scripts/collect-eas-apk.mjs eas-build.json android-apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-preview-apk
+          path: |
+            android-apk/viastela-preview.apk
+            android-apk/sha256.txt
+          if-no-files-found: error
