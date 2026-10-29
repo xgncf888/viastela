@@ -1,0 +1,64 @@
+name: Screenshots
+
+# DESIGN §14 「截图测试」: not a CI gate before 11/2. This workflow is separate from ci.yml so the
+# existing required checks never depend on it; the job itself is continue-on-error.
+# Baselines come only from this container. CI never commits them: diffs and new screenshots go to
+# an artifact, and a baseline update is its own PR that Hazel looks at first.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    permissions:
+      contents: read
+    container:
+      # Must match the exact @playwright/test version in package.json (checked below).
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+    env:
+      CI: 'true'
+      PLAYWRIGHT_HTML_OPEN: never
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Playwright version matches the image
+        run: |
+          installed="$(node -p "require('@playwright/test/package.json').version")"
+          test "$installed" = "1.64.1" || { echo "@playwright/test is $installed; update the image tag"; exit 1; }
+      - name: Export web
+        run: npm run export:web
+        env:
+          # Same placeholder URL and Supabase public local-demo anon key as ci.yml; every API is mocked.
+          EXPO_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+      - name: Screenshots
+        run: |
+          if find e2e/__screenshots__ -name '*.png' 2>/dev/null | grep -q .; then
+            npm run test:screenshots -- --reporter=html,line
+          else
+            echo "No committed baselines yet: generating them for the artifact."
+            npm run test:screenshots -- --update-snapshots --reporter=html,line
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots-${{ github.event.pull_request.number }}-${{ github.run_attempt }}
+          path: |
+            playwright-report/
+            test-results/
+            e2e/__screenshots__/
+          if-no-files-found: ignore
+          retention-days: 7
