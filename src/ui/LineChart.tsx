@@ -411,6 +411,8 @@ type ScaleProps = {
   unit?: string;
   /** X ticks. Omit them and the chart keeps `startLabel` / `endLabel`. */
   xTicks?: readonly ChartXTick[];
+  /** Plot height. Defaults to `layout.chart`. Callers pass `chartPhone`, `chartShort`, or `chartWide`. */
+  height?: number;
 };
 
 export function LineChart(
@@ -444,6 +446,7 @@ function SeriesLineChart({
   ticks,
   unit,
   xTicks,
+  height = theme.layout.chart,
 }: {
   series: readonly ChartSeries[];
   startLabel: string;
@@ -457,8 +460,9 @@ function SeriesLineChart({
         ticks={ticks}
         unit={unit}
         color={color}
+        height={height}
         renderPlot={(width, grid, axis) => {
-          const plot = buildSeriesPlot(series, width, theme.layout.chart);
+          const plot = buildSeriesPlot(series, width, height);
           if (!plot) return null;
           return Platform.OS === 'web' ? (
             <SeriesWeb plot={plot} color={color} grid={grid} axis={axis} />
@@ -498,6 +502,7 @@ function LegacyLineChart({
   ticks,
   unit,
   xTicks,
+  height = theme.layout.chart,
 }: {
   points: readonly LinePoint[];
   startLabel: string;
@@ -524,8 +529,9 @@ function LegacyLineChart({
         ticks={ticks}
         unit={unit}
         color={color}
+        height={height}
         renderPlot={(width, grid, axis) => {
-          const plot = buildPlot(points, width, theme.layout.chart, ticks);
+          const plot = buildPlot(points, width, height, ticks);
           if (!plot) return null;
           return Platform.OS === 'web' ? (
             <WebPlot plot={plot} color={color} grid={grid} axis={axis} />
@@ -543,19 +549,21 @@ function ChartCanvas({
   ticks,
   unit,
   color,
+  height,
   renderPlot,
 }: {
   ticks?: readonly ChartTick[];
   unit?: string;
   color: AppTheme['color'];
+  height: number;
   renderPlot: (width: number, grid: readonly ChartGridLine[], axis: ChartAxisLine | null) => ReactNode;
 }) {
   const [width, setWidth] = useState(0);
-  const decorations = chartDecorations(ticks, color);
+  const decorations = chartDecorations(ticks, color, height);
   const hasTicks = (ticks?.length ?? 0) > 0;
   const plot = (
     <View
-      style={hasTicks ? styles.plot : styles.frame}
+      style={[hasTicks ? styles.plot : styles.frame, { height }]}
       onLayout={(event) => {
         const next = event.nativeEvent.layout.width;
         setWidth((current) => (current === next ? current : next));
@@ -569,8 +577,8 @@ function ChartCanvas({
     <View>
       {unit ? <UnitLabel unit={unit} /> : null}
       {hasTicks ? (
-        <View style={styles.axisRow}>
-          <YAxis ticks={ticks ?? []} />
+        <View style={[styles.axisRow, { height }]}>
+          <YAxis ticks={ticks ?? []} height={height} />
           {plot}
         </View>
       ) : (
@@ -593,14 +601,14 @@ function UnitLabel({ unit }: { unit: string }) {
   );
 }
 
-function YAxis({ ticks }: { ticks: readonly ChartTick[] }) {
+function YAxis({ ticks, height }: { ticks: readonly ChartTick[]; height: number }) {
   const { color } = useTheme();
   return (
     <View
       accessible={false}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={styles.gutter}
+      style={[styles.gutter, { height }]}
     >
       {ticks.map((tick, index) => (
         <AxisText
@@ -611,7 +619,7 @@ function YAxis({ ticks }: { ticks: readonly ChartTick[] }) {
             axisTextStyle(color.muted),
             {
               position: 'absolute',
-              top: tickOffsetTop(tick.position),
+              top: tickOffset(tick.position, height) - theme.lineHeight.tick / 2,
               left: 0,
               width: theme.layout.axisGutter,
             },
@@ -681,10 +689,6 @@ function axisTextStyle(color: string): TextStyle {
   };
 }
 
-function tickOffsetTop(position: number): number {
-  return tickOffset(position) - theme.lineHeight.tick / 2;
-}
-
 function xTickStyle(position: number): TextStyle {
   if (position <= 0) return { position: 'absolute', left: 0, top: 0, textAlign: 'left' };
   if (position >= 1) return { position: 'absolute', right: 0, top: 0, textAlign: 'right' };
@@ -720,10 +724,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: theme.layout.stroke,
     borderStyle: 'dotted',
   },
-  frame: { height: theme.layout.chart, width: '100%' },
-  plot: { flex: 1, height: theme.layout.chart },
-  axisRow: { flexDirection: 'row', height: theme.layout.chart, width: '100%' },
-  gutter: { width: theme.layout.axisGutter, height: theme.layout.chart },
+  frame: { width: '100%' },
+  plot: { flex: 1 },
+  axisRow: { flexDirection: 'row', width: '100%' },
+  gutter: { width: theme.layout.axisGutter },
   unit: { width: theme.layout.axisGutter, textAlign: 'right' },
   xAxis: { height: theme.lineHeight.tick, position: 'relative' },
 });

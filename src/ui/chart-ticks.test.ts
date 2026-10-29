@@ -77,6 +77,28 @@ test('projection years use 4 to 6 labels', () => {
   expect(labels[labels.length - 1].position).toBe(1);
 });
 
+test('a 220-tall chart places the grid and the axis from that height', () => {
+  const height = theme.layout.chartWide;
+  expect(height).toBe(220);
+  const pad = theme.space.md;
+  const inner = height - pad * 2;
+  const ticks = [
+    { position: 0, zero: false },
+    { position: 0.5, zero: false },
+    { position: 1, zero: true },
+  ];
+  const drawn = chartDecorations(ticks, lightColor, height);
+  expect(drawn.lines.map((line) => line.y)).toEqual([
+    height - pad,
+    height - pad - 0.5 * inner,
+    pad,
+  ]);
+  expect(drawn.lines[2].stroke).toBe(lightColor.muted);
+  expect(drawn.axis).toEqual({ stroke: lightColor.chartAxis, top: pad, bottom: height - pad });
+  expect(tickOffset(0, height)).toBe(height - pad);
+  expect(tickOffset(1, height)).toBe(pad);
+});
+
 test('grid lines stay at 25/50/75% until ticks are passed, then sit on the ticks', () => {
   const height = theme.layout.chart;
   const pad = theme.space.md;

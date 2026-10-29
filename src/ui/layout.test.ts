@@ -10,7 +10,7 @@ import { Columns, Divider, ScreenHeader } from './layout';
 import { maxFontSizeMultiplierFor } from './text-scale';
 import { Text } from './Text';
 import { lightColor, theme } from './theme';
-import { weightAxis, weightXLabels } from './chart-ticks';
+import { tickOffset, weightAxis, weightXLabels } from './chart-ticks';
 
 jest.mock('react-native', () => {
   // jest.mock factories cannot use ESM imports.
@@ -77,7 +77,7 @@ test('Columns stacks main above aside below the desktop breakpoint and shares a 
   );
   const stackedRoot = stacked.firstElementChild as HTMLElement;
   expect(stackedRoot.style.flexDirection).toBe('column');
-  expect(stackedRoot.style.gap).toBe(`${theme.space.lg}px`);
+  expect(stackedRoot.style.gap).toBe(`${theme.space.md}px`);
   expect(stacked.textContent?.indexOf('主栏')).toBeLessThan(stacked.textContent?.indexOf('侧栏') ?? -1);
 
   setWidth(theme.breakpoint.desktop);
@@ -104,7 +104,9 @@ test('Columns with columns={3} is a row on desktop and a stack below it', () => 
       ...['现金', '股票', '目标'].map((label) => line(label, label)),
     ),
   );
-  expect((stacked.firstElementChild as HTMLElement).style.flexDirection).toBe('column');
+  const stackedRoot = stacked.firstElementChild as HTMLElement;
+  expect(stackedRoot.style.flexDirection).toBe('column');
+  expect(stackedRoot.style.gap).toBe(`${theme.space.md}px`);
   expect(stacked.textContent).toBe('现金股票目标');
 
   setWidth(theme.breakpoint.desktop);
@@ -119,6 +121,34 @@ test('Columns with columns={3} is a row on desktop and a stack below it', () => 
   expect(root.style.flexDirection).toBe('row');
   expect(root.style.gap).toBe(`${theme.space.lg}px`);
   expect(root.children).toHaveLength(3);
+});
+
+test('stackOrder puts aside first only while stacked', () => {
+  setWidth(theme.breakpoint.desktop - 1);
+  const stacked = mount(
+    createElement(Columns, {
+      stackOrder: 'aside-first',
+      main: line('主栏'),
+      aside: line('侧栏'),
+    }),
+  );
+  const stackedRoot = stacked.firstElementChild as HTMLElement;
+  expect(stackedRoot.style.flexDirection).toBe('column');
+  expect(stackedRoot.style.gap).toBe(`${theme.space.md}px`);
+  expect(stacked.textContent?.indexOf('侧栏')).toBeLessThan(stacked.textContent?.indexOf('主栏') ?? -1);
+
+  setWidth(theme.breakpoint.desktop);
+  const row = mount(
+    createElement(Columns, {
+      stackOrder: 'aside-first',
+      main: line('主栏'),
+      aside: line('侧栏'),
+    }),
+  );
+  const rowRoot = row.firstElementChild as HTMLElement;
+  expect(rowRoot.style.flexDirection).toBe('row');
+  expect(rowRoot.style.gap).toBe(`${theme.space.lg}px`);
+  expect(row.textContent?.indexOf('主栏')).toBeLessThan(row.textContent?.indexOf('侧栏') ?? -1);
 });
 
 test('Divider is a 1px line', () => {
@@ -202,6 +232,43 @@ test('LineChart puts the unit at the top and keeps it out of the tick labels', (
   expect(unit.style.color).toBe(rgba(lightColor.muted));
   expect(unit.style.fontFamily).toContain('ui-monospace');
 });
+
+test('LineChart height defaults to layout.chart and otherwise uses the prop', () => {
+  const props = {
+    points: [
+      { id: 'a', position: 0, raw: 72.4, trend: 73 },
+      { id: 'b', position: 1, raw: 78.6, trend: 76 },
+    ],
+    startLabel: '10/01',
+    endLabel: '10/28',
+    rawLabel: '每日晨重',
+    trendLabel: '平滑趋势',
+    accessibilityLabel: '近 28 日体重',
+  };
+  const def = mount(createElement(LineChart, props));
+  expect(styleHeights(def)).toContain(`${theme.layout.chart}px`);
+
+  const wide = theme.layout.chartWide;
+  expect(wide).toBe(220);
+  const ticks = weightAxis([72.4, 78.6]);
+  const node = mount(createElement(LineChart, { ...props, height: wide, ticks, unit: 'kg' }));
+  const heights = styleHeights(node);
+  expect(heights.filter((value) => value === `${wide}px`).length).toBeGreaterThanOrEqual(2);
+  const label = exactText(node, ticks[0].label) as HTMLElement;
+  expect(label.style.top).toBe(`${tickOffset(ticks[0].position, wide) - theme.lineHeight.tick / 2}px`);
+});
+
+function styleHeights(node: HTMLElement): string[] {
+  const found: string[] = [];
+  const walk = (current: Node) => {
+    if (current.nodeType !== 1) return;
+    const element = current as HTMLElement;
+    if (element.style.height) found.push(element.style.height);
+    element.childNodes.forEach(walk);
+  };
+  node.childNodes.forEach(walk);
+  return found;
+}
 
 function line(label: string, key?: string, variant?: ComponentProps<typeof Text>['variant']) {
   return createElement(Text, { key, variant } as unknown as ComponentProps<typeof Text>, label);

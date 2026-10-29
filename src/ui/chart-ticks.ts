@@ -54,7 +54,7 @@ type AxisColors = {
 };
 
 /** Vertical offset of a 0–1 axis position. 0 sits on the bottom padding. */
-export function tickOffset(position: number, height = theme.layout.chart): number {
+export function tickOffset(position: number, height: number = theme.layout.chart): number {
   const padY = theme.space.md;
   const inner = Math.max(height - padY * 2, 0);
   return height - padY - position * inner;
@@ -68,7 +68,7 @@ export function tickOffset(position: number, height = theme.layout.chart): numbe
 export function chartDecorations(
   ticks: readonly Pick<ChartTick, 'position' | 'zero'>[] | undefined,
   color: AxisColors,
-  height = theme.layout.chart,
+  height: number = theme.layout.chart,
 ): { lines: ChartGridLine[]; axis: ChartAxisLine | null } {
   const padY = theme.space.md;
   const hasTicks = (ticks?.length ?? 0) > 0;

@@ -61,26 +61,31 @@ export function Center({ gap = 'sm', children }: { gap?: SpaceName; children: Re
 }
 
 /**
- * Desktop columns. Below the desktop breakpoint, `main` stacks above `aside`.
- * `columns={3}` is an equal grid of `children` on desktop and a stack below it.
- * The gap is `space.lg` (24). DESIGN.md does not set a column ratio, so `main` and `aside` share the row.
+ * Desktop columns. Side by side, `main` is the left 1fr and `aside` the right 1fr
+ * (DESIGN.md §4.3.1), with `space.lg` between them. Below the desktop breakpoint
+ * they stack with `space.md`. `stackOrder` chooses which one is first in that
+ * stack; the side-by-side order stays main, then aside.
+ * `columns={3}` is an equal grid on desktop and a stack below it, with the same gaps.
  */
 export function Columns({
   main,
   aside,
   columns,
+  stackOrder = 'main-first',
   children,
   accessibilityLabel,
 }: {
   main?: ReactNode;
   aside?: ReactNode;
   columns?: 3;
+  /** Order while stacked. Side by side is always main, then aside. */
+  stackOrder?: 'main-first' | 'aside-first';
   children?: ReactNode;
   accessibilityLabel?: string;
 }) {
   const { width } = useWindowDimensions();
   const desktop = layoutClassForWidth(width) === 'expanded';
-  const gap = theme.space.lg;
+  const gap = desktop ? theme.space.lg : theme.space.md;
   if (columns === 3) {
     return (
       <ColumnGrid desktop={desktop} gap={gap} accessibilityLabel={accessibilityLabel}>
@@ -88,11 +93,13 @@ export function Columns({
       </ColumnGrid>
     );
   }
+  const first = stackOrder === 'aside-first' ? aside : main;
+  const second = stackOrder === 'aside-first' ? main : aside;
   if (!desktop) {
     return (
       <View accessibilityLabel={accessibilityLabel} style={{ flexDirection: 'column', gap }}>
-        {main}
-        {aside}
+        {first}
+        {second}
       </View>
     );
   }
