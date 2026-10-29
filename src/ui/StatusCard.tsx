@@ -2,7 +2,7 @@ import { Children, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from './Button';
-import { useWideWeb } from './chrome';
+import { useLayoutClass } from './chrome';
 import { Card } from './Card';
 import { Stack } from './layout';
 import { Text } from './Text';
@@ -40,11 +40,11 @@ export function StatusCard({
   );
 }
 
-/** Three status cards: a column below 960, a row from 960 up. */
+/** Three status cards: a column below desktop, a row from the desktop breakpoint up. */
 export function CardRow({ children }: { children: ReactNode }) {
-  const wide = useWideWeb();
+  const layout = useLayoutClass();
   const items = Children.toArray(children);
-  if (!wide) return <Stack gap="md">{items}</Stack>;
+  if (layout !== 'expanded') return <Stack gap="md">{items}</Stack>;
   return (
     <View style={styles.row}>
       {items.map((child, index) => (

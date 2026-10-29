@@ -3,7 +3,17 @@ const { existsSync, mkdirSync, readFileSync, writeFileSync } = require('node:fs'
 const path = require('node:path');
 const { deflateSync, inflateSync } = require('node:zlib');
 
-const SCRIPT_VERSION = '2';
+const SCRIPT_VERSION = '4';
+
+// Scheme C icons are Diana's committed files. This script only paints the apple
+// startup images from the committed apple-touch icon, so the mark has one source.
+const COMMITTED_ICONS = [
+  'apple-touch-icon.png',
+  'icon-192.png',
+  'icon-512.png',
+  'icon-maskable-192.png',
+  'icon-maskable-512.png',
+];
 
 function crc32(buffer) {
   let crc = ~0;
@@ -81,31 +91,41 @@ function decodePng(buffer) {
     }
     offset += 12 + length;
   }
-  if (bitDepth !== 8 || colorType !== 6) {
-    throw new Error(`expected 8-bit RGBA PNG, received bit depth ${bitDepth} color type ${colorType}`);
+  if (bitDepth !== 8 || (colorType !== 6 && colorType !== 2)) {
+    throw new Error(`expected 8-bit RGB or RGBA PNG, received bit depth ${bitDepth} color type ${colorType}`);
   }
+  const channels = colorType === 6 ? 4 : 3;
   const inflated = inflateSync(Buffer.concat(idat));
-  const stride = width * 4;
-  const pixels = Buffer.alloc(width * height * 4);
+  const stride = width * channels;
+  const raw = Buffer.alloc(width * height * channels);
   let source = 0;
   for (let y = 0; y < height; y += 1) {
     const filter = inflated[source];
     source += 1;
     const row = y * stride;
     for (let index = 0; index < stride; index += 1) {
-      const raw = inflated[source];
+      const byte = inflated[source];
       source += 1;
-      const left = index >= 4 ? pixels[row + index - 4] : 0;
-      const up = y > 0 ? pixels[row - stride + index] : 0;
-      const upLeft = index >= 4 && y > 0 ? pixels[row - stride + index - 4] : 0;
-      let value = raw;
-      if (filter === 1) value = (raw + left) & 255;
-      else if (filter === 2) value = (raw + up) & 255;
-      else if (filter === 3) value = (raw + Math.floor((left + up) / 2)) & 255;
-      else if (filter === 4) value = (raw + paeth(left, up, upLeft)) & 255;
+      const left = index >= channels ? raw[row + index - channels] : 0;
+      const up = y > 0 ? raw[row - stride + index] : 0;
+      const upLeft = index >= channels && y > 0 ? raw[row - stride + index - channels] : 0;
+      let value = byte;
+      if (filter === 1) value = (byte + left) & 255;
+      else if (filter === 2) value = (byte + up) & 255;
+      else if (filter === 3) value = (byte + Math.floor((left + up) / 2)) & 255;
+      else if (filter === 4) value = (byte + paeth(left, up, upLeft)) & 255;
       else if (filter !== 0) throw new Error(`unsupported PNG filter ${filter}`);
-      pixels[row + index] = value;
+      raw[row + index] = value;
     }
+  }
+  const pixels = Buffer.alloc(width * height * 4);
+  for (let index = 0; index < width * height; index += 1) {
+    const from = index * channels;
+    const to = index * 4;
+    pixels[to] = raw[from];
+    pixels[to + 1] = raw[from + 1];
+    pixels[to + 2] = raw[from + 2];
+    pixels[to + 3] = channels === 4 ? raw[from + 3] : 255;
   }
   return { width, height, pixels };
 }
@@ -185,26 +205,6 @@ function contentRadius(pixels, width, height) {
   };
 }
 
-function recolorBackground(pixels, width, height, background, paper) {
-  const next = Buffer.from(pixels);
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const index = (y * width + x) * 4;
-      const distance =
-        Math.abs(next[index] - background[0]) +
-        Math.abs(next[index + 1] - background[1]) +
-        Math.abs(next[index + 2] - background[2]);
-      if (next[index + 3] < 16 || distance <= 18) {
-        next[index] = paper[0];
-        next[index + 1] = paper[1];
-        next[index + 2] = paper[2];
-        next[index + 3] = 255;
-      }
-    }
-  }
-  return next;
-}
-
 function fill(pixels, color) {
   for (let index = 0; index < pixels.length; index += 4) {
     pixels[index] = color[0];
@@ -236,58 +236,55 @@ function writeIfChanged(file, bytes) {
   writeFileSync(file, bytes);
 }
 
+function pixelAt(pixels, width, x, y) {
+  const index = (y * width + x) * 4;
+  return [pixels[index], pixels[index + 1], pixels[index + 2], pixels[index + 3]];
+}
+
+function readPng(file) {
+  return decodePng(readFileSync(file));
+}
+
 /**
- * Export installed-icon sizes from assets/icon.png.
- * Maskable art is the full mark scaled into the center 80% circle when the
- * source mark extends past that safe zone. Returns whether the source already fit.
+ * Paint apple startup images from the committed apple-touch icon.
+ * Does not write the installed icon files.
  */
 function renderPwaIcons({ source, outDir, splashes, paper }) {
+  // App config loads this on every export, before Expo copies public/ into dist.
+  require('./stamp-pwa-html.js').preparePwaPublicFiles();
   mkdirSync(outDir, { recursive: true });
+  for (const name of COMMITTED_ICONS) {
+    if (!existsSync(path.join(outDir, name))) throw new Error(`committed PWA icon missing: ${name}`);
+  }
   const sourceBytes = readFileSync(source);
-  const stamp = createHash('sha256').update(SCRIPT_VERSION).update(sourceBytes).update(JSON.stringify(splashes)).update(paper).digest('hex');
+  const maskablePath = path.join(outDir, 'icon-maskable-512.png');
+  const maskableBytes = readFileSync(maskablePath);
+  const stamp = createHash('sha256')
+    .update(SCRIPT_VERSION)
+    .update(sourceBytes)
+    .update(maskableBytes)
+    .update(JSON.stringify(splashes))
+    .update(paper)
+    .digest('hex');
   const stampPath = path.join(outDir, '.stamp');
-  const required = [
-    'icon-192.png',
-    'icon-512.png',
-    'icon-maskable-512.png',
-    'apple-touch-icon.png',
-    ...splashes.map((splash) => `apple-splash-${splash.width}x${splash.height}.png`),
-  ];
-  if (existsSync(stampPath) && readFileSync(stampPath, 'utf8') === stamp && required.every((name) => existsSync(path.join(outDir, name)))) {
-    const saved = JSON.parse(readFileSync(path.join(outDir, 'maskable.json'), 'utf8'));
-    return saved;
+  const splashNames = splashes.map((splash) => `apple-splash-${splash.width}x${splash.height}.png`);
+  if (
+    existsSync(stampPath) &&
+    readFileSync(stampPath, 'utf8') === stamp &&
+    splashNames.every((name) => existsSync(path.join(outDir, name))) &&
+    existsSync(path.join(outDir, 'maskable.json'))
+  ) {
+    return JSON.parse(readFileSync(path.join(outDir, 'maskable.json'), 'utf8'));
   }
 
   const decoded = decodePng(sourceBytes);
-  const measured = contentRadius(decoded.pixels, decoded.width, decoded.height);
-  const fits = measured.bounds !== null && measured.farthest <= measured.safeRadius + 0.5;
-  const icon192 = resize(decoded.pixels, decoded.width, decoded.height, 192, 192);
-  const icon512 = resize(decoded.pixels, decoded.width, decoded.height, 512, 512);
-  const apple = resize(decoded.pixels, decoded.width, decoded.height, 180, 180);
-
-  const maskable = Buffer.alloc(512 * 512 * 4);
   const paperRgb = parseHex(paper);
-  fill(maskable, paperRgb);
-  // The safe zone is the center circle with diameter 80% of the canvas.
-  // Scale the whole source so its farthest mark pixel lands inside that circle.
-  const scale = fits ? 1 : Math.min(1, (512 * 0.4) / (measured.farthest * (512 / decoded.width)));
-  const markSize = Math.max(1, Math.round(512 * scale));
-  const paperSource = recolorBackground(decoded.pixels, decoded.width, decoded.height, measured.background, paperRgb);
-  const mark = resize(paperSource, decoded.width, decoded.height, markSize, markSize);
-  const offset = Math.floor((512 - markSize) / 2);
-  blit(maskable, 512, mark, markSize, markSize, offset, offset);
-
-  writeIfChanged(path.join(outDir, 'icon-192.png'), encodePng(192, 192, icon192));
-  writeIfChanged(path.join(outDir, 'icon-512.png'), encodePng(512, 512, icon512));
-  writeIfChanged(path.join(outDir, 'icon-maskable-512.png'), encodePng(512, 512, maskable));
-  writeIfChanged(path.join(outDir, 'apple-touch-icon.png'), encodePng(180, 180, apple));
-
   const iconPoint = 120;
   for (const splash of splashes) {
     const canvas = Buffer.alloc(splash.width * splash.height * 4);
     fill(canvas, paperRgb);
     const iconSize = iconPoint * splash.ratio;
-    const splashIcon = resize(paperSource, decoded.width, decoded.height, iconSize, iconSize);
+    const splashIcon = resize(decoded.pixels, decoded.width, decoded.height, iconSize, iconSize);
     blit(
       canvas,
       splash.width,
@@ -300,20 +297,42 @@ function renderPwaIcons({ source, outDir, splashes, paper }) {
     writeIfChanged(path.join(outDir, `apple-splash-${splash.width}x${splash.height}.png`), encodePng(splash.width, splash.height, canvas));
   }
 
+  const maskable = decodePng(maskableBytes);
+  const measured = contentRadius(maskable.pixels, maskable.width, maskable.height);
   const report = {
-    fitsSafeZone: fits,
+    fitsSafeZone: measured.bounds !== null && measured.farthest <= measured.safeRadius + 0.5,
     farthest: Number(measured.farthest.toFixed(2)),
     safeRadius: Number(measured.safeRadius.toFixed(2)),
     bounds: measured.bounds,
-    source: `${decoded.width}x${decoded.height}`,
-    scaledTo: fits ? 1 : Number(scale.toFixed(4)),
+    source: `${maskable.width}x${maskable.height}`,
+    scaledTo: 1,
   };
   writeFileSync(path.join(outDir, 'maskable.json'), `${JSON.stringify(report, null, 2)}\n`);
   writeFileSync(stampPath, stamp);
   return report;
 }
 
-module.exports = { renderPwaIcons };
+function pngCorner(file) {
+  const { pixels } = readPng(file);
+  return [pixels[0], pixels[1], pixels[2], pixels[3]];
+}
+
+function pngCorners(file) {
+  const { width, height, pixels } = readPng(file);
+  return [
+    pixelAt(pixels, width, 0, 0),
+    pixelAt(pixels, width, width - 1, 0),
+    pixelAt(pixels, width, 0, height - 1),
+    pixelAt(pixels, width, width - 1, height - 1),
+  ];
+}
+
+function pngInset(file, fraction) {
+  const { width, height, pixels } = readPng(file);
+  return pixelAt(pixels, width, Math.round(width * fraction), Math.round(height * fraction));
+}
+
+module.exports = { renderPwaIcons, pngCorner, pngCorners, pngInset };
 
 if (require.main === module) {
   const fs = require('node:fs');
@@ -347,7 +366,7 @@ if (require.main === module) {
   const { theme } = require('../src/ui/theme.ts');
   const { pwaSplashes } = require('../src/config/pwa.ts');
   const report = renderPwaIcons({
-    source: path.resolve('assets/icon.png'),
+    source: path.resolve('public/icons/apple-touch-icon.png'),
     outDir: path.resolve('public/icons'),
     splashes: pwaSplashes,
     paper: theme.color.paper,
