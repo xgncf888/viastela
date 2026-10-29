@@ -37,7 +37,7 @@ export function TrendScreen() {
 
   return (
     <Screen>
-      <Content inset={inset}>
+      <Content width="wide" inset={inset}>
         <ScreenHeader
           kicker="趋势"
           title="近 7 日"

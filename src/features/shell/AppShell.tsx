@@ -3,16 +3,17 @@ import { router, usePathname } from 'expo-router';
 
 import { brand } from '@/config/brand';
 import { RecordSheet } from '@/features/record/RecordSheet';
-import { openRecordSheet } from '@/features/record/record-sheet-store';
 import { useStudy } from '@/features/study/StudyProvider';
 import { useTraining } from '@/features/training/TrainingProvider';
 import { useWeight } from '@/features/weight/WeightProvider';
-import { NavItem, RecordButton, ShellFrame, SidebarFrame, TabBar, useShellInset, useWideWeb } from '@/ui/chrome';
+import { NavItem, ShellFrame, SidebarFrame, TabBar, useLayoutClass, useShellInset } from '@/ui/chrome';
 import { DeletedRecordNotice } from '@/ui/deleted-record';
+import { Text } from '@/ui/Text';
 import { ToastHost } from '@/ui/toast';
 
 const TABS = [
   { id: 'today', href: '/', label: '今日' },
+  { id: 'assets', href: '/assets', label: '资产' },
   { id: 'trend', href: '/trend', label: '趋势' },
   { id: 'me', href: '/me', label: '我的' },
 ] as const;
@@ -20,17 +21,19 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id'];
 
 function currentTab(pathname: string): TabId {
+  if (pathname.startsWith('/assets')) return 'assets';
   if (pathname.startsWith('/trend')) return 'trend';
   if (pathname.startsWith('/me')) return 'me';
   return 'today';
 }
 
-function go(href: '/' | '/trend' | '/me') {
+function go(href: (typeof TABS)[number]['href']) {
   router.replace(href);
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const wide = useWideWeb();
+  const layout = useLayoutClass();
+  const side = layout !== 'compact';
   const current = currentTab(usePathname());
   const { deletedNotice, dismissDeletedNotice } = useWeight();
   const trainingDeleted = useTraining();
@@ -38,8 +41,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <ShellFrame
       sidebar={
-        wide ? (
-          <SidebarFrame title={brand.displayName} footer={<RecordButton onPress={() => openRecordSheet()} />}>
+        side ? (
+          <SidebarFrame
+            title={brand.webName}
+            footer={<Text variant="muted">{`${brand.webName} v1`}</Text>}
+          >
             {TABS.map((tab) => (
               <NavItem key={tab.id} label={tab.label} selected={current === tab.id} onPress={() => go(tab.href)} />
             ))}
@@ -47,8 +53,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         ) : null
       }
       bar={
-        wide ? null : (
-          <TabBar action={<RecordButton floating onPress={() => openRecordSheet()} />}>
+        side ? null : (
+          <TabBar>
             {TABS.map((tab) => (
               <NavItem
                 key={tab.id}
@@ -77,4 +83,4 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
-export { useShellInset, useWideWeb };
+export { useShellInset };
