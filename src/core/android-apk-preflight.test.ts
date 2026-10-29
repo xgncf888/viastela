@@ -192,6 +192,9 @@ describe('android apk preflight', () => {
     expect(workflow).not.toMatch(/echo\s+.*secrets\.EXPO_TOKEN/);
     expect(workflow.indexOf('check-android-config.mjs')).toBeLessThan(workflow.indexOf('eas-cli'));
     expect(workflow).toContain("needs.gate.outputs.token == 'true'");
+    expect(workflow).toContain('contents: read');
+    expect(workflow).toContain('actions/upload-artifact@v4');
+    expect(workflow).not.toMatch(/actions:\s*write/);
     const ignore = readFileSync(`${root}/.gitignore`, 'utf8');
     expect(ignore).toMatch(/^\*\.jks$/m);
     expect(ignore).toMatch(/^\*\.keystore$/m);

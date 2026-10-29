@@ -54,8 +54,9 @@ function ThemedRoot() {
           />
         ))}
       </Head>
-      <RootNavigator paper={color.paper} />
-      <AppUpdatePrompt />
+      <AppUpdatePrompt>
+        <RootNavigator paper={color.paper} />
+      </AppUpdatePrompt>
     </AppFrame>
   );
 }
