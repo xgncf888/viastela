@@ -17,6 +17,14 @@ const SKELETON_PULSE_HIGH = 1;
 const TEXT_BAR_RATIO = 0.75;
 const LAST_LINE_WIDTH = '60%';
 
+/** §17.2 figure blocks. These sizes are specified there and are not theme tokens. */
+export const SKELETON_DISPLAY_WIDTH = 160;
+export const SKELETON_DISPLAY_HEIGHT = 24;
+export const SKELETON_METRIC_WIDTH = 96;
+export const SKELETON_METRIC_HEIGHT = 16;
+export const SKELETON_LEDGER_LABEL_WIDTH = 56;
+export const SKELETON_LEDGER_VALUE_WIDTH = 72;
+
 export const skeletonHiddenProps = {
   accessible: false as const,
   accessibilityElementsHidden: true,
@@ -127,7 +135,41 @@ export function SkeletonText({ lines, variant = 'body' }: { lines: number; varia
   );
 }
 
+/** Large figure placeholder. Width 160, height 24 (§17.2). */
+export function SkeletonDisplay() {
+  return <Skeleton width={SKELETON_DISPLAY_WIDTH} height={SKELETON_DISPLAY_HEIGHT} radius="bar" />;
+}
+
+/** Small-card amount placeholder. Width 96, height 16 (§17.2). */
+export function SkeletonMetric() {
+  return <Skeleton width={SKELETON_METRIC_WIDTH} height={SKELETON_METRIC_HEIGHT} radius="bar" />;
+}
+
+/**
+ * Ledger rows inside a real card. Each row is `layout.row` tall, with a 56-wide
+ * label and a 72-wide value and empty space between them (§17.2).
+ */
+export function SkeletonLedger({ lines }: { lines: number }) {
+  if (lines < 1) return null;
+  const barHeight = textBox.body.fontSize * TEXT_BAR_RATIO;
+  return (
+    <View {...skeletonHiddenProps}>
+      {Array.from({ length: lines }, (_, index) => (
+        <View key={index} style={[styles.ledger, { height: theme.layout.row }]}>
+          <Skeleton height={barHeight} radius="bar" width={SKELETON_LEDGER_LABEL_WIDTH} />
+          <Skeleton height={barHeight} radius="bar" width={SKELETON_LEDGER_VALUE_WIDTH} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   block: { overflow: 'hidden' },
   line: { justifyContent: 'center' },
+  ledger: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
 });

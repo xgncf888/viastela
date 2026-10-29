@@ -17,8 +17,24 @@ import {
   RefreshStatus,
   refreshFailedText,
 } from './RefreshStatus';
-import { resetSkeletonPulseForTests, SKELETON_PULSE_LOW, SKELETON_REDUCED_OPACITY, skeletonHiddenProps, Skeleton, SkeletonText } from './Skeleton';
-import { darkColor, lightColor } from './theme';
+import {
+  resetSkeletonPulseForTests,
+  SKELETON_DISPLAY_HEIGHT,
+  SKELETON_DISPLAY_WIDTH,
+  SKELETON_LEDGER_LABEL_WIDTH,
+  SKELETON_LEDGER_VALUE_WIDTH,
+  SKELETON_METRIC_HEIGHT,
+  SKELETON_METRIC_WIDTH,
+  SKELETON_PULSE_LOW,
+  SKELETON_REDUCED_OPACITY,
+  skeletonHiddenProps,
+  Skeleton,
+  SkeletonDisplay,
+  SkeletonLedger,
+  SkeletonMetric,
+  SkeletonText,
+} from './Skeleton';
+import { darkColor, lightColor, theme } from './theme';
 import { useLoadGate } from './use-load-gate';
 
 jest.mock('react-native', () => {
@@ -189,7 +205,7 @@ test('a load that is still running at 8 seconds is timed out', async () => {
   expect(container.textContent).toBe('timeout|true|true');
 });
 
-test('LoadingRegion mounts the status node while loading and removes it when loading ends', async () => {
+test('LoadingRegion mounts the status node only once the skeleton is showing', async () => {
   jest.useFakeTimers({ now: 1_700_000_000_000 });
   let loading = true;
   function Probe() {
@@ -204,9 +220,23 @@ test('LoadingRegion mounts the status node while loading and removes it when loa
     });
   }
   const container = mount(createElement(Probe));
-  expect(container.textContent).toContain('正在加载今日');
+  expect(container.textContent).not.toContain('正在加载今日');
   expect(container.textContent).not.toContain('骨架');
   expect(container.textContent).not.toContain('正文');
+  expect(markup(container)).not.toContain('aria-busy');
+  expect(markup(container)).not.toContain('role="status"');
+
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(999);
+  });
+  expect(container.textContent).not.toContain('正在加载今日');
+  expect(markup(container)).not.toContain('aria-busy');
+
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(1);
+  });
+  expect(container.textContent).toContain('骨架');
+  expect(container.textContent).toContain('正在加载今日');
   expect(markup(container)).toContain('aria-busy="true"');
   expect(markup(container)).toContain('role="status"');
   const status = findRole(container, 'status');
@@ -218,12 +248,6 @@ test('LoadingRegion mounts the status node while loading and removes it when loa
   expect(status?.style.width).toBe('1px');
   expect(status?.style.height).toBe('1px');
   expect(status?.style.whiteSpace).toBe('nowrap');
-
-  await act(async () => {
-    await jest.advanceTimersByTimeAsync(1000);
-  });
-  expect(container.textContent).toContain('骨架');
-  expect(container.textContent).toContain('正在加载今日');
 
   loading = false;
   await act(async () => {
@@ -241,7 +265,7 @@ test('LoadingRegion mounts the status node while loading and removes it when loa
   expect(markup(container)).not.toContain('role="status"');
 });
 
-test('a fast load never mounts the status node past the response', async () => {
+test('a fast load never mounts the status node', async () => {
   jest.useFakeTimers({ now: 1_700_000_000_000 });
   let loading = true;
   function Probe() {
@@ -255,7 +279,9 @@ test('a fast load never mounts the status node past the response', async () => {
     });
   }
   const container = mount(createElement(Probe));
-  expect(container.textContent).toContain('正在加载资产');
+  expect(container.textContent).not.toContain('正在加载资产');
+  expect(markup(container)).not.toContain('aria-busy');
+  expect(markup(container)).not.toContain('role="status"');
   loading = false;
   await act(async () => {
     roots[0]?.render(createElement(Probe));
@@ -414,9 +440,11 @@ test('retry after a timeout starts a new 8 second budget while loading stays tru
     button?.dispatchEvent(clickEvent(button as HTMLElement));
   });
   expect(retry).toHaveBeenCalledTimes(1);
-  expect(container.textContent).toContain('正在加载今日');
+  expect(container.textContent).not.toContain('正在加载今日');
   expect(container.textContent).not.toContain(LOAD_ERROR_TEXT);
   expect(container.textContent).not.toContain('骨架');
+  expect(markup(container)).not.toContain('aria-busy');
+  expect(markup(container)).not.toContain('role="status"');
 
   await act(async () => {
     await jest.advanceTimersByTimeAsync(1000);
@@ -459,6 +487,28 @@ test('a load that restarts during the 400ms hold keeps the skeleton', async () =
     roots[0]?.render(createElement(Probe));
   });
   expect(container.textContent).toBe('skeleton|true');
+});
+
+test('display, metric, and ledger skeletons use the §17.2 sizes', () => {
+  const display = mount(createElement(SkeletonDisplay));
+  const figure = display.firstElementChild as HTMLElement;
+  expect(figure.style.width).toBe(`${SKELETON_DISPLAY_WIDTH}px`);
+  expect(figure.style.height).toBe(`${SKELETON_DISPLAY_HEIGHT}px`);
+  expect(markup(display)).toContain('aria-hidden="true"');
+
+  const metric = mount(createElement(SkeletonMetric));
+  const amount = metric.firstElementChild as HTMLElement;
+  expect(amount.style.width).toBe(`${SKELETON_METRIC_WIDTH}px`);
+  expect(amount.style.height).toBe(`${SKELETON_METRIC_HEIGHT}px`);
+
+  const ledger = mount(createElement(SkeletonLedger, { lines: 4 }));
+  const nodes = elements(ledger);
+  const rows = nodes.filter((node) => node.style.height === `${theme.layout.row}px`);
+  expect(rows).toHaveLength(4);
+  const bars = nodes.filter((node) => node.getAttribute('aria-hidden') === 'true' && node.style.width);
+  const widths = bars.map((node) => node.style.width);
+  expect(widths.filter((width) => width === `${SKELETON_LEDGER_LABEL_WIDTH}px`)).toHaveLength(4);
+  expect(widths.filter((width) => width === `${SKELETON_LEDGER_VALUE_WIDTH}px`)).toHaveLength(4);
 });
 
 test('a skeleton does not animate when reduced motion is on', async () => {
@@ -561,6 +611,18 @@ test('refresh status copies the three states and only announces a failure', () =
   expect(retryText?.textContent).toBe(REFRESH_RETRY_LABEL);
   expect(textColor(retryText as HTMLElement).replace(/\s/g, '')).toContain('148,74,52');
 });
+
+function elements(node: ParentNode): HTMLElement[] {
+  const found: HTMLElement[] = [];
+  const walk = (current: Node) => {
+    if (current.nodeType !== 1) return;
+    const element = current as HTMLElement;
+    found.push(element);
+    element.childNodes.forEach((child) => walk(child));
+  };
+  node.childNodes.forEach((child) => walk(child));
+  return found;
+}
 
 function findText(node: ParentNode, text: string): HTMLElement | null {
   const walk = (current: Node): HTMLElement | null => {

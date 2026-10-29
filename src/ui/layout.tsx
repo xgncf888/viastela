@@ -64,18 +64,31 @@ export function ScreenHeader({
   title,
   detail,
   note,
+  trailing,
 }: {
   kicker?: string;
   title: string;
   detail?: string;
   note?: string;
+  /** Right side of the title row. Omit it and the title stays a single line. */
+  trailing?: ReactNode;
 }) {
+  const heading = (
+    <Text variant="title" accessibilityRole="header">
+      {title}
+    </Text>
+  );
   return (
     <Stack gap="xs">
       {kicker ? <Text variant="muted">{kicker}</Text> : null}
-      <Text variant="title" accessibilityRole="header">
-        {title}
-      </Text>
+      {trailing ? (
+        <Row justify="between" align="center">
+          {heading}
+          {trailing}
+        </Row>
+      ) : (
+        heading
+      )}
       {detail ? <Text variant="body">{detail}</Text> : null}
       {note ? <Text variant="muted">{note}</Text> : null}
     </Stack>

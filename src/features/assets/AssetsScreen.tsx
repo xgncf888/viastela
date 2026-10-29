@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { assetSaveNotice } from '@/core/asset-errors';
 import { deletedAccountUndo } from '@/core/asset-form';
@@ -22,7 +22,6 @@ import {
 } from '@/core/projection-copy';
 import {
   COST_BASIS_CALLOUT,
-  OFFLINE_QUOTE_CALLOUT,
   QUOTE_MISS_LINE,
   cachedQuoteAsOf,
   formatQuoteClock,
@@ -74,7 +73,7 @@ import { LineChart } from '@/ui/LineChart';
 import { LoadingRegion } from '@/ui/LoadingRegion';
 import { Callout, Row, ScreenHeader, Stack } from '@/ui/layout';
 import { RefreshStatus } from '@/ui/RefreshStatus';
-import { Skeleton, SkeletonText } from '@/ui/Skeleton';
+import { SkeletonDisplay, SkeletonLedger, SkeletonMetric, SkeletonText } from '@/ui/Skeleton';
 import { MaskedAmount } from '@/ui/MaskedAmount';
 import { nativeAmountRowLabel } from '@/ui/masked-amount';
 import { ProgressBar } from '@/ui/ProgressBar';
@@ -85,6 +84,7 @@ import { TimelineItem } from '@/ui/TimelineItem';
 import { theme } from '@/ui/theme';
 import { showToast } from '@/ui/toast';
 
+import { quoteLineStatus, refreshOutcome } from './refresh-state';
 import { AccountForm, AssumptionsForm, BalanceForm, GoalForm, HoldingForm } from './sheets';
 
 const DEFAULT_RATES: [number, number, number] = [0.03, 0.05, 0.07];
@@ -114,6 +114,7 @@ export function AssetsScreen() {
   const pending = useDeferredDeleteIds();
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [refreshError, setRefreshError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [ready, setReady] = useState<Ready | null>(null);
   const [sheet, setSheet] = useState<
@@ -159,11 +160,15 @@ export function AssetsScreen() {
       const next = await fetchReady();
       if (!mounted.current || !loads.current.isCurrent(token) || !next) return;
       setReady(next);
-      setFailed(false);
+      const settled = refreshOutcome(background, true);
+      setFailed(settled.failed);
+      setRefreshError(settled.refreshError);
       setLoading(false);
     } catch {
       if (!mounted.current || !loads.current.isCurrent(token)) return;
-      setFailed(true);
+      const settled = refreshOutcome(background, false);
+      setFailed(settled.failed);
+      setRefreshError(settled.refreshError);
       setLoading(false);
     } finally {
       if (mounted.current && loads.current.isCurrent(token)) setRefreshing(false);
@@ -231,35 +236,42 @@ export function AssetsScreen() {
     });
   }, [book, degraded, pending, portfolio, quoteFailure, timeZone]);
 
-  const quoteRefresh = refreshing ? 'refreshing' : ready?.quoteFailure ? 'failed' : 'idle';
+  const quoteRefresh = quoteLineStatus({
+    refreshing,
+    quoteFailed: quoteFailure !== null,
+    refreshError,
+  });
+  const refreshCachedAt =
+    refreshError && book
+      ? cachedQuoteAsOf(book.quotes.map((quote) => ({ asOf: quote.as_of, status: quote.status })))
+      : null;
 
   return (
     <Screen>
       <Content width="wide" inset={inset}>
-        <ScreenHeader kicker="资产" title="总资产" />
+        <ScreenHeader
+          kicker="资产"
+          title="总资产"
+          trailing={
+            ready ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={masked ? '显示金额' : '隐藏金额'}
+                onPress={() => void persistMask(!masked)}
+                style={styles.eye}
+              >
+                <Text variant="muted">{masked ? '显示' : '隐藏'}</Text>
+              </Pressable>
+            ) : null
+          }
+        />
         <LoadingRegion
           name="资产"
           loading={loading && ready === null}
           error={failed && ready === null}
           onRetry={() => void reload()}
-          skeleton={
-            <Stack gap="md">
-              <Skeleton height={theme.font.display} width="48%" />
-              <SkeletonText lines={4} />
-            </Stack>
-          }
+          skeleton={<AssetsSkeleton />}
         >
-        <Row justify="end" align="start">
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={masked ? '显示金额' : '隐藏金额'}
-            onPress={() => void persistMask(!masked)}
-            style={styles.eye}
-          >
-            <Text variant="muted">{masked ? '显示' : '隐藏'}</Text>
-          </Pressable>
-        </Row>
-        {ready?.degraded && book ? <Callout tone="warning" message={OFFLINE_QUOTE_CALLOUT} /> : null}
         {book?.source === 'cost_basis' ? <Callout tone="warning" message={COST_BASIS_CALLOUT} /> : null}
         {visibleAccounts.length === 0 ? (
           <EmptyState
@@ -276,6 +288,7 @@ export function AssetsScreen() {
               refresh={quoteRefresh}
               onRetry={() => void reload()}
               timeZone={timeZone}
+              cachedAt={refreshCachedAt}
             />
             <Projection
               model={model}
@@ -555,6 +568,7 @@ function Overview({
   refresh,
   onRetry,
   timeZone,
+  cachedAt,
 }: {
   model: DashboardModel;
   masked: boolean;
@@ -562,6 +576,7 @@ function Overview({
   refresh: 'idle' | 'refreshing' | 'failed';
   onRetry: () => void;
   timeZone: string;
+  cachedAt: string | null;
 }) {
   return (
     <Card>
@@ -576,7 +591,7 @@ function Overview({
       <RefreshStatus
         status={refresh}
         onRetry={onRetry}
-        cachedAt={model.quoteCachedAt}
+        cachedAt={model.quoteCachedAt ?? cachedAt}
         timeZone={timeZone}
         idle={
           model.quoteStatus ? (
@@ -926,7 +941,38 @@ function eventTitle(event: AssetEventRow): string {
   return '资产变动';
 }
 
+function AssetsSkeleton() {
+  return (
+    <Stack gap="md">
+      <Card>
+        <SkeletonDisplay />
+        <SkeletonText lines={1} variant="muted" />
+      </Card>
+      <Row gap="ms" align="start">
+        <View style={styles.metric}>
+          <Card>
+            <SkeletonMetric />
+          </Card>
+        </View>
+        <View style={styles.metric}>
+          <Card>
+            <SkeletonMetric />
+          </Card>
+        </View>
+      </Row>
+      <Card>
+        <SkeletonLedger lines={4} />
+      </Card>
+    </Stack>
+  );
+}
+
 const styles = StyleSheet.create({
+  metric: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+  },
   eye: {
     minHeight: theme.layout.control,
     minWidth: theme.layout.control,

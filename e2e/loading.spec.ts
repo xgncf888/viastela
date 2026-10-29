@@ -1,4 +1,4 @@
-import { expect, test, type Route } from '@playwright/test';
+import { expect, test, type Page, type Route } from '@playwright/test';
 
 import { LOAD_TIMEOUT_MS } from '../src/lib/timing';
 import { lightColor } from '../src/ui/theme';
@@ -11,21 +11,151 @@ function rgb(hex: string): string {
   return `rgb(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255})`;
 }
 
-test('the record button stays named 记录 and sits below the ledger', async ({ page }) => {
+test('the record button sits under the 7-day average and above one record', async ({ page }) => {
   const day = accountingDay();
   await signIn(page);
-  await installApi(page, { weights: [weightRow('w-1', day, 61.5)] });
+  await installApi(page, { weights: [weightRow('w-1', day, 80)] });
   await page.goto('/');
   await expect(page.getByText('晨重', { exact: true })).toBeVisible();
-  const record = page.getByRole('button', { name: '记录', exact: true });
-  await expect(record).toHaveCount(1);
-  const ledger = await page.getByText('体重', { exact: true }).boundingBox();
-  const button = await record.boundingBox();
-  expect(ledger).not.toBeNull();
-  expect(button).not.toBeNull();
-  expect(button!.y).toBeGreaterThan(ledger!.y);
+  await expectRecordOnFirstScreen(page);
   await expect(page.getByRole('button', { name: '记一笔' }).first()).toBeVisible();
 });
+
+test('the record button stays on the first screen with seven records', async ({ page }) => {
+  const day = accountingDay();
+  const kilograms = [80, 80.1, 80.2, 80.3, 80.4, 80.5, 80.6];
+  await signIn(page);
+  await installApi(page, {
+    weights: kilograms.map((value, index) => weightRow(`w-${index + 1}`, day, value, 8 + index)),
+  });
+  await page.goto('/');
+  await expect(page.getByText('晨重', { exact: true })).toBeVisible();
+  await expect(page.getByText('复测', { exact: true })).toHaveCount(6);
+  await expectRecordOnFirstScreen(page);
+});
+
+test('the weight column skeleton is two lines inside the card, and the status waits for it', async ({ page }) => {
+  await signIn(page);
+  await installApi(page, { weights: [] });
+  await page.route('**/rest/v1/weight_records*', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+    await new Promise(() => undefined);
+  });
+  await page.goto('/');
+  await expect(page.getByRole('heading').first()).toBeVisible();
+  await expect(page.locator('[role="status"]')).toHaveCount(0);
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
+  await expect(page.locator('[role="status"]')).toHaveText('正在加载今日', { timeout: 4_000 });
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(1);
+  const column = page.getByText('体重', { exact: true }).locator('..');
+  await expect.poll(() => skeletonBars(column)).toBe(2);
+  expect(await framed(column.locator('[aria-hidden="true"]').first())).toBe(true);
+  const record = page.getByRole('button', { name: '记录', exact: true });
+  await expect(record).toBeVisible();
+  await expect(record).toBeInViewport();
+});
+
+test('a weight load error is a muted dash and a single error card', async ({ page }) => {
+  await signIn(page);
+  await installApi(page, { weights: [] });
+  await page.route('**/rest/v1/weight_records*', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      status: 500,
+      headers: {
+        'access-control-allow-origin': '*',
+        'content-type': 'application/json',
+      },
+      body: '{"message":"down"}',
+    });
+  });
+  await page.goto('/');
+  await expect(page.getByText('没加载出来，检查网络后再试')).toHaveCount(1);
+  const dash = page.getByText('体重', { exact: true }).locator('..').getByText('—', { exact: true });
+  await expect(dash).toBeVisible();
+  await expect(dash).toHaveCSS('color', rgb(lightColor.muted));
+  expect(await framed(dash)).toBe(true);
+});
+
+test.describe('reduced motion', () => {
+  test.use({ reducedMotion: 'reduce' });
+
+  test('the skeleton stays dim and does not breathe', async ({ page }) => {
+    await signIn(page);
+    await installApi(page, { weights: [] });
+    await page.route('**/rest/v1/weight_records*', async (route) => {
+      if (route.request().method() !== 'GET') {
+        await route.fallback();
+        return;
+      }
+      await new Promise(() => undefined);
+    });
+    await page.goto('/');
+    await expect(page.locator('[role="status"]')).toHaveText('正在加载今日', { timeout: 4_000 });
+    const first = await skeletonOpacity(page);
+    expect(first).toBeCloseTo(0.7, 1);
+    await page.waitForTimeout(400);
+    expect(await skeletonOpacity(page)).toBeCloseTo(first, 2);
+  });
+});
+
+async function skeletonBars(column: ReturnType<Page['locator']>): Promise<number> {
+  return column.locator('div').evaluateAll((nodes) =>
+    nodes.filter((node) => {
+      const color = getComputedStyle(node).backgroundColor.replace(/\s/g, '');
+      return color === 'rgb(226,223,213)' || color === 'rgba(226,223,213,1)';
+    }).length,
+  );
+}
+
+async function framed(node: ReturnType<Page['locator']>): Promise<boolean> {
+  return node.evaluate((element) => {
+    let current = element.parentElement;
+    while (current) {
+      if (parseFloat(getComputedStyle(current).borderTopWidth) > 0) return true;
+      current = current.parentElement;
+    }
+    return false;
+  });
+}
+
+async function skeletonOpacity(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const nodes = Array.from(document.querySelectorAll('[aria-hidden="true"]'));
+    const bar = nodes.find((node) => {
+      const color = getComputedStyle(node).backgroundColor.replace(/\s/g, '');
+      return color.startsWith('rgb(226,223,213)') || color.startsWith('rgba(226,223,213');
+    });
+    return bar ? Number(getComputedStyle(bar).opacity) : -1;
+  });
+}
+
+async function expectRecordOnFirstScreen(page: Page) {
+  const record = page.getByRole('button', { name: '记录', exact: true });
+  await expect(record).toHaveCount(1);
+  await expect(record).toBeInViewport();
+  const title = await page.getByText('7 日均重', { exact: true }).boundingBox();
+  const button = await record.boundingBox();
+  const morning = await page.getByText('晨重', { exact: true }).boundingBox();
+  expect(title).not.toBeNull();
+  expect(button).not.toBeNull();
+  expect(morning).not.toBeNull();
+  expect(button!.y).toBeGreaterThan(title!.y);
+  expect(button!.y + button!.height).toBeLessThanOrEqual(morning!.y);
+  expect(button!.y + button!.height).toBeLessThanOrEqual(844);
+  const position = await record.evaluate((node) => getComputedStyle(node).position);
+  expect(position === 'static' || position === 'relative').toBe(true);
+  const scrolled = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('div')).some((node) => node.scrollTop > 1),
+  );
+  expect(scrolled).toBe(false);
+}
 
 test('a hung today load shows retry and recovers', async ({ page }) => {
   test.setTimeout(LOAD_TIMEOUT_MS + 15_000);

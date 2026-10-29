@@ -8,6 +8,7 @@ import {
   excludePending,
   labelsForDay,
   todayReadout,
+  weightColumnPhase,
 } from '@/features/weight/weight-copy';
 
 function record(id: string, localDay: string, weightKg: number, hour: number): WeightRecord {
@@ -20,6 +21,15 @@ function record(id: string, localDay: string, weightKg: number, hour: number): W
     updatedAt: `${localDay}T${String(hour).padStart(2, '0')}:00:00.000Z`,
   };
 }
+
+describe('today weight column', () => {
+  it('waits, then shows two skeleton lines, and a failure is a dash', () => {
+    expect(weightColumnPhase({ ready: false, failed: false, showSkeleton: false })).toBe('wait');
+    expect(weightColumnPhase({ ready: false, failed: false, showSkeleton: true })).toBe('skeleton');
+    expect(weightColumnPhase({ ready: true, failed: true, showSkeleton: true })).toBe('dash');
+    expect(weightColumnPhase({ ready: true, failed: false, showSkeleton: false })).toBe('content');
+  });
+});
 
 describe('today loading', () => {
   it('shows only 读取中 while loading and never 先记第一笔', () => {

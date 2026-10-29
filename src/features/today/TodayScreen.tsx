@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
 
 import {
   computeLocalDay,
@@ -17,7 +16,7 @@ import { useShellInset } from '@/features/shell/AppShell';
 import { useStudy } from '@/features/study/StudyProvider';
 import { useTraining } from '@/features/training/TrainingProvider';
 import { AverageHeadline } from '@/features/weight/WeightSummary';
-import { excludePending, todayReadout, weighInLabel } from '@/features/weight/weight-copy';
+import { excludePending, todayReadout, weighInLabel, weightColumnPhase } from '@/features/weight/weight-copy';
 import { useWeight } from '@/features/weight/WeightProvider';
 import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
@@ -28,9 +27,9 @@ import { EmptyState } from '@/ui/EmptyState';
 import { LoadingRegion } from '@/ui/LoadingRegion';
 import { Row, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
-import { Skeleton, SkeletonText } from '@/ui/Skeleton';
+import { SkeletonDisplay, SkeletonLedger, SkeletonText } from '@/ui/Skeleton';
 import { Text } from '@/ui/Text';
-import { theme } from '@/ui/theme';
+import { useLoadGate } from '@/ui/use-load-gate';
 
 function shortWeekday(localDay: string): string {
   return weekdayLabel(localDay).replace('星期', '周');
@@ -96,10 +95,11 @@ export function TodayScreen() {
           loading={!ready}
           error={loadError !== null}
           onRetry={() => void reload()}
-          skeleton={<ListSkeleton lines={3} />}
+          skeleton={<TodaySkeleton />}
         >
-          <AverageHeadline records={counted} endDay={accounting} />
           <Stack gap="md">
+          <AverageHeadline records={counted} endDay={accounting} />
+          <RecordEntry />
           <Text variant="heading">{beforeSwitch ? `${formatMonthDay(accounting)}的记录` : '今天的记录'}</Text>
           {readout.firstRecord ? (
             <EmptyState title={readout.firstRecord} action={<Button label="记录" onPress={() => openRecordSheet()} />} />
@@ -145,18 +145,13 @@ export function TodayScreen() {
         </LoadingRegion>
 
         <CardRow>
-          <Stack gap="sm">
-            <Text variant="heading">体重</Text>
-            {ready && loadError === null && visibleToday.length === 0 ? (
-              <StatusCard summary="未记录" actionLabel="记一笔" onAction={() => openRecordSheet()} />
-            ) : null}
-            {ready && loadError === null && visibleToday.length > 0 ? (
-              <StatusCard
-                summary={`${formatKg(visibleToday[0].weightKg)} kg`}
-                hint={formatClock(visibleToday[0].recordedAt, visibleToday[0].tz)}
-              />
-            ) : null}
-          </Stack>
+          <WeightColumn
+            ready={ready}
+            failed={loadError !== null}
+            recorded={visibleToday.length > 0}
+            summary={visibleToday[0] ? `${formatKg(visibleToday[0].weightKg)} kg` : '未记录'}
+            hint={visibleToday[0] ? formatClock(visibleToday[0].recordedAt, visibleToday[0].tz) : undefined}
+          />
           <Stack gap="sm">
             <Text variant="heading">{trainingTitle}</Text>
             <LoadingRegion
@@ -164,7 +159,11 @@ export function TodayScreen() {
               loading={!training.ready}
               error={training.loadError !== null}
               onRetry={() => void training.reload()}
-              skeleton={<SkeletonText lines={2} />}
+              skeleton={
+                <Card>
+                  <SkeletonText lines={2} />
+                </Card>
+              }
             >
               {trainingToday.length === 0 ? (
                 <StatusCard summary="未记录" actionLabel="记一笔" onAction={() => openRecordSheet(undefined, 'training')} />
@@ -184,7 +183,11 @@ export function TodayScreen() {
               loading={!study.ready}
               error={study.loadError !== null}
               onRetry={() => void study.reload()}
-              skeleton={<SkeletonText lines={2} />}
+              skeleton={
+                <Card>
+                  <SkeletonText lines={2} />
+                </Card>
+              }
             >
               {studyToday.length === 0 ? (
                 <StatusCard summary="未记录" actionLabel="记一笔" onAction={() => openRecordSheet(undefined, 'study')} />
@@ -246,19 +249,62 @@ export function TodayScreen() {
             })
           : null}
 
-        <Button label="记录" onPress={() => openRecordSheet()} />
-        {/* Clears the toast, which sits on the tab bar and would cover this button. */}
-        <View style={{ height: theme.layout.control }} />
       </Content>
     </Screen>
   );
 }
 
-function ListSkeleton({ lines }: { lines: number }) {
+function RecordEntry() {
+  return <Button label="记录" fill onPress={() => openRecordSheet()} />;
+}
+
+function TodaySkeleton() {
+  return (
+    <Stack gap="md">
+      <Card>
+        <Text variant="muted">7 日均重</Text>
+        <SkeletonDisplay />
+      </Card>
+      <RecordEntry />
+      <Card>
+        <SkeletonLedger lines={3} />
+      </Card>
+    </Stack>
+  );
+}
+
+function WeightColumn({
+  ready,
+  failed,
+  recorded,
+  summary,
+  hint,
+}: {
+  ready: boolean;
+  failed: boolean;
+  recorded: boolean;
+  summary: string;
+  hint?: string;
+}) {
+  const gate = useLoadGate(!ready);
+  const phase = weightColumnPhase({ ready, failed, showSkeleton: gate.showSkeleton });
   return (
     <Stack gap="sm">
-      <Skeleton height={theme.font.metric} width="40%" />
-      <SkeletonText lines={lines} />
+      <Text variant="heading">体重</Text>
+      {phase === 'dash' ? (
+        <Card>
+          <Text variant="muted">—</Text>
+        </Card>
+      ) : null}
+      {phase === 'skeleton' ? (
+        <Card>
+          <SkeletonText lines={2} />
+        </Card>
+      ) : null}
+      {phase === 'content' && !recorded ? (
+        <StatusCard summary="未记录" actionLabel="记一笔" onAction={() => openRecordSheet()} />
+      ) : null}
+      {phase === 'content' && recorded ? <StatusCard summary={summary} hint={hint} /> : null}
     </Stack>
   );
 }

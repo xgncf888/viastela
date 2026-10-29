@@ -23,8 +23,10 @@ export function showLoadError(timedOut: boolean, error: boolean | undefined): bo
 
 /**
  * First-load slot. The skeleton waits out the delay, then stays for the minimum
- * hold. While that is true the container is busy and a status node is mounted;
- * both leave the tree when the content or the error card is shown.
+ * hold. The status node and `aria-busy` attach only once the skeleton is on
+ * screen, so a response inside the delay is not announced. Both leave the tree
+ * when the content or the error card is shown. Retry bumps `attempt`, which
+ * restarts the delay and the timeout.
  */
 export function LoadingRegion({
   name,
@@ -44,7 +46,9 @@ export function LoadingRegion({
   const [attempt, setAttempt] = useState(0);
   const gate = useLoadGate(loading, attempt);
   const failed = showLoadError(gate.timedOut, error);
-  const busy = gate.busy && !failed;
+  const pending = gate.busy && !failed;
+  // §17.1: the live region waits until the skeleton is actually painted.
+  const announced = gate.showSkeleton && !failed;
 
   function retry() {
     setAttempt((current) => current + 1);
@@ -58,8 +62,8 @@ export function LoadingRegion({
   }, [failed]);
 
   return (
-    <View {...(busy ? { accessibilityState: { busy: true as const }, 'aria-busy': true as const } : {})}>
-      {busy ? (
+    <View {...(announced ? { accessibilityState: { busy: true as const }, 'aria-busy': true as const } : {})}>
+      {announced ? (
         <Text accessibilityLiveRegion="polite" role="status" style={hiddenStatusStyle}>
           {loadingStatusLabel(name)}
         </Text>
@@ -74,7 +78,7 @@ export function LoadingRegion({
       ) : gate.showSkeleton ? (
         skeleton
       ) : null}
-      {busy || failed ? null : children}
+      {pending || failed ? null : children}
     </View>
   );
 }
