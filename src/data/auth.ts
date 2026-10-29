@@ -4,6 +4,7 @@ import { isSupabaseConfigured } from '@/config/env';
 
 import { getSupabase } from './client';
 import { currentOrigin, oauthRedirectTo, type OAuthProvider } from './oauth';
+import { clearQuoteCache } from './quoteCache';
 import { clearServiceWorkerRuntimeCache } from './runtime-cache';
 
 export type AuthSession = {
@@ -72,14 +73,42 @@ export async function signInWithProvider(provider: OAuthProvider, returnPath?: s
   if (error) throw error;
 }
 
+async function sessionUserId(): Promise<string | null> {
+  try {
+    const { data, error } = await getSupabase().auth.getSession();
+    if (error) return null;
+    return data.session?.user.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Clears this device after `auth.signOut()`. The quote cache clear is in
+ * `finally`, so a thrown sign-out still drops that user's prices.
+ */
+export async function leaveDeviceSession(userId: string | null, authSignOut: () => Promise<void>): Promise<void> {
+  try {
+    await authSignOut();
+  } finally {
+    await clearServiceWorkerRuntimeCache();
+    if (userId) await clearQuoteCache(userId);
+    else await clearQuoteCache();
+  }
+}
+
 export async function signOut(): Promise<void> {
-  const { error } = await getSupabase().auth.signOut();
-  if (error) throw error;
-  await clearServiceWorkerRuntimeCache();
+  const userId = await sessionUserId();
+  await leaveDeviceSession(userId, async () => {
+    const { error } = await getSupabase().auth.signOut();
+    if (error) throw error;
+  });
 }
 
 export async function signOutLocal(): Promise<void> {
-  const { error } = await getSupabase().auth.signOut({ scope: 'local' });
-  if (error) throw error;
-  await clearServiceWorkerRuntimeCache();
+  const userId = await sessionUserId();
+  await leaveDeviceSession(userId, async () => {
+    const { error } = await getSupabase().auth.signOut({ scope: 'local' });
+    if (error) throw error;
+  });
 }

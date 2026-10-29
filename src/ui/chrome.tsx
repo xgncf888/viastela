@@ -2,20 +2,22 @@ import type { ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { layoutClassForWidth, type LayoutClass } from './layout-class';
 import { Text } from './Text';
 import { theme } from './theme';
 import { useTheme } from './ThemeProvider';
 
-export function useWideWeb(): boolean {
+/** Width only. Phones, split iPad, and a dragged browser window all follow the same cuts. */
+export function useLayoutClass(): LayoutClass {
   const { width } = useWindowDimensions();
-  return Platform.OS === 'web' && width >= theme.layout.wide;
+  return layoutClassForWidth(width);
 }
 
 export function useShellInset(): number {
-  const wide = useWideWeb();
+  const layout = useLayoutClass();
   const insets = useSafeAreaInsets();
-  if (wide) return theme.space.xl;
-  return theme.layout.tabBar + Math.max(insets.bottom, theme.space.sm);
+  if (layout !== 'compact') return theme.space.xl;
+  return theme.layout.tabBar + theme.space.md + insets.bottom;
 }
 
 export function ShellFrame({
@@ -28,27 +30,32 @@ export function ShellFrame({
   children: ReactNode;
 }) {
   const { color } = useTheme();
+  const layout = useLayoutClass();
   return (
     <View style={[styles.root, { backgroundColor: color.paper }]}>
       {sidebar}
-      <View style={styles.main}>{children}</View>
+      <View style={styles.main}>
+        <View style={layout === 'compact' ? styles.compactMain : styles.wideMain}>{children}</View>
+      </View>
       {bar}
     </View>
   );
 }
 
-export function SidebarFrame({ title, footer, children }: { title: string; footer: ReactNode; children: ReactNode }) {
+export function SidebarFrame({ title, footer, children }: { title: string; footer?: ReactNode; children: ReactNode }) {
   const { color } = useTheme();
+  const layout = useLayoutClass();
+  const width = layout === 'medium' ? theme.layout.sidebarCompact : theme.layout.sidebar;
   return (
-    <View style={[styles.sidebar, { backgroundColor: color.paperDeep, borderRightColor: color.line }]}>
-      <Text variant="heading">{title}</Text>
+    <View style={[styles.sidebar, { width, backgroundColor: color.paperDeep, borderRightColor: color.line }]}>
+      <Text variant="title">{title}</Text>
       <View style={styles.sideNav}>{children}</View>
       {footer}
     </View>
   );
 }
 
-export function TabBar({ action, children }: { action: ReactNode; children: ReactNode }) {
+export function TabBar({ children }: { children: ReactNode }) {
   const insets = useSafeAreaInsets();
   const { color } = useTheme();
   return (
@@ -58,14 +65,13 @@ export function TabBar({ action, children }: { action: ReactNode; children: Reac
         {
           paddingBottom:
             Platform.OS === 'web'
-              ? (`max(${theme.space.sm}px, env(safe-area-inset-bottom))` as unknown as number)
-              : Math.max(insets.bottom, theme.space.sm),
-          backgroundColor: color.card,
+              ? (`env(safe-area-inset-bottom)` as unknown as number)
+              : insets.bottom,
+          backgroundColor: color.bar,
           borderTopColor: color.line,
         },
       ]}
     >
-      <View style={styles.plusWrap}>{action}</View>
       <View style={styles.tabs}>{children}</View>
     </View>
   );
@@ -83,43 +89,23 @@ export function NavItem({
   placement?: 'side' | 'tab';
 }) {
   const { color } = useTheme();
-  const highlighted = selected && placement === 'side';
+  const side = placement === 'side';
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
+      aria-selected={Platform.OS === 'web' ? selected : undefined}
       onPress={onPress}
-      style={[
-        styles.nav,
-        placement === 'tab' ? styles.navFill : null,
-        { backgroundColor: highlighted ? color.accentSoft : 'transparent' },
-      ]}
+      style={[styles.nav, side ? styles.navSide : styles.navTab]}
     >
-      <Text variant="body" tone={selected ? 'accent' : placement === 'tab' ? 'muted' : 'ink'}>
+      <View
+        style={[
+          side ? styles.sideIndicator : styles.tabIndicator,
+          { backgroundColor: selected ? color.ink : 'transparent' },
+        ]}
+      />
+      <Text variant="tab" tone={selected ? 'ink' : 'muted'} style={selected ? styles.navSelected : undefined}>
         {label}
-      </Text>
-    </Pressable>
-  );
-}
-
-export function RecordButton({ onPress, floating = false }: { onPress: () => void; floating?: boolean }) {
-  const { color } = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="记录"
-      onPress={onPress}
-      style={[
-        styles.record,
-        floating ? styles.recordFloating : null,
-        {
-          backgroundColor: color.accent,
-          borderColor: floating ? color.card : 'transparent',
-        },
-      ]}
-    >
-      <Text variant="body" tone="onAccent" style={styles.recordLabel}>
-        + 记录
       </Text>
     </Pressable>
   );
@@ -128,8 +114,14 @@ export function RecordButton({ onPress, floating = false }: { onPress: () => voi
 const styles = StyleSheet.create({
   root: { flex: 1, flexDirection: 'row' },
   main: { flex: 1 },
+  compactMain: { flex: 1, width: '100%' },
+  wideMain: {
+    flex: 1,
+    width: '100%',
+    maxWidth: theme.layout.contentWide,
+    alignSelf: 'center',
+  },
   sidebar: {
-    width: theme.layout.sidebar,
     padding: theme.space.lg,
     gap: theme.space.lg,
     borderRightWidth: theme.border.width,
@@ -142,25 +134,33 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderTopWidth: theme.border.width,
   },
-  plusWrap: { alignItems: 'center', marginTop: -theme.space.lg },
-  tabs: { flexDirection: 'row' },
+  tabs: { flexDirection: 'row', height: theme.layout.tabBar },
   nav: {
     minHeight: theme.layout.control,
-    borderRadius: theme.radius.sm,
-    paddingVertical: theme.space.sm,
     paddingHorizontal: theme.space.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  navFill: { flex: 1 },
-  record: {
-    minHeight: theme.layout.control,
-    borderRadius: theme.radius.sm,
-    borderWidth: theme.border.width,
-    paddingHorizontal: theme.space.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
+  navSide: {
+    flexDirection: 'row',
+    alignSelf: 'stretch',
+    justifyContent: 'flex-start',
+    gap: theme.space.sm,
   },
-  recordFloating: { borderRadius: theme.radius.pill },
-  recordLabel: { fontWeight: '500' },
+  navTab: {
+    flex: 1,
+    flexDirection: 'column',
+    minHeight: theme.layout.tabBar,
+    paddingHorizontal: theme.space.xs,
+  },
+  sideIndicator: {
+    width: theme.border.indicator,
+    height: theme.lineHeight.tab,
+  },
+  tabIndicator: {
+    width: 28,
+    height: theme.border.indicator,
+    marginBottom: theme.space.xs,
+  },
+  navSelected: { fontWeight: theme.fontWeight.semibold },
 });

@@ -64,7 +64,7 @@ begin
 end;
 $$;
 
-select plan(101);
+select plan(122);
 
 do $$
 declare
@@ -139,6 +139,43 @@ select ok(
       and indexdef ilike '%WHERE (deleted_at IS NULL)%'
   ),
   'live push subscriptions are unique per user and endpoint'
+);
+
+select has_column(
+  'public',
+  'push_subscriptions',
+  'training_enabled',
+  'push_subscriptions.training_enabled exists'
+);
+
+select col_default_is(
+  'public',
+  'push_subscriptions',
+  'training_enabled',
+  'false',
+  'training_enabled defaults to false'
+);
+
+select has_column(
+  'public',
+  'push_subscriptions',
+  'month_end_enabled',
+  'push_subscriptions.month_end_enabled exists'
+);
+
+select col_default_is(
+  'public',
+  'push_subscriptions',
+  'month_end_enabled',
+  'false',
+  'month_end_enabled defaults to false'
+);
+
+select hasnt_column(
+  'public',
+  'push_subscriptions',
+  'enabled',
+  'push_subscriptions.enabled does not exist'
 );
 
 select ok(
@@ -335,7 +372,7 @@ select throws_ok(
   'anon cannot insert push subscriptions'
 );
 select throws_ok(
-  $$update public.push_subscriptions set enabled = false where id = 'f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f101'$$,
+  $$update public.push_subscriptions set training_enabled = true where id = 'f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f101'$$,
   '42501',
   NULL::text,
   'anon cannot update push subscriptions'
@@ -345,6 +382,21 @@ select throws_ok(
   '42501',
   NULL::text,
   'anon cannot delete push subscriptions'
+);
+select throws_ok(
+  $$select count(*) from public.reminder_deliveries$$,
+  '42501',
+  NULL::text,
+  'anon cannot select reminder deliveries'
+);
+select throws_ok(
+  $$
+    insert into public.reminder_deliveries (subscription_id, kind, local_day)
+    values ('f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f101', 'training', date '2026-10-27')
+  $$,
+  '42501',
+  NULL::text,
+  'anon cannot insert reminder deliveries'
 );
 select throws_ok(
   $$select count(*) from public.timeline$$,
@@ -1018,10 +1070,84 @@ select is(
   'training reminder defaults to 08:00'
 );
 
+select is(
+  (
+    select training_enabled
+    from public.push_subscriptions
+    where id = 'f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f102'
+  ),
+  false,
+  'training reminder defaults to off'
+);
+
+select is(
+  (
+    select month_end_enabled
+    from public.push_subscriptions
+    where id = 'f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f102'
+  ),
+  false,
+  'month-end reminder defaults to off'
+);
+
+select throws_ok(
+  $$
+    insert into public.push_subscriptions (id, endpoint, p256dh, auth, tz, training_days)
+    values (
+      'f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f106',
+      'https://push.example.test/1106',
+      'k1106',
+      's1106',
+      'Asia/Singapore',
+      null
+    )
+  $$,
+  '23502',
+  NULL::text,
+  'a null training_days value is rejected'
+);
+
 select lives_ok(
   $$
     insert into public.push_subscriptions (
-      id, endpoint, p256dh, auth, tz, month_end_time, training_time, training_days, enabled
+      id, endpoint, p256dh, auth, tz, training_enabled
+    )
+    values (
+      'f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f107',
+      'https://push.example.test/1107',
+      'k1107',
+      's1107',
+      'Asia/Singapore',
+      true
+    )
+  $$,
+  'user A can turn on only the training reminder'
+);
+
+select is(
+  (
+    select training_enabled
+    from public.push_subscriptions
+    where id = 'f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f107'
+  ),
+  true,
+  'the training reminder flag that was written is on'
+);
+
+select is(
+  (
+    select month_end_enabled
+    from public.push_subscriptions
+    where id = 'f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f107'
+  ),
+  false,
+  'writing only the training flag leaves the month-end flag off'
+);
+
+select lives_ok(
+  $$
+    insert into public.push_subscriptions (
+      id, endpoint, p256dh, auth, tz, month_end_time, training_time, training_days
     )
     values (
       'f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f103',
@@ -1031,8 +1157,7 @@ select lives_ok(
       'Asia/Singapore',
       time '22:15',
       time '07:05',
-      array[1, 3, 5]::smallint[],
-      false
+      array[1, 3, 5]::smallint[]
     )
   $$,
   'user A can insert explicit reminder times'
@@ -1097,6 +1222,40 @@ select lives_ok(
   'the same endpoint can be stored again after a soft delete'
 );
 
+reset role;
+
+do $$
+begin
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', current_setting('tests.user_b'), 'role', 'authenticated')::text,
+    true
+  );
+  perform set_config('request.jwt.claim.sub', current_setting('tests.user_b'), true);
+end $$;
+
+set local role authenticated;
+
+select is(
+  (select count(*) from public.push_subscriptions),
+  0::bigint,
+  'user B cannot read user A push subscriptions, including soft-deleted ones'
+);
+
+reset role;
+
+do $$
+begin
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', current_setting('tests.user_a'), 'role', 'authenticated')::text,
+    true
+  );
+  perform set_config('request.jwt.claim.sub', current_setting('tests.user_a'), true);
+end $$;
+
+set local role authenticated;
+
 select throws_ok(
   $$delete from public.journal_entries where id = 'e1e1e1e1-e1e1-41e1-81e1-e1e1e1e1e101'$$,
   '42501',
@@ -1109,6 +1268,37 @@ select throws_ok(
   '42501',
   NULL::text,
   'authenticated cannot hard-delete a push subscription'
+);
+
+select throws_ok(
+  $$select count(*) from public.reminder_deliveries$$,
+  '42501',
+  NULL::text,
+  'authenticated cannot select reminder deliveries'
+);
+
+select throws_ok(
+  $$
+    insert into public.reminder_deliveries (subscription_id, kind, local_day)
+    values ('f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f101', 'training', date '2026-10-27')
+  $$,
+  '42501',
+  NULL::text,
+  'authenticated cannot insert reminder deliveries'
+);
+
+select throws_ok(
+  $$update public.reminder_deliveries set kind = 'training'$$,
+  '42501',
+  NULL::text,
+  'authenticated cannot update reminder deliveries'
+);
+
+select throws_ok(
+  $$delete from public.reminder_deliveries$$,
+  '42501',
+  NULL::text,
+  'authenticated cannot delete reminder deliveries'
 );
 
 reset role;
@@ -1144,6 +1334,34 @@ select ok(
   and not has_table_privilege('anon', 'public.timeline', 'SELECT')
   and not has_table_privilege('anon', 'public.timeline', 'INSERT'),
   'timeline grants authenticated only select'
+);
+
+select ok(
+  not has_table_privilege('authenticated', 'public.reminder_deliveries', 'SELECT')
+  and not has_table_privilege('authenticated', 'public.reminder_deliveries', 'INSERT')
+  and not has_table_privilege('authenticated', 'public.reminder_deliveries', 'UPDATE')
+  and not has_table_privilege('authenticated', 'public.reminder_deliveries', 'DELETE')
+  and not has_table_privilege('anon', 'public.reminder_deliveries', 'SELECT')
+  and not has_table_privilege('anon', 'public.reminder_deliveries', 'INSERT'),
+  'reminder_deliveries grants nothing to authenticated or anon'
+);
+
+select lives_ok(
+  $$
+    insert into public.reminder_deliveries (subscription_id, kind, local_day)
+    values ('f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f101', 'training', date '2026-10-27')
+  $$,
+  'a reminder delivery can be recorded for a subscription'
+);
+
+select throws_ok(
+  $$
+    insert into public.reminder_deliveries (subscription_id, kind, local_day)
+    values ('f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f101', 'training', date '2026-10-27')
+  $$,
+  '23505',
+  NULL::text,
+  'a second reminder for the same subscription, kind, and day is rejected'
 );
 
 select * from finish();

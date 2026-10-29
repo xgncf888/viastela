@@ -11,7 +11,7 @@ export default function NotFound() {
       <Content>
         <EmptyState
           title="找不到这一页"
-          description=""
+          description="这个地址没有对应的页面。"
           action={<Button label="回到今日" onPress={() => router.replace('/')} />}
         />
       </Content>

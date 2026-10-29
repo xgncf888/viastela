@@ -228,6 +228,19 @@ function assertNoFake(body: QuotesResponse): void {
   eq(JSON.stringify(body).includes('fake'), false);
 }
 
+function capturedFinnhub(input: Request | URL | string, init?: RequestInit): { url: string; token: string | null } {
+  const url = input instanceof Request ? input.url : String(input);
+  const headers = new Headers(input instanceof Request ? input.headers : init?.headers);
+  return { url, token: headers.get('X-Finnhub-Token') };
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
 function sliceFn(source: string, signature: string): string {
   const start = source.indexOf(signature);
   ok(start >= 0, signature);
@@ -684,9 +697,9 @@ Deno.test('gate 6: logs omit the provider key and the holdings', async () => {
   const apiKey = 'fnk_test_918273';
   const headerSecret = 'hdr_test_564738';
   const note = 'position-secret-2468';
-  const seenUrls: string[] = [];
-  const provider = new FinnhubQuoteProvider(apiKey, (input) => {
-    seenUrls.push(String(input));
+  const seen: { url: string; token: string | null }[] = [];
+  const provider = new FinnhubQuoteProvider(apiKey, (input, init) => {
+    seen.push(capturedFinnhub(input, init));
     return Promise.resolve(new Response(JSON.stringify({ c: 4, t: 1_700_000_000 }), { status: 200 }));
   });
   const fx = new FakeFxProvider({}, '2026-10-27');
@@ -736,8 +749,12 @@ Deno.test('gate 6: logs omit the provider key and the holdings', async () => {
   for (const secret of [apiKey, headerSecret, note, '17.25', '33.5', 'ZX.Y', 'Bearer']) {
     eq(logs.includes(secret), false, secret);
   }
-  eq(seenUrls.length, 1);
-  eq(seenUrls[0]?.includes(apiKey), true);
+  eq(seen.length, 1);
+  const finnhubUrl = new URL(seen[0]?.url ?? 'https://invalid.test');
+  eq(finnhubUrl.searchParams.get('symbol'), 'ZX.Y');
+  eq(finnhubUrl.searchParams.has('token'), false);
+  eq(seen[0]?.url.includes(apiKey), false);
+  eq(seen[0]?.token, apiKey);
   eq(desk.logs.some((event) => event.event === 'quoted'), true);
 });
 
@@ -831,6 +848,7 @@ Deno.test('service role client is only used for quote and fx caches', async () =
   const writeCache = sliceFn(indexSource, 'async function writeQuoteCache');
   eq(writeCache.includes("from('quote_cache')"), true);
   eq(writeCache.includes('as_of'), true);
+  eq(writeCache.includes('price > 0'), true);
   eq(writeCache.includes('currency'), false);
   eq(writeCache.includes('holdings'), false);
   const readCache = sliceFn(indexSource, 'async function readQuoteCache');
@@ -839,4 +857,379 @@ Deno.test('service role client is only used for quote and fx caches', async () =
   eq(writeSnapshot.includes("from('net_worth_snapshots')"), true);
   eq(writeSnapshot.includes('quote_cache'), false);
   eq(writeSnapshot.includes('fx_rates'), false);
+});
+
+const staleAt = '2026-10-27T06:00:00.000Z';
+const quoteNow = new Date('2026-10-27T08:00:00.000Z');
+
+function finnhubDesk(symbol: string, cachePrice: number | null): Desk {
+  const desk = new Desk();
+  desk.holdings.push({ userId: userA, symbol, quantity: '2', costBasisUsd: null });
+  if (cachePrice !== null) {
+    desk.quotes.push({ symbol, price: cachePrice, currency: 'USD', asOf: staleAt });
+  }
+  return desk;
+}
+
+Deno.test('empty or zero finnhub prices fall back to the stale cache', async () => {
+  const apiKey = 'fnk_test_empty_4400';
+  const token = await tokenFor(userA);
+  const bodies = [
+    { c: 0, t: 0 },
+    { c: 0, t: 1_700_000_000 },
+    { c: null, t: 1_700_000_000 },
+  ];
+  for (const body of bodies) {
+    const seen: { url: string; token: string | null }[] = [];
+    const provider = new FinnhubQuoteProvider(apiKey, (input, init) => {
+      seen.push(capturedFinnhub(input, init));
+      return Promise.resolve(jsonResponse(body));
+    });
+    const desk = finnhubDesk('AAA', 12.5);
+    const fx = new FakeFxProvider({}, '2026-10-27');
+    const response = await handleQuotes(
+      post(token, { symbols: ['AAA'], tz: 'UTC' }),
+      desk.deps({ source: 'finnhub', quotes: provider, fx, getUser: verifyJwt, now: () => quoteNow }),
+    );
+    eq(response.status, 200, JSON.stringify(body));
+    const quoted = await bodyOf(response);
+    assertLine(quoted.quotes[0] as QuoteLine, { price: 12.5, status: 'stale', source: 'finnhub' });
+    eq(quoted.quotes[0]?.as_of, staleAt);
+    eq(quoted.stale, true);
+    eq(quoted.snapshot, 'written');
+    eq(quoted.securities_usd, 25);
+    eq(desk.quoteWrites, 0);
+    eq(desk.quotes, [{ symbol: 'AAA', price: 12.5, currency: 'USD', asOf: staleAt }]);
+    eq(seen[0]?.token, apiKey);
+    eq(seen[0]?.url.includes(apiKey), false);
+    eq(seen[0]?.url.includes('token='), false);
+    assertNoFake(quoted);
+
+    const again = await handleQuotes(
+      post(token, { symbols: ['AAA'], tz: 'UTC' }),
+      desk.deps({ source: 'finnhub', quotes: provider, fx, getUser: verifyJwt, now: () => quoteNow }),
+    );
+    eq((await bodyOf(again)).quotes[0]?.status, 'stale');
+    eq(seen.length, 2);
+    eq(desk.quotes[0]?.asOf, staleAt);
+  }
+
+  const missed = finnhubDesk('AAA', null);
+  const missingProvider = new FinnhubQuoteProvider(apiKey, () => Promise.resolve(jsonResponse({ c: 0, t: 0 })));
+  const fx = new FakeFxProvider({}, '2026-10-27');
+  const empty = await handleQuotes(
+    post(token, { symbols: ['AAA'], tz: 'UTC' }),
+    missed.deps({
+      source: 'finnhub',
+      quotes: missingProvider,
+      fx,
+      getUser: verifyJwt,
+      now: () => quoteNow,
+    }),
+  );
+  eq(empty.status, 200);
+  const unpriced = await bodyOf(empty);
+  assertLine(unpriced.quotes[0] as QuoteLine, { price: null, status: 'unavailable', source: 'finnhub' });
+  eq(unpriced.snapshot, 'skipped');
+  eq(missed.quoteWrites, 0);
+  eq(missed.quotes, []);
+
+  const mixed = new Desk();
+  mixed.holdings.push({ userId: userA, symbol: 'AAA', quantity: '2', costBasisUsd: null });
+  mixed.holdings.push({ userId: userA, symbol: 'BBB', quantity: '1', costBasisUsd: null });
+  mixed.quotes.push({ symbol: 'AAA', price: 12.5, currency: 'USD', asOf: staleAt });
+  const mixedProvider = new FinnhubQuoteProvider(apiKey, (input) => {
+    const symbol = new URL(String(input)).searchParams.get('symbol');
+    const price = symbol === 'BBB' ? 5 : 0;
+    return Promise.resolve(jsonResponse({ c: price, t: price === 0 ? 0 : 1_700_000_000 }));
+  });
+  const mixedResponse = await handleQuotes(
+    post(token, { tz: 'UTC' }),
+    mixed.deps({
+      source: 'finnhub',
+      quotes: mixedProvider,
+      fx,
+      getUser: verifyJwt,
+      now: () => quoteNow,
+    }),
+  );
+  eq(mixedResponse.status, 200);
+  const mixedBody = await bodyOf(mixedResponse);
+  assertLine(mixedBody.quotes.find((quote) => quote.symbol === 'AAA') as QuoteLine, {
+    price: 12.5,
+    status: 'stale',
+    source: 'finnhub',
+  });
+  eq(mixedBody.quotes.find((quote) => quote.symbol === 'AAA')?.as_of, staleAt);
+  assertLine(mixedBody.quotes.find((quote) => quote.symbol === 'BBB') as QuoteLine, {
+    price: 5,
+    status: 'fresh',
+    source: 'finnhub',
+  });
+  eq(mixedBody.quotes.find((quote) => quote.symbol === 'BBB')?.as_of, quoteNow.toISOString());
+  eq(mixed.quotes.find((row) => row.symbol === 'AAA'), {
+    symbol: 'AAA',
+    price: 12.5,
+    currency: 'USD',
+    asOf: staleAt,
+  });
+  eq(mixed.quotes.find((row) => row.symbol === 'BBB')?.price, 5);
+  eq(mixed.quotes.filter((row) => row.symbol === 'AAA').length, 1);
+  eq(mixedBody.securities_usd, 30);
+  eq(mixedBody.snapshot, 'written');
+});
+
+Deno.test('a finnhub error falls back to the stale cache', async () => {
+  const apiKey = 'fnk_test_error_5511';
+  const token = await tokenFor(userA);
+  const fx = new FakeFxProvider({}, '2026-10-27');
+  const failures: Array<(input: Request | URL | string, init?: RequestInit) => Promise<Response>> = [
+    () => Promise.resolve(new Response('upstream', { status: 503 })),
+    () => Promise.reject(new Error(`${apiKey} network`)),
+  ];
+  for (const fetchImpl of failures) {
+    const desk = finnhubDesk('AAA', 12.5);
+    const provider = new FinnhubQuoteProvider(apiKey, fetchImpl);
+    const lines: string[] = [];
+    const methods = ['log', 'info', 'warn', 'error', 'debug'] as const;
+    const originals = methods.map((method) => console[method]);
+    for (const method of methods) {
+      console[method] = (...args: unknown[]) => {
+        lines.push(args.map((arg) => String(arg)).join(' '));
+      };
+    }
+    try {
+      const response = await handleQuotes(
+        post(token, { symbols: ['AAA'], tz: 'UTC' }),
+        desk.deps({ source: 'finnhub', quotes: provider, fx, getUser: verifyJwt, now: () => quoteNow }),
+      );
+      eq(response.status, 200);
+      const body = await bodyOf(response);
+      assertLine(body.quotes[0] as QuoteLine, { price: 12.5, status: 'stale', source: 'finnhub' });
+      eq(body.quotes[0]?.as_of, staleAt);
+      eq(body.stale, true);
+      eq(desk.quoteWrites, 0);
+      eq(desk.quotes[0]?.price, 12.5);
+      eq(JSON.stringify(body).includes(apiKey), false);
+      const logs = `${JSON.stringify(desk.logs)}\n${lines.join('\n')}`;
+      eq(logs.includes(apiKey), false);
+      eq(logs.includes('network'), false);
+    } finally {
+      methods.forEach((method, index) => {
+        console[method] = originals[index];
+      });
+    }
+  }
+});
+
+Deno.test('a quote cache write failure is logged and the response still succeeds', async () => {
+  const apiKey = 'fnk_test_write_7731';
+  const secretNote = 'position-secret-9182';
+  const token = await tokenFor(userA);
+  const seen: { url: string; token: string | null }[] = [];
+  const provider = new FinnhubQuoteProvider(apiKey, (input, init) => {
+    seen.push(capturedFinnhub(input, init));
+    return Promise.resolve(jsonResponse({ c: 9.25, t: 1_700_000_000 }));
+  });
+  const fx = new FakeFxProvider({}, '2026-10-27');
+  const desk = finnhubDesk('QQQ', 4);
+  const lines: string[] = [];
+  const methods = ['log', 'info', 'warn', 'error', 'debug'] as const;
+  const originals = methods.map((method) => console[method]);
+  for (const method of methods) {
+    console[method] = (...args: unknown[]) => {
+      lines.push(args.map((arg) => String(arg)).join(' '));
+    };
+  }
+  const deps = desk.deps({
+    source: 'finnhub',
+    quotes: provider,
+    fx,
+    getUser: verifyJwt,
+    now: () => quoteNow,
+  });
+  deps.writeQuoteCache = () => Promise.reject(new Error(`${apiKey} ${userA} QQQ ${secretNote}`));
+  try {
+    const response = await handleQuotes(post(token, { symbols: ['QQQ'], tz: 'UTC', note: secretNote }), deps);
+    eq(response.status, 200);
+    const body = await bodyOf(response);
+    assertLine(body.quotes[0] as QuoteLine, { price: 9.25, status: 'fresh', source: 'finnhub' });
+    eq(body.quotes[0]?.as_of, quoteNow.toISOString());
+    eq(body.snapshot, 'written');
+    eq(body.securities_usd, 18.5);
+    eq(JSON.stringify(body).includes(apiKey), false);
+    eq(JSON.stringify(body).includes(secretNote), false);
+    eq(desk.quotes, [{ symbol: 'QQQ', price: 4, currency: 'USD', asOf: staleAt }]);
+    eq(desk.logs.some((event) => event.event === 'quote_cache_write_failed' && event.status === 200), true);
+    const logs = `${JSON.stringify(desk.logs)}\n${lines.join('\n')}`;
+    for (const secret of [apiKey, userA, 'QQQ', secretNote, '9.25', 'Bearer', 'position']) {
+      eq(logs.includes(secret), false, secret);
+    }
+  } finally {
+    methods.forEach((method, index) => {
+      console[method] = originals[index];
+    });
+  }
+
+  const second = await handleQuotes(post(token, { symbols: ['QQQ'], tz: 'UTC' }), deps);
+  eq(second.status, 200);
+  eq((await bodyOf(second)).quotes[0]?.status, 'fresh');
+  eq(seen.length, 2);
+  eq(desk.quotes[0]?.price, 4);
+  eq(desk.quotes[0]?.asOf, staleAt);
+});
+
+Deno.test('a non-usd quote is unavailable instead of a mislabeled price', async () => {
+  const apiKey = 'fnk_test_eur_2208';
+  const foreign = 88.5;
+  const token = await tokenFor(userA);
+  const fx = new FakeFxProvider({}, '2026-10-27');
+  const seen: { url: string; token: string | null }[] = [];
+  const provider = new FinnhubQuoteProvider(apiKey, (input, init) => {
+    seen.push(capturedFinnhub(input, init));
+    const symbol = new URL(String(input)).searchParams.get('symbol');
+    if (symbol === 'USDD') return Promise.resolve(jsonResponse({ c: 6, t: 1_700_000_000, currency: 'usd' }));
+    return Promise.resolve(jsonResponse({ c: foreign, t: 1_700_000_000, currency: 'eur' }));
+  });
+  const desk = new Desk();
+  desk.holdings.push({ userId: userA, symbol: 'EURX', quantity: '2', costBasisUsd: null });
+  desk.holdings.push({ userId: userA, symbol: 'USDD', quantity: '1', costBasisUsd: null });
+  desk.quotes.push({ symbol: 'EURX', price: 15, currency: 'USD', asOf: staleAt });
+  const response = await handleQuotes(
+    post(token, { tz: 'UTC' }),
+    desk.deps({ source: 'finnhub', quotes: provider, fx, getUser: verifyJwt, now: () => quoteNow }),
+  );
+  eq(response.status, 200);
+  const body = await bodyOf(response);
+  const foreignLine = body.quotes.find((quote) => quote.symbol === 'EURX') as QuoteLine;
+  const usdLine = body.quotes.find((quote) => quote.symbol === 'USDD') as QuoteLine;
+  assertLine(foreignLine, { price: null, status: 'unavailable', source: 'finnhub' });
+  eq(foreignLine.currency, 'USD');
+  assertLine(usdLine, { price: 6, status: 'fresh', source: 'finnhub' });
+  eq(JSON.stringify(body).includes(String(foreign)), false);
+  eq(body.quotes.some((quote) => quote.price === 15), false);
+  eq(body.unpriced, 1);
+  eq(body.securities_usd, 6);
+  eq(body.snapshot, 'skipped');
+  eq(desk.snapshots.length, 0);
+  eq(desk.quotes.find((row) => row.symbol === 'EURX'), {
+    symbol: 'EURX',
+    price: 15,
+    currency: 'USD',
+    asOf: staleAt,
+  });
+  eq(desk.quotes.find((row) => row.symbol === 'USDD')?.price, 6);
+  eq(seen.length, 2);
+  eq(seen.every((call) => call.token === apiKey && !call.url.includes(apiKey) && !call.url.includes('token=')), true);
+  assertNoFake(body);
+});
+
+function stripComments(source: string): string {
+  let out = '';
+  for (let index = 0; index < source.length; index += 1) {
+    const current = source[index];
+    const next = source[index + 1];
+    if (current === '/' && next === '/') {
+      index += 1;
+      while (index + 1 < source.length && source[index + 1] !== '\n') index += 1;
+      continue;
+    }
+    if (current === '/' && next === '*') {
+      index += 2;
+      while (index < source.length && !(source[index] === '*' && source[index + 1] === '/')) index += 1;
+      index += 1;
+      continue;
+    }
+    if (current === '\'' || current === '"' || current === '`') {
+      const quote = current;
+      out += current;
+      index += 1;
+      while (index < source.length && source[index] !== quote) {
+        if (source[index] === '\\') {
+          out += source[index] ?? '';
+          index += 1;
+        }
+        out += source[index] ?? '';
+        index += 1;
+      }
+      out += source[index] ?? '';
+      continue;
+    }
+    out += current;
+  }
+  return out;
+}
+
+function importSpecifiers(source: string): string[] {
+  const specifiers: string[] = [];
+  const stripped = stripComments(source);
+  for (const match of stripped.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)) {
+    if (match[1]) specifiers.push(match[1]);
+  }
+  for (const match of stripped.matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g)) {
+    if (match[1]) specifiers.push(match[1]);
+  }
+  for (const match of stripped.matchAll(/^\s*import\s+['"]([^'"]+)['"]/gm)) {
+    if (match[1]) specifiers.push(match[1]);
+  }
+  return specifiers;
+}
+
+function specifierImportsRepoSource(specifier: string): boolean {
+  const normalized = specifier.replaceAll('\\', '/');
+  if (!normalized.startsWith('.')) return normalized === 'src' || normalized.startsWith('src/');
+  return normalized.split('/').includes('src');
+}
+
+async function typescriptFiles(dir: URL): Promise<URL[]> {
+  const files: URL[] = [];
+  for await (const entry of Deno.readDir(dir)) {
+    if (entry.name.startsWith('.')) continue;
+    if (entry.isDirectory) {
+      files.push(...await typescriptFiles(new URL(`${entry.name}/`, dir)));
+      continue;
+    }
+    if (entry.isFile && entry.name.endsWith('.ts')) files.push(new URL(entry.name, dir));
+  }
+  return files;
+}
+
+/** `delete-account` predates the shared copies and is outside this change. */
+function legacyDeleteAccountImport(file: URL, specifier: string): boolean {
+  if (!file.pathname.includes('/delete-account/')) return false;
+  const origin = ['..', '..', '..', 'src', 'core', 'delete-account-origin.ts'].join('/');
+  const recent = ['..', '..', '..', 'src', 'core', 'recent-sign-in.ts'].join('/');
+  return specifier === origin || specifier === recent;
+}
+
+Deno.test('function files do not import application source', async () => {
+  const bad = ['..', '..', '..', 'src', 'core', 'local-day.ts'].join('/');
+  const dataBad = ['..', '..', 'src', 'data', 'database.types.ts'].join('/');
+  eq(specifierImportsRepoSource(bad), true);
+  eq(specifierImportsRepoSource(dataBad), true);
+  eq(specifierImportsRepoSource(['..', '_shared', 'local-day.ts'].join('/')), false);
+  eq(specifierImportsRepoSource('./handler.ts'), false);
+  eq(specifierImportsRepoSource('npm:@supabase/supabase-js@2.118.0'), false);
+  const sample = `import type { Database } from '${bad}';`;
+  eq(importSpecifiers(sample).some((specifier) => specifierImportsRepoSource(specifier)), true);
+  eq(importSpecifiers("import { computeLocalDay } from '../_shared/local-day.ts';").some(specifierImportsRepoSource), false);
+
+  const root = new URL('../', import.meta.url);
+  const files = await typescriptFiles(root);
+  ok(files.some((file) => file.pathname.endsWith('/quotes/index.ts')));
+  ok(files.some((file) => file.pathname.endsWith('/quotes/pricing.ts')));
+  ok(files.some((file) => file.pathname.endsWith('/quotes/handler.ts')));
+  ok(files.some((file) => file.pathname.endsWith('/_shared/local-day.ts')));
+  ok(files.some((file) => file.pathname.endsWith('/_shared/database.types.ts')));
+  ok(files.some((file) => file.pathname.endsWith('/_shared/delete-account-origin.ts')));
+  ok(files.some((file) => file.pathname.endsWith('/delete-account/index.ts')));
+  const offenders: string[] = [];
+  for (const file of files) {
+    const source = await Deno.readTextFile(file);
+    for (const specifier of importSpecifiers(source)) {
+      if (!specifierImportsRepoSource(specifier) || legacyDeleteAccountImport(file, specifier)) continue;
+      offenders.push(`${file.pathname} -> ${specifier}`);
+    }
+  }
+  eq(offenders, []);
 });

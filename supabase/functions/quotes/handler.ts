@@ -1,5 +1,5 @@
-import { isAllowedDeleteOrigin, parseAllowedOrigins } from '../../../src/core/delete-account-origin.ts';
-import { DEFAULT_DAY_SWITCH, isDaySwitch } from '../../../src/core/local-day.ts';
+import { isAllowedDeleteOrigin, parseAllowedOrigins } from '../_shared/delete-account-origin.ts';
+import { DEFAULT_DAY_SWITCH, isDaySwitch } from '../_shared/local-day.ts';
 import { liveCashBalances, valuate } from './pricing.ts';
 import type { FxProvider, QuoteProvider } from './providers.ts';
 import {
@@ -142,6 +142,7 @@ export async function handleQuotes(request: Request, dependencies: QuotesDepende
       writeQuoteCache: dependencies.writeQuoteCache,
       readFxCache: dependencies.readFxCache,
       writeFxCache: dependencies.writeFxCache,
+      log: dependencies.log,
     });
   } catch {
     return fail(request, dependencies, 502, 'quote_unavailable', 'quote_failed');

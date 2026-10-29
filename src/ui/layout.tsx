@@ -6,8 +6,20 @@ import { Text } from './Text';
 import { theme, type SpaceName } from './theme';
 import { useTheme } from './ThemeProvider';
 
-export function Stack({ gap = 'md', children }: { gap?: SpaceName; children: ReactNode }) {
-  return <View style={{ gap: theme.space[gap] }}>{children}</View>;
+export function Stack({
+  gap = 'md',
+  children,
+  accessibilityLabel,
+}: {
+  gap?: SpaceName;
+  children: ReactNode;
+  accessibilityLabel?: string;
+}) {
+  return (
+    <View accessibilityLabel={accessibilityLabel} style={{ gap: theme.space[gap] }}>
+      {children}
+    </View>
+  );
 }
 
 export function Row({
@@ -16,17 +28,20 @@ export function Row({
   justify = 'start',
   wrap = false,
   children,
+  accessibilityLabel,
 }: {
   gap?: SpaceName;
   align?: 'center' | 'start';
   justify?: 'start' | 'center' | 'between' | 'end';
   wrap?: boolean;
   children: ReactNode;
+  accessibilityLabel?: string;
 }) {
   const justifyContent =
     justify === 'between' ? 'space-between' : justify === 'end' ? 'flex-end' : justify === 'center' ? 'center' : 'flex-start';
   return (
     <View
+      accessibilityLabel={accessibilityLabel}
       style={{
         flexDirection: 'row',
         flexWrap: wrap ? 'wrap' : 'nowrap',
@@ -49,18 +64,31 @@ export function ScreenHeader({
   title,
   detail,
   note,
+  trailing,
 }: {
   kicker?: string;
   title: string;
   detail?: string;
   note?: string;
+  /** Right side of the title row. Omit it and the title stays a single line. */
+  trailing?: ReactNode;
 }) {
+  const heading = (
+    <Text variant="title" accessibilityRole="header">
+      {title}
+    </Text>
+  );
   return (
     <Stack gap="xs">
       {kicker ? <Text variant="muted">{kicker}</Text> : null}
-      <Text variant="title" accessibilityRole="header">
-        {title}
-      </Text>
+      {trailing ? (
+        <Row justify="between" align="center">
+          {heading}
+          {trailing}
+        </Row>
+      ) : (
+        heading
+      )}
       {detail ? <Text variant="body">{detail}</Text> : null}
       {note ? <Text variant="muted">{note}</Text> : null}
     </Stack>
@@ -90,6 +118,18 @@ export function Field({
   );
 }
 
+/** Hairline with a short label in the middle, for example 或. */
+export function LabeledDivider({ label }: { label: string }) {
+  const theme = useTheme();
+  return (
+    <Row gap="sm">
+      <View accessible={false} style={[styles.rule, { backgroundColor: theme.color.line }]} />
+      <Text variant="muted">{label}</Text>
+      <View accessible={false} style={[styles.rule, { backgroundColor: theme.color.line }]} />
+    </Row>
+  );
+}
+
 export function Callout({
   message,
   action,
@@ -102,7 +142,7 @@ export function Callout({
   const theme = useTheme();
   if (tone === 'danger') {
     return (
-      <View accessibilityRole="alert" style={[styles.danger, { backgroundColor: theme.color.dangerSoft }]}>
+      <View accessibilityRole="alert" style={[styles.tone, { backgroundColor: theme.color.dangerSoft }]}>
         <Text variant="body" tone="danger">
           {message}
         </Text>
@@ -112,7 +152,7 @@ export function Callout({
   }
   if (tone === 'warning') {
     return (
-      <View accessibilityRole="text" role="status" style={[styles.danger, { backgroundColor: theme.color.warningSoft }]}>
+      <View accessibilityRole="text" role="status" style={[styles.tone, { backgroundColor: theme.color.warningSoft }]}>
         <Text variant="body" tone="warning">
           {message}
         </Text>
@@ -134,9 +174,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  danger: {
+  tone: {
     borderRadius: theme.radius.lg,
     padding: theme.space.md,
     gap: theme.space.sm,
+  },
+  rule: {
+    flex: 1,
+    height: theme.border.width,
   },
 });

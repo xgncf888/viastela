@@ -64,6 +64,28 @@ jobs:
           exit 1
       - run: supabase --yes test db --local
 
+  lint-migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test scripts/lint-migrations.test.mjs
+      - run: node scripts/lint-migrations.mjs
+
+  lint-secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test scripts/lint-secrets.test.mjs
+      - run: node scripts/lint-secrets.mjs
+
   quotes:
     runs-on: ubuntu-latest
     steps:

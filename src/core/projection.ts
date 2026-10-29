@@ -19,7 +19,8 @@ export type ProjectNetWorthInput = {
   monthlyNetUsd: number;
   /** Annual rate in [-0.5, 0.5]. Monthly rate is `(1 + r) ** (1 / 12) - 1`. */
   annualRate: number;
-  targetUsd: number;
+  /** Dollars to reach. Null draws the line only and records no goal. */
+  targetUsd: number | null;
   /** Months after the start to simulate. Defaults to {@link DEFAULT_MAX_MONTHS}. */
   maxMonths?: number;
 };
@@ -83,7 +84,7 @@ export function projectNetWorth(input: ProjectNetWorthInput): NetWorthProjection
   assertMaxMonths(maxMonths);
   assertAnnualRate(input.annualRate);
   const depositCents = toCents(input.monthlyNetUsd);
-  const targetCents = toCents(input.targetUsd);
+  const targetCents = input.targetUsd === null ? null : toCents(input.targetUsd);
   const monthlyRate = (1 + input.annualRate) ** (1 / 12) - 1;
 
   const points: ProjectionPoint[] = [];
@@ -96,7 +97,7 @@ export function projectNetWorth(input: ProjectNetWorthInput): NetWorthProjection
     }
     const month = addMonths(startMonth, monthIndex);
     points.push({ month, netWorthUsd: balanceCents / 100 });
-    if (goal === null && balanceCents >= targetCents) {
+    if (targetCents !== null && goal === null && balanceCents >= targetCents) {
       goal =
         monthIndex === 0
           ? { status: 'already', month, monthIndex }

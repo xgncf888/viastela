@@ -372,12 +372,13 @@ export type Database = {
           auth: string;
           created_at: string;
           deleted_at: string | null;
-          enabled: boolean;
           endpoint: string;
           id: string;
+          month_end_enabled: boolean;
           month_end_time: string;
           p256dh: string;
-          training_days: number[] | null;
+          training_days: number[];
+          training_enabled: boolean;
           training_time: string;
           tz: string;
           updated_at: string;
@@ -388,12 +389,13 @@ export type Database = {
           auth: string;
           created_at?: string;
           deleted_at?: string | null;
-          enabled?: boolean;
           endpoint: string;
           id: string;
+          month_end_enabled?: boolean;
           month_end_time?: string;
           p256dh: string;
-          training_days?: number[] | null;
+          training_days?: number[];
+          training_enabled?: boolean;
           training_time?: string;
           tz: string;
           updated_at?: string;
@@ -403,12 +405,13 @@ export type Database = {
           auth?: string;
           created_at?: string;
           deleted_at?: string | null;
-          enabled?: boolean;
           endpoint?: string;
           id?: string;
+          month_end_enabled?: boolean;
           month_end_time?: string;
           p256dh?: string;
-          training_days?: number[] | null;
+          training_days?: number[];
+          training_enabled?: boolean;
           training_time?: string;
           tz?: string;
           updated_at?: string;
@@ -434,6 +437,39 @@ export type Database = {
           symbol?: string;
         };
         Relationships: [];
+      };
+      reminder_deliveries: {
+        Row: {
+          id: string;
+          kind: string;
+          local_day: string;
+          sent_at: string;
+          subscription_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          id?: string;
+          kind: string;
+          local_day: string;
+          sent_at?: string;
+          subscription_id: string;
+        };
+        Update: {
+          id?: string;
+          kind?: string;
+          local_day?: string;
+          sent_at?: string;
+          subscription_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "reminder_deliveries_subscription_id_fkey";
+            columns: ["subscription_id"];
+            isOneToOne: false;
+            referencedRelation: "push_subscriptions";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       study_records: {
         Row: {
