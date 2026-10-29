@@ -55,7 +55,7 @@ export function RefreshStatus({
       {status === 'idle' ? (
         idle
       ) : status === 'refreshing' ? (
-        <Text variant="muted" accessibilityLiveRegion="none">
+        <Text variant="muted" numberOfLines={1} accessibilityLiveRegion="none">
           {REFRESHING_TEXT}
         </Text>
       ) : (
@@ -64,7 +64,7 @@ export function RefreshStatus({
           role={Platform.OS === 'web' ? 'status' : undefined}
           style={styles.row}
         >
-          <Text variant="muted" tone="warning">
+          <Text variant="muted" tone="warning" numberOfLines={1} style={styles.lead}>
             {lead}
           </Text>
           <Pressable
@@ -95,8 +95,15 @@ const styles = StyleSheet.create({
   },
   row: {
     alignItems: 'center',
+    alignSelf: 'stretch',
     flexDirection: 'row',
     flexWrap: 'nowrap',
+    maxWidth: '100%',
+  },
+  /** Shrink before the retry target, and ellipsize instead of wrapping. */
+  lead: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   retry: {
     alignItems: 'flex-start',

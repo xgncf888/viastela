@@ -1,7 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 
 import { LOAD_TIMEOUT_MS } from '../src/lib/timing';
-import { lightColor, theme } from '../src/ui/theme';
+import { lightColor } from '../src/ui/theme';
 import { closeRecordSheet } from './selectors';
 import { accountingDay, installApi, signIn, weightRow } from './session';
 
@@ -258,13 +258,9 @@ async function recordButtonY(page: Page): Promise<number> {
   return box!.y;
 }
 
-/** Phone. The caption line is the old night-hint line, so the button sits where that hint used to put it. */
+/** Design baseline. The same y in every subtitle state. */
 const RECORD_Y_PHONE = 236;
-/**
- * Desktop. Page padding is `space.xl` instead of `space.md` (32 − 16), and the stack under the
- * title is otherwise the same, so the button is 16px lower.
- */
-const RECORD_Y_DESKTOP = RECORD_Y_PHONE + (theme.space.xl - theme.space.md);
+const RECORD_Y_DESKTOP = 252;
 
 for (const viewport of [
   { width: 390, height: 844, y: RECORD_Y_PHONE },
@@ -282,7 +278,6 @@ for (const viewport of [
       refreshing: viewport.y,
       failed: viewport.y,
     });
-    expect(RECORD_Y_DESKTOP).toBe(252);
   });
 }
 
@@ -374,6 +369,31 @@ async function recordButtonStates(page: Page): Promise<Record<'idle' | 'night' |
 
   return { idle, night, refreshing, failed };
 }
+
+test('a subtitle that does not fit stays one line and ends with an ellipsis', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.clock.install({ time: new Date('2026-10-29T08:00:00.000Z') });
+  await signIn(page);
+  await installApi(page, { weights: [weightRow('w-1', '2026-10-29', 76.4)] });
+  await page.goto('/trend');
+  const line = page.getByText('均重用每天最早的一笔', { exact: false });
+  await expect(line).toBeVisible();
+  const info = await line.evaluate((node) => {
+    const style = getComputedStyle(node);
+    return {
+      whiteSpace: style.whiteSpace,
+      textOverflow: style.textOverflow,
+      overflow: style.overflow,
+      height: node.getBoundingClientRect().height,
+      truncated: node.scrollWidth > node.clientWidth + 1,
+    };
+  });
+  expect(info.whiteSpace).toBe('nowrap');
+  expect(info.textOverflow).toBe('ellipsis');
+  expect(info.overflow).toBe('hidden');
+  expect(info.height).toBeLessThanOrEqual(18);
+  expect(info.truncated).toBe(true);
+});
 
 function shiftDay(day: string, delta: number): string {
   const date = new Date(`${day}T12:00:00.000Z`);
