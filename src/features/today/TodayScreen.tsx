@@ -13,6 +13,7 @@ import { studyDaySummary, studyDetail, studyRecordsOnDay } from '@/core/study';
 import { formatTrainingLoad, trainingDaySummary, trainingSetsOnDay } from '@/core/training';
 import { formatKg, latestRecord, recordsOnDay } from '@/core/weight-stats';
 import { openRecordSheet } from '@/features/record/record-sheet-store';
+import { MonthEndNotice } from '@/features/today/MonthEndNotice';
 import { useShellInset } from '@/features/shell/AppShell';
 import { useStudy } from '@/features/study/StudyProvider';
 import { useTraining } from '@/features/training/TrainingProvider';
@@ -103,6 +104,7 @@ export function TodayScreen() {
             timedOut={weightGate.timedOut}
           />
           <RecordEntry />
+          <MonthEndNotice timeZone={timeZone} />
           <LoadingRegion
             name="今日"
             loading={!ready}

@@ -29,6 +29,11 @@ export function recordButton(page: Page): Locator {
   return page.getByRole('button', { name: '记录', exact: true }).first();
 }
 
+/** The record sheet's 关闭. Today can also show a month-end card labeled 关闭. */
+export function closeRecordSheet(page: Page): Locator {
+  return recordSheetHeading(page).locator('xpath=..').getByRole('button', { name: '关闭', exact: true });
+}
+
 /** Row-level record button: 「记录体重/训练/学习」 per §4.2, or legacy 「记一笔」 in that section. */
 export function rowRecordButton(page: Page, kind: RecordKind): Locator {
   const design = page.getByRole('button', { name: rowDesignName[kind], exact: true });

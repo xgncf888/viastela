@@ -425,6 +425,13 @@ verify_jwt = true
 [functions.quotes]
 verify_jwt = true
 
+# reminders is not deployed from this repository. The caller is pg_cron via
+# pg_net, not a signed-in browser. verify_jwt stays off so the cron job does
+# not store a service-role JWT. index.ts rejects every request whose
+# x-reminders-cron-secret header does not match REMINDERS_CRON_SECRET.
+[functions.reminders]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

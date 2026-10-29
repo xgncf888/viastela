@@ -1,6 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 
-import { recordButton, recordSheetHeading, waitForTodayLoaded } from './selectors';
+import { closeRecordSheet, recordButton, recordSheetHeading, waitForTodayLoaded } from './selectors';
 import { accountingDay, installApi, signIn, weightRow } from './session';
 
 test.use({ timezoneId: 'UTC', viewport: { width: 390, height: 844 } });
@@ -21,12 +21,12 @@ test('再记 opens a prefilled sheet and only saving adds a record', async ({ pa
   await expect(prefilled).toBeFocused();
   await expect(prefilled).toHaveAttribute('inputmode', 'decimal');
   await expect(page.getByRole('button', { name: /填入上次/ })).toHaveCount(0);
-  await page.getByRole('button', { name: '关闭' }).click();
+  await closeRecordSheet(page).click();
   await expect(recordSheetHeading(page, 'weight')).toBeHidden();
   await recordButton(page).click();
   await expect(page.getByRole('textbox', { name: '体重（kg）' })).toHaveValue('');
   await expect(page.getByRole('button', { name: '填入上次 73.7' })).toBeVisible();
-  await page.getByRole('button', { name: '关闭' }).click();
+  await closeRecordSheet(page).click();
   await expect(recordSheetHeading(page, 'weight')).toBeHidden();
   await expect(page.getByText('晨重', { exact: true })).toHaveCount(1);
   await expect(page.getByText('复测', { exact: true })).toHaveCount(0);
@@ -94,7 +94,7 @@ test('a row-level security error other than record deleted can be retried', asyn
   await page.getByRole('button', { name: '再记 73.7 kg' }).click();
   await page.getByRole('button', { name: '保存' }).click();
   await expect(page.getByText('保存失败，请重试')).toBeVisible();
-  await page.getByRole('button', { name: '关闭' }).click();
+  await closeRecordSheet(page).click();
   await expect(page.getByText('这条记录已在其他设备删除')).toHaveCount(0);
   await expect(page.getByText('保存失败，请重试')).toBeVisible();
   await expect(page.getByRole('button', { name: '重试' })).toBeVisible();

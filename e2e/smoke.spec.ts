@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { brand } from '../src/config/brand';
 import { authSession, installApi, signIn } from './session';
-import { recordButton, recordSheetHeading, typeChip } from './selectors';
+import { closeRecordSheet, recordButton, recordSheetHeading, typeChip } from './selectors';
 
 test('web build shows the email login screen', async ({ page }) => {
   const pageErrors: string[] = [];
@@ -126,7 +126,7 @@ test('signed-in shell switches tabs and opens the record sheet', async ({ page }
   await expect(page.getByRole('textbox', { name: '主题' })).toBeVisible();
   await typeChip(page, '时间块').click();
   await expect(page.getByText('即将推出')).toBeVisible();
-  await page.getByRole('button', { name: '关闭' }).click();
+  await closeRecordSheet(page).click();
 
   await page.getByRole('button', { name: '趋势' }).click();
   await expect(page.getByRole('heading', { name: '近 7 日' })).toBeVisible();

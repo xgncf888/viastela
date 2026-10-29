@@ -2,6 +2,7 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 
 import { LOAD_TIMEOUT_MS } from '../src/lib/timing';
 import { lightColor } from '../src/ui/theme';
+import { closeRecordSheet } from './selectors';
 import { accountingDay, installApi, signIn, weightRow } from './session';
 
 test.use({ timezoneId: 'UTC', viewport: { width: 390, height: 844 } });
@@ -145,7 +146,7 @@ async function expectRecordOpensSheet(page: Page) {
   await expect(record).toBeInViewport();
   await record.click();
   await expect(page.getByRole('heading', { name: '记录', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '关闭' }).click();
+  await closeRecordSheet(page).click();
   await expect(page.getByRole('heading', { name: '记录', exact: true })).toBeHidden();
 }
 

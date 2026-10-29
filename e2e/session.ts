@@ -247,6 +247,14 @@ export async function installApi(
       await route.fulfill({ status: 200, headers: cors, body: JSON.stringify(studyRows) });
       return;
     }
+    if (url.includes('/rest/v1/push_subscriptions') && request.method() === 'GET') {
+      await route.fulfill({ status: 200, headers: cors, body: '[]' });
+      return;
+    }
+    if (url.includes('/rest/v1/account_balances') && request.method() === 'GET') {
+      await route.fulfill({ status: 200, headers: cors, body: '[]' });
+      return;
+    }
     if (url.includes('/rest/v1/profiles')) {
       await route.fulfill({
         status: 200,
