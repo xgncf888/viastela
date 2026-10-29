@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Platform } from 'react-native';
 
 import { brand } from '@/config/brand';
@@ -21,6 +21,7 @@ import {
 } from '@/core/email-otp';
 import { showProviderSignIn } from '@/core/provider-sign-in';
 import { requestEmailOtp, signInWithProvider, verifyEmailOtp } from '@/data/auth';
+import { consentReturnPath, peekConsentAuthorization, readAuthorizationId, rememberConsentAuthorization } from '@/data/oauth-consent';
 import { captureOAuthFailure, clearOAuthFailureMessage, type OAuthProvider } from '@/data/oauth';
 import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
@@ -57,6 +58,8 @@ function providerFailureMessage(error: unknown): string {
 }
 
 export function LoginScreen() {
+  const search = useLocalSearchParams<{ authorization_id?: string | string[] }>();
+  const authorizationId = readAuthorizationId(search.authorization_id) || peekConsentAuthorization();
   const configured = isSupabaseConfigured();
   const showProviders = showProviderSignIn(Platform.OS);
   const [phase, setPhase] = useState<'email' | 'code'>('email');
@@ -78,6 +81,10 @@ export function LoginScreen() {
   useEffect(() => {
     clearOAuthFailureMessage();
   }, []);
+
+  useEffect(() => {
+    if (authorizationId) rememberConsentAuthorization(authorizationId);
+  }, [authorizationId]);
 
   useEffect(() => {
     if (sentAtMs === null) return undefined;
@@ -119,7 +126,7 @@ export function LoginScreen() {
     setProvider(next);
     setProviderNotice(null);
     try {
-      await signInWithProvider(next);
+      await signInWithProvider(next, authorizationId ? consentReturnPath(authorizationId) : undefined);
       clearOAuthFailureMessage();
       setProviderNotice(null);
     } catch (providerError) {

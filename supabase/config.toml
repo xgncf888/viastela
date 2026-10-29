@@ -425,6 +425,16 @@ verify_jwt = true
 [functions.quotes]
 verify_jwt = true
 
+# mcp is a throwaway M0 spike. This repository does not deploy it.
+# verify_jwt stays off so a missing or invalid bearer reaches the function.
+# The gateway would otherwise answer first, and that response would not
+# include the WWW-Authenticate resource_metadata header. The function checks
+# the caller JWT itself. No function secrets are set here.
+# [auth.oauth_server] stays disabled in this file. Enabling the OAuth server
+# on preview is a later hosted setting, not part of this spike.
+[functions.mcp]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.
