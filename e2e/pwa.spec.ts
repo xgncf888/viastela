@@ -39,6 +39,12 @@ test('manifest, icons, and the service worker are served as files', async ({ pag
   expect(wellKnownHeader?.headers).toEqual([
     { key: 'Content-Type', value: 'application/json; charset=utf-8' },
   ]);
+  const versionHeader = vercel.headers.find((item) => item.source === '/version.json');
+  expect(versionHeader?.headers).toEqual([
+    { key: 'Content-Type', value: 'application/json; charset=utf-8' },
+    { key: 'Cache-Control', value: 'no-cache' },
+  ]);
+  expect(vercel).not.toHaveProperty('redirects');
 
   const manifestResponse = await page.request.get('/manifest.webmanifest');
   expect(manifestResponse.status()).toBe(200);
@@ -119,10 +125,14 @@ test('manifest, icons, and the service worker are served as files', async ({ pag
   expect(source).toContain('showNotification');
   expect(source.match(/const CACHE_NAME = '([^']+)'/)?.[1]).toMatch(/^shell-static-[0-9a-f]{12}$/);
 
-  const assetLinks = await page.request.get('/.well-known/assetlinks.json');
+  const assetLinks = await page.request.get('/.well-known/assetlinks.json', { maxRedirects: 0 });
   expect(assetLinks.status()).toBe(200);
   expect(assetLinks.headers()['content-type']).toContain('application/json');
-  expect(await assetLinks.json()).toEqual([]);
+  expect(await assetLinks.json()).toEqual(JSON.parse(readFileSync('public/.well-known/assetlinks.json', 'utf8')));
+  const versionManifest = await page.request.get('/version.json', { maxRedirects: 0 });
+  expect(versionManifest.status()).toBe(200);
+  expect(versionManifest.headers()['content-type']).toContain('application/json');
+  expect(await versionManifest.json()).toEqual(JSON.parse(readFileSync('public/version.json', 'utf8')));
   const association = await page.request.get('/.well-known/apple-app-site-association');
   expect(association.status()).toBe(200);
   expect(association.headers()['content-type'] ?? '').not.toContain('text/html');

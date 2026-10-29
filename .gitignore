@@ -13,6 +13,8 @@ web-build/
 .kotlin/
 *.orig.*
 *.jks
+*.keystore
+credentials.json
 *.p8
 *.p12
 *.key
@@ -48,6 +50,10 @@ blob-report/
 # Screenshot baselines (DESIGN §14) come only from the CI Playwright container, never from a laptop.
 # The baseline PR that Hazel reviews first adds the CI artifact with `git add -f`.
 e2e/__screenshots__/
+
+# EAS local output. The JSON can contain a signed artifact URL.
+eas-build.json
+android-apk/
 
 # supabase local
 supabase/.temp/

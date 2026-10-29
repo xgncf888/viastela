@@ -34,6 +34,7 @@ Module._resolveFilename = function resolveTypeScript(request, parent, isMain, op
 const path = require('path');
 
 const { brand, webDocumentTitle } = require('./src/config/brand.ts');
+const { deleteAccountProductionOrigin } = require('./src/core/delete-account-origin.ts');
 const { theme } = require('./src/ui/theme.ts');
 const { pwaManifest, pwaSplashes } = require('./src/config/pwa.ts');
 const { renderPwaIcons } = require('./scripts/render-pwa-icons.js');
@@ -51,10 +52,30 @@ fs.writeFileSync(path.join(publicDir, 'manifest.webmanifest'), `${JSON.stringify
 const updateUrl =
   process.env.EXPO_PUBLIC_EAS_UPDATE_URL ?? 'https://u.expo.dev/00000000-0000-0000-0000-000000000000';
 
+const expoOwner = typeof process.env.EXPO_OWNER === 'string' ? process.env.EXPO_OWNER.trim() : '';
+const easProjectId = typeof process.env.EAS_PROJECT_ID === 'string' ? process.env.EAS_PROJECT_ID.trim() : '';
+
+function androidAuthAppLink() {
+  const callbackPath = brand.authCallbackPath;
+  if (typeof callbackPath !== 'string' || !callbackPath.startsWith('/') || callbackPath.includes('*') || callbackPath.includes('?')) {
+    throw new Error('brand.authCallbackPath must be an exact path');
+  }
+  const url = new URL(callbackPath, deleteAccountProductionOrigin);
+  if (url.origin !== deleteAccountProductionOrigin || url.pathname !== callbackPath || url.search || url.hash) {
+    throw new Error('Android auth App Link must stay on the production origin and the exact callback path');
+  }
+  return {
+    scheme: 'https',
+    host: url.host,
+    path: url.pathname,
+  };
+}
+
 /** @type {import('expo/config').ExpoConfig} */
 const config = {
   name: brand.displayName,
   slug: brand.slug,
+  ...(expoOwner ? { owner: expoOwner } : {}),
   scheme: brand.scheme,
   version: '1.0.0',
   orientation: 'portrait',
@@ -76,6 +97,14 @@ const config = {
   android: {
     package: brand.androidPackage,
     predictiveBackGestureEnabled: false,
+    intentFilters: [
+      {
+        action: 'VIEW',
+        autoVerify: true,
+        data: [androidAuthAppLink()],
+        category: ['BROWSABLE', 'DEFAULT'],
+      },
+    ],
     adaptiveIcon: {
       backgroundColor: theme.color.paper,
       foregroundImage: brand.androidForeground,
@@ -108,7 +137,7 @@ const config = {
   },
   extra: {
     eas: {
-      projectId: process.env.EAS_PROJECT_ID,
+      projectId: easProjectId || undefined,
     },
   },
 };

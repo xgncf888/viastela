@@ -11,6 +11,7 @@ import { captureOAuthFailure } from '@/data/oauth';
 import { useAccountDeletedFlag } from '@/features/account/deletion-state';
 import { AuthProvider, useAuth } from '@/features/auth/AuthProvider';
 import { BootScreen } from '@/features/auth/BootScreen';
+import { AppUpdatePrompt } from '@/features/shell/AppUpdatePrompt';
 import { registerServiceWorker } from '@/features/shell/register-service-worker';
 import { AppFrame } from '@/ui/AppFrame';
 import { ThemeProvider, useTheme } from '@/ui/ThemeProvider';
@@ -54,6 +55,7 @@ function ThemedRoot() {
         ))}
       </Head>
       <RootNavigator paper={color.paper} />
+      <AppUpdatePrompt />
     </AppFrame>
   );
 }
