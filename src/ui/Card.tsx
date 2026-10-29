@@ -20,7 +20,7 @@ export function Card({ children }: { children: React.ReactNode }) {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: baseTheme.color.card,
-    borderRadius: baseTheme.radius.lg,
+    borderRadius: baseTheme.radius.md,
     borderWidth: baseTheme.border.width,
     borderColor: baseTheme.color.line,
     padding: baseTheme.space.md,
