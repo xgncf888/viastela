@@ -1,4 +1,4 @@
-import { computeLocalDay } from '../../../src/core/local-day.ts';
+import { computeLocalDay } from '../_shared/local-day.ts';
 import {
   convertToUsdMinor,
   moneyNumber,
@@ -20,6 +20,7 @@ import {
   type HoldingRow,
   type QuoteCacheRow,
   type QuoteLine,
+  type QuoteLogEvent,
   type QuoteSource,
   type QuoteStatus,
   type QuotesResponse,
@@ -45,6 +46,7 @@ export type ValuationInput = {
   writeQuoteCache: (rows: QuoteCacheRow[]) => Promise<void>;
   readFxCache: (base: string, quotes: string[], day: string) => Promise<FxCacheRow[]>;
   writeFxCache: (rows: FxCacheRow[]) => Promise<void>;
+  log: (event: QuoteLogEvent) => void;
 };
 
 export type Valuation =
@@ -167,6 +169,19 @@ function costOf(value: string | null): bigint | null {
   return minor;
 }
 
+function normalizedCurrency(currency: string | null | undefined): string {
+  const normalized = currency?.trim().toUpperCase() ?? '';
+  return normalized || 'USD';
+}
+
+/** A cached equity price v1 will reuse. Zero and non-USD rows are not usable. */
+function cachedUsd(row: QuoteCacheRow | undefined): QuoteCacheRow | null {
+  if (!row || normalizedCurrency(row.currency) !== 'USD') return null;
+  const minor = parsePrice(row.price);
+  if (minor === null || minor <= 0n) return null;
+  return row;
+}
+
 async function pricePositions(
   input: ValuationInput,
   positions: readonly Position[],
@@ -186,51 +201,67 @@ async function pricePositions(
   const fresh = new Map<string, QuoteCacheRow>();
   const staleSymbols: string[] = [];
   for (const symbol of symbols) {
-    const row = cacheBySymbol.get(symbol);
+    const row = cachedUsd(cacheBySymbol.get(symbol));
     if (row && isFresh(row.asOf, input.now.getTime())) fresh.set(symbol, row);
     else staleSymbols.push(symbol);
   }
 
   const fetchedAt = input.now.toISOString();
   const fetched = new Map<string, { price: number | null; currency: string }>();
+  let providerFailed = false;
   if (staleSymbols.length > 0) {
     try {
       const batch = await input.quoteProvider.getQuotes(staleSymbols);
       for (const quote of batch) {
         fetched.set(quote.symbol, {
           price: quote.price,
-          currency: quote.currency || 'USD',
+          currency: normalizedCurrency(quote.currency),
         });
       }
-      const writes: QuoteCacheRow[] = [];
-      for (const symbol of staleSymbols) {
-        const quote = fetched.get(symbol);
-        if (!quote || quote.price === null) continue;
-        const priceMinor = parsePrice(quote.price);
-        if (priceMinor === null) continue;
-        writes.push({
-          symbol,
-          price: priceNumber(priceMinor),
-          currency: quote.currency.toUpperCase(),
-          asOf: fetchedAt,
-        });
-      }
-      if (writes.length > 0) await input.writeQuoteCache(writes);
     } catch {
-      const fallback: Priced[] = [];
-      let anyCache = false;
-      for (const position of positions) {
-        const hit = fresh.get(position.symbol) ?? cacheBySymbol.get(position.symbol);
-        if (!hit || parsePrice(hit.price) === null) {
-          fallback.push(unavailablePosition(position, input.now.toISOString(), 'finnhub'));
-          continue;
-        }
-        anyCache = true;
-        const fromFresh = fresh.has(position.symbol);
-        fallback.push(fromCache(position, hit, fromFresh ? 'fresh' : 'stale'));
+      providerFailed = true;
+    }
+  }
+
+  if (providerFailed) {
+    const fallback: Priced[] = [];
+    let anyCache = false;
+    for (const position of positions) {
+      const hit = fresh.get(position.symbol) ?? cachedUsd(cacheBySymbol.get(position.symbol));
+      if (!hit) {
+        fallback.push(unavailablePosition(position, fetchedAt, 'finnhub'));
+        continue;
       }
-      if (!anyCache) return { ok: false, error: 'quote_unavailable' };
-      return { ok: true, rows: fallback };
+      anyCache = true;
+      fallback.push(fromCache(position, hit, fresh.has(position.symbol) ? 'fresh' : 'stale'));
+    }
+    if (!anyCache) return { ok: false, error: 'quote_unavailable' };
+    return { ok: true, rows: fallback };
+  }
+
+  const writes: QuoteCacheRow[] = [];
+  for (const symbol of staleSymbols) {
+    const quote = fetched.get(symbol);
+    if (!quote || quote.currency !== 'USD' || quote.price === null) continue;
+    const priceMinor = parsePrice(quote.price);
+    if (priceMinor === null || priceMinor <= 0n) continue;
+    writes.push({
+      symbol,
+      price: priceNumber(priceMinor),
+      currency: 'USD',
+      asOf: fetchedAt,
+    });
+  }
+  if (writes.length > 0) {
+    try {
+      await input.writeQuoteCache(writes);
+    } catch {
+      // The fetched prices are still returned. The cache keeps its previous rows.
+      try {
+        input.log({ event: 'quote_cache_write_failed', status: 200, source: input.source });
+      } catch {
+        // A log failure must not turn a successful quote into an error response.
+      }
     }
   }
 
@@ -238,19 +269,24 @@ async function pricePositions(
     const hit = fresh.get(position.symbol);
     if (hit) return fromCache(position, hit, 'fresh');
     const quote = fetched.get(position.symbol);
-    if (!quote || quote.price === null) return unavailablePosition(position, input.now.toISOString(), 'finnhub');
-    const priceMinor = parsePrice(quote.price);
-    if (priceMinor === null) return unavailablePosition(position, input.now.toISOString(), 'finnhub');
-    return {
-      symbol: position.symbol,
-      priceMinor,
-      costMinor: position.costMinor,
-      currency: quote.currency.toUpperCase(),
-      asOf: fetchedAt,
-      status: 'fresh' as const,
-      source: 'finnhub' as const,
-      quantityMinor: position.quantityMinor,
-    };
+    // v1 prices equities in USD. A foreign number would be mislabeled if returned.
+    if (quote && quote.currency !== 'USD') return unavailablePosition(position, fetchedAt, 'finnhub');
+    const priceMinor = quote && quote.price !== null ? parsePrice(quote.price) : null;
+    if (priceMinor !== null && priceMinor > 0n) {
+      return {
+        symbol: position.symbol,
+        priceMinor,
+        costMinor: position.costMinor,
+        currency: 'USD',
+        asOf: fetchedAt,
+        status: 'fresh' as const,
+        source: 'finnhub' as const,
+        quantityMinor: position.quantityMinor,
+      };
+    }
+    const cachedRow = cachedUsd(cacheBySymbol.get(position.symbol));
+    if (cachedRow) return fromCache(position, cachedRow, 'stale');
+    return unavailablePosition(position, fetchedAt, 'finnhub');
   });
   return { ok: true, rows };
 }
@@ -288,7 +324,9 @@ function unavailablePosition(position: Position, asOf: string, source: QuoteSour
 
 function fromCache(position: Position, row: QuoteCacheRow, status: QuoteStatus): Priced {
   const priceMinor = parsePrice(row.price);
-  if (priceMinor === null) return unavailablePosition(position, row.asOf, 'finnhub');
+  if (priceMinor === null || priceMinor <= 0n || normalizedCurrency(row.currency) !== 'USD') {
+    return unavailablePosition(position, row.asOf, 'finnhub');
+  }
   return {
     symbol: position.symbol,
     priceMinor,

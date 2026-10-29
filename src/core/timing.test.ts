@@ -26,6 +26,8 @@ function filesContaining(root: string, needles: readonly string[]): string[] {
         continue;
       }
       if (!/\.(ts|tsx|js|mjs|md)$/.test(name)) continue;
+      // DESIGN.md records the retired names in its rename note. Code must not.
+      if (name === 'DESIGN.md') continue;
       const text = fs.readFileSync(fullPath, 'utf8');
       if (needles.some((needle) => text.includes(needle))) hits.push(fullPath);
     }

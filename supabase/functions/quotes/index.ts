@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.118.0';
 
-import type { Database } from '../../../src/data/database.types.ts';
+import type { Database } from '../_shared/database.types.ts';
 import { handleQuotes, isCashCurrency, parseAllowedOrigins, unavailableQuotesResponse } from './handler.ts';
 import { FinnhubQuoteProvider, FrankfurterFxProvider } from './providers.ts';
 import type {
@@ -24,7 +24,7 @@ import type {
  * This file is the only one that reads FINNHUB_API_KEY, QUOTES_ALLOWED_ORIGINS,
  * and SUPABASE_SERVICE_ROLE_KEY. None of those values are logged.
  *
- * Table columns come from `src/data/database.types.ts`. `quote_cache` is
+ * Table columns come from the shared database types. `quote_cache` is
  * `(symbol, price, as_of)`. `as_of` is the fetch time used for the 15-minute
  * window. The table has no currency column; cached equity prices are USD.
  */
@@ -200,16 +200,17 @@ async function readQuoteCache(client: SupabaseClient<Database>, symbols: string[
     const symbol = text(row.symbol);
     const price = number(row.price);
     const asOf = text(row.as_of);
-    if (!symbol || price === null || price < 0 || !asOf) continue;
+    if (!symbol || price === null || price <= 0 || !asOf) continue;
     rows.push({ symbol, price, currency: 'USD', asOf });
   }
   return rows;
 }
 
 async function writeQuoteCache(client: SupabaseClient<Database>, rows: QuoteCacheRow[]): Promise<void> {
-  if (rows.length === 0) return;
+  const usable = rows.filter((row) => Number.isFinite(row.price) && row.price > 0);
+  if (usable.length === 0) return;
   const { error } = await client.from('quote_cache').upsert(
-    rows.map((row) => ({
+    usable.map((row) => ({
       symbol: row.symbol,
       price: row.price,
       as_of: row.asOf,
