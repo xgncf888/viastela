@@ -20,7 +20,8 @@
     "test:e2e": "playwright test",
     "export:web": "expo export --platform web && node scripts/stamp-pwa-html.js",
     "prebuild:pwa": "node scripts/stamp-pwa-html.js --prebuild",
-    "prepare": "node scripts/install-hooks.mjs"
+    "prepare": "node scripts/install-hooks.mjs",
+    "test:screenshots": "SCREENSHOTS=1 playwright test"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
@@ -46,7 +47,7 @@
     "react-native-web": "~0.21.4"
   },
   "devDependencies": {
-    "@playwright/test": "^1.58.2",
+    "@playwright/test": "1.64.1",
     "@types/react": "~19.3.0",
     "eslint": "^9.39.1",
     "eslint-config-expo": "~58.0.4",

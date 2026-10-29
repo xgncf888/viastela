@@ -45,6 +45,9 @@ coverage/
 playwright-report/
 test-results/
 blob-report/
+# Screenshot baselines (DESIGN §14) come only from the CI Playwright container, never from a laptop.
+# The baseline PR that Hazel reviews first adds the CI artifact with `git add -f`.
+e2e/__screenshots__/
 
 # supabase local
 supabase/.temp/
