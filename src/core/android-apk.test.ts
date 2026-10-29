@@ -45,7 +45,7 @@ describe('android app update', () => {
     expect(appUpdateRelease(2, release)).toEqual(release);
     expect(appUpdateRelease(3, release)).toBeNull();
     expect(appUpdateRelease(4, release)).toBeNull();
-    expect(appUpdateMessage(release)).toBe('有新版本 1.0.0，可以下载安装。');
+    expect(appUpdateMessage(release)).toBe('有新版本，可以下载安装。');
   });
 
   it('stays quiet for a bad manifest or an unreadable installed version', () => {

@@ -72,7 +72,7 @@ export function appUpdateRelease(installedVersionCode: number, remote: unknown):
 }
 
 export function appUpdateMessage(release: AppRelease): string {
-  return `有新版本 ${release.versionName}，可以下载安装。`;
+  return '有新版本，可以下载安装。';
 }
 
 export function checksAndroidAppUpdate(os: string): boolean {

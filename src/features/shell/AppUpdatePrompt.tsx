@@ -35,7 +35,7 @@ export function AppUpdatePrompt({ children }: { children: ReactNode }) {
             <Text variant="body" accessibilityLiveRegion="polite">
               {appUpdateMessage(prompt)}
             </Text>
-            <Button label="下载" onPress={() => openDownload(prompt.url)} />
+            <Button label="下载" variant="secondary" onPress={() => openDownload(prompt.url)} />
             <Button label="关闭" variant="ghost" onPress={() => setDismissed(true)} />
           </Card>
         </View>
