@@ -807,3 +807,157 @@ test('a failed quotes refresh shows the cached time and not a balance total', as
   expect(text).not.toContain('12345');
   expect(text).not.toContain('12,345');
 });
+
+test('the assets skeleton sits inside cards and the eye waits until content loads', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installApi(page, { weights: [] });
+  await installAssets(page, { holdings: [], events: [] });
+  let release: (() => void) | null = null;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/rest/v1/asset_accounts*', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+    await gate;
+    await route.fallback();
+  });
+  await page.goto('/');
+  await page.evaluate((stored) => {
+    localStorage.setItem('sb-127-auth-token', JSON.stringify(stored));
+  }, authSession());
+  await page.goto('/assets');
+  await expect(page.getByRole('heading', { name: '总资产' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '显示金额' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '隐藏金额' })).toHaveCount(0);
+  await expect(page.locator('[role="status"]')).toHaveCount(0);
+  await expect(page.locator('[role="status"]')).toHaveText('正在加载资产', { timeout: 4_000 });
+  const blocks = await page.locator('[aria-hidden="true"]').evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const rect = node.getBoundingClientRect();
+      let framed = false;
+      let current = node.parentElement;
+      while (current) {
+        if (parseFloat(getComputedStyle(current).borderTopWidth) > 0) {
+          framed = true;
+          break;
+        }
+        current = current.parentElement;
+      }
+      return { w: Math.round(rect.width), h: Math.round(rect.height), framed };
+    }),
+  );
+  const sized = blocks.filter((block) => block.w > 0 && block.h > 0);
+  expect(sized.every((block) => block.framed)).toBe(true);
+  expect(sized.filter((block) => block.w === 160 && block.h === 24)).toHaveLength(1);
+  expect(sized.filter((block) => block.w === 96 && block.h === 16)).toHaveLength(2);
+  expect(sized.filter((block) => block.w === 56)).toHaveLength(4);
+  expect(sized.filter((block) => block.w === 72)).toHaveLength(4);
+  if (!release) throw new Error('the accounts request was never armed');
+  release();
+  const eye = page.getByRole('button', { name: '显示金额' });
+  await expect(eye).toBeVisible();
+  const title = await page.getByRole('heading', { name: '总资产' }).boundingBox();
+  const toggle = await eye.boundingBox();
+  expect(title).not.toBeNull();
+  expect(toggle).not.toBeNull();
+  expect(Math.abs(title!.y - toggle!.y)).toBeLessThan(24);
+  expect(toggle!.x).toBeGreaterThan(title!.x);
+});
+
+test('a background refresh that throws keeps cached quotes and shows the failure line', async ({ page }) => {
+  await installApi(page, { weights: [] });
+  await installAssets(page, { holdings: [], events: [] });
+  let failAccounts = false;
+  await page.route('**/rest/v1/asset_accounts*', async (route) => {
+    if (failAccounts && route.request().method() === 'GET') {
+      await route.fulfill({ status: 500, headers: cors, body: JSON.stringify({ message: 'down' }) });
+      return;
+    }
+    await route.fallback();
+  });
+  await openAssets(page);
+  await expect(page.getByRole('button', { name: '显示金额' })).toBeVisible();
+  await expect(page.getByText('现金', { exact: true })).toBeVisible();
+  await expect(page.getByText(/更新失败/)).toHaveCount(0);
+  failAccounts = true;
+  await page.getByRole('button', { name: '3%', exact: true }).click();
+  await expect(page.getByText(/更新失败 · 行情更新于 \d{2}:\d{2} · 重试/)).toBeVisible();
+  const failure = page.getByText(/更新失败 · 行情更新于 \d{2}:\d{2} · $/);
+  await expect(failure).toHaveCSS('color', hexColor(lightColor.warning));
+  const retry = page.getByRole('button', { name: '重试' });
+  await expect(retry.getByText('重试', { exact: true })).toHaveCSS('color', hexColor(lightColor.accentText));
+  await expect(page.getByText('现金', { exact: true })).toBeVisible();
+  await expect(page.getByText('总资产暂时算不出来')).toHaveCount(0);
+  await expect(page.getByText('没加载出来，检查网络后再试')).toHaveCount(0);
+});
+
+test('a 200 stale quote body keeps the cached total and shows the failure line', async ({ page }) => {
+  await installApi(page, { weights: [] });
+  let quotePosts = 0;
+  await installAssets(page, {
+    holdings: [],
+    events: [],
+    quoteBody: () => ({
+      quotes: [
+        {
+          symbol: 'AAA',
+          price: 80,
+          currency: 'USD',
+          as_of: '2026-01-15T00:30:00.000Z',
+          status: 'stale',
+          source: 'finnhub',
+        },
+      ],
+      rates: [],
+      source: 'finnhub',
+      total_usd: 80,
+      cash_usd: 0,
+      securities_usd: 80,
+      unpriced: 0,
+      stale: true,
+      snapshot: 'skipped',
+    }),
+  });
+  page.on('request', (request) => {
+    if (request.url().includes('/functions/v1/quotes') && request.method() === 'POST') quotePosts += 1;
+  });
+  await openAssets(page);
+  await expect(page.getByText(/更新失败 · 行情更新于 \d{2}:\d{2} · 重试/)).toBeVisible();
+  const failure = page.getByText(/更新失败 · 行情更新于 \d{2}:\d{2} · $/);
+  await expect(failure).toHaveCSS('color', hexColor(lightColor.warning));
+  await expect(page.getByRole('button', { name: '重试' }).getByText('重试', { exact: true })).toHaveCSS(
+    'color',
+    hexColor(lightColor.accentText),
+  );
+  await expect(page.getByText('总资产暂时算不出来')).toHaveCount(0);
+  await page.getByRole('button', { name: '显示金额' }).click();
+  await expect(page.getByText('US$80.00').first()).toBeVisible();
+  const seen = quotePosts;
+  expect(seen).toBeGreaterThan(0);
+  await page.getByRole('button', { name: '重试' }).click();
+  await expect.poll(() => quotePosts).toBe(seen + 1);
+});
+
+test('a background quotes error with a cache shows the same failure line', async ({ page }) => {
+  await installApi(page, { weights: [] });
+  await installAssets(page, { holdings: [], events: [] });
+  let failQuotes = false;
+  await page.route('**/functions/v1/quotes', async (route) => {
+    if (failQuotes && route.request().method() === 'POST') {
+      await route.fulfill({ status: 500, headers: cors, body: JSON.stringify({ error: 'other' }) });
+      return;
+    }
+    await route.fallback();
+  });
+  await openAssets(page);
+  await expect(page.getByRole('button', { name: '显示金额' })).toBeVisible();
+  await expect(page.getByText(/更新失败/)).toHaveCount(0);
+  failQuotes = true;
+  await page.getByRole('button', { name: '3%', exact: true }).click();
+  await expect(page.getByText(/更新失败 · 行情更新于 \d{2}:\d{2} · 重试/)).toBeVisible();
+  await expect(page.getByText('总资产暂时算不出来')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '显示金额' })).toBeVisible();
+});

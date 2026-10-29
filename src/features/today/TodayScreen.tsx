@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 
 import {
@@ -16,8 +16,7 @@ import { openRecordSheet } from '@/features/record/record-sheet-store';
 import { useShellInset } from '@/features/shell/AppShell';
 import { useStudy } from '@/features/study/StudyProvider';
 import { useTraining } from '@/features/training/TrainingProvider';
-import { AverageHeadline } from '@/features/weight/WeightSummary';
-import { excludePending, todayReadout, weighInLabel } from '@/features/weight/weight-copy';
+import { averageCaption, excludePending, todayReadout, weighInLabel, weightColumnPhase } from '@/features/weight/weight-copy';
 import { useWeight } from '@/features/weight/WeightProvider';
 import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
@@ -28,9 +27,10 @@ import { EmptyState } from '@/ui/EmptyState';
 import { LoadingRegion } from '@/ui/LoadingRegion';
 import { Row, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
-import { Skeleton, SkeletonText } from '@/ui/Skeleton';
+import { skeletonHiddenProps, SkeletonDisplay, SkeletonLedger, SkeletonText } from '@/ui/Skeleton';
 import { Text } from '@/ui/Text';
 import { theme } from '@/ui/theme';
+import { useLoadGate } from '@/ui/use-load-gate';
 
 function shortWeekday(localDay: string): string {
   return weekdayLabel(localDay).replace('星期', '周');
@@ -62,6 +62,8 @@ export function TodayScreen() {
   const [now, setNow] = useState(() => new Date());
   const [trainingDetail, setTrainingDetail] = useState(false);
   const [studyOpen, setStudyOpen] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const weightGate = useLoadGate(!ready, loadAttempt);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30_000);
@@ -91,14 +93,30 @@ export function TodayScreen() {
           note={note || undefined}
         />
 
-        <LoadingRegion
-          name="今日"
-          loading={!ready}
-          error={loadError !== null}
-          onRetry={() => void reload()}
-          skeleton={<ListSkeleton lines={3} />}
-        >
-          <AverageHeadline records={counted} endDay={accounting} />
+        <Stack gap="md">
+          <AverageBlock
+            records={counted}
+            endDay={accounting}
+            ready={ready}
+            failed={loadError !== null}
+            showSkeleton={weightGate.showSkeleton}
+            timedOut={weightGate.timedOut}
+          />
+          <RecordEntry />
+          <LoadingRegion
+            name="今日"
+            loading={!ready}
+            error={loadError !== null}
+            onRetry={() => {
+              setLoadAttempt((current) => current + 1);
+              void reload();
+            }}
+            skeleton={
+              <Card>
+                <SkeletonLedger lines={3} />
+              </Card>
+            }
+          >
           <Stack gap="md">
           <Text variant="heading">{beforeSwitch ? `${formatMonthDay(accounting)}的记录` : '今天的记录'}</Text>
           {readout.firstRecord ? (
@@ -142,21 +160,19 @@ export function TodayScreen() {
             <Button label={`再记 ${formatKg(last.weightKg)} kg`} onPress={() => openRecordSheet(last.weightKg)} />
           ) : null}
           </Stack>
-        </LoadingRegion>
+          </LoadingRegion>
+        </Stack>
 
         <CardRow>
-          <Stack gap="sm">
-            <Text variant="heading">体重</Text>
-            {ready && loadError === null && visibleToday.length === 0 ? (
-              <StatusCard summary="未记录" actionLabel="记一笔" onAction={() => openRecordSheet()} />
-            ) : null}
-            {ready && loadError === null && visibleToday.length > 0 ? (
-              <StatusCard
-                summary={`${formatKg(visibleToday[0].weightKg)} kg`}
-                hint={formatClock(visibleToday[0].recordedAt, visibleToday[0].tz)}
-              />
-            ) : null}
-          </Stack>
+          <WeightColumn
+            ready={ready}
+            failed={loadError !== null}
+            showSkeleton={weightGate.showSkeleton}
+            timedOut={weightGate.timedOut}
+            recorded={visibleToday.length > 0}
+            summary={visibleToday[0] ? `${formatKg(visibleToday[0].weightKg)} kg` : '未记录'}
+            hint={visibleToday[0] ? formatClock(visibleToday[0].recordedAt, visibleToday[0].tz) : undefined}
+          />
           <Stack gap="sm">
             <Text variant="heading">{trainingTitle}</Text>
             <LoadingRegion
@@ -164,7 +180,11 @@ export function TodayScreen() {
               loading={!training.ready}
               error={training.loadError !== null}
               onRetry={() => void training.reload()}
-              skeleton={<SkeletonText lines={2} />}
+              skeleton={
+                <Card>
+                  <SkeletonText lines={2} />
+                </Card>
+              }
             >
               {trainingToday.length === 0 ? (
                 <StatusCard summary="未记录" actionLabel="记一笔" onAction={() => openRecordSheet(undefined, 'training')} />
@@ -184,7 +204,11 @@ export function TodayScreen() {
               loading={!study.ready}
               error={study.loadError !== null}
               onRetry={() => void study.reload()}
-              skeleton={<SkeletonText lines={2} />}
+              skeleton={
+                <Card>
+                  <SkeletonText lines={2} />
+                </Card>
+              }
             >
               {studyToday.length === 0 ? (
                 <StatusCard summary="未记录" actionLabel="记一笔" onAction={() => openRecordSheet(undefined, 'study')} />
@@ -246,19 +270,125 @@ export function TodayScreen() {
             })
           : null}
 
-        <Button label="记录" onPress={() => openRecordSheet()} />
-        {/* Clears the toast, which sits on the tab bar and would cover this button. */}
-        <View style={{ height: theme.layout.control }} />
       </Content>
     </Screen>
   );
 }
 
-function ListSkeleton({ lines }: { lines: number }) {
+function RecordEntry() {
+  return <Button label="记录" fill onPress={() => openRecordSheet()} />;
+}
+
+/**
+ * Title, display line, and detail line on every phase, so the record button
+ * under this card does not move. The wait phase keeps the skeleton's space
+ * without painting it. 「数据不足」 uses heading type inside the display line.
+ */
+function AverageBlock({
+  records,
+  endDay,
+  ready,
+  failed,
+  showSkeleton,
+  timedOut,
+}: {
+  records: Parameters<typeof averageCaption>[0];
+  endDay: string;
+  ready: boolean;
+  failed: boolean;
+  showSkeleton: boolean;
+  timedOut: boolean;
+}) {
+  const phase = weightColumnPhase({ ready, failed, showSkeleton, timedOut });
+  const caption = averageCaption(records, endDay);
+  const insufficient = caption.headline === '数据不足';
+  const value =
+    phase === 'content' ? (
+      <Text variant={insufficient ? 'heading' : 'display'}>{caption.headline}</Text>
+    ) : phase === 'skeleton' ? (
+      <SkeletonDisplay />
+    ) : phase === 'dash' ? (
+      <Text variant="muted">—</Text>
+    ) : null;
+  const detail =
+    phase === 'content' ? (
+      <Text variant="muted">{caption.detail}</Text>
+    ) : phase === 'skeleton' ? (
+      <SkeletonText lines={1} variant="muted" />
+    ) : null;
+  return (
+    <Card>
+      <View style={{ minHeight: averageBlockBodyHeight(), gap: theme.space.sm }}>
+        <LineBox height={theme.lineHeight.sm}>
+          <Text variant="muted">7 日均重</Text>
+        </LineBox>
+        <LineBox height={theme.lineHeight.display} hidden={phase === 'wait' || phase === 'skeleton'}>
+          {value}
+        </LineBox>
+        <LineBox height={theme.lineHeight.sm} hidden={phase !== 'content'}>
+          {detail}
+        </LineBox>
+      </View>
+    </Card>
+  );
+}
+
+/** Title line, display line, and detail line, plus the two gaps between them. */
+function averageBlockBodyHeight(): number {
+  return theme.lineHeight.sm + theme.space.sm + theme.lineHeight.display + theme.space.sm + theme.lineHeight.sm;
+}
+
+function LineBox({
+  height,
+  hidden = false,
+  children,
+}: {
+  height: number;
+  hidden?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <View style={{ height, justifyContent: 'center' }} {...(hidden ? skeletonHiddenProps : undefined)}>
+      {children}
+    </View>
+  );
+}
+
+function WeightColumn({
+  ready,
+  failed,
+  showSkeleton,
+  timedOut,
+  recorded,
+  summary,
+  hint,
+}: {
+  ready: boolean;
+  failed: boolean;
+  showSkeleton: boolean;
+  timedOut: boolean;
+  recorded: boolean;
+  summary: string;
+  hint?: string;
+}) {
+  const phase = weightColumnPhase({ ready, failed, showSkeleton, timedOut });
   return (
     <Stack gap="sm">
-      <Skeleton height={theme.font.metric} width="40%" />
-      <SkeletonText lines={lines} />
+      <Text variant="heading">体重</Text>
+      {phase === 'dash' ? (
+        <Card>
+          <Text variant="muted">—</Text>
+        </Card>
+      ) : null}
+      {phase === 'skeleton' ? (
+        <Card>
+          <SkeletonText lines={2} />
+        </Card>
+      ) : null}
+      {phase === 'content' && !recorded ? (
+        <StatusCard summary="未记录" actionLabel="记一笔" onAction={() => openRecordSheet()} />
+      ) : null}
+      {phase === 'content' && recorded ? <StatusCard summary={summary} hint={hint} /> : null}
     </Stack>
   );
 }

@@ -1,7 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
-import { LOADING_TEXT } from '../src/features/weight/weight-copy';
-
 /**
  * Selectors named after DESIGN §4.2 (arrives with style PR1 #22 / PR3).
  *
@@ -55,10 +53,18 @@ export function typeChip(page: Page, label: '体重' | '训练' | '学习' | '�
   return page.getByRole('button', { name: label, exact: true });
 }
 
-/** Today has finished its first load: the record heading is shown and no section says 读取中. */
+/**
+ * Today has finished its first load. The weight region shows a record row or an empty state,
+ * and no skeleton is still busy. Absence of aria-busy alone is not enough: that attribute
+ * is missing during the first second, before the skeleton appears.
+ */
 export async function waitForTodayLoaded(page: Page): Promise<void> {
-  await expect(page.getByText(/^(今天|\d+月\d+日)的记录$/)).toBeVisible();
-  await expect(page.getByText(LOADING_TEXT, { exact: true })).toHaveCount(0);
+  const loaded = page
+    .getByText('晨重', { exact: true })
+    .or(page.getByText('先记第一笔', { exact: true }))
+    .or(page.getByText('今天还没有记录', { exact: true }));
+  await expect(loaded.first()).toBeVisible();
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
 }
 
 /** Bottom tab bar / sidebar nav items. */

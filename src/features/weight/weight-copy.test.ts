@@ -8,6 +8,7 @@ import {
   excludePending,
   labelsForDay,
   todayReadout,
+  weightColumnPhase,
 } from '@/features/weight/weight-copy';
 
 function record(id: string, localDay: string, weightKg: number, hour: number): WeightRecord {
@@ -20,6 +21,23 @@ function record(id: string, localDay: string, weightKg: number, hour: number): W
     updatedAt: `${localDay}T${String(hour).padStart(2, '0')}:00:00.000Z`,
   };
 }
+
+describe('today weight column', () => {
+  it('waits, then shows two skeleton lines, and a failure is a dash', () => {
+    expect(weightColumnPhase({ ready: false, failed: false, showSkeleton: false, timedOut: false })).toBe('wait');
+    expect(weightColumnPhase({ ready: false, failed: false, showSkeleton: true, timedOut: false })).toBe('skeleton');
+    expect(weightColumnPhase({ ready: true, failed: true, showSkeleton: true, timedOut: false })).toBe('dash');
+    expect(weightColumnPhase({ ready: true, failed: false, showSkeleton: false, timedOut: false })).toBe('content');
+  });
+
+  it('a load-gate timeout replaces the skeleton with a dash, and the next attempt can show it again', () => {
+    expect(weightColumnPhase({ ready: false, failed: false, showSkeleton: true, timedOut: true })).toBe('dash');
+    expect(weightColumnPhase({ ready: false, failed: false, showSkeleton: false, timedOut: true })).toBe('dash');
+    expect(weightColumnPhase({ ready: false, failed: false, showSkeleton: false, timedOut: false })).toBe('wait');
+    expect(weightColumnPhase({ ready: false, failed: false, showSkeleton: true, timedOut: false })).toBe('skeleton');
+    expect(weightColumnPhase({ ready: true, failed: false, showSkeleton: false, timedOut: false })).toBe('content');
+  });
+});
 
 describe('today loading', () => {
   it('shows only 读取中 while loading and never 先记第一笔', () => {

@@ -9,6 +9,25 @@ export type AverageCaption = {
   detail: string;
 };
 
+export type WeightColumnPhase = 'dash' | 'skeleton' | 'wait' | 'content';
+
+/**
+ * Today weight column and the 7-day average (§17.2). An error or the load-gate
+ * timeout is a muted dash, not a second error card. The skeleton waits until
+ * the gate says it is on screen, and leaves as soon as the gate times out.
+ */
+export function weightColumnPhase(input: {
+  ready: boolean;
+  failed: boolean;
+  showSkeleton: boolean;
+  timedOut: boolean;
+}): WeightColumnPhase {
+  if (input.failed || input.timedOut) return 'dash';
+  if (!input.ready && input.showSkeleton) return 'skeleton';
+  if (!input.ready) return 'wait';
+  return 'content';
+}
+
 /** What 今日 may show before the list arrives. The empty title stays hidden until ready. */
 export function todayReadout(
   ready: boolean,
