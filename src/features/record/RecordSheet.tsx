@@ -1,4 +1,4 @@
-import { useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import { createId } from '@/core/id';
 import { computeLocalDay, currentTimeZone, sheetAccountingHint } from '@/core/local-day';
@@ -6,7 +6,6 @@ import {
   DEFAULT_STUDY_MINUTES,
   parseStudyDraft,
   STUDY_MINUTE_CHOICES,
-  studySaveToast,
   type StudyField,
 } from '@/core/study';
 import {
@@ -53,36 +52,24 @@ type TypeId = (typeof TYPES)[number]['id'];
 
 export function RecordSheet() {
   const sheet = useSyncExternalStore(subscribeRecordSheet, getRecordSheetSnapshot, getRecordSheetSnapshot);
-  const { saving: weightSaving } = useWeight();
-  const { saving: trainingSaving } = useTraining();
-  const { saving: studySaving } = useStudy();
-  const saving = weightSaving || trainingSaving || studySaving;
 
   return (
-    <Sheet
-      visible={sheet.open}
-      onClose={() => {
-        if (saving) return;
-        closeRecordSheet();
-      }}
-    >
+    <Sheet visible={sheet.open} onClose={closeRecordSheet}>
       {sheet.open ? <RecordForm key={sheet.generation} prefillKg={sheet.prefillKg} initialType={sheet.kind} /> : null}
     </Sheet>
   );
 }
 
 function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; initialType: TypeId }) {
-  const { records, daySwitch, saving: weightSaving, saveWeight } = useWeight();
+  const { records, daySwitch, saveWeight } = useWeight();
   const {
     sets,
     pendingDeleteIds,
-    saving: trainingSaving,
     saveSet,
     daySwitch: trainingSwitch,
     recentExercises,
   } = useTraining();
   const study = useStudy();
-  const saving = weightSaving || trainingSaving || study.saving;
   const [type, setType] = useState<TypeId>(initialType);
   const [value, setValue] = useState(prefillKg == null ? '' : formatKg(prefillKg));
   const [error, setError] = useState<string | null>(null);
@@ -107,10 +94,14 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
   const trainingId = useRef<string | null>(null);
   const studyId = useRef<string | null>(null);
   const exerciseNames = exerciseChoices(recentExercises);
+  useEffect(() => {
+    if (trainingFormHasUnsavedEdits({ exercise, reps, mode, weight: load, bandLevel: band }, trainingBaseline)) {
+      trainingId.current = null;
+    }
+  }, [band, exercise, load, mode, reps, trainingBaseline]);
   const last = latestRecord(records);
   const hint = sheetAccountingHint(new Date(), currentTimeZone(), daySwitch);
   const accountingDay = computeLocalDay(new Date(), currentTimeZone(), trainingSwitch);
-  const studyDay = computeLocalDay(new Date(), currentTimeZone(), study.daySwitch);
   function currentTrainingForm(): TrainingFormFields {
     return { exercise, reps, mode, weight: load, bandLevel: band };
   }
@@ -118,25 +109,14 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
     (set) => set.exercise === exercise.trim(),
   );
 
-  async function onSave() {
+  function onSave() {
     const weightKg = parseWeightKg(value);
     if (weightKg === null) {
       setError('请输入大于 0、小于 500 的体重');
       return;
     }
     if (!draftId.current) draftId.current = createId();
-    const outcome = await saveWeight(weightKg, draftId.current);
-    if (outcome === 'deleted') {
-      draftId.current = null;
-      setValue('');
-      setError(null);
-      closeRecordSheet();
-      return;
-    }
-    if (outcome !== 'saved') return;
-    draftId.current = null;
-    setValue('');
-    setError(null);
+    void saveWeight(weightKg, draftId.current);
     closeRecordSheet();
   }
 
@@ -207,7 +187,6 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
       setFinishConfirm(false);
       return 'retry';
     }
-    trainingId.current = null;
     setFinishedExercise(draft.exercise);
     setExercise(draft.exercise);
     setTrainingBaseline(currentTrainingForm());
@@ -249,21 +228,12 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
       return;
     }
     if (!studyId.current) studyId.current = createId();
-    const outcome = await study.saveRecord({
+    void study.saveRecord({
       topic: draft.topic,
       durationMinutes: draft.durationMinutes,
       note: draft.note,
       existingId: studyId.current,
     });
-    if (outcome === 'deleted') {
-      studyId.current = null;
-      setStudyError(null);
-      closeRecordSheet();
-      return;
-    }
-    if (outcome !== 'saved') return;
-    studyId.current = null;
-    showToast({ text: studySaveToast(draft.topic, draft.durationMinutes, studyDay) });
     closeRecordSheet();
   }
 
@@ -273,7 +243,7 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
         <Text variant="heading" accessibilityRole="header">
           记录
         </Text>
-        <Button label="关闭" variant="ghost" onPress={closeRecordSheet} disabled={saving} />
+        <Button label="关闭" variant="ghost" onPress={closeRecordSheet} />
       </Row>
       <ChipGroup>
         {TYPES.map((item) => (
@@ -302,7 +272,7 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
               }}
             />
           ) : null}
-          <Button label="保存" onPress={() => void onSave()} loading={saving} loadingLabel="保存中…" />
+          <Button label="保存" onPress={onSave} />
         </Stack>
       ) : type === 'training' ? (
         <Stack gap="md">
@@ -410,14 +380,14 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
           {exerciseSets.map((set) => (
             <SetRow key={set.id} title={set.exercise} detail={`${set.reps} 次 · ${formatTrainingLoad(set)}`} />
           ))}
-          <Button label="+1 组" variant="secondary" onPress={addAnotherSet} disabled={saving || exerciseSets.length === 0} />
-          <Button label="保存这一组" onPress={() => void onSaveTraining()} loading={saving} loadingLabel="保存中…" />
-          <Button label="完成" variant="ghost" onPress={onFinish} disabled={saving} />
+          <Button label="+1 组" variant="secondary" onPress={addAnotherSet} disabled={exerciseSets.length === 0} />
+          <Button label="保存这一组" onPress={() => void onSaveTraining()} />
+          <Button label="完成" variant="ghost" onPress={onFinish} />
           {finishConfirm ? (
             <Stack gap="sm">
               <Text variant="muted">这一组还没保存</Text>
-              <Button label="保存这一组并完成" onPress={() => void saveAndFinish()} loading={saving} loadingLabel="保存中…" />
-              <Button label="不保存，直接完成" variant="secondary" onPress={closeFinished} disabled={saving} />
+              <Button label="保存这一组并完成" onPress={() => void saveAndFinish()} />
+              <Button label="不保存，直接完成" variant="secondary" onPress={closeFinished} />
             </Stack>
           ) : null}
         </Stack>
@@ -493,7 +463,7 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
             placeholder="一句话"
             error={studyField === 'note' ? studyError : null}
           />
-          <Button label="保存" onPress={() => void onSaveStudy()} loading={saving} loadingLabel="保存中…" />
+          <Button label="保存" onPress={() => void onSaveStudy()} />
         </Stack>
       ) : (
         <Stack gap="sm">

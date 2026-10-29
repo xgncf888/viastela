@@ -258,6 +258,143 @@ async function recordButtonY(page: Page): Promise<number> {
   return box!.y;
 }
 
+/** Design baseline. The same y in every subtitle state. */
+const RECORD_Y_PHONE = 236;
+const RECORD_Y_DESKTOP = 252;
+
+for (const viewport of [
+  { width: 390, height: 844, y: RECORD_Y_PHONE },
+  { width: 1280, height: 844, y: RECORD_Y_DESKTOP },
+]) {
+  test(`the record button stays at ${viewport.y} on ${viewport.width} for idle, night hint, refresh, and failure`, async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    const measured = await recordButtonStates(page);
+    expect(measured, JSON.stringify(measured)).toEqual({
+      idle: viewport.y,
+      night: viewport.y,
+      refreshing: viewport.y,
+      failed: viewport.y,
+    });
+  });
+}
+
+async function recordButtonStates(page: Page): Promise<Record<'idle' | 'night' | 'refreshing' | 'failed', number>> {
+  const day = '2026-10-29';
+  const cors = {
+    'access-control-allow-origin': '*',
+    'content-type': 'application/json',
+  };
+  await page.clock.install({ time: new Date(`${day}T08:00:00.000Z`) });
+  await signIn(page);
+  await installApi(page, { weights: [weightRow('w-1', day, 76.4)] });
+  let weightGets = 0;
+  let mode: 'ok' | 'delay' | 'fail' = 'ok';
+  await page.route('**/rest/v1/weight_records**', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+    weightGets += 1;
+    if (mode === 'delay' && weightGets > 2) {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+    }
+    if (mode === 'fail' && weightGets > 2) {
+      await route.fulfill({ status: 500, headers: cors, body: '{"message":"down"}' });
+      return;
+    }
+    await route.fallback();
+  });
+  await page.goto('/');
+  await expect(page.getByText('晨重', { exact: true })).toBeVisible();
+  await expect(page.getByText('凌晨 4 点前的记录算作前一天')).toHaveCount(0);
+  const idle = await recordButtonY(page);
+
+  await page.clock.setFixedTime(new Date(`${day}T02:00:00.000Z`));
+  await page.reload();
+  await expect(page.getByText('凌晨 4 点前的记录算作前一天')).toBeVisible();
+  const night = await recordButtonY(page);
+
+  await page.clock.setFixedTime(new Date(`${day}T08:00:00.000Z`));
+  await page.reload();
+  await expect(page.getByText('晨重', { exact: true })).toBeVisible();
+  mode = 'delay';
+  const seen = weightGets;
+  await page.getByRole('button', { name: '时间线', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '时间线' })).toBeVisible();
+  await page.getByRole('button', { name: '今日', exact: true }).click();
+  await expect(page.getByText('正在更新…')).toBeVisible();
+  const refreshing = await recordButtonY(page);
+  await expect.poll(() => weightGets).toBeGreaterThan(seen);
+  await expect(page.getByText('正在更新…')).toHaveCount(0);
+
+  mode = 'fail';
+  await page.clock.setFixedTime(new Date(`${day}T08:00:02.000Z`));
+  await page.getByRole('button', { name: '时间线', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '时间线' })).toBeVisible();
+  await page.getByRole('button', { name: '今日', exact: true }).click();
+  await expect(page.getByText('更新失败')).toBeVisible();
+  const failed = await recordButtonY(page);
+
+  const retry = page.getByRole('button', { name: '重试', exact: true });
+  const hit = await retry.evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    const text = node.querySelector('div, span') ?? node;
+    const textBox = text.getBoundingClientRect();
+    const style = getComputedStyle(text);
+    const probe = (x: number, y: number) => {
+      const hitNode = document.elementFromPoint(x, y);
+      return hitNode === node || node.contains(hitNode);
+    };
+    return {
+      width: box.width,
+      height: box.height,
+      textHeight: textBox.height,
+      lineHeight: style.lineHeight,
+      corners: [
+        probe(box.left + 1, box.top + 1),
+        probe(box.right - 1, box.top + 1),
+        probe(box.left + 1, box.bottom - 1),
+        probe(box.right - 1, box.bottom - 1),
+      ],
+    };
+  });
+  expect(hit.width, JSON.stringify(hit)).toBeGreaterThanOrEqual(44);
+  expect(hit.height, JSON.stringify(hit)).toBeGreaterThanOrEqual(44);
+  expect(hit.corners, JSON.stringify(hit)).toEqual([true, true, true, true]);
+  expect(hit.lineHeight).toBe('18px');
+  expect(hit.textHeight).toBeLessThanOrEqual(18);
+
+  return { idle, night, refreshing, failed };
+}
+
+test('a subtitle that does not fit stays one line and ends with an ellipsis', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.clock.install({ time: new Date('2026-10-29T08:00:00.000Z') });
+  await signIn(page);
+  await installApi(page, { weights: [weightRow('w-1', '2026-10-29', 76.4)] });
+  await page.goto('/trend');
+  const line = page.getByText('均重用每天最早的一笔', { exact: false });
+  await expect(line).toBeVisible();
+  const info = await line.evaluate((node) => {
+    const style = getComputedStyle(node);
+    return {
+      whiteSpace: style.whiteSpace,
+      textOverflow: style.textOverflow,
+      overflow: style.overflow,
+      height: node.getBoundingClientRect().height,
+      truncated: node.scrollWidth > node.clientWidth + 1,
+    };
+  });
+  expect(info.whiteSpace).toBe('nowrap');
+  expect(info.textOverflow).toBe('ellipsis');
+  expect(info.overflow).toBe('hidden');
+  expect(info.height).toBeLessThanOrEqual(18);
+  expect(info.truncated).toBe(true);
+});
+
 function shiftDay(day: string, delta: number): string {
   const date = new Date(`${day}T12:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + delta);

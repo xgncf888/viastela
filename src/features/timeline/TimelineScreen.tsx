@@ -4,13 +4,15 @@ import { Pressable } from 'react-native';
 import { computeLocalDay, currentTimeZone } from '@/core/local-day';
 import { timelineSaveNotice } from '@/core/timeline-errors';
 import type { TimelineCursor } from '@/core/timeline-day';
-import { nextTimelineLoad, timelineRefreshPhase } from '@/core/timeline-load';
+import { nextTimelineLoad } from '@/core/timeline-load';
 import { compareTimelineDesc, type TimelineFilter } from '@/core/timeline-page';
 import { groupTimeline, presentTimeline, type PresentedTimelineItem } from '@/core/timeline-present';
 import { scheduleDeferredDelete, useDeferredDeleteIds } from '@/features/record/deferred-delete';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { useShellInset } from '@/features/shell/AppShell';
+import { withLoadTimeout } from '@/data/load-timeout';
 import { getDaySwitch } from '@/data/profile';
+import { useRefreshOnFocus } from '@/data/refresh-on-focus';
 import {
   listTimelineAccounts,
   loadTimelinePage,
@@ -27,7 +29,6 @@ import { EmptyState } from '@/ui/EmptyState';
 import { LoadingRegion, type LoadingRegionName } from '@/ui/LoadingRegion';
 import { Row, ScreenHeader, Stack } from '@/ui/layout';
 import { MaskedAmount } from '@/ui/MaskedAmount';
-import { RefreshStatus } from '@/ui/RefreshStatus';
 import { Screen } from '@/ui/Screen';
 import { SkeletonLedger } from '@/ui/Skeleton';
 import { Text } from '@/ui/Text';
@@ -95,11 +96,13 @@ export function TimelineScreen() {
       setFailed(false);
     }
     try {
-      const [page, nextAccounts, hidden] = await Promise.all([
-        loadTimelinePage({ timeZone: zone, daySwitch: switchTime, filter: nextFilter, cursor: null }),
-        listTimelineAccounts(),
-        session ? readTimelineAmountsHidden(session.userId) : Promise.resolve(true),
-      ]);
+      const [page, nextAccounts, hidden] = await withLoadTimeout(
+        Promise.all([
+          loadTimelinePage({ timeZone: zone, daySwitch: switchTime, filter: nextFilter, cursor: null }),
+          listTimelineAccounts(),
+          session ? readTimelineAmountsHidden(session.userId) : Promise.resolve(true),
+        ]),
+      );
       if (ticket !== generation.current) return;
       setRows(page.records);
       setCursor(page.nextCursor);
@@ -115,6 +118,16 @@ export function TimelineScreen() {
       if (ticket === generation.current) setRefreshing(false);
     }
   }, [session, settle]);
+
+  useRefreshOnFocus(() => {
+    if (!readyRef.current) return undefined;
+    return getDaySwitch()
+      .then((switchTime) => reload(filterRef.current, switchTime, currentTimeZone()))
+      .catch(() => {
+        setRefreshError(true);
+        setRefreshing(false);
+      });
+  });
 
   useEffect(() => {
     if (!session) return undefined;
@@ -195,7 +208,6 @@ export function TimelineScreen() {
     timeZone,
   );
   const groups = today ? groupTimeline(visible, today) : [];
-  const refreshStatus = timelineRefreshPhase({ hadContent: ready, pending: refreshing, refreshError });
 
   return (
     <Screen>
@@ -205,8 +217,16 @@ export function TimelineScreen() {
           if (cursor && !loadingMore) void loadMore();
         }}
       >
-        <ScreenHeader kicker="记录" title="时间线" />
-        <RefreshStatus status={refreshStatus} onRetry={retryRefresh} timeZone={timeZone} />
+        <ScreenHeader
+          kicker="记录"
+          title="时间线"
+          subtitle={{
+            failed: ready && refreshError,
+            refreshing: ready && refreshing,
+            timeZone,
+            onRetry: retryRefresh,
+          }}
+        />
         <Row justify="between" align="center" wrap>
           <ChipGroup>
             {FILTERS.map((choice) => (

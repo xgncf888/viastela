@@ -6,7 +6,7 @@ import { act, createElement, type ComponentProps, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
 import { LineChart } from './LineChart';
-import { Columns, Divider, ScreenHeader } from './layout';
+import { Columns, Divider, headerSubtitleContent, ScreenHeader } from './layout';
 import { maxFontSizeMultiplierFor } from './text-scale';
 import { Text } from './Text';
 import { lightColor, theme } from './theme';
@@ -156,6 +156,20 @@ test('Divider is a 1px line', () => {
   const rule = node.firstElementChild as HTMLElement;
   expect(rule.style.height).toBe(`${theme.border.width}px`);
   expect(rule.style.backgroundColor).toBe(rgba(lightColor.line));
+});
+
+test('the subtitle line prefers a failure, then a refresh, then the hint, then the description', () => {
+  expect(headerSubtitleContent({ failed: true, refreshing: true, hint: '夜', description: '说明' })).toEqual({
+    status: 'failed',
+    text: null,
+  });
+  expect(headerSubtitleContent({ refreshing: true, hint: '夜', description: '说明' })).toEqual({
+    status: 'refreshing',
+    text: null,
+  });
+  expect(headerSubtitleContent({ hint: '夜', description: '说明' })).toEqual({ status: 'idle', text: '夜' });
+  expect(headerSubtitleContent({ description: '说明' })).toEqual({ status: 'idle', text: '说明' });
+  expect(headerSubtitleContent({})).toEqual({ status: 'idle', text: null });
 });
 
 test('ScreenHeader ignores the deprecated kicker', () => {

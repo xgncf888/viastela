@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { beginSave, confirmSave, upsertById, visibleRecords, type SaveState } from './save-state';
+import { beginSave, confirmSave, reconcileServerRows, upsertById, visibleRecords, type SaveState } from './save-state';
 
 type Row = { id: string; weightKg: number };
 
@@ -24,5 +24,19 @@ describe('dedupe', () => {
     expect(visibleRecords(state)).toEqual([row]);
     state = confirmSave(state, row);
     expect(visibleRecords(state)).toHaveLength(1);
+  });
+
+  it('keeps a locally confirmed row when a server read has not caught up', () => {
+    const local = { id: 'new', weightKg: 76.4 };
+    const server = [{ id: 'old', weightKg: 73.7 }];
+    const state = reconcileServerRows({ saved: [local], pending: [] }, server, new Set(['new']));
+    expect(state.saved).toEqual([...server, local]);
+    expect(reconcileServerRows({ saved: [local], pending: [] }, server, new Set()).saved).toEqual(server);
+    const caughtUp = reconcileServerRows(
+      { saved: [local], pending: [{ id: 'new', weightKg: 76.4 }] },
+      [local],
+      new Set(['new']),
+    );
+    expect(caughtUp).toEqual({ saved: [local], pending: [] });
   });
 });

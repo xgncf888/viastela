@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
+import { solidPressStyle, pressTransition } from './press';
 import { Text } from './Text';
 import { theme as baseTheme } from './theme';
 import { useTheme, type AppTheme } from './ThemeProvider';
+import { useReducedMotion } from './use-reduced-motion';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 /** `mini` is the 28-high outlined button for a ledger row's inline 记录 (§5). */
@@ -77,6 +79,7 @@ export function Button({
   accessibilityLabel?: string;
 }) {
   const theme = useTheme();
+  const reducedMotion = useReducedMotion() === true;
   const [hovered, setHovered] = useState(false);
   const [measured, setMeasured] = useState<number | null>(null);
   const [seenLoading, setSeenLoading] = useState(loading);
@@ -90,25 +93,7 @@ export function Button({
   const hot = hovered && !inactive;
   const mini = size === 'mini';
   const ghost = variant === 'ghost' && !mini;
-  const background = mini
-    ? hot
-      ? theme.color.fill
-      : 'transparent'
-    : variant === 'primary'
-      ? hot
-        ? theme.color.accentHover
-        : theme.color.accent
-      : variant === 'danger'
-        ? theme.color.dangerFill
-        : variant === 'secondary'
-          ? hot
-            ? theme.color.fill
-            : 'transparent'
-          : hot
-            ? tone === 'danger'
-              ? theme.color.dangerSoft
-              : theme.color.fill
-            : 'transparent';
+  const solid = (variant === 'primary' || variant === 'danger') && !mini;
   const labelTone: Tone = mini
     ? 'ink'
     : variant === 'primary'
@@ -144,19 +129,38 @@ export function Button({
       }}
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}
-      style={({ pressed }) => [
-        styles.base,
-        {
-          backgroundColor: background,
-          borderColor: variant === 'secondary' || mini ? theme.color.line : 'transparent',
-          transform: pressed && !inactive ? [{ translateY: 1 }] : undefined,
-        },
-        mini ? styles.mini : null,
-        ghost ? styles.ghost : null,
-        disabled ? { opacity: 0.55 } : null,
-        fill && !ghost ? styles.fill : null,
-        locked != null ? { minWidth: locked } : null,
-      ]}
+      style={({ pressed }) => {
+        const down = pressed && !inactive;
+        const background = solid
+          ? variant === 'danger'
+            ? theme.color.dangerFill
+            : hot
+              ? theme.color.accentHover
+              : theme.color.accent
+          : hot || down
+            ? variant === 'ghost' && tone === 'danger' && !down
+              ? theme.color.dangerSoft
+              : theme.color.fill
+            : 'transparent';
+        const motion = solid
+          ? solidPressStyle(down, disabled, reducedMotion, theme.press, Platform.OS === 'web')
+          : {
+              ...pressTransition(down, reducedMotion, theme.press, Platform.OS === 'web'),
+              ...(disabled ? { opacity: theme.press.disabledOpacity } : null),
+            };
+        return [
+          styles.base,
+          {
+            backgroundColor: background,
+            borderColor: variant === 'secondary' || mini ? theme.color.line : 'transparent',
+          },
+          motion,
+          mini ? styles.mini : null,
+          ghost ? styles.ghost : null,
+          fill && !ghost ? styles.fill : null,
+          locked != null ? { minWidth: locked } : null,
+        ];
+      }}
     >
       {loading ? (
         <View style={styles.content}>

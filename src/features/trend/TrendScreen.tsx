@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { computeLocalDay, formatClock, formatMonthDay } from '@/core/local-day';
 import { formatKg, summarizeWindow } from '@/core/weight-stats';
+import { useRefreshOnFocus } from '@/data/refresh-on-focus';
 import { openRecordSheet } from '@/features/record/record-sheet-store';
 import { useShellInset } from '@/features/shell/AppShell';
 import { AverageHeadline } from '@/features/weight/WeightSummary';
@@ -19,7 +20,7 @@ import { Text } from '@/ui/Text';
 import { chartSeries } from './chart-model';
 
 export function TrendScreen() {
-  const { ready, loadError, records, pendingDeleteIds, daySwitch, timeZone, reload } = useWeight();
+  const { ready, loadError, records, pendingDeleteIds, daySwitch, timeZone, reload, refreshing, refreshError } = useWeight();
   const inset = useShellInset();
   const [now, setNow] = useState(() => new Date());
 
@@ -27,6 +28,8 @@ export function TrendScreen() {
     const timer = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(timer);
   }, []);
+
+  useRefreshOnFocus(() => reload());
 
   const endDay = computeLocalDay(now, timeZone, daySwitch);
   const counted = excludePending(records, pendingDeleteIds);
@@ -41,7 +44,13 @@ export function TrendScreen() {
         <ScreenHeader
           kicker="趋势"
           title="近 7 日"
-          detail="均重用每天最早的一笔。同一天更晚的记录是复测，不进均重。"
+          subtitle={{
+            failed: refreshError,
+            refreshing,
+            description: '均重用每天最早的一笔。同一天更晚的记录是复测，不进均重。',
+            timeZone,
+            onRetry: () => void reload(),
+          }}
         />
         {loadError ? (
           <Callout message={loadError} action={<Button label="重试" variant="secondary" onPress={() => void reload()} />} />

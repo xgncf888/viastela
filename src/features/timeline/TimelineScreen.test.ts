@@ -77,6 +77,10 @@ jest.mock('@/data/profile', () => ({
   getDaySwitch: jest.fn(),
 }));
 
+jest.mock('@/data/refresh-on-focus', () => ({
+  useRefreshOnFocus: () => undefined,
+}));
+
 jest.mock('@/data/timeline', () => ({
   loadTimelinePage: jest.fn(),
   listTimelineAccounts: jest.fn(),
@@ -315,4 +319,27 @@ test('switching filters keeps the previous rows and shows only the refresh line'
   expect(container.textContent).not.toContain('读取失败');
   expect(findRole(container, 'alert')).toBeNull();
   expect(container.textContent).toContain('时间线');
+});
+
+test('a background refresh that runs past 8s keeps the rows and shows 更新失败 · 重试', async () => {
+  loadTimelinePageMock.mockResolvedValue({ records: [journal], nextCursor: null });
+  const container = mount(createElement(TimelineScreen));
+  await flush();
+  expect(container.textContent).toContain('体重 76 kg');
+
+  loadTimelinePageMock.mockImplementation(() => new Promise(() => undefined));
+  act(() => {
+    click(findRole(container, 'button', '资金') as HTMLElement);
+  });
+  await flush();
+  expect(container.textContent).toContain(REFRESHING_TEXT);
+  expect(container.textContent).toContain('体重 76 kg');
+
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(8000);
+  });
+  expect(container.textContent).toContain('体重 76 kg');
+  expect(container.textContent).toContain('更新失败 · 重试');
+  expect(container.textContent).not.toContain(LOAD_ERROR_TEXT);
+  expect(container.textContent).not.toContain('正在加载时间线');
 });

@@ -39,7 +39,6 @@ test('an error toast stacks above the undo toast while both stay visible', async
 
   await page.getByRole('button', { name: '再记 73.7 kg' }).click();
   await page.getByRole('button', { name: '保存' }).click();
-  await page.getByRole('button', { name: '关闭' }).click();
 
   const error = page.getByRole('alert').filter({ hasText: '保存失败，请重试' });
   const undo = page.getByRole('alert').filter({ hasText: '已删除' });

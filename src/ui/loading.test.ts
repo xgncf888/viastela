@@ -607,6 +607,8 @@ test('refresh status copies the three states and only announces a failure', () =
   });
   expect(retry).toHaveBeenCalledTimes(1);
   const plain = mount(createElement(RefreshStatus, { status: 'failed', onRetry: retry, timeZone: 'UTC' }));
+  const plainLead = findText(plain, '更新失败 · ');
+  expect(textColor(plainLead as HTMLElement).replace(/\s/g, '')).toContain('138,90,18');
   const retryText = findRole(plain, 'button');
   expect(retryText?.textContent).toBe(REFRESH_RETRY_LABEL);
   expect(textColor(retryText as HTMLElement).replace(/\s/g, '')).toContain('148,74,52');

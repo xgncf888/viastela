@@ -12,6 +12,7 @@ import {
 import { studyDaySummary, studyDetail, studyRecordsOnDay } from '@/core/study';
 import { formatTrainingLoad, trainingDaySummary, trainingSetsOnDay } from '@/core/training';
 import { formatKg, latestRecord, recordsOnDay } from '@/core/weight-stats';
+import { useRefreshOnFocus } from '@/data/refresh-on-focus';
 import { openRecordSheet } from '@/features/record/record-sheet-store';
 import { MonthEndNotice } from '@/features/today/MonthEndNotice';
 import { useShellInset } from '@/features/shell/AppShell';
@@ -48,7 +49,9 @@ export function TodayScreen() {
     loadError,
     records,
     failedIds,
-    saving,
+    savingIds,
+    refreshing,
+    refreshError,
     daySwitch,
     timeZone,
     reload,
@@ -71,6 +74,10 @@ export function TodayScreen() {
     return () => clearInterval(timer);
   }, []);
 
+  useRefreshOnFocus(async () => {
+    await Promise.all([reload(), training.reload(), study.reload()]);
+  });
+
   const accounting = computeLocalDay(now, timeZone, daySwitch);
   const beforeSwitch = isBeforeDaySwitch(now, timeZone, daySwitch);
   const counted = excludePending(records, pendingDeleteIds);
@@ -83,7 +90,6 @@ export function TodayScreen() {
   const trainingTitle = beforeSwitch ? `${formatMonthDay(accounting)}的训练` : '今天的训练';
   const studyTitle = beforeSwitch ? `${formatMonthDay(accounting)}的学习` : '今天的学习';
   const allLogged = visibleToday.length > 0 && trainingToday.length > 0 && studyToday.length > 0;
-  const note = [beforeSwitch ? nightLine(daySwitch) : null, allLogged ? '今天都记完了' : null].filter(Boolean).join(' · ');
 
   return (
     <Screen>
@@ -91,7 +97,18 @@ export function TodayScreen() {
         <ScreenHeader
           kicker="今日"
           title={`${formatMonthDay(accounting)} ${shortWeekday(accounting)}`}
-          note={note || undefined}
+          subtitle={{
+            failed: refreshError || training.refreshError || study.refreshError,
+            refreshing: refreshing || training.refreshing || study.refreshing,
+            hint: beforeSwitch ? nightLine(daySwitch) : null,
+            description: allLogged ? '今天都记完了' : null,
+            timeZone,
+            onRetry: () => {
+              void reload();
+              void training.reload();
+              void study.reload();
+            },
+          }}
         />
 
         <Stack gap="md">
@@ -155,7 +172,7 @@ export function TodayScreen() {
                     <Text variant="muted" tone="danger">
                       未保存
                     </Text>
-                    <Button label="重试" onPress={() => void retry(record.id)} loading={saving} />
+                    <Button label="重试" onPress={() => void retry(record.id)} loading={savingIds.has(record.id)} />
                     <Button label="放弃" variant="ghost" onPress={() => dismiss(record.id)} />
                   </Row>
                 ) : null}
@@ -244,7 +261,7 @@ export function TodayScreen() {
                       <Text variant="muted" tone="danger">
                         未保存
                       </Text>
-                      <Button label="重试" onPress={() => void training.retry(set.id)} loading={training.saving} />
+                      <Button label="重试" onPress={() => void training.retry(set.id)} loading={training.savingIds.has(set.id)} />
                       <Button label="放弃" variant="ghost" onPress={() => training.dismiss(set.id)} />
                     </Row>
                   ) : null}
@@ -267,7 +284,7 @@ export function TodayScreen() {
                       <Text variant="muted" tone="danger">
                         未保存
                       </Text>
-                      <Button label="重试" onPress={() => void study.retry(record.id)} loading={study.saving} />
+                      <Button label="重试" onPress={() => void study.retry(record.id)} loading={study.savingIds.has(record.id)} />
                       <Button label="放弃" variant="ghost" onPress={() => study.dismiss(record.id)} />
                     </Row>
                   ) : null}
