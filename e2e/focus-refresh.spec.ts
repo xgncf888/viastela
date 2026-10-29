@@ -112,6 +112,24 @@ test('今日 first visit loads weight once, and a return refreshes once without 
   await expect.poll(() => weightGets - before).toBe(2);
 });
 
+test('今日 -> 趋势 -> 今日 within 400ms shows weight written while away', async ({ page }) => {
+  const weights = [weightRow('w-1', day, 76.4)];
+  await page.clock.install({ time: new Date(`${day}T08:00:00.000Z`) });
+  await signIn(page);
+  await installApi(page, { weights });
+  await page.goto('/');
+  await waitForTodayLoaded(page);
+  await expect(page.getByText('76.4 kg', { exact: true })).toBeVisible();
+
+  weights.splice(0, 1, weightRow('w-2', day, 80.2));
+  const started = Date.now();
+  await page.getByRole('button', { name: '趋势', exact: true }).click({ noWaitAfter: true });
+  await page.getByRole('button', { name: '今日', exact: true }).click({ noWaitAfter: true });
+  expect(Date.now() - started).toBeLessThan(400);
+  await expect(page.getByText('80.2 kg', { exact: true })).toBeVisible();
+  await expect(page.getByText('76.4 kg', { exact: true })).toHaveCount(0);
+});
+
 test('one tab tap replaces the route once and the current tab does not', async ({ page }) => {
   await page.addInitScript(() => {
     const replace = history.replaceState.bind(history);

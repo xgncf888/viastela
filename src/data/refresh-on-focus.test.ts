@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 
 import '@/ui/test-dom';
 
-import { REFRESH_MIN_INTERVAL_MS, useRefreshOnFocus } from './refresh-on-focus';
+import { useRefreshOnFocus } from './refresh-on-focus';
 
 type Cleanup = () => void;
 
@@ -80,9 +80,22 @@ test('the first focus does not load, and a focus after a blur loads once', async
   expect(load).toHaveBeenCalledTimes(1);
 });
 
-test('a focus while a refresh is in flight, or inside the minimum interval, does not start another', async () => {
+test('leaving and returning within 400ms refreshes once', async () => {
   jest.useFakeTimers({ doNotFake: ['queueMicrotask', 'nextTick', 'setTimeout'] });
   jest.setSystemTime(1_000_000);
+  const load = jest.fn(() => Promise.resolve());
+  mount(load);
+  let leave = focus();
+  await flush();
+  leave();
+  await flush();
+  jest.setSystemTime(1_000_100);
+  leave = focus();
+  await flush();
+  expect(load).toHaveBeenCalledTimes(1);
+});
+
+test('focuses during a refresh collapse into one trailing refresh', async () => {
   let release: () => void = () => undefined;
   const load = jest.fn(
     () =>
@@ -103,6 +116,10 @@ test('a focus while a refresh is in flight, or inside the minimum interval, does
   await flush();
   focus();
   await flush();
+  leave();
+  await flush();
+  focus();
+  await flush();
   expect(load).toHaveBeenCalledTimes(1);
 
   await act(async () => {
@@ -110,18 +127,11 @@ test('a focus while a refresh is in flight, or inside the minimum interval, does
     await Promise.resolve();
     await Promise.resolve();
   });
-  leave = focus();
-  leave();
-  await flush();
-  jest.setSystemTime(1_000_000 + REFRESH_MIN_INTERVAL_MS - 1);
-  leave = focus();
-  await flush();
-  expect(load).toHaveBeenCalledTimes(1);
-
-  leave();
-  await flush();
-  jest.setSystemTime(1_000_000 + REFRESH_MIN_INTERVAL_MS);
-  focus();
-  await flush();
+  expect(load).toHaveBeenCalledTimes(2);
+  await act(async () => {
+    release();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
   expect(load).toHaveBeenCalledTimes(2);
 });
