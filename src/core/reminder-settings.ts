@@ -99,9 +99,14 @@ export function reminderSwitchesEnabled(note: ReminderNote): boolean {
   return note === null || note === 'permission-denied';
 }
 
-/** Times stay editable when push is not configured yet, so they apply once a key exists. */
-export function scheduleFieldsVisible(flagOn: boolean, note: ReminderNote): boolean {
-  return flagOn || note === 'unconfigured';
+/** The card is absent unless a public key exists and this browser can receive push. */
+export function remindersCardVisible(input: { vapidConfigured: boolean; pushSupported: boolean }): boolean {
+  return input.vapidConfigured && input.pushSupported;
+}
+
+/** Weekday and time fields show only while that reminder is on. */
+export function scheduleFieldsVisible(flagOn: boolean): boolean {
+  return flagOn;
 }
 
 export function planToggle(input: {

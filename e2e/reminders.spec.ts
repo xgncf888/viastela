@@ -143,15 +143,21 @@ async function installPushApi(page: Page, seed: StoredPush[] = []) {
   return rows;
 }
 
-test('push is unconfigured until a public key exists', async ({ page }) => {
+test('the reminders card is absent when push is not configured', async ({ page }) => {
+  let reads = 0;
   await signIn(page);
   await installApi(page, { weights: [] });
+  await page.route('**/rest/v1/push_subscriptions**', async (route) => {
+    if (route.request().method() === 'GET') reads += 1;
+    await route.fallback();
+  });
   await openMe(page);
-  await expect(page.getByText(REMINDER_COPY.unconfigured)).toBeVisible();
-  await expect(page.getByRole('switch', { name: REMINDER_COPY.training })).toBeDisabled();
-  await expect(page.getByRole('switch', { name: REMINDER_COPY.monthEnd })).toBeDisabled();
-  await expect(page.getByLabel(REMINDER_COPY.trainingTime)).toBeVisible();
-  await expect(page.getByLabel(REMINDER_COPY.monthEndTime)).toHaveValue('21:30');
+  await expect(page.getByText('日切时间')).toBeVisible();
+  await expect(page.getByRole('heading', { name: REMINDER_COPY.section })).toHaveCount(0);
+  await expect(page.getByRole('switch', { name: REMINDER_COPY.training })).toHaveCount(0);
+  await expect(page.getByText(REMINDER_COPY.unconfigured)).toHaveCount(0);
+  await expect(page.getByLabel(REMINDER_COPY.trainingTime)).toHaveCount(0);
+  expect(reads).toBe(0);
 });
 
 test('the two reminder toggles persist independently and keep weekdays', async ({ page }) => {

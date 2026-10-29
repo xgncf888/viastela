@@ -12,6 +12,7 @@ import {
   REMINDER_COPY,
   reminderNote,
   reminderNoteCopy,
+  remindersCardVisible,
   reminderSwitchesEnabled,
   scheduleFieldsVisible,
   shouldSoftDeleteForPermission,
@@ -100,9 +101,12 @@ describe('reminder settings', () => {
     expect(normalizeClock('21:30:00')).toBe('21:30');
     expect(normalizeClock('24:00')).toBeNull();
     expect(postgresTime('08:00')).toBe('08:00:00');
-    expect(scheduleFieldsVisible(false, 'unconfigured')).toBe(true);
-    expect(scheduleFieldsVisible(false, null)).toBe(false);
-    expect(scheduleFieldsVisible(true, null)).toBe(true);
+    expect(remindersCardVisible({ vapidConfigured: false, pushSupported: true })).toBe(false);
+    expect(remindersCardVisible({ vapidConfigured: true, pushSupported: false })).toBe(false);
+    expect(remindersCardVisible({ vapidConfigured: false, pushSupported: false })).toBe(false);
+    expect(remindersCardVisible({ vapidConfigured: true, pushSupported: true })).toBe(true);
+    expect(scheduleFieldsVisible(false)).toBe(false);
+    expect(scheduleFieldsVisible(true)).toBe(true);
   });
 
   it('soft-deletes the live row when permission is revoked and keeps the other device', () => {

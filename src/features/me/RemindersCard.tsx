@@ -8,6 +8,7 @@ import {
   REMINDER_COPY,
   reminderNote,
   reminderNoteCopy,
+  remindersCardVisible,
   reminderSwitchesEnabled,
   scheduleFieldsVisible,
   shouldSoftDeleteForPermission,
@@ -50,11 +51,13 @@ export function RemindersCard() {
   const [busy, setBusy] = useState(false);
   const draftRef = useRef(draft);
   const env = readBrowserEnv();
+  const visible = remindersCardVisible(env);
   const note = reminderNote({ ...env, permission });
   const switchesEnabled = reminderSwitchesEnabled(note) && ready && !busy;
   const copy = reminderNoteCopy(note);
 
   useEffect(() => {
+    if (!visible) return;
     let cancel = false;
     const browser = readBrowserEnv();
     void (async () => {
@@ -92,7 +95,7 @@ export function RemindersCard() {
     return () => {
       cancel = true;
     };
-  }, []);
+  }, [visible]);
 
   async function persist(next: ReminderDraft): Promise<void> {
     const saved = { ...next, tz: currentTimeZone() };
@@ -167,8 +170,10 @@ export function RemindersCard() {
     void persist(next).catch(() => showToast({ text: REMINDER_COPY.saveFailed }));
   }
 
-  const showTraining = scheduleFieldsVisible(draft.trainingEnabled, note);
-  const showMonthEnd = scheduleFieldsVisible(draft.monthEndEnabled, note);
+  const showTraining = scheduleFieldsVisible(draft.trainingEnabled);
+  const showMonthEnd = scheduleFieldsVisible(draft.monthEndEnabled);
+
+  if (!visible) return null;
 
   return (
     <Card>

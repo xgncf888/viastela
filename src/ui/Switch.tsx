@@ -28,7 +28,7 @@ export function Switch({
     >
       <Row justify="between">
         <Text variant="body">{label}</Text>
-        <Text variant="body" tone={value && !disabled ? 'accent' : 'muted'}>
+        <Text variant="body" tone={value ? 'ink' : 'muted'} style={value ? styles.on : undefined}>
           {value ? '开' : '关'}
         </Text>
       </Row>
@@ -42,4 +42,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   inactive: { opacity: 0.55 },
+  on: { fontWeight: baseTheme.fontWeight.medium },
 });
