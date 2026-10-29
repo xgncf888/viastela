@@ -170,16 +170,14 @@ async function expectRecordOnFirstScreen(page: Page) {
   expect(scrolled).toBe(false);
 }
 
-test('a hung weight load turns both skeletons into a dash at 8s, and the record button keeps its place', async ({
-  page,
-}) => {
-  test.setTimeout(LOAD_TIMEOUT_MS + 20_000);
+test('the record button keeps one y through wait, skeleton, content, error, and timeout', async ({ page }) => {
+  test.setTimeout(LOAD_TIMEOUT_MS + 30_000);
   const day = accountingDay();
-  const weights = [0, 1, 2, 3].map((ago) => weightRow(`w-${ago}`, shiftDay(day, -ago), 72 + ago, 8));
+  const ys: Record<string, number> = {};
   let holding = true;
   const parked: (() => void)[] = [];
   await signIn(page);
-  await installApi(page, { weights });
+  await installApi(page, { weights: [weightRow('w-1', day, 72, 8)] });
   await page.route('**/rest/v1/weight_records*', async (route) => {
     if (route.request().method() !== 'GET') {
       await route.fallback();
@@ -189,29 +187,75 @@ test('a hung weight load turns both skeletons into a dash at 8s, and the record 
     await route.fallback();
   });
   await page.goto('/');
+  await expect(page.getByText('7 日均重', { exact: true })).toBeVisible();
+  await expect(page.locator('[role="status"]')).toHaveCount(0);
+  ys.wait = await recordButtonY(page);
+
   await expect(page.locator('[role="status"]')).toHaveText('正在加载今日', { timeout: 4_000 });
-  const record = page.getByRole('button', { name: '记录', exact: true });
-  const duringSkeleton = await record.boundingBox();
-  expect(duringSkeleton).not.toBeNull();
+  ys.skeleton = await recordButtonY(page);
 
   await expect(page.getByText('没加载出来，检查网络后再试')).toBeVisible({ timeout: LOAD_TIMEOUT_MS });
-  const average = page.getByText('7 日均重', { exact: true }).locator('..');
+  const average = page.getByText('7 日均重', { exact: true }).locator('xpath=../..');
   const column = page.getByText('体重', { exact: true }).locator('..');
   await expect(average.getByText('—', { exact: true })).toBeVisible();
   await expect(column.getByText('—', { exact: true })).toBeVisible();
   expect(await skeletonBars(average)).toBe(0);
   expect(await skeletonBars(column)).toBe(0);
+  ys.timeout = await recordButtonY(page);
 
   await page.getByRole('button', { name: '重试' }).click();
   await expect.poll(() => skeletonBars(average), { timeout: 4_000 }).toBeGreaterThan(0);
-  await expect.poll(() => skeletonBars(column)).toBeGreaterThan(0);
+  ys.retrySkeleton = await recordButtonY(page);
   holding = false;
   parked.splice(0).forEach((release) => release());
   await expect(page.getByText('晨重', { exact: true })).toBeVisible();
-  const afterContent = await record.boundingBox();
-  expect(afterContent).not.toBeNull();
-  expect(Math.round(afterContent!.y)).toBe(Math.round(duringSkeleton!.y));
+  await expect(page.getByText('数据不足', { exact: true })).toBeVisible();
+  ys.content1 = await recordButtonY(page);
+
+  await page.unroute('**/rest/v1/weight_records*');
+  await installApi(page, {
+    weights: [72, 73, 74, 75, 76, 77, 78].map((kilograms, index) => weightRow(`w-${index}`, day, kilograms, 8 + index)),
+  });
+  await page.goto('/');
+  await expect(page.getByText('复测', { exact: true })).toHaveCount(6);
+  await expect(page.getByText('数据不足', { exact: true })).toBeVisible();
+  ys.content7 = await recordButtonY(page);
+
+  await installApi(page, {
+    weights: [0, 1, 2, 3].map((ago) => weightRow(`d-${ago}`, shiftDay(day, -ago), 72 + ago, 8)),
+  });
+  await page.goto('/');
+  await expect(page.getByText('73.5', { exact: false })).toBeVisible();
+  await expect(page.getByText('数据不足', { exact: true })).toHaveCount(0);
+  ys.contentAverage = await recordButtonY(page);
+
+  await page.route('**/rest/v1/weight_records*', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      status: 500,
+      headers: { 'access-control-allow-origin': '*', 'content-type': 'application/json' },
+      body: '{"message":"down"}',
+    });
+  });
+  await page.goto('/');
+  await expect(page.getByText('没加载出来，检查网络后再试')).toBeVisible();
+  await expect(page.getByText('7 日均重', { exact: true }).locator('xpath=../..').getByText('—', { exact: true })).toBeVisible();
+  ys.error500 = await recordButtonY(page);
+
+  const values = Object.values(ys);
+  const low = Math.min(...values);
+  const high = Math.max(...values);
+  expect(high - low, JSON.stringify(ys)).toBeLessThanOrEqual(1);
 });
+
+async function recordButtonY(page: Page): Promise<number> {
+  const box = await page.getByRole('button', { name: '记录', exact: true }).boundingBox();
+  expect(box).not.toBeNull();
+  return box!.y;
+}
 
 function shiftDay(day: string, delta: number): string {
   const date = new Date(`${day}T12:00:00.000Z`);

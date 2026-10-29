@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { View } from 'react-native';
 
 import {
   computeLocalDay,
@@ -15,8 +16,7 @@ import { openRecordSheet } from '@/features/record/record-sheet-store';
 import { useShellInset } from '@/features/shell/AppShell';
 import { useStudy } from '@/features/study/StudyProvider';
 import { useTraining } from '@/features/training/TrainingProvider';
-import { AverageHeadline } from '@/features/weight/WeightSummary';
-import { excludePending, todayReadout, weighInLabel, weightColumnPhase } from '@/features/weight/weight-copy';
+import { averageCaption, excludePending, todayReadout, weighInLabel, weightColumnPhase } from '@/features/weight/weight-copy';
 import { useWeight } from '@/features/weight/WeightProvider';
 import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
@@ -27,8 +27,9 @@ import { EmptyState } from '@/ui/EmptyState';
 import { LoadingRegion } from '@/ui/LoadingRegion';
 import { Row, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
-import { SkeletonDisplayLine, SkeletonLedger, SkeletonText } from '@/ui/Skeleton';
+import { skeletonHiddenProps, SkeletonDisplay, SkeletonLedger, SkeletonText } from '@/ui/Skeleton';
 import { Text } from '@/ui/Text';
+import { theme } from '@/ui/theme';
 import { useLoadGate } from '@/ui/use-load-gate';
 
 function shortWeekday(localDay: string): string {
@@ -278,7 +279,11 @@ function RecordEntry() {
   return <Button label="记录" fill onPress={() => openRecordSheet()} />;
 }
 
-/** The 7-day title stays up so the record button under it is usable while the list loads or fails. */
+/**
+ * Title, display line, and detail line on every phase, so the record button
+ * under this card does not move. The wait phase keeps the skeleton's space
+ * without painting it. 「数据不足」 uses heading type inside the display line.
+ */
 function AverageBlock({
   records,
   endDay,
@@ -287,7 +292,7 @@ function AverageBlock({
   showSkeleton,
   timedOut,
 }: {
-  records: Parameters<typeof AverageHeadline>[0]['records'];
+  records: Parameters<typeof averageCaption>[0];
   endDay: string;
   ready: boolean;
   failed: boolean;
@@ -295,18 +300,57 @@ function AverageBlock({
   timedOut: boolean;
 }) {
   const phase = weightColumnPhase({ ready, failed, showSkeleton, timedOut });
-  if (phase === 'content') return <AverageHeadline records={records} endDay={endDay} />;
+  const caption = averageCaption(records, endDay);
+  const insufficient = caption.headline === '数据不足';
+  const value =
+    phase === 'content' ? (
+      <Text variant={insufficient ? 'heading' : 'display'}>{caption.headline}</Text>
+    ) : phase === 'skeleton' ? (
+      <SkeletonDisplay />
+    ) : phase === 'dash' ? (
+      <Text variant="muted">—</Text>
+    ) : null;
+  const detail =
+    phase === 'content' ? (
+      <Text variant="muted">{caption.detail}</Text>
+    ) : phase === 'skeleton' ? (
+      <SkeletonText lines={1} variant="muted" />
+    ) : null;
   return (
     <Card>
-      <Text variant="muted">7 日均重</Text>
-      {phase === 'skeleton' ? (
-        <>
-          <SkeletonDisplayLine />
-          <SkeletonText lines={1} variant="muted" />
-        </>
-      ) : null}
-      {phase === 'dash' ? <Text variant="muted">—</Text> : null}
+      <View style={{ minHeight: averageBlockBodyHeight(), gap: theme.space.sm }}>
+        <LineBox height={theme.lineHeight.sm}>
+          <Text variant="muted">7 日均重</Text>
+        </LineBox>
+        <LineBox height={theme.lineHeight.display} hidden={phase === 'wait' || phase === 'skeleton'}>
+          {value}
+        </LineBox>
+        <LineBox height={theme.lineHeight.sm} hidden={phase !== 'content'}>
+          {detail}
+        </LineBox>
+      </View>
     </Card>
+  );
+}
+
+/** Title line, display line, and detail line, plus the two gaps between them. */
+function averageBlockBodyHeight(): number {
+  return theme.lineHeight.sm + theme.space.sm + theme.lineHeight.display + theme.space.sm + theme.lineHeight.sm;
+}
+
+function LineBox({
+  height,
+  hidden = false,
+  children,
+}: {
+  height: number;
+  hidden?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <View style={{ height, justifyContent: 'center' }} {...(hidden ? skeletonHiddenProps : undefined)}>
+      {children}
+    </View>
   );
 }
 
