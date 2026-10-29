@@ -71,11 +71,11 @@ describe('seven day headline', () => {
       record('b', '2026-10-25', 70, 8),
       record('c', '2026-10-26', 70, 8),
       record('d', '2026-10-27', 70, 8),
-      record('e', '2026-10-27', 90, 12),
+      record('e', '2026-10-27', 80, 12),
     ];
     const withoutMorning = excludePending(records, new Set(['d']));
     expect(labelsForDay(withoutMorning, '2026-10-27')).toEqual(['晨重']);
-    expect(averageCaption(withoutMorning, '2026-10-27').headline).toBe('75.0');
+    expect(averageCaption(withoutMorning, '2026-10-27').headline).toBe('72.5');
     const withoutToday = excludePending(records, new Set(['d', 'e']));
     expect(averageCaption(withoutToday, '2026-10-27').headline).toBe('数据不足');
     expect(averageCaption(records, '2026-10-27').headline).toBe('70.0');
