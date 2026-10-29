@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { navItem, navLabels, recordButton, recordSheetHeading, rowRecordButton, waitForTodayLoaded } from './selectors';
+import { navItem, navLabels, recordButton, rowRecordButton, waitForTodayLoaded } from './selectors';
 import { installApi, signIn, weightRow, type TrainingRow } from './session';
 
 // Shell layout at the phone and desktop widths. Every weight here is made up.
@@ -25,13 +25,12 @@ function trainingRow(id: string, exercise: string, hour: number): TrainingRow {
 }
 
 /**
- * DESIGN §4.2: on 390x844 the main 记录 button is on the first screen as long as the ledger has
- * at most 5 rows. Longer ledgers may push it below the fold; scrolling to it is expected there.
+ * DESIGN §4.2 (10/29): at 390×844 the main 记录 button is on the first screen for any number
+ * of weight rows. It sits under the 7-day average and above the ledger, with no scrolling.
  */
-const LEDGER_FITS = 5;
-const LEDGER_LONG = 7;
+const LEDGER_ROWS = 5;
 
-async function openToday(page: Page, width: number, height: number, ledgerRows: number = LEDGER_FITS) {
+async function openToday(page: Page, width: number, height: number, ledgerRows: number = LEDGER_ROWS) {
   await page.setViewportSize({ width, height });
   await page.clock.install({ time: new Date(`${day}T09:00:00.000Z`) });
   await signIn(page);
@@ -49,21 +48,39 @@ function bottomBar(page: Page) {
   return navItem(page, '今日').locator('xpath=../..');
 }
 
-// 等 PR4：主按钮移到 7 天均重标题下，1 条和 7 条时都应在 390×844 首屏内。
-// On current main the button sits after the three status cards, so it is below the fold from the
-// first ledger row on (top y≈892 with 1 row, ≈1388 with 5). PR4 replaces this with 1-row and
-// 7-row no-scroll assertions and removes the 7-row scroll case below.
-test.fixme('at 390x844 with a 5-row ledger the main 记录 button is on the first screen without scrolling（等 PR4：主按钮移到 7 天均重标题下，1 条和 7 条时都应在 390×844 首屏内）', async ({
+test('at 390x844 with 1 weight row the main 记录 button is on the first screen above the ledger', async ({
   page,
 }) => {
-  await openToday(page, 390, 844, LEDGER_FITS);
-  await expect(page.getByText(/^72\.5 kg · /)).toHaveCount(1);
-  await expect(recordButton(page)).toBeVisible();
-  await expect(recordButton(page)).toBeInViewport();
+  await openToday(page, 390, 844, 1);
+  await expect(page.getByText(/^72\.1 kg · /)).toHaveCount(1);
+  await expectMainRecordOnFirstScreen(page);
 });
 
+test('at 390x844 with 7 weight rows the main 记录 button is on the first screen above the ledger', async ({
+  page,
+}) => {
+  await openToday(page, 390, 844, 7);
+  await expect(page.getByText(/^72\.7 kg · /)).toHaveCount(1);
+  await expectMainRecordOnFirstScreen(page);
+});
+
+async function expectMainRecordOnFirstScreen(page: Page) {
+  const button = recordButton(page);
+  await expect(button).toBeInViewport();
+  const scrolled = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('div')).some((node) => node.scrollTop > 1),
+  );
+  expect(scrolled).toBe(false);
+  const firstRow = page.getByText('晨重', { exact: true });
+  const buttonBox = await button.boundingBox();
+  const rowBox = await firstRow.boundingBox();
+  expect(buttonBox).not.toBeNull();
+  expect(rowBox).not.toBeNull();
+  expect(buttonBox!.y + buttonBox!.height).toBeLessThanOrEqual(rowBox!.y);
+}
+
 test('at 390x844 the tab bar never covers the last row', async ({ page }) => {
-  await openToday(page, 390, 844, LEDGER_FITS);
+  await openToday(page, 390, 844, LEDGER_ROWS);
 
   const bar = bottomBar(page);
   await expect(bar).toBeVisible();
@@ -84,32 +101,6 @@ test('at 390x844 the tab bar never covers the last row', async ({ page }) => {
     })
     .toBeLessThanOrEqual(Math.round(barBox!.y));
   await expect(lastRow).toBeInViewport();
-});
-
-// Removed after PR4, when the main button is on the first screen at any ledger length.
-test('at 390x844 with a 7-row ledger the main 记录 button sits below the ledger and is reachable by scrolling', async ({
-  page,
-}) => {
-  await openToday(page, 390, 844, LEDGER_LONG);
-  // The last ledger row (the 7th weigh-in, 72.7 kg) is rendered.
-  const lastLedgerRow = page.getByText(/^72\.7 kg · /);
-  await expect(lastLedgerRow).toHaveCount(1);
-  const button = recordButton(page);
-  await expect(button).toHaveCount(1);
-
-  // Below the ledger. Both boxes come from the same scroll position, so their order is layout order.
-  const rowBox = await lastLedgerRow.boundingBox();
-  const buttonBox = await button.boundingBox();
-  expect(rowBox).not.toBeNull();
-  expect(buttonBox).not.toBeNull();
-  expect(buttonBox!.y).toBeGreaterThanOrEqual(rowBox!.y + rowBox!.height);
-
-  // Scrolling is allowed here (§4.2); after it the button is on screen and opens the record sheet.
-  await button.scrollIntoViewIfNeeded();
-  await expect(button).toBeVisible();
-  await expect(button).toBeInViewport();
-  await button.click();
-  await expect(recordSheetHeading(page)).toBeVisible();
 });
 
 test('at 1280 the nav is a left sidebar and there is no bottom bar', async ({ page }) => {

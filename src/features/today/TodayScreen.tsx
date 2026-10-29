@@ -90,16 +90,21 @@ export function TodayScreen() {
           note={note || undefined}
         />
 
-        <LoadingRegion
-          name="今日"
-          loading={!ready}
-          error={loadError !== null}
-          onRetry={() => void reload()}
-          skeleton={<TodaySkeleton />}
-        >
-          <Stack gap="md">
-          <AverageHeadline records={counted} endDay={accounting} />
+        <Stack gap="md">
+          <AverageBlock records={counted} endDay={accounting} ready={ready} failed={loadError !== null} />
           <RecordEntry />
+          <LoadingRegion
+            name="今日"
+            loading={!ready}
+            error={loadError !== null}
+            onRetry={() => void reload()}
+            skeleton={
+              <Card>
+                <SkeletonLedger lines={3} />
+              </Card>
+            }
+          >
+          <Stack gap="md">
           <Text variant="heading">{beforeSwitch ? `${formatMonthDay(accounting)}的记录` : '今天的记录'}</Text>
           {readout.firstRecord ? (
             <EmptyState title={readout.firstRecord} action={<Button label="记录" onPress={() => openRecordSheet()} />} />
@@ -142,7 +147,8 @@ export function TodayScreen() {
             <Button label={`再记 ${formatKg(last.weightKg)} kg`} onPress={() => openRecordSheet(last.weightKg)} />
           ) : null}
           </Stack>
-        </LoadingRegion>
+          </LoadingRegion>
+        </Stack>
 
         <CardRow>
           <WeightColumn
@@ -258,18 +264,27 @@ function RecordEntry() {
   return <Button label="记录" fill onPress={() => openRecordSheet()} />;
 }
 
-function TodaySkeleton() {
+/** The 7-day title stays up so the record button under it is usable while the list loads or fails. */
+function AverageBlock({
+  records,
+  endDay,
+  ready,
+  failed,
+}: {
+  records: Parameters<typeof AverageHeadline>[0]['records'];
+  endDay: string;
+  ready: boolean;
+  failed: boolean;
+}) {
+  const gate = useLoadGate(!ready);
+  const phase = weightColumnPhase({ ready, failed, showSkeleton: gate.showSkeleton });
+  if (phase === 'content') return <AverageHeadline records={records} endDay={endDay} />;
   return (
-    <Stack gap="md">
-      <Card>
-        <Text variant="muted">7 日均重</Text>
-        <SkeletonDisplay />
-      </Card>
-      <RecordEntry />
-      <Card>
-        <SkeletonLedger lines={3} />
-      </Card>
-    </Stack>
+    <Card>
+      <Text variant="muted">7 日均重</Text>
+      {phase === 'skeleton' ? <SkeletonDisplay /> : null}
+      {phase === 'dash' ? <Text variant="muted">—</Text> : null}
+    </Card>
   );
 }
 

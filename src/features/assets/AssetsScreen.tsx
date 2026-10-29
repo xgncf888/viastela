@@ -240,6 +240,7 @@ export function AssetsScreen() {
     refreshing,
     quoteFailed: quoteFailure !== null,
     refreshError,
+    stale: book?.stale === true,
   });
   const refreshCachedAt =
     refreshError && book
@@ -835,7 +836,7 @@ function buildModel(input: {
       possiblyExpired: input.degraded,
     }),
     quoteCachedAt:
-      input.failure !== null
+      input.failure !== null || input.book?.stale === true
         ? cachedQuoteAsOf((input.book?.quotes ?? []).map((quote) => ({ asOf: quote.as_of, status: quote.status })))
         : null,
     missLine: failureCopy.missLine,

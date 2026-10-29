@@ -46,16 +46,18 @@ test('the weight column skeleton is two lines inside the card, and the status wa
   });
   await page.goto('/');
   await expect(page.getByRole('heading').first()).toBeVisible();
+  const record = page.getByRole('button', { name: '记录', exact: true });
+  await expect(record).toBeVisible();
+  await expect(record).toBeInViewport();
   await expect(page.locator('[role="status"]')).toHaveCount(0);
-  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
   await expect(page.locator('[role="status"]')).toHaveText('正在加载今日', { timeout: 4_000 });
   await expect(page.locator('[aria-busy="true"]')).toHaveCount(1);
   const column = page.getByText('体重', { exact: true }).locator('..');
   await expect.poll(() => skeletonBars(column)).toBe(2);
   expect(await framed(column.locator('[aria-hidden="true"]').first())).toBe(true);
-  const record = page.getByRole('button', { name: '记录', exact: true });
   await expect(record).toBeVisible();
   await expect(record).toBeInViewport();
+  await expectRecordOpensSheet(page);
 });
 
 test('a weight load error is a muted dash and a single error card', async ({ page }) => {
@@ -81,6 +83,7 @@ test('a weight load error is a muted dash and a single error card', async ({ pag
   await expect(dash).toBeVisible();
   await expect(dash).toHaveCSS('color', rgb(lightColor.muted));
   expect(await framed(dash)).toBe(true);
+  await expectRecordOpensSheet(page);
 });
 
 test.describe('reduced motion', () => {
@@ -136,6 +139,16 @@ async function skeletonOpacity(page: Page): Promise<number> {
   });
 }
 
+async function expectRecordOpensSheet(page: Page) {
+  const record = page.getByRole('button', { name: '记录', exact: true });
+  await expect(record).toBeVisible();
+  await expect(record).toBeInViewport();
+  await record.click();
+  await expect(page.getByRole('heading', { name: '记录', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '关闭' }).click();
+  await expect(page.getByRole('heading', { name: '记录', exact: true })).toBeHidden();
+}
+
 async function expectRecordOnFirstScreen(page: Page) {
   const record = page.getByRole('button', { name: '记录', exact: true });
   await expect(record).toHaveCount(1);
@@ -173,6 +186,7 @@ test('a hung today load shows retry and recovers', async ({ page }) => {
   });
   await page.goto('/');
   await expect(page.getByText('没加载出来，检查网络后再试')).toBeVisible({ timeout: LOAD_TIMEOUT_MS + 4_000 });
+  await expectRecordOpensSheet(page);
   const retry = page.getByRole('button', { name: '重试' });
   await expect(retry).toBeVisible();
   await expect(retry.getByText('重试', { exact: true })).toHaveCSS('color', rgb(lightColor.accentText));

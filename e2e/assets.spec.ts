@@ -894,6 +894,53 @@ test('a background refresh that throws keeps cached quotes and shows the failure
   await expect(page.getByText('没加载出来，检查网络后再试')).toHaveCount(0);
 });
 
+test('a 200 stale quote body keeps the cached total and shows the failure line', async ({ page }) => {
+  await installApi(page, { weights: [] });
+  let quotePosts = 0;
+  await installAssets(page, {
+    holdings: [],
+    events: [],
+    quoteBody: () => ({
+      quotes: [
+        {
+          symbol: 'AAA',
+          price: 80,
+          currency: 'USD',
+          as_of: '2026-01-15T00:30:00.000Z',
+          status: 'stale',
+          source: 'finnhub',
+        },
+      ],
+      rates: [],
+      source: 'finnhub',
+      total_usd: 80,
+      cash_usd: 0,
+      securities_usd: 80,
+      unpriced: 0,
+      stale: true,
+      snapshot: 'skipped',
+    }),
+  });
+  page.on('request', (request) => {
+    if (request.url().includes('/functions/v1/quotes') && request.method() === 'POST') quotePosts += 1;
+  });
+  await openAssets(page);
+  await expect(page.getByText(/更新失败 · 行情更新于 \d{2}:\d{2} · 重试/)).toBeVisible();
+  const failure = page.getByText(/更新失败 · 行情更新于 \d{2}:\d{2} · $/);
+  await expect(failure).toHaveCSS('color', hexColor(lightColor.warning));
+  await expect(page.getByRole('button', { name: '重试' }).getByText('重试', { exact: true })).toHaveCSS(
+    'color',
+    hexColor(lightColor.accentText),
+  );
+  await expect(page.getByText('总资产暂时算不出来')).toHaveCount(0);
+  await page.getByRole('button', { name: '显示金额' }).click();
+  await expect(page.getByText('US$80.00').first()).toBeVisible();
+  const seen = quotePosts;
+  expect(seen).toBeGreaterThan(0);
+  await page.getByRole('button', { name: '重试' }).click();
+  await expect.poll(() => quotePosts).toBe(seen + 1);
+});
+
 test('a background quotes error with a cache shows the same failure line', async ({ page }) => {
   await installApi(page, { weights: [] });
   await installAssets(page, { holdings: [], events: [] });

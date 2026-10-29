@@ -136,6 +136,29 @@ test('without AbortSignal.timeout the quotes call still stops and keeps the cach
   expect((await readCachedQuoteBook(userId))?.quotes[0]?.price).toBe(11);
 });
 
+test('a 200 body with stale true keeps the cached prices', async () => {
+  setLocalStoreForTests(createMemoryLocalStore());
+  const asOf = '2026-01-15T00:30:00.000Z';
+  setQuoteInvokeForTests(async () => ({
+    data: {
+      ...response,
+      stale: true,
+      total_usd: 80,
+      cash_usd: 0,
+      securities_usd: 80,
+      quotes: [{ ...response.quotes[0], price: 80, status: 'stale', as_of: asOf }],
+    },
+    error: null,
+  }));
+  const result = await loadQuoteBook(userId, 'Asia/Singapore');
+  expect(result.failure).toBeNull();
+  expect(result.book?.stale).toBe(true);
+  expect(result.book?.total_usd).toBe(80);
+  expect(result.book?.quotes[0]?.price).toBe(80);
+  expect(result.book?.quotes[0]?.as_of).toBe(asOf);
+  expect(result.book?.quotes[0]?.status).toBe('stale');
+});
+
 test('a quotes http failure keeps the cached book and does not write over it', async () => {
   setLocalStoreForTests(createMemoryLocalStore());
   await writeCachedQuoteBook(userId, cachedBook);
