@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { router, usePathname } from 'expo-router';
 
 import { brand } from '@/config/brand';
@@ -29,14 +29,17 @@ function currentTab(pathname: string): TabId {
   return 'today';
 }
 
-function go(href: (typeof TABS)[number]['href']) {
-  router.replace(href);
-}
-
 export function AppShell({ children }: { children: ReactNode }) {
   const layout = useLayoutClass();
   const side = layout !== 'compact';
-  const current = currentTab(usePathname());
+  const routeTab = currentTab(usePathname());
+  const [armed, setArmed] = useState<{ id: TabId; route: TabId } | null>(null);
+  const current = armed && armed.route === routeTab ? armed.id : routeTab;
+
+  function go(tab: (typeof TABS)[number]) {
+    setArmed({ id: tab.id, route: routeTab });
+    router.replace(tab.href);
+  }
   const { deletedNotice, dismissDeletedNotice } = useWeight();
   const trainingDeleted = useTraining();
   const studyDeleted = useStudy();
@@ -49,7 +52,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             footer={<Text variant="muted">{`${brand.webName} v1`}</Text>}
           >
             {TABS.map((tab) => (
-              <NavItem key={tab.id} label={tab.label} selected={current === tab.id} onPress={() => go(tab.href)} />
+              <NavItem key={tab.id} label={tab.label} selected={current === tab.id} onPress={() => go(tab)} />
             ))}
           </SidebarFrame>
         ) : null
@@ -63,7 +66,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 placement="tab"
                 label={tab.label}
                 selected={current === tab.id}
-                onPress={() => go(tab.href)}
+                onPress={() => go(tab)}
               />
             ))}
           </TabBar>

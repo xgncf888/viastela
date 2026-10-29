@@ -2,8 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import { createId } from '@/core/id';
 import { computeLocalDay, currentTimeZone, DEFAULT_DAY_SWITCH } from '@/core/local-day';
-import { beginSave, confirmSave, visibleRecords, type SaveState } from '@/core/save-state';
-import { recentTopicNames, type RecentTopicRow, type StudyRecord } from '@/core/study';
+import { beginSave, confirmSave, reconcileServerRows, visibleRecords, type SaveState } from '@/core/save-state';
+import { recentTopicNames, studySaveToast, type RecentTopicRow, type StudyRecord } from '@/core/study';
 import { RECORD_DELETED, weightSaveOutcome } from '@/core/weight-write';
 import { getDaySwitch } from '@/data/profile';
 import { listRecentTopics, listStudyRecords, softDeleteStudyRecord, upsertStudyRecord } from '@/data/study';
@@ -56,6 +56,10 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   const [recentRows, setRecentRows] = useState<RecentTopicRow[]>([]);
   const creating = useRef(false);
   const inFlight = useRef(new Set<string>());
+  const saves = useRef(0);
+  const alive = useRef(new Set<string>());
+  const loadTicket = useRef(0);
+  const confirmedTicket = useRef(new Map<string, number>());
   const pendingDeleteIds = useDeferredDeleteIds();
 
   const loadSaved = useCallback(async (switchTime: string) => {
@@ -64,43 +68,46 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     return { records, recent };
   }, []);
 
+  const applyRows = useCallback((rows: StudyRecord[], recent: RecentTopicRow[], nextSwitch: string, ticket: number) => {
+    const keep = new Set<string>();
+    for (const [id, at] of confirmedTicket.current) {
+      if (at >= ticket) keep.add(id);
+    }
+    for (const row of rows) confirmedTicket.current.delete(row.id);
+    setLoadError(null);
+    setDaySwitch(nextSwitch);
+    setRecentRows(recent);
+    setSaveState((current) => reconcileServerRows(current, rows, keep));
+    setReady(true);
+  }, []);
+
   const reload = useCallback(async () => {
+    const ticket = ++loadTicket.current;
     try {
       const nextSwitch = await getDaySwitch();
       const { records: rows, recent } = await loadSaved(nextSwitch);
-      setLoadError(null);
-      setDaySwitch(nextSwitch);
-      setRecentRows(recent);
-      setSaveState((current) => {
-        const serverIds = new Set(rows.map((row) => row.id));
-        return { saved: rows, pending: current.pending.filter((row) => !serverIds.has(row.id)) };
-      });
-      setReady(true);
+      if (ticket !== loadTicket.current) return;
+      applyRows(rows, recent, nextSwitch, ticket);
     } catch {
+      if (ticket !== loadTicket.current) return;
       setLoadError('读取失败');
       setReady(true);
     }
-  }, [loadSaved]);
+  }, [applyRows, loadSaved]);
 
   useEffect(() => {
     if (!session) return undefined;
+    const ticket = ++loadTicket.current;
     let cancelled = false;
     void getDaySwitch()
       .then(async (nextSwitch) => ({ nextSwitch, ...(await loadSaved(nextSwitch)) }))
       .then(
         ({ records: rows, recent, nextSwitch }) => {
-          if (cancelled) return;
-          setLoadError(null);
-          setDaySwitch(nextSwitch);
-          setRecentRows(recent);
-          setSaveState((current) => {
-            const serverIds = new Set(rows.map((row) => row.id));
-            return { saved: rows, pending: current.pending.filter((row) => !serverIds.has(row.id)) };
-          });
-          setReady(true);
+          if (cancelled || ticket !== loadTicket.current) return;
+          applyRows(rows, recent, nextSwitch, ticket);
         },
         () => {
-          if (cancelled) return;
+          if (cancelled || ticket !== loadTicket.current) return;
           setLoadError('读取失败');
           setReady(true);
         },
@@ -108,7 +115,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [loadSaved, session]);
+  }, [applyRows, loadSaved, session]);
 
   const saveRecord = useCallback(
     async (input: {
@@ -142,44 +149,46 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         return next;
       });
       inFlight.current.add(id);
+      alive.current.add(id);
+      if (!input.existingId) creating.current = false;
+      saves.current += 1;
       setSaving(true);
-      try {
-        await upsertStudyRecord(record);
+      void (async () => {
         try {
-          const { records: rows, recent } = await loadSaved(switchTime);
-          setRecentRows(recent);
-          setSaveState((current) => ({
-            saved: rows.some((row) => row.id === id) ? rows : confirmSave({ saved: rows, pending: [] }, record).saved,
-            pending: current.pending.filter((row) => row.id !== id && !rows.some((saved) => saved.id === row.id)),
-          }));
-        } catch {
-          setSaveState((current) => confirmSave(current, record));
+          await upsertStudyRecord(record);
+          if (!alive.current.has(id)) return;
+          confirmedTicket.current.set(id, loadTicket.current);
+          setSaveState((current) => (current.pending.some((row) => row.id === id) ? confirmSave(current, record) : current));
+          setRecentRows((current) => [{ topic: record.topic, recordedAt: record.recordedAt }, ...current]);
+          showToast({ text: studySaveToast(record.topic, record.durationMinutes, record.localDay) });
+        } catch (error) {
+          confirmedTicket.current.delete(id);
+          if (!alive.current.has(id)) return;
+          if (weightSaveOutcome(error) === RECORD_DELETED) {
+            alive.current.delete(id);
+            setSaveState((current) => ({
+              saved: current.saved.filter((row) => row.id !== id),
+              pending: current.pending.filter((row) => row.id !== id),
+            }));
+            setFailedIds((current) => {
+              const next = new Set(current);
+              next.delete(id);
+              return next;
+            });
+            setDeletedNotice(true);
+            return;
+          }
+          setFailedIds((current) => new Set(current).add(id));
+          showToast({ text: '保存失败，请重试', tone: 'error' });
+        } finally {
+          inFlight.current.delete(id);
+          saves.current = Math.max(0, saves.current - 1);
+          setSaving(saves.current > 0);
         }
-        return 'saved';
-      } catch (error) {
-        if (weightSaveOutcome(error) === RECORD_DELETED) {
-          setSaveState((current) => ({
-            saved: current.saved.filter((row) => row.id !== id),
-            pending: current.pending.filter((row) => row.id !== id),
-          }));
-          setFailedIds((current) => {
-            const next = new Set(current);
-            next.delete(id);
-            return next;
-          });
-          setDeletedNotice(true);
-          return 'deleted';
-        }
-        setFailedIds((current) => new Set(current).add(id));
-        showToast({ text: '保存失败，请重试', tone: 'error' });
-        return 'retry';
-      } finally {
-        inFlight.current.delete(id);
-        if (!input.existingId) creating.current = false;
-        setSaving(false);
-      }
+      })();
+      return 'saved';
     },
-    [daySwitch, loadSaved, saveState.pending],
+    [daySwitch, saveState.pending],
   );
 
   const retry = useCallback(
@@ -197,6 +206,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   );
 
   const dismiss = useCallback((id: string) => {
+    alive.current.delete(id);
+    confirmedTicket.current.delete(id);
     setSaveState((current) => ({
       saved: current.saved,
       pending: current.pending.filter((row) => row.id !== id),
@@ -221,6 +232,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       }
       try {
         await softDeleteStudyRecord(id);
+        confirmedTicket.current.delete(id);
         setSaveState((current) => ({
           saved: current.saved.filter((row) => row.id !== id),
           pending: current.pending.filter((row) => row.id !== id),
