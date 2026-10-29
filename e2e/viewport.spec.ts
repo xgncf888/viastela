@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { navItem, navLabels, recordButton, rowRecordButton, waitForTodayLoaded } from './selectors';
+import { navItem, navLabels, recordButton, recordSheetHeading, rowRecordButton, waitForTodayLoaded } from './selectors';
 import { installApi, signIn, weightRow, type TrainingRow } from './session';
 
 // Shell layout at the phone and desktop widths. Every weight here is made up.
@@ -24,13 +24,19 @@ function trainingRow(id: string, exercise: string, hour: number): TrainingRow {
   };
 }
 
-async function openToday(page: Page, width: number, height: number) {
+/**
+ * DESIGN §4.2: on 390x844 the main 记录 button is on the first screen as long as the ledger has
+ * at most 5 rows. Longer ledgers may push it below the fold; scrolling to it is expected there.
+ */
+const LEDGER_FITS = 5;
+const LEDGER_LONG = 7;
+
+async function openToday(page: Page, width: number, height: number, ledgerRows: number = LEDGER_FITS) {
   await page.setViewportSize({ width, height });
   await page.clock.install({ time: new Date(`${day}T09:00:00.000Z`) });
   await signIn(page);
-  // Enough rows that Today scrolls on a phone, so the last row can end up under the tab bar.
   await installApi(page, {
-    weights: [1, 2, 3, 4, 5, 6].map((n) => weightRow(`w-${n}`, day, 72 + n / 10, n)),
+    weights: Array.from({ length: ledgerRows }, (_, i) => i + 1).map((n) => weightRow(`w-${n}`, day, 72 + n / 10, n)),
     training: [trainingRow('t-1', '深蹲', 7)],
   });
   await page.goto('/');
@@ -43,10 +49,17 @@ function bottomBar(page: Page) {
   return navItem(page, '今日').locator('xpath=../..');
 }
 
-test('at 390x844 the main 记录 button shows and the tab bar never covers the last row', async ({ page }) => {
-  await openToday(page, 390, 844);
+test('at 390x844 with a 5-row ledger the main 记录 button is on the first screen without scrolling', async ({
+  page,
+}) => {
+  await openToday(page, 390, 844, LEDGER_FITS);
+  await expect(page.getByText(/^72\.5 kg · /)).toHaveCount(1);
   await expect(recordButton(page)).toBeVisible();
   await expect(recordButton(page)).toBeInViewport();
+});
+
+test('at 390x844 the tab bar never covers the last row', async ({ page }) => {
+  await openToday(page, 390, 844, LEDGER_FITS);
 
   const bar = bottomBar(page);
   await expect(bar).toBeVisible();
@@ -69,6 +82,31 @@ test('at 390x844 the main 记录 button shows and the tab bar never covers the l
   await expect(lastRow).toBeInViewport();
 });
 
+test('at 390x844 with a 7-row ledger the main 记录 button sits below the ledger and is reachable by scrolling', async ({
+  page,
+}) => {
+  await openToday(page, 390, 844, LEDGER_LONG);
+  // The last ledger row (the 7th weigh-in, 72.7 kg) is rendered.
+  const lastLedgerRow = page.getByText(/^72\.7 kg · /);
+  await expect(lastLedgerRow).toHaveCount(1);
+  const button = recordButton(page);
+  await expect(button).toHaveCount(1);
+
+  // Below the ledger. Both boxes come from the same scroll position, so their order is layout order.
+  const rowBox = await lastLedgerRow.boundingBox();
+  const buttonBox = await button.boundingBox();
+  expect(rowBox).not.toBeNull();
+  expect(buttonBox).not.toBeNull();
+  expect(buttonBox!.y).toBeGreaterThanOrEqual(rowBox!.y + rowBox!.height);
+
+  // Scrolling is allowed here (§4.2); after it the button is on screen and opens the record sheet.
+  await button.scrollIntoViewIfNeeded();
+  await expect(button).toBeVisible();
+  await expect(button).toBeInViewport();
+  await button.click();
+  await expect(recordSheetHeading(page)).toBeVisible();
+});
+
 test('at 1280 the nav is a left sidebar and there is no bottom bar', async ({ page }) => {
   await openToday(page, 1280, 800);
   await expect(recordButton(page)).toBeVisible();
@@ -87,14 +125,13 @@ test('at 1280 the nav is a left sidebar and there is no bottom bar', async ({ pa
   expect(last!.y).toBeGreaterThan(first!.y);
 });
 
-// Enable when style PR1 (#22) merges: it adds aria-selected to NavItem on web. Current main only
-// sets accessibilityState.selected, which react-native-web does not expose on role=button, and the
-// selected tab is shown by colour only. The selected state must be asserted via aria-selected, not colour.
+// Style PR1 (#22) added aria-selected to NavItem on web. The selected state is asserted via
+// aria-selected, never by colour.
 for (const viewport of [
   { name: 'phone tab bar', width: 390, height: 844 },
   { name: 'desktop sidebar', width: 1280, height: 800 },
 ]) {
-  test.fixme(`the selected ${viewport.name} item is marked with aria-selected`, async ({ page }) => {
+  test(`the selected ${viewport.name} item is marked with aria-selected`, async ({ page }) => {
     await openToday(page, viewport.width, viewport.height);
     await expect(navItem(page, '今日')).toHaveAttribute('aria-selected', 'true');
     for (const label of navLabels.filter((item) => item !== '今日')) {
