@@ -63,9 +63,7 @@ The intent filter is `autoVerify` for exactly:
 
 That path is `brand.authCallbackPath` (`/auth/callback`), the same path as the planned custom-scheme redirect `viastela://auth/callback`. The filter does not use a wildcard host or a path prefix.
 
-This repository does not change the hosted Supabase redirect allow list. Add this exact URL there (no wildcard):
-
-- `https://viastela.vercel.app/auth/callback`
+Do not add `https://viastela.vercel.app/auth/callback` to the Supabase redirect allow list in this change. 原生 OAuth 时再加. `app/` has no `/auth/callback` route, and web OAuth returns to the site root plus `returnPath`. The App Link declaration stays; it is harmless without that allow-list entry. The native OAuth change adds a headless route (`exchangeCodeForSession`, then redirect to `/`, and never log or expose the code), picks one of `viastela://auth/callback` or this https App Link, adds only that exact URL to the allow list, and needs Yifeng's OK.
 
 ## In-app update
 
