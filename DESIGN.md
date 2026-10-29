@@ -395,9 +395,9 @@
 
 ## 12. 可安装的网页应用（Installed web app）
 
-（规则不变；`paper` 两种模式都没改，下面的断言照旧成立。）
+（`paper` 两种模式都没改，theme_color 和启动图底色的断言照旧成立。）
 
-网页导出是可安装的 App。`display` 为 `standalone`，`start_url` 为 `/`。安装后的名称和短名称在 `brand.homeScreenName` 和 `brand.homeScreenShortName`。`theme_color` 和 `background_color` 是浅色 `paper`。图标从 `assets/icon.png` 导出：192、512、一张 512 的 maskable 图标（标志在中心 80% 的圆内），以及一张 180 的 apple touch 图标。启动图是 `paper` 底色，图标居中。
+网页导出是可安装的 App。`display` 为 `standalone`，`start_url` 为 `/`。主屏标签、manifest 的 `short_name` 和 `apple-mobile-web-app-title` 都是 `brand.webName`。manifest 的 `name` 是产品名后接 `webName`，浏览器标签标题是 `webName`、间隔号、再接产品名。`theme_color` 和 `background_color` 是浅色 `paper`。网页图标是提交在 `public/` 的方案 C 文件（`favicon.svg`、`favicon.ico`、192、512、maskable 的 192 和 512，以及 180 的 apple touch 图标）。`scripts/render-pwa-icons.js` 用这张 apple touch 图标绘制启动图，居中放在 `paper` 底色上。
 
 iOS 用 `apple-mobile-web-app-capable` 和 `apple-mobile-web-app-status-bar-style: default`，配合 `viewport-fit=cover`。页面顶部留出 `safe-area-inset-top`。底栏底部留出 `safe-area-inset-bottom`，外框的滚动区底部也加上同样的距离，Home 条不会盖住底栏和最后一行。没有底栏的页面同样留出底部安全区。
 

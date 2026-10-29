@@ -23,6 +23,12 @@
       const nodes = document.querySelectorAll(selector);
       for (let index = 1; index < nodes.length; index += 1) nodes[index].remove();
     }
+    const iconSeen = Object.create(null);
+    document.querySelectorAll('link[rel="icon"]').forEach((node) => {
+      const href = node.getAttribute('href') || '';
+      if (iconSeen[href]) node.remove();
+      else iconSeen[href] = true;
+    });
     const splashSeen = Object.create(null);
     document.querySelectorAll('link[rel="apple-touch-startup-image"]').forEach((node) => {
       const id = `${node.getAttribute('href') || ''} ${node.getAttribute('media') || ''}`;

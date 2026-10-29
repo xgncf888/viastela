@@ -34,7 +34,7 @@ Module._resolveFilename = function resolveTypeScript(request, parent, isMain, op
   return resolveFilename.call(this, request, parent, isMain, options);
 };
 
-const { brand } = require('../src/config/brand.ts');
+const { brand, webDocumentTitle } = require('../src/config/brand.ts');
 const { pwaIcons, pwaManifest, pwaSplashes, splashMedia, splashPath } = require('../src/config/pwa.ts');
 const { darkColor } = require('../src/ui/theme.ts');
 
@@ -86,8 +86,10 @@ function pwaHeadTags() {
     `<meta name="theme-color" content="${darkColor.paper}" media="(prefers-color-scheme: dark)" />`,
     '<meta name="apple-mobile-web-app-capable" content="yes" />',
     '<meta name="apple-mobile-web-app-status-bar-style" content="default" />',
-    `<meta name="apple-mobile-web-app-title" content="${escapeHtml(brand.homeScreenShortName)}" />`,
+    `<meta name="apple-mobile-web-app-title" content="${escapeHtml(brand.webName)}" />`,
     '<link rel="manifest" href="/manifest.webmanifest" />',
+    `<link rel="icon" href="${pwaIcons.svg}" type="image/svg+xml" />`,
+    `<link rel="icon" href="${pwaIcons.ico}" sizes="32x32" />`,
     `<link rel="apple-touch-icon" href="${pwaIcons.appleTouch}" />`,
     ...pwaSplashes.map(
       (splash) =>
@@ -105,8 +107,15 @@ function stripPwaHeadTags(html) {
     .replace(/[ \t]*<meta name="apple-mobile-web-app-status-bar-style"[^>]*>\n?/g, '')
     .replace(/[ \t]*<meta name="apple-mobile-web-app-title"[^>]*>\n?/g, '')
     .replace(/[ \t]*<link rel="manifest"[^>]*>\n?/g, '')
+    .replace(/[ \t]*<link rel="icon"[^>]*>\n?/g, '')
     .replace(/[ \t]*<link rel="apple-touch-icon"[^>]*>\n?/g, '')
     .replace(/[ \t]*<link rel="apple-touch-startup-image"[^>]*>\n?/g, '');
+}
+
+function applyDocumentTitle(html) {
+  const title = `<title>${escapeHtml(webDocumentTitle)}</title>`;
+  if (html.includes(title)) return html;
+  return html.replace(/<title>[^<]*<\/title>/, title);
 }
 
 function stampHtml(html) {
@@ -175,7 +184,7 @@ function preparePwaPublicFiles() {
 function stampExportedWeb() {
   const htmlPath = path.resolve('dist/index.html');
   const html = fs.readFileSync(htmlPath, 'utf8');
-  const stamped = stampHtml(html);
+  const stamped = applyDocumentTitle(stampHtml(html));
   if (stamped !== html) fs.writeFileSync(htmlPath, stamped);
   const worker = path.resolve('dist/sw.js');
   if (fs.existsSync(worker)) stampCacheName(worker);
@@ -189,7 +198,7 @@ if (require.main === module) {
     const { renderPwaIcons } = require('./render-pwa-icons.js');
     const { theme } = require('../src/ui/theme.ts');
     renderPwaIcons({
-      source: path.resolve('assets/icon.png'),
+      source: path.resolve('public/icons/apple-touch-icon.png'),
       outDir: path.resolve('public/icons'),
       splashes: pwaSplashes,
       paper: theme.color.paper,

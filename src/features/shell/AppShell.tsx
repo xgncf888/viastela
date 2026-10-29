@@ -43,8 +43,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       sidebar={
         side ? (
           <SidebarFrame
-            title={brand.homeScreenShortName}
-            footer={<Text variant="muted">{`${brand.homeScreenShortName} v1`}</Text>}
+            title={brand.webName}
+            footer={<Text variant="muted">{`${brand.webName} v1`}</Text>}
           >
             {TABS.map((tab) => (
               <NavItem key={tab.id} label={tab.label} selected={current === tab.id} onPress={() => go(tab.href)} />

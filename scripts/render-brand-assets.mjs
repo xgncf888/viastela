@@ -83,7 +83,6 @@ function render(size, mode) {
 
 writeFileSync('assets/icon.png', render(1024, 'icon'));
 writeFileSync('assets/splash-icon.png', render(512, 'splash'));
-writeFileSync('assets/favicon.png', render(64, 'icon'));
 writeFileSync('assets/android-icon-foreground.png', render(1024, 'foreground'));
 writeFileSync('assets/android-icon-background.png', render(512, 'background'));
 writeFileSync('assets/android-icon-monochrome.png', render(512, 'mono'));

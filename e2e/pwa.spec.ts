@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs';
 
 import { devices, expect, test, type Page } from '@playwright/test';
 
-import { pngCorner } from '../scripts/render-pwa-icons.js';
-import { brand } from '../src/config/brand';
+import { pngCorner, pngCorners, pngInset } from '../scripts/render-pwa-icons.js';
+import { brand, webDocumentTitle, webManifestName } from '../src/config/brand';
 import { pwaIcons, pwaManifest, pwaSplashes } from '../src/config/pwa';
 import { darkColor, theme } from '../src/ui/theme';
 import { accountingDay, authSession, installApi, signIn, weightRow } from './session';
@@ -46,8 +46,10 @@ test('manifest, icons, and the service worker are served as files', async ({ pag
   expect(manifestResponse.headers()['cache-control']).toContain('no-cache');
   const manifest = await manifestResponse.json();
   expect(manifest).toMatchObject(pwaManifest);
-  expect(manifest.name).toBe(brand.homeScreenName);
-  expect(manifest.short_name).toBe(brand.homeScreenShortName);
+  expect(webManifestName).toBe(`${brand.displayName} ${brand.webName}`);
+  expect(webDocumentTitle).toBe(`${brand.webName} · ${brand.displayName}`);
+  expect(manifest.name).toBe(webManifestName);
+  expect(manifest.short_name).toBe(brand.webName);
   expect(manifest.start_url).toBe('/');
   expect(manifest.scope).toBe('/');
   expect(manifest.display).toBe('standalone');
@@ -57,6 +59,7 @@ test('manifest, icons, and the service worker are served as files', async ({ pag
     expect.arrayContaining([
       expect.objectContaining({ sizes: '192x192', type: 'image/png', purpose: 'any' }),
       expect.objectContaining({ sizes: '512x512', type: 'image/png', purpose: 'any' }),
+      expect.objectContaining({ sizes: '192x192', type: 'image/png', purpose: 'maskable' }),
       expect.objectContaining({ sizes: '512x512', type: 'image/png', purpose: 'maskable' }),
     ]),
   );
@@ -67,12 +70,36 @@ test('manifest, icons, and the service worker are served as files', async ({ pag
     Number.parseInt(theme.color.paper.slice(5, 7), 16),
     255,
   ];
-  for (const icon of [pwaIcons.any192, pwaIcons.any512, pwaIcons.maskable512, pwaIcons.appleTouch]) {
+  const opaqueIcons = [pwaIcons.appleTouch, pwaIcons.maskable192, pwaIcons.maskable512];
+  const anyIcons = [pwaIcons.any192, pwaIcons.any512];
+  for (const icon of [...opaqueIcons, ...anyIcons]) {
     const iconResponse = await page.request.get(icon);
     expect(iconResponse.status(), icon).toBe(200);
     expect(iconResponse.headers()['content-type']).toContain('image/png');
-    expect(pngCorner(`public${icon}`), icon).toEqual(paperRgb);
   }
+  for (const icon of opaqueIcons) {
+    expect(pngCorner(`public${icon}`), icon).toEqual(paperRgb);
+    expect(pngCorners(`public${icon}`), icon).toEqual([paperRgb, paperRgb, paperRgb, paperRgb]);
+  }
+  for (const icon of anyIcons) {
+    expect(pngCorner(`public${icon}`)[3], icon).toBe(0);
+    expect(
+      pngCorners(`public${icon}`).map((pixel) => pixel[3]),
+      icon,
+    ).toEqual([0, 0, 0, 0]);
+    expect(pngInset(`public${icon}`, 0.2), icon).toEqual(paperRgb);
+  }
+  const svgResponse = await page.request.get(pwaIcons.svg);
+  expect(svgResponse.status()).toBe(200);
+  expect(svgResponse.headers()['content-type']).toContain('image/svg');
+  const svg = await svgResponse.text();
+  const allowed = [theme.color.ink, darkColor.ink, theme.color.accent].map((value) => value.toLowerCase());
+  const svgColors = [...svg.matchAll(/#([0-9a-fA-F]{6})/g)].map((match) => `#${match[1].toLowerCase()}`);
+  expect(svgColors).toEqual(expect.arrayContaining(allowed));
+  for (const color of svgColors) expect(allowed, color).toContain(color);
+  const icoResponse = await page.request.get(pwaIcons.ico);
+  expect(icoResponse.status()).toBe(200);
+  expect(icoResponse.headers()['content-type']).toContain('icon');
   const maskableReport = await page.request.get('/icons/maskable.json');
   expect(maskableReport.status()).toBe(200);
   expect(maskableReport.headers()['content-type']).toContain('application/json');
@@ -111,11 +138,20 @@ test('manifest, icons, and the service worker are served as files', async ({ pag
   expect(html.match(/<meta[^>]*name="theme-color"/g)).toHaveLength(2);
   expect(html.match(/<meta name="apple-mobile-web-app-capable"/g)).toHaveLength(1);
   expect(html.match(/<link rel="manifest"/g)).toHaveLength(1);
-  expect(html.match(/rel="icon"/g)).toHaveLength(1);
+  expect(html).toContain(`<title>${webDocumentTitle}</title>`);
+  expect(html).toContain(`<meta name="apple-mobile-web-app-title" content="${brand.webName}" />`);
+  expect(linkHrefs(html, 'icon')).toEqual([pwaIcons.svg, pwaIcons.ico]);
+  expect(linkHrefs(html, 'apple-touch-icon')).toEqual([pwaIcons.appleTouch]);
   expect(html.match(/src="\/pwa-head.js"/g)).toHaveLength(1);
 
   await page.goto('/');
   await expect(page.getByText('用邮箱登录')).toBeVisible();
+  await expect(page).toHaveTitle(webDocumentTitle);
+  await expect.poll(async () => page.locator('link[rel="icon"]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('href')))).toEqual([
+    pwaIcons.svg,
+    pwaIcons.ico,
+  ]);
+  await expect.poll(async () => page.locator('link[rel="apple-touch-icon"]').count()).toBe(1);
   await expect.poll(async () => page.locator('meta[name="theme-color"]:not([media])').count()).toBe(0);
   expect(await page.locator('meta[name="theme-color"]').count()).toBe(2);
   expect(await page.locator('meta[name="apple-mobile-web-app-capable"]').count()).toBe(1);
@@ -253,6 +289,16 @@ test('supabase responses stay out of Cache Storage, and sign-out hides the previ
   await expect(page.locator('body')).not.toContainText('47.3');
   await expect(page.locator('body')).not.toContainText('yifeng@example.com');
 });
+
+function linkHrefs(html: string, rel: string): string[] {
+  const tags = html.match(/<link\b[^>]*>/g) ?? [];
+  return tags.flatMap((tag) => {
+    const relMatch = tag.match(/\brel="([^"]+)"/);
+    const hrefMatch = tag.match(/\bhref="([^"]+)"/);
+    if (relMatch?.[1] !== rel || !hrefMatch) return [];
+    return [hrefMatch[1]];
+  });
+}
 
 async function cacheText(page: Page): Promise<string> {
   return page.evaluate(async () => {
