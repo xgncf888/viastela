@@ -4,7 +4,7 @@ import { Pressable } from 'react-native';
 import { computeLocalDay, currentTimeZone } from '@/core/local-day';
 import { timelineSaveNotice } from '@/core/timeline-errors';
 import type { TimelineCursor } from '@/core/timeline-day';
-import { nextTimelineLoad, timelineRefreshPhase } from '@/core/timeline-load';
+import { nextTimelineLoad } from '@/core/timeline-load';
 import { compareTimelineDesc, type TimelineFilter } from '@/core/timeline-page';
 import { groupTimeline, presentTimeline, type PresentedTimelineItem } from '@/core/timeline-present';
 import { scheduleDeferredDelete, useDeferredDeleteIds } from '@/features/record/deferred-delete';
@@ -29,7 +29,6 @@ import { EmptyState } from '@/ui/EmptyState';
 import { LoadingRegion, type LoadingRegionName } from '@/ui/LoadingRegion';
 import { Row, ScreenHeader, Stack } from '@/ui/layout';
 import { MaskedAmount } from '@/ui/MaskedAmount';
-import { RefreshStatus } from '@/ui/RefreshStatus';
 import { Screen } from '@/ui/Screen';
 import { SkeletonLedger } from '@/ui/Skeleton';
 import { Text } from '@/ui/Text';
@@ -209,7 +208,6 @@ export function TimelineScreen() {
     timeZone,
   );
   const groups = today ? groupTimeline(visible, today) : [];
-  const refreshStatus = timelineRefreshPhase({ hadContent: ready, pending: refreshing, refreshError });
 
   return (
     <Screen>
@@ -222,7 +220,12 @@ export function TimelineScreen() {
         <ScreenHeader
           kicker="记录"
           title="时间线"
-          caption={<RefreshStatus status={refreshStatus} onRetry={retryRefresh} timeZone={timeZone} />}
+          subtitle={{
+            failed: ready && refreshError,
+            refreshing: ready && refreshing,
+            timeZone,
+            onRetry: retryRefresh,
+          }}
         />
         <Row justify="between" align="center" wrap>
           <ChipGroup>

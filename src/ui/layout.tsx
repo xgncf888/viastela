@@ -3,9 +3,24 @@ import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { Card } from './Card';
 import { layoutClassForWidth } from './layout-class';
+import { RefreshStatus } from './RefreshStatus';
 import { Text } from './Text';
 import { theme, type SpaceName } from './theme';
 import { useTheme } from './ThemeProvider';
+
+/** What the one subtitle line shows. A failure wins over an in-flight refresh, then the night hint, then the description. */
+export function headerSubtitleContent(input: {
+  failed?: boolean;
+  refreshing?: boolean;
+  hint?: string | null;
+  description?: string | null;
+}): { status: 'idle' | 'refreshing' | 'failed'; text: string | null } {
+  if (input.failed) return { status: 'failed', text: null };
+  if (input.refreshing) return { status: 'refreshing', text: null };
+  if (input.hint) return { status: 'idle', text: input.hint };
+  if (input.description) return { status: 'idle', text: input.description };
+  return { status: 'idle', text: null };
+}
 
 export function Stack({
   gap = 'md',
@@ -156,7 +171,7 @@ export function ScreenHeader({
   detail,
   note,
   trailing,
-  caption,
+  subtitle,
 }: {
   /**
    * @deprecated DESIGN.md §5 and §7: a page header does not repeat the nav name.
@@ -169,24 +184,31 @@ export function ScreenHeader({
   /** Right side of the title row. Omit it and the title stays a single line. */
   trailing?: ReactNode;
   /**
-   * The one line under the title. A refresh status lives here, and shows `detail` / `note`
-   * through its idle content, so the message does not add a page row.
+   * One fixed line under the title. Always the caption height, so a refresh or a hint
+   * cannot move the page. Failure wins, then a refresh, then `hint`, then `description`.
    */
-  caption?: ReactNode;
+  subtitle?: {
+    failed?: boolean;
+    refreshing?: boolean;
+    hint?: string | null;
+    description?: string | null;
+    onRetry: () => void;
+    timeZone: string;
+    cachedAt?: string | null;
+  };
 }) {
   const heading = (
     <Text variant="title" accessibilityRole="header">
       {title}
     </Text>
   );
-  const subtitle =
-    caption ??
-    (detail || note ? (
-      <>
-        {detail ? <Text variant="body">{detail}</Text> : null}
-        {note ? <Text variant="muted">{note}</Text> : null}
-      </>
-    ) : null);
+  const choice = subtitle ? headerSubtitleContent(subtitle) : { status: 'idle' as const, text: null };
+  const legacy = detail || note ? (
+    <>
+      {detail ? <Text variant="body">{detail}</Text> : null}
+      {note ? <Text variant="muted">{note}</Text> : null}
+    </>
+  ) : null;
   return (
     <Stack gap="xs">
       {trailing ? (
@@ -197,7 +219,19 @@ export function ScreenHeader({
       ) : (
         heading
       )}
-      {subtitle}
+      {subtitle ? (
+        <View style={styles.subtitle}>
+          <RefreshStatus
+            status={choice.status}
+            onRetry={subtitle.onRetry}
+            timeZone={subtitle.timeZone}
+            cachedAt={subtitle.cachedAt}
+            idle={choice.text ? <Text variant="muted" numberOfLines={1}>{choice.text}</Text> : null}
+          />
+        </View>
+      ) : (
+        legacy
+      )}
     </Stack>
   );
 }
@@ -289,6 +323,12 @@ export function Callout({
 }
 
 const styles = StyleSheet.create({
+  /** The caption line. Fixed, so the page below does not move between hint, refresh, and failure. */
+  subtitle: {
+    height: theme.lineHeight.sm,
+    justifyContent: 'center',
+    overflow: 'visible',
+  },
   center: {
     flex: 1,
     alignItems: 'center',

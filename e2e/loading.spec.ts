@@ -1,7 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 
 import { LOAD_TIMEOUT_MS } from '../src/lib/timing';
-import { lightColor } from '../src/ui/theme';
+import { lightColor, theme } from '../src/ui/theme';
 import { closeRecordSheet } from './selectors';
 import { accountingDay, installApi, signIn, weightRow } from './session';
 
@@ -258,12 +258,35 @@ async function recordButtonY(page: Page): Promise<number> {
   return box!.y;
 }
 
-const RECORD_Y = 236;
+/** Phone. The caption line is the old night-hint line, so the button sits where that hint used to put it. */
+const RECORD_Y_PHONE = 236;
+/**
+ * Desktop. Page padding is `space.xl` instead of `space.md` (32 − 16), and the stack under the
+ * title is otherwise the same, so the button is 16px lower.
+ */
+const RECORD_Y_DESKTOP = RECORD_Y_PHONE + (theme.space.xl - theme.space.md);
 
-test('the record button stays at 236 with no hint, the night hint, a refresh, and a failed refresh', async ({
-  page,
-}) => {
-  test.setTimeout(60_000);
+for (const viewport of [
+  { width: 390, height: 844, y: RECORD_Y_PHONE },
+  { width: 1280, height: 844, y: RECORD_Y_DESKTOP },
+]) {
+  test(`the record button stays at ${viewport.y} on ${viewport.width} for idle, night hint, refresh, and failure`, async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    const measured = await recordButtonStates(page);
+    expect(measured, JSON.stringify(measured)).toEqual({
+      idle: viewport.y,
+      night: viewport.y,
+      refreshing: viewport.y,
+      failed: viewport.y,
+    });
+    expect(RECORD_Y_DESKTOP).toBe(252);
+  });
+}
+
+async function recordButtonStates(page: Page): Promise<Record<'idle' | 'night' | 'refreshing' | 'failed', number>> {
   const day = '2026-10-29';
   const cors = {
     'access-control-allow-origin': '*',
@@ -292,12 +315,12 @@ test('the record button stays at 236 with no hint, the night hint, a refresh, an
   await page.goto('/');
   await expect(page.getByText('晨重', { exact: true })).toBeVisible();
   await expect(page.getByText('凌晨 4 点前的记录算作前一天')).toHaveCount(0);
-  expect(await recordButtonY(page), 'no hint').toBe(RECORD_Y);
+  const idle = await recordButtonY(page);
 
   await page.clock.setFixedTime(new Date(`${day}T02:00:00.000Z`));
   await page.reload();
   await expect(page.getByText('凌晨 4 点前的记录算作前一天')).toBeVisible();
-  expect(await recordButtonY(page), 'night hint').toBe(RECORD_Y);
+  const night = await recordButtonY(page);
 
   await page.clock.setFixedTime(new Date(`${day}T08:00:00.000Z`));
   await page.reload();
@@ -308,7 +331,7 @@ test('the record button stays at 236 with no hint, the night hint, a refresh, an
   await expect(page.getByRole('heading', { name: '时间线' })).toBeVisible();
   await page.getByRole('button', { name: '今日', exact: true }).click();
   await expect(page.getByText('正在更新…')).toBeVisible();
-  expect(await recordButtonY(page), 'refreshing').toBe(RECORD_Y);
+  const refreshing = await recordButtonY(page);
   await expect.poll(() => weightGets).toBeGreaterThan(seen);
   await expect(page.getByText('正在更新…')).toHaveCount(0);
 
@@ -318,18 +341,39 @@ test('the record button stays at 236 with no hint, the night hint, a refresh, an
   await expect(page.getByRole('heading', { name: '时间线' })).toBeVisible();
   await page.getByRole('button', { name: '今日', exact: true }).click();
   await expect(page.getByText('更新失败')).toBeVisible();
-  expect(await recordButtonY(page), 'refresh failed').toBe(RECORD_Y);
+  const failed = await recordButtonY(page);
+
   const retry = page.getByRole('button', { name: '重试', exact: true });
-  const retryBox = await retry.boundingBox();
-  expect(retryBox).not.toBeNull();
-  expect(retryBox!.width).toBeGreaterThanOrEqual(44);
-  expect(retryBox!.height).toBeGreaterThanOrEqual(44);
-  const lineHeight = await retry.evaluate((node) => getComputedStyle(node).lineHeight);
-  expect(lineHeight === '18px' || lineHeight === 'normal').toBe(true);
-  const glyph = retry.locator('div, span').last();
-  const glyphLine = await glyph.evaluate((node) => getComputedStyle(node).lineHeight);
-  expect(glyphLine).toBe('18px');
-});
+  const hit = await retry.evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    const text = node.querySelector('div, span') ?? node;
+    const textBox = text.getBoundingClientRect();
+    const style = getComputedStyle(text);
+    const probe = (x: number, y: number) => {
+      const hitNode = document.elementFromPoint(x, y);
+      return hitNode === node || node.contains(hitNode);
+    };
+    return {
+      width: box.width,
+      height: box.height,
+      textHeight: textBox.height,
+      lineHeight: style.lineHeight,
+      corners: [
+        probe(box.left + 1, box.top + 1),
+        probe(box.right - 1, box.top + 1),
+        probe(box.left + 1, box.bottom - 1),
+        probe(box.right - 1, box.bottom - 1),
+      ],
+    };
+  });
+  expect(hit.width, JSON.stringify(hit)).toBeGreaterThanOrEqual(44);
+  expect(hit.height, JSON.stringify(hit)).toBeGreaterThanOrEqual(44);
+  expect(hit.corners, JSON.stringify(hit)).toEqual([true, true, true, true]);
+  expect(hit.lineHeight).toBe('18px');
+  expect(hit.textHeight).toBeLessThanOrEqual(18);
+
+  return { idle, night, refreshing, failed };
+}
 
 function shiftDay(day: string, delta: number): string {
   const date = new Date(`${day}T12:00:00.000Z`);

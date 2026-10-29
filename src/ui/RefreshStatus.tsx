@@ -50,9 +50,8 @@ export function RefreshStatus({
 
   const clock = cachedQuoteClock(cachedAt, timeZone);
   const lead = clock ? `${REFRESH_FAILED_TEXT} · ${REFRESH_CACHED_PREFIX} ${clock} · ` : `${REFRESH_FAILED_TEXT} · `;
-  const active = status !== 'idle';
   return (
-    <View style={[styles.slot, active ? styles.active : null]}>
+    <View style={styles.slot}>
       {status === 'idle' ? (
         idle
       ) : status === 'refreshing' ? (
@@ -88,18 +87,16 @@ export function RefreshStatus({
 const retryBleed = (theme.layout.control - theme.lineHeight.sm) / 2;
 
 const styles = StyleSheet.create({
-  /** At least the caption line. Idle copy may be taller; a status message stays one line. */
+  /** The caption line. The retry target hangs outside it; the line itself stays this tall. */
   slot: {
-    minHeight: theme.lineHeight.sm,
-    justifyContent: 'center',
-  },
-  active: {
     height: theme.lineHeight.sm,
+    justifyContent: 'center',
+    overflow: 'visible',
   },
   row: {
     alignItems: 'center',
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
   },
   retry: {
     alignItems: 'flex-start',

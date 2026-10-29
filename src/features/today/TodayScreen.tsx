@@ -30,7 +30,6 @@ import { LoadingRegion } from '@/ui/LoadingRegion';
 import { Row, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
 import { skeletonHiddenProps, SkeletonDisplay, SkeletonLedger, SkeletonText } from '@/ui/Skeleton';
-import { RefreshStatus } from '@/ui/RefreshStatus';
 import { Text } from '@/ui/Text';
 import { theme } from '@/ui/theme';
 import { useLoadGate } from '@/ui/use-load-gate';
@@ -79,12 +78,6 @@ export function TodayScreen() {
     await Promise.all([reload(), training.reload(), study.reload()]);
   });
 
-  const refreshStatus = refreshing || training.refreshing || study.refreshing
-    ? 'refreshing'
-    : refreshError || training.refreshError || study.refreshError
-      ? 'failed'
-      : 'idle';
-
   const accounting = computeLocalDay(now, timeZone, daySwitch);
   const beforeSwitch = isBeforeDaySwitch(now, timeZone, daySwitch);
   const counted = excludePending(records, pendingDeleteIds);
@@ -97,7 +90,6 @@ export function TodayScreen() {
   const trainingTitle = beforeSwitch ? `${formatMonthDay(accounting)}的训练` : '今天的训练';
   const studyTitle = beforeSwitch ? `${formatMonthDay(accounting)}的学习` : '今天的学习';
   const allLogged = visibleToday.length > 0 && trainingToday.length > 0 && studyToday.length > 0;
-  const note = [beforeSwitch ? nightLine(daySwitch) : null, allLogged ? '今天都记完了' : null].filter(Boolean).join(' · ');
 
   return (
     <Screen>
@@ -105,18 +97,18 @@ export function TodayScreen() {
         <ScreenHeader
           kicker="今日"
           title={`${formatMonthDay(accounting)} ${shortWeekday(accounting)}`}
-          caption={
-            <RefreshStatus
-              status={refreshStatus}
-              timeZone={timeZone}
-              idle={note ? <Text variant="muted">{note}</Text> : null}
-              onRetry={() => {
-                void reload();
-                void training.reload();
-                void study.reload();
-              }}
-            />
-          }
+          subtitle={{
+            failed: refreshError || training.refreshError || study.refreshError,
+            refreshing: refreshing || training.refreshing || study.refreshing,
+            hint: beforeSwitch ? nightLine(daySwitch) : null,
+            description: allLogged ? '今天都记完了' : null,
+            timeZone,
+            onRetry: () => {
+              void reload();
+              void training.reload();
+              void study.reload();
+            },
+          }}
         />
 
         <Stack gap="md">
