@@ -140,6 +140,15 @@ export function SkeletonDisplay() {
   return <Skeleton width={SKELETON_DISPLAY_WIDTH} height={SKELETON_DISPLAY_HEIGHT} radius="bar" />;
 }
 
+/** Display figure centered in the display line box, so a loaded number does not shift the block. */
+export function SkeletonDisplayLine() {
+  return (
+    <View style={[styles.line, { height: textBox.display.lineHeight }]}>
+      <SkeletonDisplay />
+    </View>
+  );
+}
+
 /** Small-card amount placeholder. Width 96, height 16 (§17.2). */
 export function SkeletonMetric() {
   return <Skeleton width={SKELETON_METRIC_WIDTH} height={SKELETON_METRIC_HEIGHT} radius="bar" />;

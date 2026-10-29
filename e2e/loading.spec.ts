@@ -170,6 +170,55 @@ async function expectRecordOnFirstScreen(page: Page) {
   expect(scrolled).toBe(false);
 }
 
+test('a hung weight load turns both skeletons into a dash at 8s, and the record button keeps its place', async ({
+  page,
+}) => {
+  test.setTimeout(LOAD_TIMEOUT_MS + 20_000);
+  const day = accountingDay();
+  const weights = [0, 1, 2, 3].map((ago) => weightRow(`w-${ago}`, shiftDay(day, -ago), 72 + ago, 8));
+  let holding = true;
+  const parked: (() => void)[] = [];
+  await signIn(page);
+  await installApi(page, { weights });
+  await page.route('**/rest/v1/weight_records*', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+    if (holding) await new Promise<void>((resolve) => parked.push(resolve));
+    await route.fallback();
+  });
+  await page.goto('/');
+  await expect(page.locator('[role="status"]')).toHaveText('正在加载今日', { timeout: 4_000 });
+  const record = page.getByRole('button', { name: '记录', exact: true });
+  const duringSkeleton = await record.boundingBox();
+  expect(duringSkeleton).not.toBeNull();
+
+  await expect(page.getByText('没加载出来，检查网络后再试')).toBeVisible({ timeout: LOAD_TIMEOUT_MS });
+  const average = page.getByText('7 日均重', { exact: true }).locator('..');
+  const column = page.getByText('体重', { exact: true }).locator('..');
+  await expect(average.getByText('—', { exact: true })).toBeVisible();
+  await expect(column.getByText('—', { exact: true })).toBeVisible();
+  expect(await skeletonBars(average)).toBe(0);
+  expect(await skeletonBars(column)).toBe(0);
+
+  await page.getByRole('button', { name: '重试' }).click();
+  await expect.poll(() => skeletonBars(average), { timeout: 4_000 }).toBeGreaterThan(0);
+  await expect.poll(() => skeletonBars(column)).toBeGreaterThan(0);
+  holding = false;
+  parked.splice(0).forEach((release) => release());
+  await expect(page.getByText('晨重', { exact: true })).toBeVisible();
+  const afterContent = await record.boundingBox();
+  expect(afterContent).not.toBeNull();
+  expect(Math.round(afterContent!.y)).toBe(Math.round(duringSkeleton!.y));
+});
+
+function shiftDay(day: string, delta: number): string {
+  const date = new Date(`${day}T12:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + delta);
+  return date.toISOString().slice(0, 10);
+}
+
 test('a hung today load shows retry and recovers', async ({ page }) => {
   test.setTimeout(LOAD_TIMEOUT_MS + 15_000);
   const day = accountingDay();

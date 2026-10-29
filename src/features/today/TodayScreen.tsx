@@ -27,7 +27,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { LoadingRegion } from '@/ui/LoadingRegion';
 import { Row, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
-import { SkeletonDisplay, SkeletonLedger, SkeletonText } from '@/ui/Skeleton';
+import { SkeletonDisplayLine, SkeletonLedger, SkeletonText } from '@/ui/Skeleton';
 import { Text } from '@/ui/Text';
 import { useLoadGate } from '@/ui/use-load-gate';
 
@@ -61,6 +61,8 @@ export function TodayScreen() {
   const [now, setNow] = useState(() => new Date());
   const [trainingDetail, setTrainingDetail] = useState(false);
   const [studyOpen, setStudyOpen] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const weightGate = useLoadGate(!ready, loadAttempt);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30_000);
@@ -91,13 +93,23 @@ export function TodayScreen() {
         />
 
         <Stack gap="md">
-          <AverageBlock records={counted} endDay={accounting} ready={ready} failed={loadError !== null} />
+          <AverageBlock
+            records={counted}
+            endDay={accounting}
+            ready={ready}
+            failed={loadError !== null}
+            showSkeleton={weightGate.showSkeleton}
+            timedOut={weightGate.timedOut}
+          />
           <RecordEntry />
           <LoadingRegion
             name="今日"
             loading={!ready}
             error={loadError !== null}
-            onRetry={() => void reload()}
+            onRetry={() => {
+              setLoadAttempt((current) => current + 1);
+              void reload();
+            }}
             skeleton={
               <Card>
                 <SkeletonLedger lines={3} />
@@ -154,6 +166,8 @@ export function TodayScreen() {
           <WeightColumn
             ready={ready}
             failed={loadError !== null}
+            showSkeleton={weightGate.showSkeleton}
+            timedOut={weightGate.timedOut}
             recorded={visibleToday.length > 0}
             summary={visibleToday[0] ? `${formatKg(visibleToday[0].weightKg)} kg` : '未记录'}
             hint={visibleToday[0] ? formatClock(visibleToday[0].recordedAt, visibleToday[0].tz) : undefined}
@@ -270,19 +284,27 @@ function AverageBlock({
   endDay,
   ready,
   failed,
+  showSkeleton,
+  timedOut,
 }: {
   records: Parameters<typeof AverageHeadline>[0]['records'];
   endDay: string;
   ready: boolean;
   failed: boolean;
+  showSkeleton: boolean;
+  timedOut: boolean;
 }) {
-  const gate = useLoadGate(!ready);
-  const phase = weightColumnPhase({ ready, failed, showSkeleton: gate.showSkeleton });
+  const phase = weightColumnPhase({ ready, failed, showSkeleton, timedOut });
   if (phase === 'content') return <AverageHeadline records={records} endDay={endDay} />;
   return (
     <Card>
       <Text variant="muted">7 日均重</Text>
-      {phase === 'skeleton' ? <SkeletonDisplay /> : null}
+      {phase === 'skeleton' ? (
+        <>
+          <SkeletonDisplayLine />
+          <SkeletonText lines={1} variant="muted" />
+        </>
+      ) : null}
       {phase === 'dash' ? <Text variant="muted">—</Text> : null}
     </Card>
   );
@@ -291,18 +313,21 @@ function AverageBlock({
 function WeightColumn({
   ready,
   failed,
+  showSkeleton,
+  timedOut,
   recorded,
   summary,
   hint,
 }: {
   ready: boolean;
   failed: boolean;
+  showSkeleton: boolean;
+  timedOut: boolean;
   recorded: boolean;
   summary: string;
   hint?: string;
 }) {
-  const gate = useLoadGate(!ready);
-  const phase = weightColumnPhase({ ready, failed, showSkeleton: gate.showSkeleton });
+  const phase = weightColumnPhase({ ready, failed, showSkeleton, timedOut });
   return (
     <Stack gap="sm">
       <Text variant="heading">体重</Text>
