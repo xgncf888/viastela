@@ -6,6 +6,8 @@ import { theme as baseTheme } from './theme';
 import { useTheme, type AppTheme } from './ThemeProvider';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+/** `mini` is the 28-high outlined button for a ledger row's inline 记录 (§5). */
+type Size = 'regular' | 'mini';
 type Tone = 'ink' | 'muted' | 'inverse' | 'accent' | 'onAccent' | 'danger' | 'moss' | 'warning';
 
 export function visibleButtonLabel(label: string, loading: boolean, loadingLabel?: string): string {
@@ -17,6 +19,14 @@ export function visibleButtonLabel(label: string, loading: boolean, loadingLabel
 export function nextMeasuredWidth(current: number | null, next: number, loading: boolean): number | null {
   return loading ? current : next;
 }
+
+/** `hitSlop` that grows the 28-high mini button to the 44pt target. */
+export const MINI_HIT_SLOP = {
+  top: (baseTheme.layout.control - baseTheme.layout.controlMini) / 2,
+  bottom: (baseTheme.layout.control - baseTheme.layout.controlMini) / 2,
+  left: baseTheme.space.xs,
+  right: baseTheme.space.xs,
+} as const;
 
 /** `minWidth` while loading, taken from the width measured before the spinner appeared. */
 export function lockedButtonMinWidth(measured: number | null, loading: boolean): number | null {
@@ -39,6 +49,7 @@ export function Button({
   label,
   onPress,
   variant = 'primary',
+  size = 'regular',
   tone,
   disabled = false,
   loading = false,
@@ -49,13 +60,18 @@ export function Button({
   label: string;
   onPress: () => void;
   variant?: Variant;
-  /** Ghost stays accent unless this asks for danger. `accent` uses `accentText` on the label. */
+  /**
+   * `mini` always draws the outlined `ink` look whatever the variant, and the caller must pass
+   * `accessibilityLabel` (「记录体重」「记录训练」「记录学习」).
+   */
+  size?: Size;
+  /** Ghost is `ink` unless this asks for danger. `accent` uses `accentText` on the label. */
   tone?: 'danger' | 'accent';
   disabled?: boolean;
   loading?: boolean;
   /** Shown in place of `label` while loading. Omit it to keep the resting label. */
   loadingLabel?: string;
-  /** Stretch to the column so stacked buttons share one width. */
+  /** Stretch to the column so stacked buttons share one width. Ghost never stretches (§5). */
   fill?: boolean;
   /** Overrides the accessible name. The visible label stays `label`. */
   accessibilityLabel?: string;
@@ -72,8 +88,13 @@ export function Button({
   const inactive = disabled || loading;
   const visible = visibleButtonLabel(label, loading, loadingLabel);
   const hot = hovered && !inactive;
-  const background =
-    variant === 'primary'
+  const mini = size === 'mini';
+  const ghost = variant === 'ghost' && !mini;
+  const background = mini
+    ? hot
+      ? theme.color.fill
+      : 'transparent'
+    : variant === 'primary'
       ? hot
         ? theme.color.accentHover
         : theme.color.accent
@@ -86,17 +107,18 @@ export function Button({
           : hot
             ? tone === 'danger'
               ? theme.color.dangerSoft
-              : theme.color.accentSoft
+              : theme.color.fill
             : 'transparent';
-  const labelTone: Tone =
-    variant === 'primary'
+  const labelTone: Tone = mini
+    ? 'ink'
+    : variant === 'primary'
       ? 'onAccent'
       : variant === 'danger'
         ? 'inverse'
         : variant === 'ghost'
           ? tone === 'danger'
             ? 'danger'
-            : 'accent'
+            : 'ink'
           : tone === 'accent'
             ? 'accent'
             : 'ink';
@@ -114,6 +136,7 @@ export function Button({
       accessibilityState={{ disabled: inactive, busy: loading }}
       aria-busy={loading ? true : undefined}
       disabled={inactive}
+      hitSlop={mini ? MINI_HIT_SLOP : undefined}
       onLayout={onLayout}
       onPress={() => {
         if (inactive) return;
@@ -125,20 +148,13 @@ export function Button({
         styles.base,
         {
           backgroundColor: background,
-          borderColor: variant === 'secondary' ? theme.color.line : 'transparent',
+          borderColor: variant === 'secondary' || mini ? theme.color.line : 'transparent',
           transform: pressed && !inactive ? [{ translateY: 1 }] : undefined,
         },
-        variant === 'primary' && !inactive
-          ? {
-              shadowColor: theme.color.accent,
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.25,
-              shadowRadius: 2,
-              elevation: 1,
-            }
-          : null,
+        mini ? styles.mini : null,
+        ghost ? styles.ghost : null,
         disabled ? { opacity: 0.55 } : null,
-        fill ? styles.fill : null,
+        fill && !ghost ? styles.fill : null,
         locked != null ? { minWidth: locked } : null,
       ]}
     >
@@ -151,12 +167,12 @@ export function Button({
             color={spinner}
             size={theme.space.md}
           />
-          <Text variant="body" tone={labelTone} style={styles.label}>
+          <Text variant={mini ? 'label' : 'body'} tone={labelTone} style={styles.label}>
             {visible}
           </Text>
         </View>
       ) : (
-        <Text variant="body" tone={labelTone} style={styles.label}>
+        <Text variant={mini ? 'label' : 'body'} tone={labelTone} style={styles.label}>
           {visible}
         </Text>
       )}
@@ -167,7 +183,7 @@ export function Button({
 const styles = StyleSheet.create({
   base: {
     minHeight: baseTheme.layout.control,
-    borderRadius: baseTheme.radius.sm,
+    borderRadius: baseTheme.radius.md,
     borderWidth: baseTheme.border.width,
     alignItems: 'center',
     justifyContent: 'center',
@@ -181,5 +197,13 @@ const styles = StyleSheet.create({
     gap: baseTheme.space.sm,
   },
   label: { fontWeight: '500' },
+  mini: {
+    minHeight: baseTheme.layout.controlMini,
+    height: baseTheme.layout.controlMini,
+    borderRadius: baseTheme.radius.sm,
+    paddingHorizontal: baseTheme.space.sm,
+    paddingVertical: 0,
+  },
+  ghost: { alignSelf: 'flex-start', paddingHorizontal: baseTheme.space.sm },
   fill: { alignSelf: 'stretch', width: '100%' },
 });

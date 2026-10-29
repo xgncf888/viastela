@@ -18,7 +18,7 @@ function record(id: string, localDay: string, recordedAt: string, weightKg: numb
 
 const fourDays = [
   record('a', '2026-10-18', '2026-10-18T00:30:00.000Z', 68),
-  record('a2', '2026-10-18', '2026-10-18T12:00:00.000Z', 90),
+  record('a2', '2026-10-18', '2026-10-18T12:00:00.000Z', 80),
   record('b', '2026-10-20', '2026-10-20T00:30:00.000Z', 70),
   record('c', '2026-10-22', '2026-10-22T00:30:00.000Z', 72),
   record('d', '2026-10-24', '2026-10-24T00:30:00.000Z', 74),

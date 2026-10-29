@@ -122,7 +122,11 @@ export function TodayScreen() {
           <Stack gap="md">
           <Text variant="heading">{beforeSwitch ? `${formatMonthDay(accounting)}的记录` : '今天的记录'}</Text>
           {readout.firstRecord ? (
-            <EmptyState title={readout.firstRecord} action={<Button label="记录" onPress={() => openRecordSheet()} />} />
+            <EmptyState
+              title={readout.firstRecord}
+              description="记下体重后，这里会显示近 7 日均重。"
+              action={<Button label="记录" onPress={() => openRecordSheet()} />}
+            />
           ) : null}
           {today.length === 0 && last ? (
             <EmptyState

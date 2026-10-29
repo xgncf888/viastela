@@ -75,6 +75,6 @@ export async function waitForTodayLoaded(page: Page): Promise<void> {
 /** Bottom tab bar / sidebar nav items. */
 export const navLabels = ['今日', '资产', '趋势', '我的'] as const;
 
-export function navItem(page: Page, label: (typeof navLabels)[number]): Locator {
+export function navItem(page: Page, label: (typeof navLabels)[number] | '时间线'): Locator {
   return page.getByRole('button', { name: label, exact: true });
 }
