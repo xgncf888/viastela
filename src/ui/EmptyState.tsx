@@ -4,19 +4,22 @@ import { Stack } from './layout';
 import { Text } from './Text';
 import { theme } from './theme';
 
+/** Every caller writes its own title; there is no default copy (§5). At most one `secondary` action. */
 export function EmptyState({
-  title = '先记第一笔',
-  description = '记下体重后，这里会显示近 7 日均重。',
+  title,
+  description,
   action,
 }: {
-  title?: string;
+  title: string;
   description?: string;
   action?: React.ReactNode;
 }) {
   return (
     <View style={styles.wrap}>
       <Stack gap="xs">
-        <Text variant="heading">{title}</Text>
+        <Text variant="body" style={styles.title}>
+          {title}
+        </Text>
         {description ? <Text variant="muted">{description}</Text> : null}
       </Stack>
       {action}
@@ -27,6 +30,7 @@ export function EmptyState({
 const styles = StyleSheet.create({
   wrap: {
     gap: theme.space.md,
-    paddingVertical: theme.space.lg,
+    paddingVertical: theme.space.md,
   },
+  title: { fontWeight: theme.fontWeight.medium },
 });
