@@ -93,6 +93,10 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      # Fake providers only. This job does not call Finnhub or a hosted project.
+      # Fake providers only. This job does not call Finnhub, a push service, or a hosted project.
       - run: deno check --config supabase/functions/deno.json supabase/functions/quotes/index.ts
       - run: deno test --config supabase/functions/deno.json --allow-read supabase/functions/quotes
+      - name: deno check reminders
+        run: deno check --config supabase/functions/deno.json supabase/functions/reminders/index.ts
+      - name: deno test reminders
+        run: deno test --config supabase/functions/deno.json --allow-read supabase/functions/reminders

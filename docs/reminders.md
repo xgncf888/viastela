@@ -10,7 +10,7 @@ The `reminders` Edge Function scans live `push_subscriptions` with the service r
 | `VAPID_PUBLIC_KEY` | Edge Function | Same public key, base64url uncompressed P-256 |
 | `VAPID_PRIVATE_KEY` | Edge Function | Base64url raw 32-byte P-256 private key |
 | `VAPID_SUBJECT` | Edge Function | `mailto:` or `https:` contact on the VAPID JWT |
-| `REMINDERS_CRON_SECRET` | Edge Function and the cron job | Shared secret. The request header is `x-reminders-cron-secret` |
+| `REMINDERS_CRON_SECRET` | Edge Function. The scheduled command reads the same value from Vault (`reminders_cron_secret`) | Shared secret. The request header is `x-reminders-cron-secret` |
 | `SUPABASE_URL` | Injected by Supabase | Project URL. Not set in this repo |
 | `SUPABASE_SERVICE_ROLE_KEY` | Injected by Supabase | Service role. Not set in this repo |
 
@@ -47,21 +47,29 @@ The asset dashboard route `/assets` is not in this branch. The month-end notific
 
 ## Schedule
 
-Apply this in the database as a one-off. It is not a migration in this repo. Replace the placeholders. Do not store the service role in the command.
+This is not a migration in this repo. Do not store the service role, the cron secret, or the project URL in `cron.job`.
+
+创建这个定时任务属于托管库的敏感改动，需要四人全审并由 Yifeng 点头，由 Grok Ultra 通过官方连接器执行；不要手动在托管库执行。
+
+An operator creates the Vault secrets once. Both values below are placeholders.
 
 ```sql
-create extension if not exists pg_cron;
-create extension if not exists pg_net;
+select vault.create_secret('https://PROJECT_REF.supabase.co', 'reminders_project_url');
+select vault.create_secret('REPLACE_WITH_CRON_SECRET', 'reminders_cron_secret');
+```
 
+The scheduled command only reads those names:
+
+```sql
 select cron.schedule(
   'viastela-reminders',
   '* * * * *',
   $$
   select net.http_post(
-    url := 'https://PROJECT_REF.supabase.co/functions/v1/reminders',
+    url := (select decrypted_secret from vault.decrypted_secrets where name = 'reminders_project_url') || '/functions/v1/reminders',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'x-reminders-cron-secret', 'REMINDERS_CRON_SECRET'
+      'x-reminders-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'reminders_cron_secret')
     ),
     body := '{}'::jsonb
   );
