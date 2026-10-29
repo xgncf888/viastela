@@ -2,6 +2,7 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 
 import { computeLocalDay } from '../src/core/local-day';
 import { timelineDayKey, timelineDayLabel } from '../src/core/timeline-day';
+import { navItem, waitForTodayLoaded } from './selectors';
 import { authSession, installApi, userId } from './session';
 
 const userB = '22222222-2222-4222-8222-222222222222';
@@ -177,7 +178,8 @@ test.describe('timeline', () => {
     await signInAs(page, { userId, email: 'yifeng@example.com' }, true);
     await installTimeline(page);
     await page.goto('/');
-    await page.getByRole('button', { name: '时间线' }).click();
+    await waitForTodayLoaded(page);
+    await navItem(page, '时间线').click();
     await expect(page).toHaveURL(/\/timeline$/);
     await expect(page.getByRole('heading', { name: '时间线' })).toBeVisible();
     await expect(page.getByText('更新了 现金 余额')).toBeVisible();

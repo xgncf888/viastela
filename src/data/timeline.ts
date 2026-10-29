@@ -1,5 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
 import {
   collectTimelinePage,
   TIMELINE_PAGE_SIZE,
@@ -9,11 +7,10 @@ import {
 import { assetPageKeyset, datedKeyset, instantKeyset, type TimelineCursor } from '@/core/timeline-day';
 import { requireDeletedIds } from '@/core/weight-write';
 
-import type { Json } from './database.types';
+import { readAmountMasked } from './amount-mask';
 import { getSupabase } from './client';
+import type { Json } from './database.types';
 import { liveRows } from './live-rows';
-
-const AMOUNT_MASK_PREFIX = 'viastela.amount-mask.v1.';
 
 export type TimelineRecord = {
   id: string;
@@ -119,11 +116,9 @@ export async function softDeleteJournal(id: string): Promise<void> {
   requireDeletedIds(data);
 }
 
-/** Same key as the assets mask. Missing means hidden. `0` is the only shown value. */
+/** Same store as the assets screen. Missing means hidden. */
 export async function readTimelineAmountsHidden(userId: string): Promise<boolean> {
-  if (userId.trim().length === 0) return true;
-  const value = await AsyncStorage.getItem(`${AMOUNT_MASK_PREFIX}${userId}`);
-  return value !== '0';
+  return readAmountMasked(userId);
 }
 
 async function selectTimeline(input: {
