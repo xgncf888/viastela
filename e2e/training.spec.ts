@@ -1,5 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 
+import { recordButton, recordSheetHeading, typeChip, waitForTodayLoaded } from './selectors';
 import { installApi, signIn, weightRow, type TrainingRow } from './session';
 
 const day = '2026-10-27';
@@ -74,14 +75,18 @@ async function openPausedToday(
     emptyTrainingDelete: extra.emptyTrainingDelete,
   });
   await page.goto('/');
-  await expect(page.getByText('晨重', { exact: true })).toHaveCount(1);
+  await waitForTodayLoaded(page);
+  await expect(page.getByText('晨重', { exact: true })).toBeVisible();
   await page.clock.pauseAt(`${day}T08:01:00.000Z`);
 }
 
 async function saveSet(page: Page, exercise: string, reps: string, load: { weight: string } | { band: string }) {
-  await page.getByRole('button', { name: '记录', exact: true }).click();
-  await page.getByRole('button', { name: '训练' }).click();
+  await recordButton(page).click();
+  await typeChip(page, '训练').click();
   const exerciseField = page.getByRole('textbox', { name: '动作' });
+  const other = page.getByRole('button', { name: '+ 其他' });
+  // Wait for the form to settle before branching: either the free-text field or the chip list.
+  await expect(exerciseField.or(other).first()).toBeVisible();
   if (!(await exerciseField.isVisible())) {
     await page.getByRole('button', { name: '+ 其他' }).click();
   }
@@ -107,7 +112,7 @@ test('记一组 lists it today, and 撤销 within 5s sends no write', async ({ p
   await openPausedToday(page, writes);
   await saveSet(page, '卧推', '8', { weight: '40' });
   await expect(page.getByText('8 次 · 40 kg')).toBeVisible();
-  await expect(writes.posts).toHaveLength(1);
+  await expect.poll(() => writes.posts.length).toBe(1);
   await openSetDetail(page, '卧推 1 组');
 
   const card = page
@@ -129,6 +134,7 @@ test('no undo writes one deleted_at for the training set at 5s', async ({ page }
   const writes = trackTraining();
   await openPausedToday(page, writes);
   await saveSet(page, '卧推', '8', { weight: '40' });
+  await expect.poll(() => writes.posts.length).toBe(1);
   const created = JSON.parse(writes.posts[0] ?? '{}') as { id?: string };
   expect(created.id).toBeTruthy();
   await openSetDetail(page, '卧推 1 组');
@@ -157,6 +163,7 @@ test('a band set is listed with its level', async ({ page }) => {
   await expect(page.getByText('6 次 · 弹力带 轻')).toBeVisible();
   await openSetDetail(page, '引体向上 1 组');
   await expect(page.getByText('6 次 · 弹力带 轻')).toBeVisible();
+  await expect.poll(() => writes.posts.length).toBe(1);
   expect(writes.posts[0]).toContain('light');
   expect(writes.posts[0]).not.toContain('"weight_kg":40');
 });
@@ -217,8 +224,8 @@ test('the most recently used exercise is the first chip', async ({ page }) => {
   await expect(page.getByRole('button', { name: '卧推 1 组' })).toBeVisible();
   await expect(page.getByRole('button', { name: '深蹲 1 组' })).toHaveCount(0);
 
-  await page.getByRole('button', { name: '记录', exact: true }).click();
-  await page.getByRole('button', { name: '训练' }).click();
+  await recordButton(page).click();
+  await typeChip(page, '训练').click();
   const chips = page.getByRole('button').filter({ hasText: /^(深蹲|卧推)$/ });
   await expect(chips.nth(0)).toHaveText('深蹲');
   await expect(chips.nth(1)).toHaveText('卧推');
@@ -228,8 +235,8 @@ test('the most recently used exercise is the first chip', async ({ page }) => {
 test('with no training history the form offers the six home exercises', async ({ page }) => {
   const writes = trackTraining();
   await openPausedToday(page, writes);
-  await page.getByRole('button', { name: '记录', exact: true }).click();
-  await page.getByRole('button', { name: '训练' }).click();
+  await recordButton(page).click();
+  await typeChip(page, '训练').click();
   for (const name of ['哑铃卧推', '单臂划船', '肩推', '深蹲', '弹力带面拉', '俯卧撑']) {
     await expect(page.getByRole('button', { name })).toBeVisible();
   }
@@ -240,23 +247,23 @@ test('完成 asks before leaving an edited set, and an unchanged +1 组 closes',
   const writes = trackTraining();
   await openPausedToday(page, writes);
 
-  await page.getByRole('button', { name: '记录', exact: true }).click();
-  await page.getByRole('button', { name: '训练' }).click();
+  await recordButton(page).click();
+  await typeChip(page, '训练').click();
   await page.getByRole('button', { name: '完成' }).click();
   await expect(page.getByRole('button', { name: '保存这一组并完成' })).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: '记录' })).toBeHidden();
+  await expect(recordSheetHeading(page)).toBeHidden();
   expect(writes.posts).toHaveLength(0);
 
-  await page.getByRole('button', { name: '记录', exact: true }).click();
-  await page.getByRole('button', { name: '训练' }).click();
+  await recordButton(page).click();
+  await typeChip(page, '训练').click();
   await page.getByRole('button', { name: '哑铃卧推' }).click();
   await page.getByRole('button', { name: '完成' }).click();
   await expect(page.getByRole('button', { name: '保存这一组并完成' })).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: '记录' })).toBeHidden();
+  await expect(recordSheetHeading(page)).toBeHidden();
   expect(writes.posts).toHaveLength(0);
 
-  await page.getByRole('button', { name: '记录', exact: true }).click();
-  await page.getByRole('button', { name: '训练' }).click();
+  await recordButton(page).click();
+  await typeChip(page, '训练').click();
   await page.getByRole('button', { name: '哑铃卧推' }).click();
   await page.getByRole('textbox', { name: '重量（kg）' }).fill('20');
   await page.getByRole('textbox', { name: '次数' }).fill('10');
@@ -264,31 +271,31 @@ test('完成 asks before leaving an edited set, and an unchanged +1 组 closes',
   await expect(page.getByRole('button', { name: '保存这一组并完成' })).toBeVisible();
   await expect(page.getByRole('button', { name: '不保存，直接完成' })).toBeVisible();
   await page.getByRole('button', { name: '不保存，直接完成' }).click();
-  await expect(page.getByRole('heading', { name: '记录' })).toBeHidden();
+  await expect(recordSheetHeading(page)).toBeHidden();
   expect(writes.posts).toHaveLength(0);
 
-  await page.getByRole('button', { name: '记录', exact: true }).click();
-  await page.getByRole('button', { name: '训练' }).click();
+  await recordButton(page).click();
+  await typeChip(page, '训练').click();
   await page.getByRole('button', { name: '哑铃卧推' }).click();
   await page.getByRole('textbox', { name: '重量（kg）' }).fill('20');
   await page.getByRole('textbox', { name: '次数' }).fill('10');
   await page.getByRole('button', { name: '完成' }).click();
   await page.getByRole('button', { name: '保存这一组并完成' }).click();
   await expect.poll(() => writes.posts.length).toBe(1);
-  await expect(page.getByRole('heading', { name: '记录' })).toBeHidden();
+  await expect(recordSheetHeading(page)).toBeHidden();
   await expect(page.getByRole('button', { name: '哑铃卧推 1 组' })).toBeVisible();
 });
 
 test('an unchanged +1 组 prefill closes without another row', async ({ page }) => {
   const writes = trackTraining();
   await openPausedToday(page, writes, [trainingSeed('seed', '深蹲', `${day}T07:00:00.000Z`, day)]);
-  await page.getByRole('button', { name: '记录', exact: true }).click();
-  await page.getByRole('button', { name: '训练' }).click();
+  await recordButton(page).click();
+  await typeChip(page, '训练').click();
   await page.getByRole('button', { name: '深蹲', exact: true }).click();
   await page.getByRole('button', { name: '+1 组' }).click();
   await page.getByRole('button', { name: '完成' }).click();
   await expect(page.getByRole('button', { name: '保存这一组并完成' })).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: '记录' })).toBeHidden();
+  await expect(recordSheetHeading(page)).toBeHidden();
   expect(writes.posts).toHaveLength(0);
 });
 

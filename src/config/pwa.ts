@@ -1,4 +1,4 @@
-import { brand } from './brand';
+import { brand, webManifestName } from './brand';
 import { theme } from '../ui/theme';
 
 export type PwaSplash = {
@@ -46,15 +46,18 @@ export function splashPath(splash: PwaSplash): string {
 }
 
 export const pwaIcons = {
+  svg: '/favicon.svg',
+  ico: '/favicon.ico',
   any192: '/icons/icon-192.png',
   any512: '/icons/icon-512.png',
+  maskable192: '/icons/icon-maskable-192.png',
   maskable512: '/icons/icon-maskable-512.png',
   appleTouch: '/icons/apple-touch-icon.png',
 } as const;
 
 export const pwaManifest = {
-  name: brand.homeScreenName,
-  short_name: brand.homeScreenShortName,
+  name: webManifestName,
+  short_name: brand.webName,
   start_url: '/',
   scope: '/',
   display: 'standalone',
@@ -64,6 +67,7 @@ export const pwaManifest = {
   icons: [
     { src: pwaIcons.any192, sizes: '192x192', type: 'image/png', purpose: 'any' },
     { src: pwaIcons.any512, sizes: '512x512', type: 'image/png', purpose: 'any' },
+    { src: pwaIcons.maskable192, sizes: '192x192', type: 'image/png', purpose: 'maskable' },
     { src: pwaIcons.maskable512, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
   ],
 } as const;

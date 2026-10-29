@@ -1,5 +1,8 @@
-import { civilLocalDay, zonedCivilTime } from '../../../src/core/local-day.ts';
-import { MONTH_END_REMINDER_PATH, TRAINING_REMINDER_PATH } from '../../../src/core/reminder-paths.ts';
+import { civilLocalDay, zonedCivilTime } from '../_shared/local-day.ts';
+
+/** Same paths as src/core/reminder-paths.ts. Functions do not import app source. */
+const TRAINING_REMINDER_PATH = '/';
+const MONTH_END_REMINDER_PATH = '/assets?updateBalances=1';
 
 export type ReminderKind = 'training' | 'month_end';
 

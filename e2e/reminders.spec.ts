@@ -2,7 +2,14 @@ import { devices, expect, test, type Page } from '@playwright/test';
 
 import { REMINDER_COPY } from '../src/core/reminder-settings';
 import { PUSH_SUBSCRIPTION_ID_KEY } from '../src/features/me/reminder-storage';
-import { installApi, signIn } from './session';
+import { navItem, recordButton, waitForTodayLoaded } from './selectors';
+import { installApi, signIn, weightRow } from './session';
+
+async function openMe(page: Page): Promise<void> {
+  await page.goto('/');
+  await waitForTodayLoaded(page);
+  await navItem(page, '我的').click();
+}
 
 const inventedVapid = `B${'A'.repeat(86)}`;
 
@@ -139,7 +146,7 @@ async function installPushApi(page: Page, seed: StoredPush[] = []) {
 test('push is unconfigured until a public key exists', async ({ page }) => {
   await signIn(page);
   await installApi(page, { weights: [] });
-  await page.goto('/me');
+  await openMe(page);
   await expect(page.getByText(REMINDER_COPY.unconfigured)).toBeVisible();
   await expect(page.getByRole('switch', { name: REMINDER_COPY.training })).toBeDisabled();
   await expect(page.getByRole('switch', { name: REMINDER_COPY.monthEnd })).toBeDisabled();
@@ -152,7 +159,7 @@ test('the two reminder toggles persist independently and keep weekdays', async (
   await signIn(page);
   await installApi(page, { weights: [] });
   const rows = await installPushApi(page);
-  await page.goto('/me');
+  await openMe(page);
   const training = page.getByRole('switch', { name: REMINDER_COPY.training });
   const monthEnd = page.getByRole('switch', { name: REMINDER_COPY.monthEnd });
   await expect(training).toBeEnabled();
@@ -222,7 +229,7 @@ test('a denied permission soft-deletes the saved row and does not ask again on l
       deleted_at: null,
     },
   ]);
-  await page.goto('/me');
+  await openMe(page);
   await expect(page.getByText(REMINDER_COPY.permissionDenied)).toBeVisible();
   await expect.poll(() => rows[0]?.deleted_at).not.toBeNull();
   expect(await page.evaluate(() => (window as unknown as { __permissionRequests: () => number }).__permissionRequests())).toBe(0);
@@ -236,10 +243,40 @@ test('iOS outside the home screen disables both switches', async ({ browser }) =
   await installPushMock(page, 'default');
   await signIn(page);
   await installApi(page, { weights: [] });
-  await page.goto('/me');
+  await openMe(page);
   await expect(page.getByText(REMINDER_COPY.iosInstall)).toBeVisible();
   await expect(page.getByRole('switch', { name: REMINDER_COPY.training })).toBeDisabled();
   await expect(page.getByRole('switch', { name: REMINDER_COPY.monthEnd })).toBeDisabled();
   expect(await page.evaluate(() => (window as unknown as { __permissionRequests: () => number }).__permissionRequests())).toBe(0);
   await context.close();
+});
+
+test.describe('month-end notice on Today', () => {
+  test.use({ timezoneId: 'UTC', viewport: { width: 390, height: 844 } });
+
+  test('the card sits under the record button and does not move it', async ({ page }) => {
+    await page.clock.install({ time: new Date('2026-10-15T09:00:00.000Z') });
+    await signIn(page);
+    await installApi(page, { weights: [weightRow('w-month', '2026-10-15', 76)] });
+    await page.goto('/');
+    await waitForTodayLoaded(page);
+    await expect(page.getByText('这个月还没更新资产余额')).toHaveCount(0);
+    const before = await recordButton(page).boundingBox();
+
+    await page.clock.setFixedTime(new Date('2026-10-31T09:00:00.000Z'));
+    await page.reload();
+    await waitForTodayLoaded(page);
+    const notice = page.getByText('这个月还没更新资产余额');
+    await expect(notice).toBeVisible();
+    const button = recordButton(page);
+    await expect(button).toBeInViewport();
+    const after = await button.boundingBox();
+    const noticeBox = await notice.boundingBox();
+    expect(before).not.toBeNull();
+    expect(after).not.toBeNull();
+    expect(noticeBox).not.toBeNull();
+    expect(Math.abs(after!.y - before!.y)).toBeLessThanOrEqual(1);
+    expect(noticeBox!.y).toBeGreaterThanOrEqual(after!.y + after!.height - 1);
+    expect(after!.y + after!.height).toBeLessThanOrEqual(844);
+  });
 });

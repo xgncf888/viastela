@@ -6,6 +6,7 @@
  * Navigations and index.html are network-first so a new deploy replaces the old bundle.
  * A push click opens the payload url. Training falls back to /, month-end to the asset dashboard.
  */
+// Export rewrites this to shell-static-<revision> so activate drops the previous cache.
 const CACHE_NAME = 'shell-static-v1';
 
 const STATIC_FILE = /\.(?:js|css|png|jpe?g|webp|gif|svg|ico|woff2?|ttf|otf)$/i;

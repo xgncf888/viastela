@@ -2,6 +2,8 @@ export const MONTH_END_BANNER_COPY = {
   message: '这个月还没更新资产余额',
   update: '去更新',
   dismiss: '关闭',
+  /** Distinct from the record sheet's 关闭. The visible label stays `dismiss`. */
+  dismissName: '关闭月底提醒',
 } as const;
 
 export function lastDayOfMonth(year: number, month: number): number {

@@ -63,3 +63,36 @@ jobs:
           done
           exit 1
       - run: supabase --yes test db --local
+
+  lint-migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test scripts/lint-migrations.test.mjs
+      - run: node scripts/lint-migrations.mjs
+
+  lint-secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test scripts/lint-secrets.test.mjs
+      - run: node scripts/lint-secrets.mjs
+
+  quotes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      # Fake providers only. This job does not call Finnhub or a hosted project.
+      - run: deno check --config supabase/functions/deno.json supabase/functions/quotes/index.ts
+      - run: deno test --config supabase/functions/deno.json --allow-read supabase/functions/quotes

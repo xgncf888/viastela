@@ -67,6 +67,7 @@ export function MonthEndNotice({ timeZone }: { timeZone: string }) {
         <Button label={MONTH_END_BANNER_COPY.update} variant="ghost" onPress={() => router.push(MONTH_END_REMINDER_PATH)} />
         <Button
           label={MONTH_END_BANNER_COPY.dismiss}
+          accessibilityLabel={MONTH_END_BANNER_COPY.dismissName}
           variant="ghost"
           onPress={() => {
             if (month) writeDismissed(month);

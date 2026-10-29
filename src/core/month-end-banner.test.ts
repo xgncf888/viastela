@@ -34,5 +34,7 @@ describe('month-end balance banner', () => {
     expect(shouldShowMonthEndBanner({ ...due, dismissedMonth: '2026-09' })).toBe(true);
     expect(MONTH_END_BANNER_COPY.message).toBe('这个月还没更新资产余额');
     expect(MONTH_END_BANNER_COPY.update).toBe('去更新');
+    expect(MONTH_END_BANNER_COPY.dismiss).toBe('关闭');
+    expect(MONTH_END_BANNER_COPY.dismissName).toBe('关闭月底提醒');
   });
 });
