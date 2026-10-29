@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 
 import { currentTimeZone } from '@/core/local-day';
 import {
@@ -45,6 +46,11 @@ import {
 import { currentEndpoint, readBrowserEnv, readVapidPublicKey, requestBrowserPermission, subscribePush } from './web-push';
 
 export function RemindersCard() {
+  if (Platform.OS !== 'web') return null;
+  return <RemindersCardWeb />;
+}
+
+function RemindersCardWeb() {
   const [draft, setDraft] = useState<ReminderDraft>(() => emptyReminderDraft());
   const [ready, setReady] = useState(false);
   const [permission, setPermission] = useState<ReminderPermission>(() => readBrowserEnv().permission);

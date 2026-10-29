@@ -80,7 +80,7 @@ export function MeScreen() {
             hint="每条记录写下当时的时区。之后换城市，旧记录的归属日不变。"
           />
         </Card>
-        <RemindersCard />
+        {Platform.OS === 'web' ? <RemindersCard /> : null}
         <Card>
           <Text variant="body">体重、训练和学习可以在今日记。时间块还在后面。</Text>
         </Card>

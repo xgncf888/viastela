@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 import { vapidPublicKey } from '@/config/env';
 
 import type { ReminderPermission } from '@/core/reminder-settings';
@@ -36,6 +38,8 @@ type BrowserWindow = Window & {
 };
 
 function browserWindow(): BrowserWindow | null {
+  // React Native provides `window` without `matchMedia`. The platform check is the guard.
+  if (Platform.OS !== 'web') return null;
   if (typeof window === 'undefined') return null;
   return window;
 }
@@ -46,21 +50,24 @@ export function readVapidPublicKey(): string | null {
 
 export function browserIsIos(): boolean {
   const nav = browserWindow()?.navigator;
-  if (!nav) return false;
-  return /iPad|iPhone|iPod/i.test(nav.userAgent) || (nav.platform === 'MacIntel' && nav.maxTouchPoints > 1);
+  if (!nav || typeof nav.userAgent !== 'string') return false;
+  const platform = typeof nav.platform === 'string' ? nav.platform : '';
+  const points = typeof nav.maxTouchPoints === 'number' ? nav.maxTouchPoints : 0;
+  return /iPad|iPhone|iPod/i.test(nav.userAgent) || (platform === 'MacIntel' && points > 1);
 }
 
 export function browserStandalone(): boolean {
   const view = browserWindow();
-  if (!view) return false;
-  const nav = view.navigator as Navigator & { standalone?: boolean };
-  return view.matchMedia('(display-mode: standalone)').matches || nav.standalone === true;
+  if (!view || typeof view.matchMedia !== 'function') return false;
+  const nav = view.navigator as (Navigator & { standalone?: boolean }) | undefined;
+  return view.matchMedia('(display-mode: standalone)').matches || nav?.standalone === true;
 }
 
 export function browserPushSupported(): boolean {
   const view = browserWindow();
-  if (!view) return false;
-  return 'serviceWorker' in view.navigator && 'PushManager' in view;
+  const nav = view?.navigator;
+  if (!view || !nav || typeof nav.serviceWorker === 'undefined') return false;
+  return typeof (view as BrowserWindow & { PushManager?: unknown }).PushManager !== 'undefined';
 }
 
 export function browserPermission(): ReminderPermission {
@@ -83,7 +90,7 @@ export function readBrowserEnv(): BrowserEnv {
 
 export async function requestBrowserPermission(): Promise<ReminderPermission> {
   const view = browserWindow();
-  if (!view || typeof view.Notification === 'undefined') return 'unsupported';
+  if (!view || typeof view.Notification?.requestPermission !== 'function') return 'unsupported';
   const value = await view.Notification.requestPermission();
   if (value === 'granted' || value === 'denied' || value === 'default') return value;
   return 'unsupported';
@@ -99,7 +106,7 @@ export function urlBase64ToBytes(value: string): Uint8Array {
 
 async function pushManager(): Promise<PushManagerLike | null> {
   const view = browserWindow();
-  if (!view || !('serviceWorker' in view.navigator)) return null;
+  if (!view || typeof view.navigator?.serviceWorker === 'undefined') return null;
   const registration = await view.navigator.serviceWorker.ready;
   const manager = (registration as ServiceWorkerRegistration & { pushManager?: PushManagerLike }).pushManager;
   return manager ?? null;
