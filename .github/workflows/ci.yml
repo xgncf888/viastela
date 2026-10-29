@@ -86,6 +86,17 @@ jobs:
       - run: node --test scripts/lint-secrets.test.mjs
       - run: node scripts/lint-secrets.mjs
 
+  lint-shared-copies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test scripts/check-shared-copies.test.mjs
+      - run: node scripts/check-shared-copies.mjs
+
   quotes:
     runs-on: ubuntu-latest
     steps:
