@@ -9,6 +9,7 @@ type Entry = {
   id: string;
   owner: string;
   commit: () => Promise<void>;
+  notice?: string;
 };
 
 let entries = new Map<string, Entry>();
@@ -29,9 +30,10 @@ function clearTimer() {
 }
 
 function showUndo() {
-  const count = entries.size;
+  const pending = [...entries.values()];
+  const text = pending.length === 1 && pending[0]?.notice ? pending[0].notice : pending.length === 1 ? '已删除' : `已删除 ${pending.length} 条`;
   showToast({
-    text: count === 1 ? '已删除' : `已删除 ${count} 条`,
+    text,
     duration: DELETE_UNDO_MS,
     pinned: true,
     action: { label: '撤销', onPress: () => cancelDeferredDeletes() },
@@ -84,10 +86,15 @@ export function cancelDeferredDeletes(owner?: string): void {
   arm();
 }
 
-export function scheduleDeferredDelete(owner: string, id: string, commit: () => Promise<void>): void {
+export function scheduleDeferredDelete(
+  owner: string,
+  id: string,
+  commit: () => Promise<void>,
+  notice?: string,
+): void {
   if (entries.has(id)) return;
   const next = new Map(entries);
-  next.set(id, { id, owner, commit });
+  next.set(id, { id, owner, commit, notice });
   entries = next;
   emit();
   arm();

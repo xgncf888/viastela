@@ -74,6 +74,6 @@ const styles = StyleSheet.create({
     borderWidth: baseTheme.border.width,
     fontSize: baseTheme.font.md,
     paddingHorizontal: baseTheme.space.md,
-    fontVariant: ['tabular-nums'],
+    fontVariant: ['tabular-nums', 'lining-nums'],
   },
 });
