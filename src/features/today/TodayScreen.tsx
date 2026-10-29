@@ -12,6 +12,7 @@ import {
 import { studyDaySummary, studyDetail, studyRecordsOnDay } from '@/core/study';
 import { formatTrainingLoad, trainingDaySummary, trainingSetsOnDay } from '@/core/training';
 import { formatKg, latestRecord, recordsOnDay } from '@/core/weight-stats';
+import { useRefreshOnFocus } from '@/data/refresh-on-focus';
 import { openRecordSheet } from '@/features/record/record-sheet-store';
 import { MonthEndNotice } from '@/features/today/MonthEndNotice';
 import { useShellInset } from '@/features/shell/AppShell';
@@ -29,6 +30,7 @@ import { LoadingRegion } from '@/ui/LoadingRegion';
 import { Row, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
 import { skeletonHiddenProps, SkeletonDisplay, SkeletonLedger, SkeletonText } from '@/ui/Skeleton';
+import { RefreshStatus } from '@/ui/RefreshStatus';
 import { Text } from '@/ui/Text';
 import { theme } from '@/ui/theme';
 import { useLoadGate } from '@/ui/use-load-gate';
@@ -48,7 +50,9 @@ export function TodayScreen() {
     loadError,
     records,
     failedIds,
-    saving,
+    savingIds,
+    refreshing,
+    refreshError,
     daySwitch,
     timeZone,
     reload,
@@ -71,6 +75,16 @@ export function TodayScreen() {
     return () => clearInterval(timer);
   }, []);
 
+  useRefreshOnFocus(async () => {
+    await Promise.all([reload(), training.reload(), study.reload()]);
+  });
+
+  const refreshStatus = refreshing || training.refreshing || study.refreshing
+    ? 'refreshing'
+    : refreshError || training.refreshError || study.refreshError
+      ? 'failed'
+      : 'idle';
+
   const accounting = computeLocalDay(now, timeZone, daySwitch);
   const beforeSwitch = isBeforeDaySwitch(now, timeZone, daySwitch);
   const counted = excludePending(records, pendingDeleteIds);
@@ -92,6 +106,15 @@ export function TodayScreen() {
           kicker="今日"
           title={`${formatMonthDay(accounting)} ${shortWeekday(accounting)}`}
           note={note || undefined}
+        />
+        <RefreshStatus
+          status={refreshStatus}
+          timeZone={timeZone}
+          onRetry={() => {
+            void reload();
+            void training.reload();
+            void study.reload();
+          }}
         />
 
         <Stack gap="md">
@@ -155,7 +178,7 @@ export function TodayScreen() {
                     <Text variant="muted" tone="danger">
                       未保存
                     </Text>
-                    <Button label="重试" onPress={() => void retry(record.id)} loading={saving} />
+                    <Button label="重试" onPress={() => void retry(record.id)} loading={savingIds.has(record.id)} />
                     <Button label="放弃" variant="ghost" onPress={() => dismiss(record.id)} />
                   </Row>
                 ) : null}
@@ -244,7 +267,7 @@ export function TodayScreen() {
                       <Text variant="muted" tone="danger">
                         未保存
                       </Text>
-                      <Button label="重试" onPress={() => void training.retry(set.id)} loading={training.saving} />
+                      <Button label="重试" onPress={() => void training.retry(set.id)} loading={training.savingIds.has(set.id)} />
                       <Button label="放弃" variant="ghost" onPress={() => training.dismiss(set.id)} />
                     </Row>
                   ) : null}
@@ -267,7 +290,7 @@ export function TodayScreen() {
                       <Text variant="muted" tone="danger">
                         未保存
                       </Text>
-                      <Button label="重试" onPress={() => void study.retry(record.id)} loading={study.saving} />
+                      <Button label="重试" onPress={() => void study.retry(record.id)} loading={study.savingIds.has(record.id)} />
                       <Button label="放弃" variant="ghost" onPress={() => study.dismiss(record.id)} />
                     </Row>
                   ) : null}

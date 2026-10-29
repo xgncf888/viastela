@@ -10,7 +10,9 @@ import { groupTimeline, presentTimeline, type PresentedTimelineItem } from '@/co
 import { scheduleDeferredDelete, useDeferredDeleteIds } from '@/features/record/deferred-delete';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { useShellInset } from '@/features/shell/AppShell';
+import { withLoadTimeout } from '@/data/load-timeout';
 import { getDaySwitch } from '@/data/profile';
+import { useRefreshOnFocus } from '@/data/refresh-on-focus';
 import {
   listTimelineAccounts,
   loadTimelinePage,
@@ -95,11 +97,13 @@ export function TimelineScreen() {
       setFailed(false);
     }
     try {
-      const [page, nextAccounts, hidden] = await Promise.all([
-        loadTimelinePage({ timeZone: zone, daySwitch: switchTime, filter: nextFilter, cursor: null }),
-        listTimelineAccounts(),
-        session ? readTimelineAmountsHidden(session.userId) : Promise.resolve(true),
-      ]);
+      const [page, nextAccounts, hidden] = await withLoadTimeout(
+        Promise.all([
+          loadTimelinePage({ timeZone: zone, daySwitch: switchTime, filter: nextFilter, cursor: null }),
+          listTimelineAccounts(),
+          session ? readTimelineAmountsHidden(session.userId) : Promise.resolve(true),
+        ]),
+      );
       if (ticket !== generation.current) return;
       setRows(page.records);
       setCursor(page.nextCursor);
@@ -115,6 +119,16 @@ export function TimelineScreen() {
       if (ticket === generation.current) setRefreshing(false);
     }
   }, [session, settle]);
+
+  useRefreshOnFocus(() => {
+    if (!readyRef.current) return undefined;
+    return getDaySwitch()
+      .then((switchTime) => reload(filterRef.current, switchTime, currentTimeZone()))
+      .catch(() => {
+        setRefreshError(true);
+        setRefreshing(false);
+      });
+  });
 
   useEffect(() => {
     if (!session) return undefined;

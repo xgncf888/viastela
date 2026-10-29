@@ -37,6 +37,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const current = armed && armed.route === routeTab ? armed.id : routeTab;
 
   function go(tab: (typeof TABS)[number]) {
+    if (tab.id === current) return;
     setArmed({ id: tab.id, route: routeTab });
     router.replace(tab.href);
   }

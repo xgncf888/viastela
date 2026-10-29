@@ -48,41 +48,49 @@ export function RefreshStatus({
     return undefined;
   }, [status]);
 
-  if (status === 'idle') return <>{idle}</>;
-  if (status === 'refreshing') {
-    return (
-      <Text variant="muted" accessibilityLiveRegion="none">
-        {REFRESHING_TEXT}
-      </Text>
-    );
-  }
   const clock = cachedQuoteClock(cachedAt, timeZone);
   const lead = clock ? `${REFRESH_FAILED_TEXT} · ${REFRESH_CACHED_PREFIX} ${clock} · ` : `${REFRESH_FAILED_TEXT} · `;
   return (
-    <View
-      accessibilityLiveRegion={Platform.OS === 'android' ? 'polite' : undefined}
-      role={Platform.OS === 'web' ? 'status' : undefined}
-      style={styles.row}
-    >
-      <Text variant="muted" tone={clock ? 'warning' : undefined}>
-        {lead}
-      </Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={REFRESH_RETRY_LABEL}
-        hitSlop={{ top: theme.space.sm, bottom: theme.space.sm, left: theme.space.sm, right: theme.space.sm }}
-        onPress={onRetry}
-        style={styles.retry}
-      >
-        <Text variant="body" tone="accent">
-          {REFRESH_RETRY_LABEL}
+    <View style={styles.slot}>
+      {status === 'idle' ? (
+        idle
+      ) : status === 'refreshing' ? (
+        <Text variant="muted" accessibilityLiveRegion="none">
+          {REFRESHING_TEXT}
         </Text>
-      </Pressable>
+      ) : (
+        <View
+          accessibilityLiveRegion={Platform.OS === 'android' ? 'polite' : undefined}
+          role={Platform.OS === 'web' ? 'status' : undefined}
+          style={styles.row}
+        >
+          <Text variant="muted" tone={clock ? 'warning' : undefined}>
+            {lead}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={REFRESH_RETRY_LABEL}
+            hitSlop={{ top: theme.space.sm, bottom: theme.space.sm, left: theme.space.sm, right: theme.space.sm }}
+            onPress={onRetry}
+            style={styles.retry}
+          >
+            <Text variant="body" tone="accent">
+              {REFRESH_RETRY_LABEL}
+            </Text>
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  /** Always the status-line height, so the message does not push the page. */
+  slot: {
+    height: theme.lineHeight.sm,
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
   row: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -90,6 +98,5 @@ const styles = StyleSheet.create({
   },
   retry: {
     justifyContent: 'center',
-    minHeight: theme.layout.control,
   },
 });

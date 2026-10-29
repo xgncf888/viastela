@@ -6,6 +6,7 @@ import { beginSave, confirmSave, reconcileServerRows, visibleRecords, type SaveS
 import { recentTopicNames, studySaveToast, type RecentTopicRow, type StudyRecord } from '@/core/study';
 import { RECORD_DELETED, weightSaveOutcome } from '@/core/weight-write';
 import { getDaySwitch } from '@/data/profile';
+import { withLoadTimeout } from '@/data/load-timeout';
 import { listRecentTopics, listStudyRecords, softDeleteStudyRecord, upsertStudyRecord } from '@/data/study';
 import { useAuth } from '@/features/auth/AuthProvider';
 import {
@@ -25,7 +26,9 @@ type StudyContextValue = {
   failedIds: ReadonlySet<string>;
   pendingDeleteIds: ReadonlySet<string>;
   deletedNotice: boolean;
-  saving: boolean;
+  savingIds: ReadonlySet<string>;
+  refreshing: boolean;
+  refreshError: boolean;
   daySwitch: string;
   timeZone: string;
   recentTopics: readonly string[];
@@ -50,13 +53,15 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   const [failedIds, setFailedIds] = useState<ReadonlySet<string>>(new Set());
   const [daySwitch, setDaySwitch] = useState(DEFAULT_DAY_SWITCH);
   const [ready, setReady] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [savingIds, setSavingIds] = useState<ReadonlySet<string>>(new Set());
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState(false);
+  const readyRef = useRef(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [deletedNotice, setDeletedNotice] = useState(false);
   const [recentRows, setRecentRows] = useState<RecentTopicRow[]>([]);
   const creating = useRef(false);
   const inFlight = useRef(new Set<string>());
-  const saves = useRef(0);
   const alive = useRef(new Set<string>());
   const loadTicket = useRef(0);
   const confirmedTicket = useRef(new Map<string, number>());
@@ -78,20 +83,41 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     setDaySwitch(nextSwitch);
     setRecentRows(recent);
     setSaveState((current) => reconcileServerRows(current, rows, keep));
+    setRefreshError(false);
     setReady(true);
   }, []);
 
+  useEffect(() => {
+    readyRef.current = ready;
+  }, [ready]);
+
   const reload = useCallback(async () => {
     const ticket = ++loadTicket.current;
+    const background = readyRef.current;
+    if (background) {
+      setRefreshing(true);
+      setRefreshError(false);
+    }
     try {
-      const nextSwitch = await getDaySwitch();
-      const { records: rows, recent } = await loadSaved(nextSwitch);
+      const loaded = await withLoadTimeout(
+        (async () => {
+          const nextSwitch = await getDaySwitch();
+          const saved = await loadSaved(nextSwitch);
+          return { nextSwitch, ...saved };
+        })(),
+      );
       if (ticket !== loadTicket.current) return;
-      applyRows(rows, recent, nextSwitch, ticket);
+      applyRows(loaded.records, loaded.recent, loaded.nextSwitch, ticket);
+      setRefreshError(false);
     } catch {
       if (ticket !== loadTicket.current) return;
-      setLoadError('读取失败');
-      setReady(true);
+      if (readyRef.current) setRefreshError(true);
+      else {
+        setLoadError('读取失败');
+        setReady(true);
+      }
+    } finally {
+      if (ticket === loadTicket.current) setRefreshing(false);
     }
   }, [applyRows, loadSaved]);
 
@@ -151,8 +177,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       inFlight.current.add(id);
       alive.current.add(id);
       if (!input.existingId) creating.current = false;
-      saves.current += 1;
-      setSaving(true);
+      setSavingIds((current) => {
+        const next = new Set(current);
+        next.add(id);
+        return next;
+      });
       void (async () => {
         try {
           await upsertStudyRecord(record);
@@ -182,8 +211,12 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           showToast({ text: '保存失败，请重试', tone: 'error' });
         } finally {
           inFlight.current.delete(id);
-          saves.current = Math.max(0, saves.current - 1);
-          setSaving(saves.current > 0);
+          setSavingIds((current) => {
+            if (!current.has(id)) return current;
+            const next = new Set(current);
+            next.delete(id);
+            return next;
+          });
         }
       })();
       return 'saved';
@@ -273,7 +306,9 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       failedIds,
       pendingDeleteIds,
       deletedNotice,
-      saving,
+      savingIds,
+      refreshing,
+      refreshError,
       daySwitch,
       timeZone: currentTimeZone(),
       recentTopics,
@@ -291,7 +326,9 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       failedIds,
       pendingDeleteIds,
       deletedNotice,
-      saving,
+      savingIds,
+      refreshing,
+      refreshError,
       daySwitch,
       recentTopics,
       reload,

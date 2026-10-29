@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -93,13 +93,27 @@ export function NavItem({
   const { color, press } = useTheme();
   const reducedMotion = useReducedMotion() === true;
   const side = placement === 'side';
+  const pointerNav = useRef(false);
+  function activate(pointer: boolean) {
+    if (selected) return;
+    if (pointer) {
+      pointerNav.current = true;
+      onPress();
+      return;
+    }
+    if (pointerNav.current) {
+      pointerNav.current = false;
+      return;
+    }
+    onPress();
+  }
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
       aria-selected={Platform.OS === 'web' ? selected : undefined}
-      onPressIn={onPress}
-      onPress={onPress}
+      onPressIn={() => activate(true)}
+      onPress={() => activate(false)}
       style={({ pressed }) => [
         styles.nav,
         side ? styles.navSide : styles.navTab,

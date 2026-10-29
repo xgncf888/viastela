@@ -30,6 +30,7 @@ jest.mock('react-native', () => {
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), replace: jest.fn() },
   usePathname: () => '/',
+  useFocusEffect: () => undefined,
 }));
 
 jest.mock('@/features/auth/AuthProvider', () => {

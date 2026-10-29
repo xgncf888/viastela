@@ -195,10 +195,14 @@ test('press, save, and tab switch timings', async ({ page }) => {
   });
 
   const timelineRequests: string[] = [];
+  const weightGets: string[] = [];
   page.on('request', (request) => {
     const url = request.url();
     if (url.includes('/rest/v1/timeline') || url.includes('/rest/v1/asset_accounts') || url.includes('/rest/v1/profiles')) {
       timelineRequests.push(`${request.method()} ${url.split('?')[0]}`);
+    }
+    if (request.method() === 'GET' && url.includes('/rest/v1/weight_records')) {
+      weightGets.push(url.split('?')[0]);
     }
   });
 
@@ -217,12 +221,25 @@ test('press, save, and tab switch timings', async ({ page }) => {
     },
   });
   let delayTimeline = false;
+  const timelineJson = {
+    status: 200,
+    headers: { 'access-control-allow-origin': '*', 'content-type': 'application/json' },
+    body: '[]',
+  };
   await page.route('**/rest/v1/timeline**', async (route) => {
     if (delayTimeline) await new Promise((resolve) => setTimeout(resolve, 1100));
+    if (route.request().method() === 'GET') {
+      await route.fulfill(timelineJson);
+      return;
+    }
     await route.fallback();
   });
   await page.route('**/rest/v1/asset_accounts**', async (route) => {
     if (delayTimeline) await new Promise((resolve) => setTimeout(resolve, 1100));
+    if (route.request().method() === 'GET') {
+      await route.fulfill(timelineJson);
+      return;
+    }
     await route.fallback();
   });
   await page.goto('/');
@@ -232,15 +249,25 @@ test('press, save, and tab switch timings', async ({ page }) => {
   const todayProbe = await stamp(todayHeading);
   await page.getByRole('button', { name: '时间线', exact: true }).click();
   await expect(page.getByRole('heading', { name: '时间线' })).toBeVisible();
+  await expect(page.getByText('还没有记录')).toBeVisible();
   const timelineHeading = page.getByRole('heading', { name: '时间线' });
   const timelineProbe = await stamp(timelineHeading);
   delayTimeline = true;
-  const fetchesBeforeReturn = timelineRequests.length;
+  const weightBeforeReturn = weightGets.length;
   await page.getByRole('button', { name: '今日', exact: true }).click();
   await expect(page.getByText('晨重', { exact: true })).toBeVisible();
+  await expect.poll(() => weightGets.length - weightBeforeReturn).toBe(2);
   const todayAliveAfterReturn = await probeAlive(page, todayProbe);
+  const todayFetchesOnReturn = weightGets.length - weightBeforeReturn;
+  const timelineBefore = timelineRequests.filter((line) => line.startsWith('GET ') && line.includes('/rest/v1/timeline')).length;
+  const fetchesBeforeReturn = timelineRequests.length;
   await page.getByRole('button', { name: '时间线', exact: true }).click();
   await expect(page.getByRole('heading', { name: '时间线' })).toBeVisible();
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
+  const timelineGets = () =>
+    timelineRequests.filter((line) => line.startsWith('GET ') && line.includes('/rest/v1/timeline')).length;
+  // Dated scan, then the asset scan after it returns. Two GETs is one page refresh.
+  await expect.poll(() => timelineGets() - timelineBefore).toBe(2);
   const timelineAlive = await probeAlive(page, timelineProbe);
   const fetchesOnReturn = timelineRequests.length - fetchesBeforeReturn;
   let skeleton = false;
@@ -290,7 +317,7 @@ test('press, save, and tab switch timings', async ({ page }) => {
     {
       screen: 'TodayScreen',
       mountCountAfterAwayAndBack: todayAliveAfterReturn ? 1 : 2,
-      fetchesOnReturn: 0,
+      fetchesOnReturn: todayFetchesOnReturn,
       skeletonVisibleOnReturn: false,
       probeSurvived: todayAliveAfterReturn,
     },
@@ -336,6 +363,5 @@ test('press, save, and tab switch timings', async ({ page }) => {
     expect(tab.mountCountAfterAwayAndBack, tab.screen).toBe(1);
     expect(tab.probeSurvived, tab.screen).toBe(true);
   }
-  expect(tabs[1].fetchesOnReturn).toBe(0);
   expect(tabs[1].skeletonVisibleOnReturn).toBe(false);
 });
