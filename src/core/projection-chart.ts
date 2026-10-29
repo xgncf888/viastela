@@ -2,7 +2,7 @@ import { actualSeriesNote } from './quote-label';
 import type { NetWorthProjection } from './projection';
 import { annualRatePercent } from './projection-copy';
 
-export type ChartTone = 'accent' | 'moss' | 'muted' | 'line';
+export type ChartTone = 'accent' | 'moss' | 'muted' | 'line' | 'target';
 export type ChartStyle = 'solid' | 'dashed' | 'dotted';
 
 export type ProjectionChartPoint = { id: string; x: number; y: number };
@@ -25,7 +25,9 @@ export type ProjectionChart = {
 
 /**
  * Positions are 0 to 1. The chart does not know dollars.
- * The selected line is moss. The other two are thinner muted dashes.
+ * The selected line is moss at the chart's normal stroke. The other two are thinner muted dashes.
+ * The target line is `target`, dotted, and 1px (`thin`).
+ * §6 also names 1.8 and 1.2. Those are not theme tokens, so this file does not invent them.
  * Actual points are omitted until there are two of them.
  */
 export function projectionChart(input: {
@@ -57,9 +59,9 @@ export function projectionChart(input: {
       id: 'target',
       label: '目标',
       style: 'dotted',
-      tone: 'line',
+      tone: 'target',
       markers: false,
-      thin: false,
+      thin: true,
       points: [
         { id: 'target-start', x: 0, y: yOf(input.targetUsd) },
         { id: 'target-end', x: 1, y: yOf(input.targetUsd) },

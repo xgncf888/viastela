@@ -89,6 +89,23 @@ function svg(tag: string, props: Record<string, unknown>, ...children: ReactNode
   return createElement(tag, props, ...children);
 }
 
+/** Last point is `dotLast` with a card-colored stroke so it separates from the line. */
+export function chartMarkerDot(
+  index: number,
+  count: number,
+  fill: string,
+  card: string,
+): { r: number; fill: string; stroke?: string; strokeWidth?: number } {
+  const last = count > 0 && index === count - 1;
+  if (!last) return { r: theme.layout.dot / 2, fill };
+  return {
+    r: theme.layout.dotLast / 2,
+    fill,
+    stroke: card,
+    strokeWidth: theme.border.width,
+  };
+}
+
 function axisLines(axis: ChartAxisLine | null, width: number): ReactNode {
   if (!axis) return null;
   return [
@@ -154,13 +171,12 @@ function WebPlot({
       strokeLinejoin: 'round',
       strokeLinecap: 'round',
     }),
-    plot.placed.map((point) =>
+    plot.placed.map((point, index) =>
       svg('circle', {
         key: point.id,
         cx: point.x,
         cy: point.rawY,
-        r: theme.layout.dot / 2,
-        fill: color.accent,
+        ...chartMarkerDot(index, plot.placed.length, color.accent, color.card),
       }),
     ),
   );
@@ -213,9 +229,20 @@ function NativePlot({
         strokeLinejoin="round"
         strokeLinecap="round"
       />
-      {plot.placed.map((point) => (
-        <Circle key={point.id} cx={point.x} cy={point.rawY} r={theme.layout.dot / 2} fill={color.accent} />
-      ))}
+      {plot.placed.map((point, index) => {
+        const mark = chartMarkerDot(index, plot.placed.length, color.accent, color.card);
+        return (
+          <Circle
+            key={point.id}
+            cx={point.x}
+            cy={point.rawY}
+            r={mark.r}
+            fill={mark.fill}
+            stroke={mark.stroke}
+            strokeWidth={mark.stroke ? mark.strokeWidth : undefined}
+          />
+        );
+      })}
     </Svg>
   );
 }
@@ -324,13 +351,12 @@ function SeriesWeb({
     ),
     plot.series.flatMap((series) =>
       series.markers
-        ? series.points.map((point) =>
+        ? series.points.map((point, index) =>
             svg('circle', {
               key: `${series.id}-${point.id}`,
               cx: point.x,
               cy: point.y,
-              r: theme.layout.dot / 2,
-              fill: toneColor(series.tone, color),
+              ...chartMarkerDot(index, series.points.length, toneColor(series.tone, color), color.card),
             }),
           )
         : [],
@@ -389,15 +415,20 @@ function SeriesNative({
       ))}
       {plot.series.flatMap((series) =>
         series.markers
-          ? series.points.map((point) => (
-              <Circle
-                key={`${series.id}-${point.id}`}
-                cx={point.x}
-                cy={point.y}
-                r={theme.layout.dot / 2}
-                fill={toneColor(series.tone, color)}
-              />
-            ))
+          ? series.points.map((point, index) => {
+              const mark = chartMarkerDot(index, series.points.length, toneColor(series.tone, color), color.card);
+              return (
+                <Circle
+                  key={`${series.id}-${point.id}`}
+                  cx={point.x}
+                  cy={point.y}
+                  r={mark.r}
+                  fill={mark.fill}
+                  stroke={mark.stroke}
+                  strokeWidth={mark.stroke ? mark.strokeWidth : undefined}
+                />
+              );
+            })
           : [],
       )}
     </Svg>
@@ -471,15 +502,25 @@ function SeriesLineChart({
           );
         }}
       />
-      <Row gap="md" wrap>
+      <XLabels xTicks={xTicks} startLabel={startLabel} endLabel={endLabel} inset={ticks && ticks.length > 0 ? theme.layout.axisGutter : 0} />
+      <Legend wrap>
         {series.map((item) => (
           <Row key={item.id} gap="xs">
             <LegendSwatch styleName={item.style} color={toneColor(item.tone, color)} />
-            <Text variant="muted">{item.label}</Text>
+            <Text variant="caption">{item.label}</Text>
           </Row>
         ))}
+      </Legend>
+    </View>
+  );
+}
+
+function Legend({ children, wrap = false }: { children: ReactNode; wrap?: boolean }) {
+  return (
+    <View style={styles.legend}>
+      <Row gap="md" wrap={wrap}>
+        {children}
       </Row>
-      <XLabels xTicks={xTicks} startLabel={startLabel} endLabel={endLabel} inset={ticks && ticks.length > 0 ? theme.layout.axisGutter : 0} />
     </View>
   );
 }
@@ -515,16 +556,6 @@ function LegacyLineChart({
 
   return (
     <View accessibilityRole="image" accessibilityLabel={accessibilityLabel}>
-      <Row gap="md">
-        <Row gap="xs">
-          <View style={[styles.dot, { backgroundColor: color.accent }]} />
-          <Text variant="muted">{rawLabel}</Text>
-        </Row>
-        <Row gap="xs">
-          <View style={[styles.dash, { backgroundColor: color.moss }]} />
-          <Text variant="muted">{trendLabel}</Text>
-        </Row>
-      </Row>
       <ChartCanvas
         ticks={ticks}
         unit={unit}
@@ -541,6 +572,16 @@ function LegacyLineChart({
         }}
       />
       <XLabels xTicks={xTicks} startLabel={startLabel} endLabel={endLabel} inset={ticks && ticks.length > 0 ? theme.layout.axisGutter : 0} />
+      <Legend>
+        <Row gap="xs">
+          <View style={[styles.dot, { backgroundColor: color.accent }]} />
+          <Text variant="caption">{rawLabel}</Text>
+        </Row>
+        <Row gap="xs">
+          <View style={[styles.dash, { backgroundColor: color.moss }]} />
+          <Text variant="caption">{trendLabel}</Text>
+        </Row>
+      </Legend>
     </View>
   );
 }
@@ -724,6 +765,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: theme.layout.stroke,
     borderStyle: 'dotted',
   },
+  legend: { marginTop: theme.space.sm },
   frame: { width: '100%' },
   plot: { flex: 1 },
   axisRow: { flexDirection: 'row', width: '100%' },
