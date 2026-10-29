@@ -2,6 +2,10 @@
 # One schema-qualified name per line. GRANT to anon is never accepted.
 # quote_cache and fx_rates are omitted on purpose: these migrations grant the
 # API roles nothing on those tables.
+# reminder_deliveries is omitted on purpose: 20261027153506 revokes
+# authenticated and grants nothing. The server writes that log.
+# public.timeline is a security_invoker view. That migration grants select
+# with GRANT ... ON TABLE, which this lint treats as a table grant.
 #
 # A real failure already shipped in supabase/migrations can be recorded here
 # when the SQL itself must not be edited:
@@ -22,3 +26,6 @@ public.net_worth_goals
 public.projection_assumptions
 public.net_worth_snapshots
 public.asset_events
+public.journal_entries
+public.push_subscriptions
+public.timeline

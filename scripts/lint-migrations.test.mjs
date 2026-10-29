@@ -23,7 +23,7 @@ test('existing migrations pass with no allowlisted violations', () => {
   assert.deepEqual(result.suppressed, []);
 
   const created = [...result.tables.entries()].filter(([, table]) => table.created);
-  assert.equal(created.length, 13);
+  assert.equal(created.length, 16);
   for (const [key, table] of created) assert.equal(table.rls, true, key);
 
   const soft = created.filter(([, table]) => table.deletedAt).map(([key]) => key).sort();
@@ -31,8 +31,10 @@ test('existing migrations pass with no allowlisted violations', () => {
     'public.account_balances',
     'public.asset_accounts',
     'public.holdings',
+    'public.journal_entries',
     'public.net_worth_goals',
     'public.projection_assumptions',
+    'public.push_subscriptions',
     'public.study_records',
     'public.training_sets',
     'public.weight_records',
