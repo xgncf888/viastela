@@ -258,6 +258,79 @@ async function recordButtonY(page: Page): Promise<number> {
   return box!.y;
 }
 
+const RECORD_Y = 236;
+
+test('the record button stays at 236 with no hint, the night hint, a refresh, and a failed refresh', async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  const day = '2026-10-29';
+  const cors = {
+    'access-control-allow-origin': '*',
+    'content-type': 'application/json',
+  };
+  await page.clock.install({ time: new Date(`${day}T08:00:00.000Z`) });
+  await signIn(page);
+  await installApi(page, { weights: [weightRow('w-1', day, 76.4)] });
+  let weightGets = 0;
+  let mode: 'ok' | 'delay' | 'fail' = 'ok';
+  await page.route('**/rest/v1/weight_records**', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+    weightGets += 1;
+    if (mode === 'delay' && weightGets > 2) {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+    }
+    if (mode === 'fail' && weightGets > 2) {
+      await route.fulfill({ status: 500, headers: cors, body: '{"message":"down"}' });
+      return;
+    }
+    await route.fallback();
+  });
+  await page.goto('/');
+  await expect(page.getByText('晨重', { exact: true })).toBeVisible();
+  await expect(page.getByText('凌晨 4 点前的记录算作前一天')).toHaveCount(0);
+  expect(await recordButtonY(page), 'no hint').toBe(RECORD_Y);
+
+  await page.clock.setFixedTime(new Date(`${day}T02:00:00.000Z`));
+  await page.reload();
+  await expect(page.getByText('凌晨 4 点前的记录算作前一天')).toBeVisible();
+  expect(await recordButtonY(page), 'night hint').toBe(RECORD_Y);
+
+  await page.clock.setFixedTime(new Date(`${day}T08:00:00.000Z`));
+  await page.reload();
+  await expect(page.getByText('晨重', { exact: true })).toBeVisible();
+  mode = 'delay';
+  const seen = weightGets;
+  await page.getByRole('button', { name: '时间线', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '时间线' })).toBeVisible();
+  await page.getByRole('button', { name: '今日', exact: true }).click();
+  await expect(page.getByText('正在更新…')).toBeVisible();
+  expect(await recordButtonY(page), 'refreshing').toBe(RECORD_Y);
+  await expect.poll(() => weightGets).toBeGreaterThan(seen);
+  await expect(page.getByText('正在更新…')).toHaveCount(0);
+
+  mode = 'fail';
+  await page.clock.setFixedTime(new Date(`${day}T08:00:02.000Z`));
+  await page.getByRole('button', { name: '时间线', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '时间线' })).toBeVisible();
+  await page.getByRole('button', { name: '今日', exact: true }).click();
+  await expect(page.getByText('更新失败')).toBeVisible();
+  expect(await recordButtonY(page), 'refresh failed').toBe(RECORD_Y);
+  const retry = page.getByRole('button', { name: '重试', exact: true });
+  const retryBox = await retry.boundingBox();
+  expect(retryBox).not.toBeNull();
+  expect(retryBox!.width).toBeGreaterThanOrEqual(44);
+  expect(retryBox!.height).toBeGreaterThanOrEqual(44);
+  const lineHeight = await retry.evaluate((node) => getComputedStyle(node).lineHeight);
+  expect(lineHeight === '18px' || lineHeight === 'normal').toBe(true);
+  const glyph = retry.locator('div, span').last();
+  const glyphLine = await glyph.evaluate((node) => getComputedStyle(node).lineHeight);
+  expect(glyphLine).toBe('18px');
+});
+
 function shiftDay(day: string, delta: number): string {
   const date = new Date(`${day}T12:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + delta);

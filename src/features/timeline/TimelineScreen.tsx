@@ -219,8 +219,11 @@ export function TimelineScreen() {
           if (cursor && !loadingMore) void loadMore();
         }}
       >
-        <ScreenHeader kicker="记录" title="时间线" />
-        <RefreshStatus status={refreshStatus} onRetry={retryRefresh} timeZone={timeZone} />
+        <ScreenHeader
+          kicker="记录"
+          title="时间线"
+          caption={<RefreshStatus status={refreshStatus} onRetry={retryRefresh} timeZone={timeZone} />}
+        />
         <Row justify="between" align="center" wrap>
           <ChipGroup>
             {FILTERS.map((choice) => (

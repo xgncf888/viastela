@@ -105,16 +105,18 @@ export function TodayScreen() {
         <ScreenHeader
           kicker="今日"
           title={`${formatMonthDay(accounting)} ${shortWeekday(accounting)}`}
-          note={note || undefined}
-        />
-        <RefreshStatus
-          status={refreshStatus}
-          timeZone={timeZone}
-          onRetry={() => {
-            void reload();
-            void training.reload();
-            void study.reload();
-          }}
+          caption={
+            <RefreshStatus
+              status={refreshStatus}
+              timeZone={timeZone}
+              idle={note ? <Text variant="muted">{note}</Text> : null}
+              onRetry={() => {
+                void reload();
+                void training.reload();
+                void study.reload();
+              }}
+            />
+          }
         />
 
         <Stack gap="md">

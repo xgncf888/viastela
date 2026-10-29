@@ -45,12 +45,14 @@ export function TrendScreen() {
         <ScreenHeader
           kicker="趋势"
           title="近 7 日"
-          detail="均重用每天最早的一笔。同一天更晚的记录是复测，不进均重。"
-        />
-        <RefreshStatus
-          status={refreshing ? 'refreshing' : refreshError ? 'failed' : 'idle'}
-          timeZone={timeZone}
-          onRetry={() => void reload()}
+          caption={
+            <RefreshStatus
+              status={refreshing ? 'refreshing' : refreshError ? 'failed' : 'idle'}
+              timeZone={timeZone}
+              idle={<Text variant="body">均重用每天最早的一笔。同一天更晚的记录是复测，不进均重。</Text>}
+              onRetry={() => void reload()}
+            />
+          }
         />
         {loadError ? (
           <Callout message={loadError} action={<Button label="重试" variant="secondary" onPress={() => void reload()} />} />

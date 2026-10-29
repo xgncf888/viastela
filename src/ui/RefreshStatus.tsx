@@ -50,8 +50,9 @@ export function RefreshStatus({
 
   const clock = cachedQuoteClock(cachedAt, timeZone);
   const lead = clock ? `${REFRESH_FAILED_TEXT} · ${REFRESH_CACHED_PREFIX} ${clock} · ` : `${REFRESH_FAILED_TEXT} · `;
+  const active = status !== 'idle';
   return (
-    <View style={styles.slot}>
+    <View style={[styles.slot, active ? styles.active : null]}>
       {status === 'idle' ? (
         idle
       ) : status === 'refreshing' ? (
@@ -64,17 +65,16 @@ export function RefreshStatus({
           role={Platform.OS === 'web' ? 'status' : undefined}
           style={styles.row}
         >
-          <Text variant="muted" tone={clock ? 'warning' : undefined}>
+          <Text variant="muted" tone="warning">
             {lead}
           </Text>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={REFRESH_RETRY_LABEL}
-            hitSlop={{ top: theme.space.sm, bottom: theme.space.sm, left: theme.space.sm, right: theme.space.sm }}
             onPress={onRetry}
             style={styles.retry}
           >
-            <Text variant="body" tone="accent">
+            <Text variant="muted" tone="accent">
               {REFRESH_RETRY_LABEL}
             </Text>
           </Pressable>
@@ -84,12 +84,17 @@ export function RefreshStatus({
   );
 }
 
+/** How far the 44px target hangs out of the caption line without growing it. */
+const retryBleed = (theme.layout.control - theme.lineHeight.sm) / 2;
+
 const styles = StyleSheet.create({
-  /** Always the status-line height, so the message does not push the page. */
+  /** At least the caption line. Idle copy may be taller; a status message stays one line. */
   slot: {
-    height: theme.lineHeight.sm,
+    minHeight: theme.lineHeight.sm,
     justifyContent: 'center',
-    overflow: 'hidden',
+  },
+  active: {
+    height: theme.lineHeight.sm,
   },
   row: {
     alignItems: 'center',
@@ -97,6 +102,10 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   retry: {
+    alignItems: 'flex-start',
     justifyContent: 'center',
+    marginVertical: -retryBleed,
+    minHeight: theme.layout.control,
+    minWidth: theme.layout.control,
   },
 });

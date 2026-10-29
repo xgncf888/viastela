@@ -156,6 +156,7 @@ export function ScreenHeader({
   detail,
   note,
   trailing,
+  caption,
 }: {
   /**
    * @deprecated DESIGN.md §5 and §7: a page header does not repeat the nav name.
@@ -167,12 +168,25 @@ export function ScreenHeader({
   note?: string;
   /** Right side of the title row. Omit it and the title stays a single line. */
   trailing?: ReactNode;
+  /**
+   * The one line under the title. A refresh status lives here, and shows `detail` / `note`
+   * through its idle content, so the message does not add a page row.
+   */
+  caption?: ReactNode;
 }) {
   const heading = (
     <Text variant="title" accessibilityRole="header">
       {title}
     </Text>
   );
+  const subtitle =
+    caption ??
+    (detail || note ? (
+      <>
+        {detail ? <Text variant="body">{detail}</Text> : null}
+        {note ? <Text variant="muted">{note}</Text> : null}
+      </>
+    ) : null);
   return (
     <Stack gap="xs">
       {trailing ? (
@@ -183,8 +197,7 @@ export function ScreenHeader({
       ) : (
         heading
       )}
-      {detail ? <Text variant="body">{detail}</Text> : null}
-      {note ? <Text variant="muted">{note}</Text> : null}
+      {subtitle}
     </Stack>
   );
 }

@@ -187,9 +187,7 @@ export function AssetsScreen() {
     reloadRef.current = reload;
   }, [reload]);
 
-  useRefreshOnFocus(() => {
-    void reload();
-  });
+  useRefreshOnFocus(() => reload());
 
   useEffect(() => {
     let cancelled = false;
