@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { assetSaveNotice } from '@/core/asset-errors';
@@ -72,7 +72,7 @@ import { Content } from '@/ui/Content';
 import { EmptyState } from '@/ui/EmptyState';
 import { LineChart, type ChartStroke } from '@/ui/LineChart';
 import { LoadingRegion } from '@/ui/LoadingRegion';
-import { Callout, Row, ScreenHeader, Stack } from '@/ui/layout';
+import { Callout, Columns, Divider, Row, ScreenHeader, Stack } from '@/ui/layout';
 import { RefreshStatus } from '@/ui/RefreshStatus';
 import { SkeletonDisplay, SkeletonLedger, SkeletonMetric, SkeletonText } from '@/ui/Skeleton';
 import { MaskedAmount } from '@/ui/MaskedAmount';
@@ -276,191 +276,259 @@ export function AssetsScreen() {
           onRetry={() => void reload()}
           skeleton={<AssetsSkeleton />}
         >
-        {book?.source === 'cost_basis' ? <Callout tone="warning" message={COST_BASIS_CALLOUT} /> : null}
-        {visibleAccounts.length === 0 ? (
-          <EmptyState
-            title="还没有账户"
-            description="先添加一个账户，再记下余额和持仓。"
-            action={<Button label="添加第一个账户" onPress={() => setSheet('account')} />}
-          />
-        ) : model ? (
-          <Stack gap="md">
-            <Overview
-              model={model}
-              masked={masked}
-              onGoal={() => setSheet('goal')}
-              refresh={quoteRefresh}
-              onRetry={() => void reload()}
-              timeZone={timeZone}
-              cachedAt={refreshCachedAt}
-            />
-            <Projection
-              model={model}
-              masked={masked}
-              onAdjust={() => setSheet('assumptions')}
-              onReveal={() => void persistMask(false)}
-              onSelect={(index) => {
-                void selectRate(index).catch((error: unknown) => {
-                  showToast({ text: assetSaveNotice(error).message, tone: 'error' });
-                });
-              }}
-            />
+          {book?.source === 'cost_basis' ? <Callout tone="warning" message={COST_BASIS_CALLOUT} /> : null}
+          {visibleAccounts.length === 0 ? (
             <Card>
-              <Row justify="between">
-                <Text variant="heading">账户</Text>
-                <Button label="全部更新余额" variant="ghost" onPress={() => setSheet('balances')} />
-              </Row>
-              {visibleAccounts.map((account) => {
-                const balance = latestBalance(portfolio?.balances ?? [], account.id);
-                const blocked = (portfolio?.holdings ?? []).some((holding) => holding.accountId === account.id);
-                return (
-                  <Stack
-                    key={account.id}
-                    gap="xs"
-                    accessibilityLabel={nativeAmountRowLabel(
-                      [
-                        account.name,
-                        ' ',
-                        {
-                          text: balance ? formatMoney(balance.amount, account.currency) : '暂无价格',
-                          masked: masked && Boolean(balance),
-                        },
-                      ],
-                      Platform.OS,
-                    )}
-                  >
-                    <Row justify="between">
-                      <Text variant="body">{account.name}</Text>
-                      <Button label="更新余额" variant="ghost" onPress={() => setSheet({ kind: 'balance', accountId: account.id })} />
-                    </Row>
-                    <MaskedAmount
-                      text={balance ? formatMoney(balance.amount, account.currency) : '暂无价格'}
-                      masked={masked && Boolean(balance)}
-                      variant="heading"
-                    />
-                    {balance && account.currency !== 'USD' && model.approx.get(account.id) != null ? (
-                      <Text
-                        variant="muted"
-                        accessibilityLabel={nativeAmountRowLabel(
-                          ['≈ ', { text: formatMoney(model.approx.get(account.id) ?? 0, 'USD'), masked }],
-                          Platform.OS,
-                        )}
-                      >
-                        ≈{' '}
-                        <MaskedAmount text={formatMoney(model.approx.get(account.id) ?? 0, 'USD')} masked={masked} variant="muted" />
-                      </Text>
-                    ) : null}
-                    {blocked ? (
-                      <Text variant="muted">先移除这个账户里的持仓</Text>
-                    ) : (
-                      <Button
-                        label="删除"
-                        variant="ghost"
-                        onPress={() =>
-                          scheduleDeferredDelete(
-                            'assets',
-                            account.id,
-                            async () => {
-                              try {
-                                await softDeleteAccount(account.id);
-                                await reloadRef.current();
-                              } catch (error) {
-                                showToast({ text: assetSaveNotice(error).message, tone: 'error' });
-                              }
-                            },
-                            deletedAccountUndo(account.name),
-                          )
-                        }
-                      />
-                    )}
-                  </Stack>
-                );
-              })}
-              <Button label="添加账户" variant="secondary" onPress={() => setSheet('account')} />
+              <EmptyState
+                title="还没有账户"
+                description="先添加一个账户，再记下余额和持仓。"
+                action={<Button label="添加第一个账户" onPress={() => setSheet('account')} />}
+              />
             </Card>
-            <Card>
-              <Row justify="between">
-                <Text variant="heading">持仓</Text>
-                <Button label="+ 持仓" variant="ghost" onPress={() => setSheet('holding')} />
-              </Row>
-              {visibleHoldings.length === 0 ? <Text variant="muted">还没有持仓</Text> : null}
-              {visibleHoldings.map((holding) => {
-                const account = visibleAccounts.find((item) => item.id === holding.accountId);
-                const priced = model.priced.get(holding.id);
-                return (
-                  <Stack key={holding.id} gap="xs">
-                    <Row justify="between">
-                      <Text variant="body">{holding.symbol}</Text>
-                      <Row gap="sm">
-                        <Button label="编辑" variant="ghost" onPress={() => setSheet({ kind: 'holding', id: holding.id })} />
-                        <Button
-                          label="删除"
-                          variant="ghost"
-                          onPress={() =>
-                            scheduleDeferredDelete('assets', holding.id, async () => {
-                              try {
-                                await softDeleteHolding(holding.id);
-                                await reloadRef.current();
-                              } catch (error) {
-                                showToast({ text: assetSaveNotice(error).message, tone: 'error' });
-                              }
-                            })
+          ) : model ? (
+            <Stack gap="md">
+              <Columns
+                main={
+                  <Stack gap="md">
+                    <Overview
+                      model={model}
+                      masked={masked}
+                      onGoal={() => setSheet('goal')}
+                      onUpdateBalances={() => setSheet('balances')}
+                      refresh={quoteRefresh}
+                      onRetry={() => void reload()}
+                      timeZone={timeZone}
+                      cachedAt={refreshCachedAt}
+                    />
+                    <AssetMixRow model={model} masked={masked} />
+                  </Stack>
+                }
+                aside={
+                  <Projection
+                    model={model}
+                    masked={masked}
+                    onAdjust={() => setSheet('assumptions')}
+                    onReveal={() => void persistMask(false)}
+                    onSelect={(index) => {
+                      void selectRate(index).catch((error: unknown) => {
+                        showToast({ text: assetSaveNotice(error).message, tone: 'error' });
+                      });
+                    }}
+                  />
+                }
+              />
+
+              <Columns
+                main={
+                  <Stack gap="md">
+                    <Card>
+                      <Row justify="between" align="center" gap="sm">
+                        <Text variant="heading">账户</Text>
+                        <Row gap="xs" align="center">
+                          <Button label="全部更新余额" variant="ghost" onPress={() => setSheet('balances')} />
+                          <Button label="添加账户" variant="secondary" size="mini" onPress={() => setSheet('account')} />
+                        </Row>
+                      </Row>
+                      <Divider />
+                      {visibleAccounts.map((account, index) => {
+                        const balance = latestBalance(portfolio?.balances ?? [], account.id);
+                        const blocked = (portfolio?.holdings ?? []).some((holding) => holding.accountId === account.id);
+                        return (
+                          <Fragment key={account.id}>
+                            {index > 0 ? <Divider /> : null}
+                            <Stack
+                              gap="xs"
+                              accessibilityLabel={nativeAmountRowLabel(
+                                [
+                                  account.name,
+                                  ' ',
+                                  {
+                                    text: balance ? formatMoney(balance.amount, account.currency) : '暂无价格',
+                                    masked: masked && Boolean(balance),
+                                  },
+                                ],
+                                Platform.OS,
+                              )}
+                            >
+                              <Row justify="between" align="center" gap="sm">
+                                <Row gap="sm" align="center">
+                                  <Text variant="body" style={styles.rowTitle}>
+                                    {account.name}
+                                  </Text>
+                                  <Text variant="caption">{account.currency}</Text>
+                                </Row>
+                                <MaskedAmount
+                                  text={balance ? formatMoney(balance.amount, account.currency) : '暂无价格'}
+                                  masked={masked && Boolean(balance)}
+                                  variant="heading"
+                                />
+                              </Row>
+                              <Row justify="between" align="center" gap="sm" wrap>
+                                <View style={styles.metaCell}>
+                                  {balance && account.currency !== 'USD' && model.approx.get(account.id) != null ? (
+                                    <Text
+                                      variant="muted"
+                                      accessibilityLabel={nativeAmountRowLabel(
+                                        ['≈ ', { text: formatMoney(model.approx.get(account.id) ?? 0, 'USD'), masked }],
+                                        Platform.OS,
+                                      )}
+                                    >
+                                      ≈{' '}
+                                      <MaskedAmount
+                                        text={formatMoney(model.approx.get(account.id) ?? 0, 'USD')}
+                                        masked={masked}
+                                        variant="muted"
+                                      />
+                                    </Text>
+                                  ) : blocked ? (
+                                    <Text variant="muted">先移除这个账户里的持仓</Text>
+                                  ) : null}
+                                </View>
+                                <Row gap="xs" align="center">
+                                  <Button
+                                    label="更新余额"
+                                    variant="ghost"
+                                    onPress={() => setSheet({ kind: 'balance', accountId: account.id })}
+                                  />
+                                  {blocked ? null : (
+                                    <Button
+                                      label="删除"
+                                      variant="ghost"
+                                      onPress={() =>
+                                        scheduleDeferredDelete(
+                                          'assets',
+                                          account.id,
+                                          async () => {
+                                            try {
+                                              await softDeleteAccount(account.id);
+                                              await reloadRef.current();
+                                            } catch (error) {
+                                              showToast({ text: assetSaveNotice(error).message, tone: 'error' });
+                                            }
+                                          },
+                                          deletedAccountUndo(account.name),
+                                        )
+                                      }
+                                    />
+                                  )}
+                                </Row>
+                              </Row>
+                            </Stack>
+                          </Fragment>
+                        );
+                      })}
+                    </Card>
+
+                    <Card>
+                      <Row justify="between" align="center" gap="sm">
+                        <Text variant="heading">持仓</Text>
+                        <Button label="+ 持仓" variant="secondary" size="mini" onPress={() => setSheet('holding')} />
+                      </Row>
+                      <Divider />
+                      {visibleHoldings.length === 0 ? <Text variant="muted">还没有持仓</Text> : null}
+                      {visibleHoldings.map((holding, index) => {
+                        const account = visibleAccounts.find((item) => item.id === holding.accountId);
+                        const priced = model.priced.get(holding.id);
+                        return (
+                          <Fragment key={holding.id}>
+                            {index > 0 ? <Divider /> : null}
+                            <Stack gap="xs">
+                              <Row justify="between" align="center" gap="sm">
+                                <Row gap="sm" align="center" wrap>
+                                  <Text variant="body" style={styles.rowTitle}>
+                                    {holding.symbol}
+                                  </Text>
+                                  {account ? <Text variant="caption">{account.name}</Text> : null}
+                                  <Text
+                                    variant="muted"
+                                    accessibilityLabel={nativeAmountRowLabel(
+                                      [{ text: `${formatShares(holding.quantity)} 股`, masked }],
+                                      Platform.OS,
+                                    )}
+                                  >
+                                    <MaskedAmount text={`${formatShares(holding.quantity)} 股`} masked={masked} variant="muted" />
+                                  </Text>
+                                </Row>
+                                {priced ? (
+                                  <MaskedAmount text={formatMoney(priced.value, 'USD')} masked={masked} variant="heading" />
+                                ) : (
+                                  <Text variant="body" tone="muted">
+                                    {QUOTE_MISS_LINE}
+                                  </Text>
+                                )}
+                              </Row>
+                              <Row justify="between" align="center" gap="sm" wrap>
+                                <Row gap="sm" align="center" wrap>
+                                  {priced ? (
+                                    <Text variant="muted" tone={priced.label.tone === 'warning' ? 'warning' : 'muted'}>
+                                      {priced.label.text}
+                                    </Text>
+                                  ) : null}
+                                  {priced && holding.costBasisUsd !== null ? (
+                                    <Text
+                                      variant="muted"
+                                      accessibilityLabel={nativeAmountRowLabel(
+                                        ['盈亏 ', { text: formatMoney(priced.value - holding.costBasisUsd, 'USD'), masked }],
+                                        Platform.OS,
+                                      )}
+                                    >
+                                      盈亏{' '}
+                                      <MaskedAmount
+                                        text={formatMoney(priced.value - holding.costBasisUsd, 'USD')}
+                                        masked={masked}
+                                        variant="muted"
+                                      />
+                                    </Text>
+                                  ) : null}
+                                </Row>
+                                <Row gap="xs" align="center">
+                                  <Button label="编辑" variant="ghost" onPress={() => setSheet({ kind: 'holding', id: holding.id })} />
+                                  <Button
+                                    label="删除"
+                                    variant="ghost"
+                                    onPress={() =>
+                                      scheduleDeferredDelete('assets', holding.id, async () => {
+                                        try {
+                                          await softDeleteHolding(holding.id);
+                                          await reloadRef.current();
+                                        } catch (error) {
+                                          showToast({ text: assetSaveNotice(error).message, tone: 'error' });
+                                        }
+                                      })
+                                    }
+                                  />
+                                </Row>
+                              </Row>
+                            </Stack>
+                          </Fragment>
+                        );
+                      })}
+                    </Card>
+                  </Stack>
+                }
+                aside={
+                  <Card>
+                    <Text variant="heading">最近变动</Text>
+                    <Divider />
+                    {model.activity.length === 0 ? <Text variant="muted">还没有变动</Text> : null}
+                    {model.activity.map((item, index) => (
+                      <Fragment key={item.id}>
+                        {index > 0 ? <Divider /> : null}
+                        <TimelineItem
+                          title={item.title}
+                          time={item.time}
+                          detail={item.detail ? <MaskedAmount text={item.detail} masked={masked} variant="muted" /> : undefined}
+                          accessibilityLabel={
+                            item.detail ? nativeAmountRowLabel([item.title, ' ', { text: item.detail, masked }], Platform.OS) : undefined
                           }
                         />
-                      </Row>
-                    </Row>
-                    <Text
-                      variant="muted"
-                      accessibilityLabel={nativeAmountRowLabel(
-                        [{ text: `${formatShares(holding.quantity)} 股`, masked }],
-                        Platform.OS,
-                      )}
-                    >
-                      <MaskedAmount text={`${formatShares(holding.quantity)} 股`} masked={masked} variant="muted" />
-                    </Text>
-                    {priced ? (
-                      <MaskedAmount text={formatMoney(priced.value, 'USD')} masked={masked} variant="heading" />
-                    ) : (
-                      <Text variant="body">{QUOTE_MISS_LINE}</Text>
-                    )}
-                    {priced ? (
-                      <Text variant="muted" tone={priced.label.tone === 'warning' ? 'warning' : 'muted'}>
-                        {priced.label.text}
-                      </Text>
-                    ) : null}
-                    {priced && holding.costBasisUsd !== null ? (
-                      <Text
-                        variant="muted"
-                        accessibilityLabel={nativeAmountRowLabel(
-                          ['盈亏 ', { text: formatMoney(priced.value - holding.costBasisUsd, 'USD'), masked }],
-                          Platform.OS,
-                        )}
-                      >
-                        盈亏 <MaskedAmount text={formatMoney(priced.value - holding.costBasisUsd, 'USD')} masked={masked} variant="muted" />
-                      </Text>
-                    ) : null}
-                    {account ? <Text variant="muted">{account.name}</Text> : null}
-                  </Stack>
-                );
-              })}
-            </Card>
-            <Card>
-              <Text variant="heading">最近变动</Text>
-              {model.activity.length === 0 ? <Text variant="muted">还没有变动</Text> : null}
-              {model.activity.map((item) => (
-                <TimelineItem
-                  key={item.id}
-                  title={item.title}
-                  time={item.time}
-                  detail={item.detail ? <MaskedAmount text={item.detail} masked={masked} variant="muted" /> : undefined}
-                  accessibilityLabel={
-                    item.detail ? nativeAmountRowLabel([item.title, ' ', { text: item.detail, masked }], Platform.OS) : undefined
-                  }
-                />
-              ))}
-            </Card>
-          </Stack>
-        ) : null}
+                      </Fragment>
+                    ))}
+                  </Card>
+                }
+              />
+            </Stack>
+          ) : null}
         </LoadingRegion>
       </Content>
       <AccountForm
@@ -569,6 +637,7 @@ function Overview({
   model,
   masked,
   onGoal,
+  onUpdateBalances,
   refresh,
   onRetry,
   timeZone,
@@ -577,6 +646,7 @@ function Overview({
   model: DashboardModel;
   masked: boolean;
   onGoal: () => void;
+  onUpdateBalances: () => void;
   refresh: 'idle' | 'refreshing' | 'failed';
   onRetry: () => void;
   timeZone: string;
@@ -584,6 +654,22 @@ function Overview({
 }) {
   return (
     <Card>
+      <Row justify="between" align="center" gap="sm" wrap>
+        <Text variant="label">净值总览</Text>
+        <RefreshStatus
+          status={refresh}
+          onRetry={onRetry}
+          cachedAt={model.quoteCachedAt ?? cachedAt}
+          timeZone={timeZone}
+          idle={
+            model.quoteStatus ? (
+              <Text variant="muted" tone={model.quoteStatus.tone === 'warning' ? 'warning' : 'muted'} style={styles.quoteClock}>
+                {model.quoteStatus.text}
+              </Text>
+            ) : null
+          }
+        />
+      </Row>
       {model.missLine ? (
         <Text variant="heading">{model.missLine}</Text>
       ) : model.totalText ? (
@@ -592,38 +678,55 @@ function Overview({
         <Text variant="display">暂无价格</Text>
       )}
       {model.missReason ? <Text variant="muted">{model.missReason}</Text> : null}
-      <RefreshStatus
-        status={refresh}
-        onRetry={onRetry}
-        cachedAt={model.quoteCachedAt ?? cachedAt}
-        timeZone={timeZone}
-        idle={
-          model.quoteStatus ? (
-            <Text variant="muted" tone={model.quoteStatus.tone === 'warning' ? 'warning' : 'muted'} style={styles.quoteClock}>
-              {model.quoteStatus.text}
-            </Text>
-          ) : null
-        }
-      />
       {model.hasGoal ? (
         <>
           <ProgressBar value={model.progress} masked={masked || model.totalText === null} />
-          {masked ? (
-            <Text variant="muted">{MASKED_PROGRESS_HINT}</Text>
-          ) : model.totalText !== null ? (
-            <Text variant="muted">{`目标进度 ${model.progressText}`}</Text>
-          ) : null}
-          <Button label="调整目标" variant="ghost" onPress={onGoal} />
+          <Row justify="between" align="center" gap="sm" wrap>
+            {masked ? (
+              <Text variant="muted">{MASKED_PROGRESS_HINT}</Text>
+            ) : model.totalText !== null ? (
+              <Text variant="muted">{`目标进度 ${model.progressText}`}</Text>
+            ) : null}
+            <Button label="调整目标" variant="ghost" onPress={onGoal} />
+          </Row>
         </>
       ) : (
-        <>
+        <Row justify="between" align="center" gap="sm" wrap>
           <Text variant="muted">{NO_GOAL_HINT}</Text>
           <Button label={NO_GOAL_BUTTON_LABEL} variant={NO_GOAL_BUTTON_VARIANT} onPress={onGoal} />
-        </>
+        </Row>
       )}
-      {model.ratio ? <Text variant="body">{model.ratio}</Text> : null}
+      {!masked && model.ratio ? <Text variant="body">{model.ratio}</Text> : null}
       {model.unpriced ? <Text variant="muted">{model.unpriced}</Text> : null}
+      <Button label="更新本月资产" fill onPress={onUpdateBalances} />
     </Card>
+  );
+}
+
+function AssetMixRow({ model, masked }: { model: DashboardModel; masked: boolean }) {
+  return (
+    <Row gap="ms" align="start">
+      <View style={styles.metric}>
+        <Card>
+          <Text variant="label">现金储备</Text>
+          {model.cashText ? (
+            <MaskedAmount text={model.cashText} masked={masked} variant="metric" />
+          ) : (
+            <Text variant="metric">—</Text>
+          )}
+        </Card>
+      </View>
+      <View style={styles.metric}>
+        <Card>
+          <Text variant="label">证券持仓</Text>
+          {model.securitiesText ? (
+            <MaskedAmount text={model.securitiesText} masked={masked} variant="metric" />
+          ) : (
+            <Text variant="metric">—</Text>
+          )}
+        </Card>
+      </View>
+    </Row>
   );
 }
 
@@ -651,7 +754,11 @@ function Projection({
   const palette = useTheme();
   return (
     <Card>
-      <Text variant="heading">预测</Text>
+      <Row justify="between" align="center" gap="sm">
+        <Text variant="heading">预测</Text>
+        <Button label="调整假设" variant="ghost" onPress={onAdjust} />
+      </Row>
+      <Divider />
       <Conclusion sentence={model.sentence} masked={masked} />
       <ChipGroup>
         {model.rateLabels.map((label, index) => (
@@ -688,7 +795,6 @@ function Projection({
         <Text variant="muted">推算还不可用</Text>
       )}
       {!masked && model.chart?.note ? <Text variant="muted">{model.chart.note}</Text> : null}
-      <Button label="调整假设" variant="ghost" onPress={onAdjust} />
     </Card>
   );
 }
@@ -723,6 +829,8 @@ function Conclusion({ sentence, masked }: { sentence: ProjectionSentence | null;
 
 type DashboardModel = {
   totalText: string | null;
+  cashText: string | null;
+  securitiesText: string | null;
   progress: number;
   progressText: string;
   ratio: string | null;
@@ -838,6 +946,8 @@ function buildModel(input: {
   );
   return {
     totalText: total === null ? null : formatMoney(total, 'USD'),
+    cashText: input.book ? formatMoney(cash, 'USD') : null,
+    securitiesText: input.book ? formatMoney(securities, 'USD') : null,
     progress: sentence?.kind === 'already' ? 1 : progress,
     progressText: `${Math.round((sentence?.kind === 'already' ? 1 : progress) * 100)}%`,
     ratio: input.book && mix !== 0 ? `现金 ${Math.round((cash / mix) * 100)}% · 股票 ${Math.round((securities / mix) * 100)}%` : null,
@@ -986,6 +1096,12 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexShrink: 1,
     flexBasis: 0,
+  },
+  rowTitle: {
+    fontWeight: theme.fontWeight.medium,
+  },
+  metaCell: {
+    flex: 1,
   },
   eye: {
     minHeight: theme.layout.control,

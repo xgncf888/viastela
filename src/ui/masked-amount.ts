@@ -1,11 +1,12 @@
 import { maxFontSizeMultiplierFor } from './text-scale';
 import { theme } from './theme';
 
-export type MaskedAmountVariant = 'display' | 'title' | 'heading' | 'body' | 'muted';
+export type MaskedAmountVariant = 'display' | 'title' | 'metric' | 'heading' | 'body' | 'muted';
 
 const FONT_SIZE: Record<MaskedAmountVariant, number> = {
   display: theme.font.display,
   title: theme.font.xl,
+  metric: theme.font.metric,
   heading: theme.font.lg,
   body: theme.font.md,
   muted: theme.font.sm,

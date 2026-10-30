@@ -22,6 +22,7 @@ import {
 import { showProviderSignIn } from '@/core/provider-sign-in';
 import { requestEmailOtp, signInWithProvider, verifyEmailOtp } from '@/data/auth';
 import { captureOAuthFailure, clearOAuthFailureMessage, type OAuthProvider } from '@/data/oauth';
+import { BrandMark } from '@/ui/BrandMark';
 import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
 import { CodeInput } from '@/ui/CodeInput';
@@ -217,6 +218,7 @@ export function LoginScreen() {
         <ScreenHeader
           kicker="生活记录"
           title={phase === 'code' ? otpSentTitle : brand.displayName}
+          trailing={<BrandMark />}
           detail={phase === 'email' ? '用邮箱登录。我们发送 6 位验证码，不使用密码。' : undefined}
         />
         {!configured ? (
@@ -226,87 +228,89 @@ export function LoginScreen() {
             </Text>
           </Card>
         ) : null}
-        {phase === 'email' ? (
-          <Stack gap="md">
-            {showProviders ? (
-              <>
-                {providerNotice ? <Callout message={providerNotice} tone="danger" /> : null}
-                <Button
-                  label="使用 Google 登录"
-                  variant="secondary"
-                  fill
-                  onPress={() => void startProvider('google')}
-                  loading={provider === 'google'}
-                  disabled={busy && provider !== 'google'}
-                />
-                <Button
-                  label="使用 GitHub 登录"
-                  variant="secondary"
-                  fill
-                  onPress={() => void startProvider('github')}
-                  loading={provider === 'github'}
-                  disabled={busy && provider !== 'github'}
-                />
-                <LabeledDivider label="或" />
-              </>
-            ) : null}
-            <TextField
-              label="邮箱"
-              value={email}
-              onChangeText={onEmailChange}
-              placeholder="name@example.com"
-              keyboardType="email-address"
-              autoComplete="email"
-              error={errorText}
-            />
-            <Button
-              label="发送验证码"
-              fill
-              onPress={() => void sendCode()}
-              loading={action === 'send'}
-              disabled={busy}
-            />
-          </Stack>
-        ) : (
-          <Stack gap="md">
-            <Text variant="muted">{otpSentLine(email)}</Text>
-            <CodeInput
-              value={code}
-              onChangeText={(next) => {
-                setCode(next);
-                setNotice((current) =>
-                  current?.source === 'form' || (current?.source === 'auth' && current.decision.kind === 'wrong_code')
-                    ? null
-                    : current,
-                );
-              }}
-              onComplete={(next) => void verifyCode(next)}
-              error={errorText}
-              disabled={codeLocked}
-              autoFocus
-            />
-            <Button
-              label="登录"
-              fill
-              onPress={() => void verifyCode(code)}
-              loading={action === 'verify'}
-              disabled={busy || codeLocked}
-            />
-            {resendLeft > 0 ? (
-              <Text variant="muted">{otpResendWaitLabel(resendLeft)}</Text>
-            ) : (
+        <Card>
+          {phase === 'email' ? (
+            <Stack gap="md">
+              {showProviders ? (
+                <>
+                  {providerNotice ? <Callout message={providerNotice} tone="danger" /> : null}
+                  <Button
+                    label="使用 Google 登录"
+                    variant="secondary"
+                    fill
+                    onPress={() => void startProvider('google')}
+                    loading={provider === 'google'}
+                    disabled={busy && provider !== 'google'}
+                  />
+                  <Button
+                    label="使用 GitHub 登录"
+                    variant="secondary"
+                    fill
+                    onPress={() => void startProvider('github')}
+                    loading={provider === 'github'}
+                    disabled={busy && provider !== 'github'}
+                  />
+                  <LabeledDivider label="或" />
+                </>
+              ) : null}
+              <TextField
+                label="邮箱"
+                value={email}
+                onChangeText={onEmailChange}
+                placeholder="name@example.com"
+                keyboardType="email-address"
+                autoComplete="email"
+                error={errorText}
+              />
               <Button
-                label="重新发送"
-                variant="ghost"
+                label="发送验证码"
                 fill
                 onPress={() => void sendCode()}
-                disabled={busy}
                 loading={action === 'send'}
+                disabled={busy}
               />
-            )}
-            <Button label="换个邮箱" variant="ghost" fill onPress={useAnotherEmail} disabled={busy} />
-          </Stack>
-        )}
+            </Stack>
+          ) : (
+            <Stack gap="md">
+              <Text variant="muted">{otpSentLine(email)}</Text>
+              <CodeInput
+                value={code}
+                onChangeText={(next) => {
+                  setCode(next);
+                  setNotice((current) =>
+                    current?.source === 'form' || (current?.source === 'auth' && current.decision.kind === 'wrong_code')
+                      ? null
+                      : current,
+                  );
+                }}
+                onComplete={(next) => void verifyCode(next)}
+                error={errorText}
+                disabled={codeLocked}
+                autoFocus
+              />
+              <Button
+                label="登录"
+                fill
+                onPress={() => void verifyCode(code)}
+                loading={action === 'verify'}
+                disabled={busy || codeLocked}
+              />
+              {resendLeft > 0 ? (
+                <Text variant="muted">{otpResendWaitLabel(resendLeft)}</Text>
+              ) : (
+                <Button
+                  label="重新发送"
+                  variant="ghost"
+                  fill
+                  onPress={() => void sendCode()}
+                  disabled={busy}
+                  loading={action === 'send'}
+                />
+              )}
+              <Button label="换个邮箱" variant="ghost" fill onPress={useAnotherEmail} disabled={busy} />
+            </Stack>
+          )}
+        </Card>
         <Button label="隐私政策" variant="ghost" fill onPress={() => router.push('/privacy')} />
       </Content>
     </Screen>

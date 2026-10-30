@@ -4,7 +4,7 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Button } from './Button';
 import { useLayoutClass } from './chrome';
 import { Card } from './Card';
-import { Stack } from './layout';
+import { Row, Stack } from './layout';
 import { pressTransition } from './press';
 import { Text } from './Text';
 import { theme as baseTheme } from './theme';
@@ -31,10 +31,16 @@ export function StatusCard({
   const reducedMotion = useReducedMotion() === true;
   const content = (
     <>
-      {title ? <Text variant="muted">{title}</Text> : null}
-      <Text variant="heading">{summary}</Text>
-      {hint ? <Text variant="muted">{hint}</Text> : null}
-      {actionLabel && onAction ? <Button label={actionLabel} onPress={onAction} /> : null}
+      {title ? <Text variant="label">{title}</Text> : null}
+      <Row justify="between" align="center" gap="sm">
+        <View style={styles.summaryWrap}>
+          <Text variant="heading">{summary}</Text>
+        </View>
+        {hint ? <Text variant="muted">{hint}</Text> : null}
+        {actionLabel && onAction ? (
+          <Button label={actionLabel} variant="secondary" size="mini" onPress={onAction} />
+        ) : null}
+      </Row>
     </>
   );
   if (!onPress) {
@@ -82,9 +88,12 @@ export function CardRow({ children }: { children: ReactNode }) {
 
 const styles = StyleSheet.create({
   frame: {
-    minHeight: baseTheme.space.xxl * 2,
     flexGrow: 1,
     flexShrink: 1,
+  },
+  summaryWrap: {
+    flex: 1,
+    minWidth: 0,
   },
   pressCard: {
     borderRadius: baseTheme.radius.md,

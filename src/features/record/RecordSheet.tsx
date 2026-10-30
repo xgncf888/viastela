@@ -32,7 +32,7 @@ import { useWeight } from '@/features/weight/WeightProvider';
 import { Button } from '@/ui/Button';
 import { Chip } from '@/ui/Chip';
 import { ChipGroup } from '@/ui/ChipGroup';
-import { Row, Stack } from '@/ui/layout';
+import { Divider, Row, Stack } from '@/ui/layout';
 import { SetRow } from '@/ui/SetRow';
 import { Sheet } from '@/ui/Sheet';
 import { Text } from '@/ui/Text';
@@ -238,13 +238,14 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
   }
 
   return (
-    <Stack gap="lg">
-      <Row justify="between">
+    <Stack gap="md">
+      <Row justify="between" align="center">
         <Text variant="heading" accessibilityRole="header">
           记录
         </Text>
         <Button label="关闭" variant="ghost" onPress={closeRecordSheet} />
       </Row>
+      <Divider />
       <ChipGroup>
         {TYPES.map((item) => (
           <Chip key={item.id} label={item.label} selected={type === item.id} onPress={() => setType(item.id)} />
@@ -266,41 +267,45 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
             <Button
               label={`填入上次 ${formatKg(last.weightKg)}`}
               variant="secondary"
+              fill
               onPress={() => {
                 setValue(formatKg(last.weightKg));
                 setError(null);
               }}
             />
           ) : null}
-          <Button label="保存" onPress={onSave} />
+          <Button label="保存" fill onPress={onSave} />
         </Stack>
       ) : type === 'training' ? (
         <Stack gap="md">
-          <ChipGroup>
-            {exerciseNames.map((name) => (
+          <Stack gap="xs">
+            <Text variant="label">选择动作</Text>
+            <ChipGroup>
+              {exerciseNames.map((name) => (
+                <Chip
+                  key={name}
+                  label={name}
+                  selected={!customExercise && exercise === name}
+                  onPress={() => {
+                    setCustomExercise(false);
+                    setExercise(name);
+                    setFinishConfirm(false);
+                    setTrainingError(null);
+                  }}
+                />
+              ))}
               <Chip
-                key={name}
-                label={name}
-                selected={!customExercise && exercise === name}
+                label="+ 其他"
+                selected={customExercise}
                 onPress={() => {
-                  setCustomExercise(false);
-                  setExercise(name);
+                  setCustomExercise(true);
+                  if (exerciseNames.includes(exercise)) setExercise('');
                   setFinishConfirm(false);
                   setTrainingError(null);
                 }}
               />
-            ))}
-            <Chip
-              label="+ 其他"
-              selected={customExercise}
-              onPress={() => {
-                setCustomExercise(true);
-                if (exerciseNames.includes(exercise)) setExercise('');
-                setFinishConfirm(false);
-                setTrainingError(null);
-              }}
-            />
-          </ChipGroup>
+            </ChipGroup>
+          </Stack>
           {customExercise ? (
             <TextField
               label="动作"
@@ -314,24 +319,27 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
               error={trainingField === 'exercise' ? trainingError : null}
             />
           ) : null}
-          <ChipGroup>
-            <Chip
-              label="重量"
-              selected={mode === 'weight'}
-              onPress={() => {
-                setMode('weight');
-                setTrainingError(null);
-              }}
-            />
-            <Chip
-              label="弹力带"
-              selected={mode === 'band'}
-              onPress={() => {
-                setMode('band');
-                setTrainingError(null);
-              }}
-            />
-          </ChipGroup>
+          <Stack gap="xs">
+            <Text variant="label">负重类型</Text>
+            <ChipGroup>
+              <Chip
+                label="重量"
+                selected={mode === 'weight'}
+                onPress={() => {
+                  setMode('weight');
+                  setTrainingError(null);
+                }}
+              />
+              <Chip
+                label="弹力带"
+                selected={mode === 'band'}
+                onPress={() => {
+                  setMode('band');
+                  setTrainingError(null);
+                }}
+              />
+            </ChipGroup>
+          </Stack>
           {mode === 'weight' ? (
             <TextField
               label="重量（kg）"
@@ -380,33 +388,38 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
           {exerciseSets.map((set) => (
             <SetRow key={set.id} title={set.exercise} detail={`${set.reps} 次 · ${formatTrainingLoad(set)}`} />
           ))}
-          <Button label="+1 组" variant="secondary" onPress={addAnotherSet} disabled={exerciseSets.length === 0} />
-          <Button label="保存这一组" onPress={() => void onSaveTraining()} />
-          <Button label="完成" variant="ghost" onPress={onFinish} />
+          <Row justify="between" align="center" gap="sm" wrap>
+            <Button label="+1 组" variant="secondary" onPress={addAnotherSet} disabled={exerciseSets.length === 0} />
+            <Button label="完成" variant="ghost" onPress={onFinish} />
+          </Row>
+          <Button label="保存这一组" fill onPress={() => void onSaveTraining()} />
           {finishConfirm ? (
             <Stack gap="sm">
               <Text variant="muted">这一组还没保存</Text>
-              <Button label="保存这一组并完成" onPress={() => void saveAndFinish()} />
-              <Button label="不保存，直接完成" variant="secondary" onPress={closeFinished} />
+              <Button label="保存这一组并完成" fill onPress={() => void saveAndFinish()} />
+              <Button label="不保存，直接完成" variant="secondary" fill onPress={closeFinished} />
             </Stack>
           ) : null}
         </Stack>
       ) : type === 'study' ? (
         <Stack gap="md">
           {study.recentTopics.length > 0 ? (
-            <ChipGroup>
-              {study.recentTopics.map((name) => (
-                <Chip
-                  key={name}
-                  label={name}
-                  selected={topic === name}
-                  onPress={() => {
-                    setTopic(name);
-                    setStudyError(null);
-                  }}
-                />
-              ))}
-            </ChipGroup>
+            <Stack gap="xs">
+              <Text variant="label">常用主题</Text>
+              <ChipGroup>
+                {study.recentTopics.map((name) => (
+                  <Chip
+                    key={name}
+                    label={name}
+                    selected={topic === name}
+                    onPress={() => {
+                      setTopic(name);
+                      setStudyError(null);
+                    }}
+                  />
+                ))}
+              </ChipGroup>
+            </Stack>
           ) : null}
           <TextField
             label="主题"
@@ -419,27 +432,30 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
             autoFocus
             error={studyField === 'topic' ? studyError : null}
           />
-          <ChipGroup>
-            {STUDY_MINUTE_CHOICES.map((minutes) => (
+          <Stack gap="xs">
+            <Text variant="label">时长（分钟）</Text>
+            <ChipGroup>
+              {STUDY_MINUTE_CHOICES.map((minutes) => (
+                <Chip
+                  key={minutes}
+                  label={String(minutes)}
+                  selected={minutesChoice === minutes}
+                  onPress={() => {
+                    setMinutesChoice(minutes);
+                    setStudyError(null);
+                  }}
+                />
+              ))}
               <Chip
-                key={minutes}
-                label={String(minutes)}
-                selected={minutesChoice === minutes}
+                label="自定义"
+                selected={minutesChoice === 'custom'}
                 onPress={() => {
-                  setMinutesChoice(minutes);
+                  setMinutesChoice('custom');
                   setStudyError(null);
                 }}
               />
-            ))}
-            <Chip
-              label="自定义"
-              selected={minutesChoice === 'custom'}
-              onPress={() => {
-                setMinutesChoice('custom');
-                setStudyError(null);
-              }}
-            />
-          </ChipGroup>
+            </ChipGroup>
+          </Stack>
           {minutesChoice === 'custom' ? (
             <TextField
               label="时长（分钟）"
@@ -463,7 +479,7 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
             placeholder="一句话"
             error={studyField === 'note' ? studyError : null}
           />
-          <Button label="保存" onPress={() => void onSaveStudy()} />
+          <Button label="保存" fill onPress={() => void onSaveStudy()} />
         </Stack>
       ) : (
         <Stack gap="sm">

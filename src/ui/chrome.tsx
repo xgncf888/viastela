@@ -2,6 +2,7 @@ import { useRef, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BrandMark } from './BrandMark';
 import { layoutClassForWidth, type LayoutClass } from './layout-class';
 import { createNavPress } from './nav-press';
 import { washPressStyle } from './press';
@@ -51,9 +52,12 @@ export function SidebarFrame({ title, footer, children }: { title: string; foote
   const width = layout === 'medium' ? theme.layout.sidebarCompact : theme.layout.sidebar;
   return (
     <View style={[styles.sidebar, { width, backgroundColor: color.paperDeep, borderRightColor: color.line }]}>
-      <Text variant="title">{title}</Text>
+      <View style={[styles.brandRow, { borderBottomColor: color.line }]}>
+        <BrandMark />
+        <Text variant="title">{title}</Text>
+      </View>
       <View style={styles.sideNav}>{children}</View>
-      {footer}
+      {footer ? <View style={[styles.footer, { borderTopColor: color.line }]}>{footer}</View> : null}
     </View>
   );
 }
@@ -112,6 +116,7 @@ export function NavItem({
       style={({ pressed }) => [
         styles.nav,
         side ? styles.navSide : styles.navTab,
+        side && selected ? { backgroundColor: color.fill } : null,
         washPressStyle(pressed, reducedMotion, press, color.pressed, Platform.OS === 'web'),
       ]}
     >
@@ -140,10 +145,21 @@ const styles = StyleSheet.create({
   },
   sidebar: {
     padding: theme.space.lg,
-    gap: theme.space.lg,
+    gap: theme.space.md,
     borderRightWidth: theme.border.width,
   },
-  sideNav: { gap: theme.space.sm, flex: 1 },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.space.sm,
+    paddingBottom: theme.space.md,
+    borderBottomWidth: theme.border.width,
+  },
+  sideNav: { gap: theme.space.xs, flex: 1 },
+  footer: {
+    paddingTop: theme.space.md,
+    borderTopWidth: theme.border.width,
+  },
   bar: {
     position: 'absolute',
     left: 0,
@@ -163,6 +179,7 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     justifyContent: 'flex-start',
     gap: theme.space.sm,
+    borderRadius: theme.radius.sm,
   },
   navTab: {
     flex: 1,

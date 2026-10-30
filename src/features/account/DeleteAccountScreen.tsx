@@ -14,8 +14,9 @@ import {
 } from '@/data/auth';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { Button } from '@/ui/Button';
+import { Card } from '@/ui/Card';
 import { Content } from '@/ui/Content';
-import { Callout } from '@/ui/layout';
+import { Callout, Divider, Stack } from '@/ui/layout';
 import { documentEdges, Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { TextField } from '@/ui/TextField';
@@ -151,10 +152,12 @@ export function DeleteAccountScreen() {
           <Text variant="title" accessibilityRole="header">
             正在删除账号
           </Text>
-          <ActivityIndicator color={theme.color.accent} accessibilityLabel="正在删除" />
-          <Text variant="body" style={styles.body}>
-            请稍候。这个过程不能取消。
-          </Text>
+          <Card>
+            <ActivityIndicator color={theme.color.accent} accessibilityLabel="正在删除" />
+            <Text variant="body" style={styles.body}>
+              请稍候。这个过程不能取消。
+            </Text>
+          </Card>
         </Content>
       </Screen>
     );
@@ -167,7 +170,9 @@ export function DeleteAccountScreen() {
           <Text variant="title" accessibilityRole="header">
             删除账号
           </Text>
-          <ActivityIndicator color={theme.color.accent} accessibilityLabel="读取中" />
+          <Card>
+            <ActivityIndicator color={theme.color.accent} accessibilityLabel="读取中" />
+          </Card>
         </Content>
       </Screen>
     );
@@ -186,7 +191,7 @@ export function DeleteAccountScreen() {
               {failure}
             </Text>
           ) : null}
-          <Button label="重新登录" onPress={() => void startReauth()} loading={sending} />
+          <Button label="重新登录" fill onPress={() => void startReauth()} loading={sending} />
           <Button label="取消" variant="ghost" onPress={leaveSignedIn} />
         </Content>
       </Screen>
@@ -200,17 +205,21 @@ export function DeleteAccountScreen() {
           <Text variant="title" accessibilityRole="header">
             删除账号
           </Text>
-          <Text variant="muted">验证码已发送至 {email}</Text>
-          <TextField
-            label="验证码"
-            value={code}
-            onChangeText={setCode}
-            placeholder="6 位数字"
-            keyboardType="number-pad"
-            autoComplete="one-time-code"
-            error={failure}
-          />
-          <Button label="验证并进入" onPress={() => void verifyCode()} loading={sending} />
+          <Card>
+            <Stack gap="md">
+              <Text variant="muted">验证码已发送至 {email}</Text>
+              <TextField
+                label="验证码"
+                value={code}
+                onChangeText={setCode}
+                placeholder="6 位数字"
+                keyboardType="number-pad"
+                autoComplete="one-time-code"
+                error={failure}
+              />
+              <Button label="验证并进入" fill onPress={() => void verifyCode()} loading={sending} />
+            </Stack>
+          </Card>
           <Button label="取消" variant="ghost" onPress={leaveSignedIn} />
         </Content>
       </Screen>
@@ -223,28 +232,33 @@ export function DeleteAccountScreen() {
         <Text variant="title" accessibilityRole="header">
           删除账号
         </Text>
-        <View style={styles.copy}>
-          {deletionFacts().map((fact) => (
-            <Text key={fact} variant="body" style={styles.body}>
-              {fact}
+        <Card>
+          <Text variant="heading">删除说明</Text>
+          <Divider />
+          <View style={styles.copy}>
+            {deletionFacts().map((fact) => (
+              <Text key={fact} variant="body" style={styles.body}>
+                {fact}
+              </Text>
+            ))}
+          </View>
+          <Divider />
+          {failure ? (
+            <Text variant="body" tone="danger" style={styles.body}>
+              {failure}
             </Text>
-          ))}
-        </View>
-        {failure ? (
-          <Text variant="body" tone="danger" style={styles.body}>
-            {failure}
-          </Text>
-        ) : null}
-        <TextField
-          label="确认"
-          value={phrase}
-          onChangeText={setPhrase}
-          placeholder={accountDeletionPhrase}
-          autoComplete="off"
-          helper="输入“删除”后才能继续"
-          error={null}
-        />
-        <Button label="删除账号" variant="danger" disabled={!confirmed} onPress={() => void onDelete()} />
+          ) : null}
+          <TextField
+            label="确认"
+            value={phrase}
+            onChangeText={setPhrase}
+            placeholder={accountDeletionPhrase}
+            autoComplete="off"
+            helper="输入“删除”后才能继续"
+            error={null}
+          />
+          <Button label="删除账号" variant="danger" fill disabled={!confirmed} onPress={() => void onDelete()} />
+        </Card>
         <Button label="取消" variant="ghost" onPress={leaveSignedIn} />
       </Content>
     </Screen>
@@ -252,6 +266,6 @@ export function DeleteAccountScreen() {
 }
 
 const styles = StyleSheet.create({
-  copy: { gap: theme.space.md },
+  copy: { gap: theme.space.sm },
   body: { lineHeight: theme.space.lg },
 });

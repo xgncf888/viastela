@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 
 import {
@@ -20,14 +20,16 @@ import { useStudy } from '@/features/study/StudyProvider';
 import { useTraining } from '@/features/training/TrainingProvider';
 import { averageCaption, excludePending, todayReadout, weighInLabel, weightColumnPhase } from '@/features/weight/weight-copy';
 import { useWeight } from '@/features/weight/WeightProvider';
+import { BrandMark } from '@/ui/BrandMark';
 import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
+import { useLayoutClass } from '@/ui/chrome';
 import { SetRow } from '@/ui/SetRow';
 import { CardRow, StatusCard } from '@/ui/StatusCard';
 import { Content } from '@/ui/Content';
 import { EmptyState } from '@/ui/EmptyState';
 import { LoadingRegion } from '@/ui/LoadingRegion';
-import { Row, ScreenHeader, Stack } from '@/ui/layout';
+import { Divider, Row, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
 import { skeletonHiddenProps, SkeletonDisplay, SkeletonLedger, SkeletonText } from '@/ui/Skeleton';
 import { Text } from '@/ui/Text';
@@ -63,6 +65,7 @@ export function TodayScreen() {
   const training = useTraining();
   const study = useStudy();
   const inset = useShellInset();
+  const layout = useLayoutClass();
   const [now, setNow] = useState(() => new Date());
   const [trainingDetail, setTrainingDetail] = useState(false);
   const [studyOpen, setStudyOpen] = useState(false);
@@ -90,6 +93,8 @@ export function TodayScreen() {
   const trainingTitle = beforeSwitch ? `${formatMonthDay(accounting)}的训练` : '今天的训练';
   const studyTitle = beforeSwitch ? `${formatMonthDay(accounting)}的学习` : '今天的学习';
   const allLogged = visibleToday.length > 0 && trainingToday.length > 0 && studyToday.length > 0;
+  const loggedCount =
+    (visibleToday.length > 0 ? 1 : 0) + (trainingToday.length > 0 ? 1 : 0) + (studyToday.length > 0 ? 1 : 0);
 
   return (
     <Screen>
@@ -97,6 +102,7 @@ export function TodayScreen() {
         <ScreenHeader
           kicker="今日"
           title={`${formatMonthDay(accounting)} ${shortWeekday(accounting)}`}
+          trailing={layout === 'compact' ? <BrandMark /> : undefined}
           subtitle={{
             failed: refreshError || training.refreshError || study.refreshError,
             refreshing: refreshing || training.refreshing || study.refreshing,
@@ -136,53 +142,79 @@ export function TodayScreen() {
               </Card>
             }
           >
-          <Stack gap="md">
-          <Text variant="heading">{beforeSwitch ? `${formatMonthDay(accounting)}的记录` : '今天的记录'}</Text>
-          {readout.firstRecord ? (
-            <EmptyState
-              title={readout.firstRecord}
-              description="记下体重后，这里会显示近 7 日均重。"
-              action={<Button label="记录" onPress={() => openRecordSheet()} />}
-            />
-          ) : null}
-          {today.length === 0 && last ? (
-            <EmptyState
-              title="今天还没有记录"
-              description="再记会带上上次的体重，点保存后才会写入。"
-              action={
-                <Button label={`再记 ${formatKg(last.weightKg)} kg`} onPress={() => openRecordSheet(last.weightKg)} />
-              }
-            />
-          ) : null}
-          {visibleToday.map((record, index) => {
-            const failed = failedIds.has(record.id);
-            return (
-              <Card key={record.id}>
-                <Row justify="between" align="center">
-                  <Text variant="muted">{weighInLabel(index)}</Text>
-                  {failed ? null : (
-                    <Button label="删除" variant="ghost" onPress={() => scheduleDelete(record.id)} />
-                  )}
+            <Card>
+              <Row justify="between" align="center" gap="sm">
+                <Row gap="sm" align="center">
+                  <Text variant="heading">{beforeSwitch ? `${formatMonthDay(accounting)}的记录` : '今天的记录'}</Text>
+                  <Text variant="label">{allLogged ? '已记 3/3' : `已记 ${loggedCount}/3`}</Text>
                 </Row>
-                <Text variant="heading">
-                  {formatKg(record.weightKg)} kg · {formatClock(record.recordedAt, record.tz)}
-                </Text>
-                {failed ? (
-                  <Row gap="sm" wrap>
-                    <Text variant="muted" tone="danger">
-                      未保存
-                    </Text>
-                    <Button label="重试" onPress={() => void retry(record.id)} loading={savingIds.has(record.id)} />
-                    <Button label="放弃" variant="ghost" onPress={() => dismiss(record.id)} />
-                  </Row>
+                {last && today.length > 0 ? (
+                  <Button
+                    label={`再记 ${formatKg(last.weightKg)} kg`}
+                    variant="secondary"
+                    size="mini"
+                    onPress={() => openRecordSheet(last.weightKg)}
+                  />
                 ) : null}
-              </Card>
-            );
-          })}
-          {last && today.length > 0 ? (
-            <Button label={`再记 ${formatKg(last.weightKg)} kg`} onPress={() => openRecordSheet(last.weightKg)} />
-          ) : null}
-          </Stack>
+              </Row>
+              <Divider />
+              {readout.firstRecord ? (
+                <EmptyState
+                  title={readout.firstRecord}
+                  description="记下体重后，这里会显示近 7 日均重。"
+                  action={<Button label="记录" variant="secondary" onPress={() => openRecordSheet()} />}
+                />
+              ) : null}
+              {today.length === 0 && last ? (
+                <EmptyState
+                  title="今天还没有记录"
+                  description="再记会带上上次的体重，点保存后才会写入。"
+                  action={
+                    <Button
+                      label={`再记 ${formatKg(last.weightKg)} kg`}
+                      variant="secondary"
+                      onPress={() => openRecordSheet(last.weightKg)}
+                    />
+                  }
+                />
+              ) : null}
+              {visibleToday.map((record, index) => {
+                const failed = failedIds.has(record.id);
+                return (
+                  <Fragment key={record.id}>
+                    {index > 0 ? <Divider /> : null}
+                    <Stack gap="xs">
+                      <Row justify="between" align="center" gap="sm">
+                        <Row gap="md" align="center">
+                          <Text variant="label">{weighInLabel(index)}</Text>
+                          <Text variant="body">
+                            {formatKg(record.weightKg)} kg · {formatClock(record.recordedAt, record.tz)}
+                          </Text>
+                        </Row>
+                        {failed ? null : (
+                          <Button label="删除" variant="ghost" onPress={() => scheduleDelete(record.id)} />
+                        )}
+                      </Row>
+                      {failed ? (
+                        <Row gap="sm" wrap>
+                          <Text variant="muted" tone="danger">
+                            未保存
+                          </Text>
+                          <Button
+                            label="重试"
+                            variant="secondary"
+                            size="mini"
+                            onPress={() => void retry(record.id)}
+                            loading={savingIds.has(record.id)}
+                          />
+                          <Button label="放弃" variant="ghost" onPress={() => dismiss(record.id)} />
+                        </Row>
+                      ) : null}
+                    </Stack>
+                  </Fragment>
+                );
+              })}
+            </Card>
           </LoadingRegion>
         </Stack>
 
@@ -261,7 +293,7 @@ export function TodayScreen() {
                       <Text variant="muted" tone="danger">
                         未保存
                       </Text>
-                      <Button label="重试" onPress={() => void training.retry(set.id)} loading={training.savingIds.has(set.id)} />
+                      <Button label="重试" variant="secondary" size="mini" onPress={() => void training.retry(set.id)} loading={training.savingIds.has(set.id)} />
                       <Button label="放弃" variant="ghost" onPress={() => training.dismiss(set.id)} />
                     </Row>
                   ) : null}
@@ -284,7 +316,7 @@ export function TodayScreen() {
                       <Text variant="muted" tone="danger">
                         未保存
                       </Text>
-                      <Button label="重试" onPress={() => void study.retry(record.id)} loading={study.savingIds.has(record.id)} />
+                      <Button label="重试" variant="secondary" size="mini" onPress={() => void study.retry(record.id)} loading={study.savingIds.has(record.id)} />
                       <Button label="放弃" variant="ghost" onPress={() => study.dismiss(record.id)} />
                     </Row>
                   ) : null}
@@ -292,7 +324,6 @@ export function TodayScreen() {
               );
             })
           : null}
-
       </Content>
     </Screen>
   );

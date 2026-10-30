@@ -1,6 +1,5 @@
 import { createElement } from 'react';
 import { Platform, View } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
 
 import { theme } from './theme';
 import { useTheme } from './ThemeProvider';
@@ -33,6 +32,8 @@ export function BrandMark({ size = theme.layout.mark }: { size?: number }) {
       createElement('path', { d: BRAND_MARK_STAR, fill: color.accent }),
     );
   }
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { default: Svg, Path } = require('react-native-svg') as typeof import('react-native-svg');
   return (
     <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ width: size, height: size }}>
       <Svg width={size} height={size} viewBox={viewBox}>

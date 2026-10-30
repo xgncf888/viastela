@@ -57,38 +57,30 @@ export function MeScreen() {
 
   return (
     <Screen>
-      <Content width="wide" inset={inset}>
+      <Content inset={inset}>
         <ScreenHeader kicker="我的" title={brand.displayName} />
         <Card>
-          <Field label="邮箱" value={session?.email ?? '未登录'} />
-        </Card>
-        <Card>
-          <TextField
-            label="日切时间"
-            value={value}
-            onChangeText={setDraft}
-            placeholder="04:00"
-            helper="默认 04:00。改了只影响之后的新记录，已经记下的归属日不会变。"
-            error={error}
-          />
-          <Button label="保存" onPress={() => void onSave()} loading={saving} loadingLabel="保存中…" />
-        </Card>
-        <Card>
-          <Field
-            label="当前时区"
-            value={timeZone}
-            hint="每条记录写下当时的时区。之后换城市，旧记录的归属日不变。"
-          />
+          <Stack gap="md">
+            <Text variant="heading">账户与记账偏好</Text>
+            <Field label="邮箱" value={session?.email ?? '未登录'} />
+            <Field
+              label="当前时区"
+              value={timeZone}
+              hint="每条记录写下当时的时区。之后换城市，旧记录的归属日不变。"
+            />
+            <TextField
+              label="日切时间"
+              value={value}
+              onChangeText={setDraft}
+              placeholder="04:00"
+              helper="默认 04:00。改了只影响之后的新记录，已经记下的归属日不会变。"
+              error={error}
+            />
+            <Button label="保存" onPress={() => void onSave()} loading={saving} loadingLabel="保存中…" />
+            {hint ? <Field label="添加到主屏幕" value={hint} /> : null}
+          </Stack>
         </Card>
         {Platform.OS === 'web' ? <RemindersCard /> : null}
-        <Card>
-          <Text variant="body">体重、训练和学习可以在今日记。时间块还在后面。</Text>
-        </Card>
-        {hint ? (
-          <Card>
-            <Field label="添加到主屏幕" value={hint} />
-          </Card>
-        ) : null}
         <Button label="隐私政策" variant="ghost" onPress={() => router.push('/privacy')} />
         <Stack gap="lg">
           <Button

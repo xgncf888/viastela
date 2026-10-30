@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable } from 'react-native';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { computeLocalDay, currentTimeZone } from '@/core/local-day';
 import { timelineSaveNotice } from '@/core/timeline-errors';
@@ -27,7 +27,7 @@ import { Chip } from '@/ui/Chip';
 import { ChipGroup } from '@/ui/ChipGroup';
 import { EmptyState } from '@/ui/EmptyState';
 import { LoadingRegion, type LoadingRegionName } from '@/ui/LoadingRegion';
-import { Row, ScreenHeader, Stack } from '@/ui/layout';
+import { Divider, Row, ScreenHeader, Stack } from '@/ui/layout';
 import { MaskedAmount } from '@/ui/MaskedAmount';
 import { Screen } from '@/ui/Screen';
 import { SkeletonLedger } from '@/ui/Skeleton';
@@ -269,29 +269,37 @@ export function TimelineScreen() {
         >
           <Stack gap="lg">
             {groups.length === 0 ? (
-              <EmptyState title="还没有记录" description="" action={<Button label="写一条日志" onPress={openCreate} />} />
+              <Card>
+                <EmptyState title="还没有记录" description="" action={<Button label="写一条日志" variant="secondary" onPress={openCreate} />} />
+              </Card>
             ) : (
               groups.map((group) => (
                 <Stack key={group.dayKey} gap="sm">
-                  <Text variant="heading" accessibilityRole="header">
-                    {group.label}
-                  </Text>
+                  <Row justify="between" align="center">
+                    <Text variant="heading" accessibilityRole="header">
+                      {group.label}
+                    </Text>
+                    <Text variant="caption">{`${group.items.length} 条记录`}</Text>
+                  </Row>
                   <Card>
-                    {group.items.map((item) => (
-                      <Stack key={item.id} gap="xs">
-                        {item.editable ? (
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={`编辑 ${item.title}`}
-                            onPress={() => openJournal(item)}
-                          >
-                            <TimelineRow item={item} masked={masked} />
-                          </Pressable>
-                        ) : (
-                          <TimelineRow item={item} masked={masked} />
-                        )}
-                        {item.editable ? (
-                          <Row justify="end">
+                    {group.items.map((item, index) => (
+                      <Fragment key={item.id}>
+                        {index > 0 ? <Divider /> : null}
+                        <Row justify="between" align="start" gap="sm">
+                          <View style={styles.itemBody}>
+                            {item.editable ? (
+                              <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel={`编辑 ${item.title}`}
+                                onPress={() => openJournal(item)}
+                              >
+                                <TimelineRow item={item} masked={masked} />
+                              </Pressable>
+                            ) : (
+                              <TimelineRow item={item} masked={masked} />
+                            )}
+                          </View>
+                          {item.editable ? (
                             <Button
                               label="删除"
                               variant="ghost"
@@ -307,9 +315,9 @@ export function TimelineScreen() {
                                 })
                               }
                             />
-                          </Row>
-                        ) : null}
-                      </Stack>
+                          ) : null}
+                        </Row>
+                      </Fragment>
                     ))}
                   </Card>
                 </Stack>
@@ -354,3 +362,10 @@ function TimelineRow({ item, masked }: { item: PresentedTimelineItem; masked: bo
         : item.detail;
   return <TimelineItem title={item.title} detail={detail} time={item.time} />;
 }
+
+const styles = StyleSheet.create({
+  itemBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+});
