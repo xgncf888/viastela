@@ -1,11 +1,14 @@
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { layoutClassForWidth, type LayoutClass } from './layout-class';
+import { createNavPress } from './nav-press';
+import { washPressStyle } from './press';
 import { Text } from './Text';
 import { theme } from './theme';
 import { useTheme } from './ThemeProvider';
+import { useReducedMotion } from './use-reduced-motion';
 
 /** Width only. Phones, split iPad, and a dragged browser window all follow the same cuts. */
 export function useLayoutClass(): LayoutClass {
@@ -88,15 +91,29 @@ export function NavItem({
   onPress: () => void;
   placement?: 'side' | 'tab';
 }) {
-  const { color } = useTheme();
+  const { color, press } = useTheme();
+  const reducedMotion = useReducedMotion() === true;
   const side = placement === 'side';
+  const presses = useRef(createNavPress());
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
       aria-selected={Platform.OS === 'web' ? selected : undefined}
-      onPress={onPress}
-      style={[styles.nav, side ? styles.navSide : styles.navTab]}
+      onPressIn={() => {
+        if (!selected) presses.current.pressIn(onPress);
+      }}
+      onPress={() => {
+        if (!selected) presses.current.press(onPress);
+      }}
+      onPressOut={() => {
+        presses.current.cancel();
+      }}
+      style={({ pressed }) => [
+        styles.nav,
+        side ? styles.navSide : styles.navTab,
+        washPressStyle(pressed, reducedMotion, press, color.pressed, Platform.OS === 'web'),
+      ]}
     >
       <View
         style={[

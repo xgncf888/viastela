@@ -13,6 +13,8 @@ export type Palette = {
   card: string;
   surface: string;
   fill: string;
+  /** Full-bleed press wash for rows, tappable cards, and tabs. */
+  pressed: string;
   bar: string;
   ink: string;
   muted: string;
@@ -47,6 +49,7 @@ export const lightColor: Palette = {
   card: '#FFFFFF',
   surface: '#FBFAF6',
   fill: '#F1EFE8',
+  pressed: 'rgba(38, 36, 31, 0.06)',
   bar: '#F6F5F0',
   ink: '#26241F',
   muted: '#5F5E57',
@@ -80,6 +83,7 @@ export const darkColor: Palette = {
   card: '#1E1E1C',
   surface: '#232321',
   fill: '#2A2A27',
+  pressed: 'rgba(250, 249, 245, 0.08)',
   bar: '#1E1E1C',
   ink: '#FAF9F5',
   muted: '#B0AEA5',
@@ -165,6 +169,17 @@ export const theme = {
   border: {
     width: 1,
     indicator: 2,
+  },
+  /**
+   * Press feedback. A later theme can swap these without editing components.
+   * Disabled opacity stays the existing 0.55.
+   */
+  press: {
+    inMs: 0,
+    releaseMs: 100,
+    opacity: 0.86,
+    scale: 0.98,
+    disabledOpacity: 0.55,
   },
   breakpoint: {
     tablet: 600,

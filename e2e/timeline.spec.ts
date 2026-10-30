@@ -2,8 +2,9 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 
 import { computeLocalDay } from '../src/core/local-day';
 import { timelineDayKey, timelineDayLabel } from '../src/core/timeline-day';
+import { LOAD_TIMEOUT_MS } from '../src/lib/timing';
 import { navItem, waitForTodayLoaded } from './selectors';
-import { authSession, installApi, userId } from './session';
+import { authSession, installApi, userId, weightRow } from './session';
 
 const userB = '22222222-2222-4222-8222-222222222222';
 const cashId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -266,4 +267,186 @@ test.describe('timeline', () => {
     await recorded;
     await expect.poll(async () => page.getByText('不能选择未来的日期').count()).toBeGreaterThan(0);
   });
+
+  test('the first load shows a status skeleton, then the failure row, and a retry can time out again', async ({ page }) => {
+    test.setTimeout(LOAD_TIMEOUT_MS * 2 + 25_000);
+    const held: Route[] = [];
+    const gate: { mode: 'ok' | 'hang' | 'error' } = { mode: 'hang' };
+    let timelineGets = 0;
+    page.on('request', (request) => {
+      if (request.method() === 'GET' && request.url().includes('/rest/v1/timeline')) timelineGets += 1;
+    });
+    await signInAs(page, { userId, email: 'reader@example.com' });
+    await installReaderTimeline(page, gate, held);
+    await page.goto('/timeline');
+    await expect(page.getByRole('heading', { name: '时间线' })).toBeVisible();
+    await expect(page.locator('[role="status"]')).toHaveCount(0);
+    await expect(page.locator('[role="status"]')).toHaveText('正在加载时间线', { timeout: 4_000 });
+    const alert = page.getByRole('alert').filter({ hasText: LOAD_FAILURE_COPY });
+    await expect(alert).toBeVisible({ timeout: LOAD_TIMEOUT_MS });
+    await expect(alert).toContainText(LOAD_FAILURE_COPY);
+    await expect(page.getByRole('button', { name: '重试' })).toBeVisible();
+    await expect(page.locator('[role="status"]')).toHaveCount(0);
+    await expect(page.getByText('读取失败')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: '时间线' })).toBeVisible();
+
+    const seen = timelineGets;
+    await page.getByRole('button', { name: '重试' }).click();
+    await expect.poll(() => timelineGets).toBeGreaterThan(seen);
+    await expect(page.getByText(LOAD_FAILURE_COPY)).toHaveCount(0);
+    await expect(page.locator('[role="status"]')).toHaveText('正在加载时间线', { timeout: 4_000 });
+    await expect(alert).toBeVisible({ timeout: LOAD_TIMEOUT_MS });
+    await expect(page.locator('[role="status"]')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: '时间线' })).toBeVisible();
+    await releaseHeld(held);
+  });
+
+  test('an HTTP 500 uses the same failure copy and role=alert', async ({ page }) => {
+    const gate = { mode: 'error' as 'ok' | 'hang' | 'error' };
+    let timelineGets = 0;
+    page.on('request', (request) => {
+      if (request.method() === 'GET' && request.url().includes('/rest/v1/timeline')) timelineGets += 1;
+    });
+    await signInAs(page, { userId, email: 'reader@example.com' });
+    await installReaderTimeline(page, gate, []);
+    await page.goto('/timeline');
+    const alert = page.getByRole('alert').filter({ hasText: LOAD_FAILURE_COPY });
+    await expect(alert).toBeVisible();
+    await expect(alert).toContainText(LOAD_FAILURE_COPY);
+    await expect(page.getByRole('button', { name: '重试' })).toBeVisible();
+    await expect(page.getByText('读取失败')).toHaveCount(0);
+    await expect(page.getByText('down')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: '时间线' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '全部' })).toBeVisible();
+
+    const seen = timelineGets;
+    await page.getByRole('button', { name: '重试' }).click();
+    await expect.poll(() => timelineGets).toBeGreaterThan(seen);
+    await expect(alert).toBeVisible();
+    await expect(page.getByText('读取失败')).toHaveCount(0);
+    await expect(page.locator('[role="status"]')).toHaveCount(0);
+  });
+
+  test('switching filters keeps the previous rows and shows the refresh line', async ({ page }) => {
+    const held: Route[] = [];
+    const gate: { mode: 'ok' | 'hang' | 'error' } = { mode: 'ok' };
+    await signInAs(page, { userId, email: 'reader@example.com' });
+    await installReaderTimeline(page, gate, held);
+    await page.goto('/timeline');
+    await expect(page.getByText('体重 76 kg')).toBeVisible();
+    await expect(page.getByRole('heading', { name: '时间线' })).toBeVisible();
+    gate.mode = 'hang';
+    await page.getByRole('button', { name: '资金' }).click();
+    await expect(page.getByText('正在更新…')).toBeVisible();
+    await expect(page.getByText('体重 76 kg')).toBeVisible();
+    await expect(page.getByRole('heading', { name: '时间线' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '全部' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '资金' })).toBeVisible();
+    await page.waitForTimeout(1_500);
+    await expect(page.getByText('正在加载时间线')).toHaveCount(0);
+    await expect(page.locator('[role="status"]')).toHaveCount(0);
+    await expect(page.getByText(LOAD_FAILURE_COPY)).toHaveCount(0);
+    await expect(page.getByText('体重 76 kg')).toBeVisible();
+    await releaseHeld(held);
+  });
+
+  test('a background refresh error keeps the rows and shows the refresh failure', async ({ page }) => {
+    const gate: { mode: 'ok' | 'hang' | 'error' } = { mode: 'ok' };
+    await signInAs(page, { userId, email: 'reader@example.com' });
+    await installReaderTimeline(page, gate, []);
+    await page.goto('/timeline');
+    await expect(page.getByText('体重 76 kg')).toBeVisible();
+    gate.mode = 'error';
+    await page.getByRole('button', { name: '日志', exact: true }).click();
+    await expect(page.getByText('更新失败')).toBeVisible();
+    await expect(page.getByRole('button', { name: '重试' })).toBeVisible();
+    await expect(page.getByText('体重 76 kg')).toBeVisible();
+    await expect(page.getByRole('heading', { name: '时间线' })).toBeVisible();
+    await expect(page.getByText(LOAD_FAILURE_COPY)).toHaveCount(0);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    await expect(page.getByText('读取失败')).toHaveCount(0);
+  });
+
+  test('saving a log keeps the previous rows and shows the refresh line', async ({ page }) => {
+    const held: Route[] = [];
+    const gate: { mode: 'ok' | 'hang' | 'error' } = { mode: 'ok' };
+    await signInAs(page, { userId, email: 'reader@example.com' });
+    await installReaderTimeline(page, gate, held);
+    await page.goto('/timeline');
+    await expect(page.getByText('体重 76 kg')).toBeVisible();
+    gate.mode = 'hang';
+    await page.getByRole('button', { name: '写日志' }).click();
+    await page.getByLabel('正文').fill('体重 74 kg');
+    await page.getByRole('button', { name: '保存' }).click();
+    await expect(page.getByText('正在更新…')).toBeVisible();
+    await expect(page.getByText('体重 76 kg')).toBeVisible();
+    await expect(page.getByRole('heading', { name: '时间线' })).toBeVisible();
+    await expect(page.getByText(LOAD_FAILURE_COPY)).toHaveCount(0);
+    await expect(page.locator('[role="status"]')).toHaveCount(0);
+    await releaseHeld(held);
+  });
 });
+
+const LOAD_FAILURE_COPY = '没加载出来，检查网络后再试';
+
+async function installReaderTimeline(
+  page: Page,
+  gate: { mode: 'ok' | 'hang' | 'error' },
+  held: Route[],
+): Promise<void> {
+  await installApi(page, {
+    weights: [
+      weightRow('w-72', '2026-10-27', 72),
+      weightRow('w-76', '2026-10-27', 76, 9),
+      weightRow('w-80', '2026-10-27', 80, 10),
+    ],
+  });
+  const row: TimelineFixture = {
+    id: 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1',
+    kind: 'journal',
+    occurred_at: '2026-10-27T02:00:00.000Z',
+    local_day: '2026-10-27',
+    ref_id: null,
+    payload: { body: '体重 76 kg', mood: null, tags: [] },
+  };
+  const handle = async (route: Route) => {
+    const request = route.request();
+    if (request.method() === 'OPTIONS') {
+      await route.fallback();
+      return;
+    }
+    const url = request.url();
+    if (url.includes('/rest/v1/asset_accounts')) {
+      await route.fulfill({ status: 200, headers: cors, body: '[]' });
+      return;
+    }
+    if (url.includes('/rest/v1/journal_entries') && request.method() === 'POST') {
+      await route.fulfill({ status: 201, headers: cors, body: '[]' });
+      return;
+    }
+    if (url.includes('/rest/v1/timeline')) {
+      if (gate.mode === 'hang' && request.method() === 'GET') {
+        held.push(route);
+        return;
+      }
+      if (gate.mode === 'error' && request.method() === 'GET') {
+        await route.fulfill({
+          status: 500,
+          headers: cors,
+          body: JSON.stringify({ message: 'down' }),
+        });
+        return;
+      }
+      await route.fulfill({ status: 200, headers: cors, body: JSON.stringify([row]) });
+      return;
+    }
+    await route.fallback();
+  };
+  await page.route(/\/rest\/v1\/asset_accounts/, handle);
+  await page.route(/\/rest\/v1\/journal_entries/, handle);
+  await page.route(/\/rest\/v1\/timeline/, handle);
+}
+
+async function releaseHeld(held: Route[]): Promise<void> {
+  await Promise.all(held.splice(0).map((route) => route.abort().catch(() => undefined)));
+}

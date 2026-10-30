@@ -34,3 +34,20 @@ export function confirmSave<T extends { id: string }>(state: SaveState<T>, recor
 export function visibleRecords<T extends { id: string }>(state: SaveState<T>): T[] {
   return mergeById(state.saved, state.pending);
 }
+
+/**
+ * Replace the saved list with one server read of the affected query,
+ * keeping locally confirmed rows that this read does not contain yet.
+ */
+export function reconcileServerRows<T extends { id: string }>(
+  current: SaveState<T>,
+  serverRows: readonly T[],
+  keepLocalIds: ReadonlySet<string>,
+): SaveState<T> {
+  const serverIds = new Set(serverRows.map((row) => row.id));
+  const extras = current.saved.filter((row) => !serverIds.has(row.id) && keepLocalIds.has(row.id));
+  return {
+    saved: [...serverRows, ...extras],
+    pending: current.pending.filter((row) => !serverIds.has(row.id)),
+  };
+}

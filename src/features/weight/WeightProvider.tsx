@@ -9,9 +9,10 @@ import {
   scheduleDeferredDelete,
   useDeferredDeleteIds,
 } from '@/features/record/deferred-delete';
-import { beginSave, confirmSave, visibleRecords, type SaveState } from '@/core/save-state';
+import { beginSave, confirmSave, reconcileServerRows, visibleRecords, type SaveState } from '@/core/save-state';
 import { RECORD_DELETED, weightSaveOutcome } from '@/core/weight-write';
 import { TREND_WINDOW_DAYS, weightListWindow, type WeightRecord } from '@/core/weight-stats';
+import { withLoadTimeout } from '@/data/load-timeout';
 import { getDaySwitch, updateDaySwitch } from '@/data/profile';
 import { latestWeightRecord, listWeightRecords, softDeleteWeightRecord, upsertWeightRecord } from '@/data/weights';
 import { showToast } from '@/ui/toast';
@@ -25,7 +26,9 @@ type WeightContextValue = {
   failedIds: ReadonlySet<string>;
   pendingDeleteIds: ReadonlySet<string>;
   deletedNotice: boolean;
-  saving: boolean;
+  savingIds: ReadonlySet<string>;
+  refreshing: boolean;
+  refreshError: boolean;
   daySwitch: string;
   timeZone: string;
   reload: () => Promise<void>;
@@ -46,11 +49,16 @@ export function WeightProvider({ children }: { children: ReactNode }) {
   const [failedIds, setFailedIds] = useState<ReadonlySet<string>>(new Set());
   const [daySwitch, setDaySwitch] = useState(DEFAULT_DAY_SWITCH);
   const [ready, setReady] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [savingIds, setSavingIds] = useState<ReadonlySet<string>>(new Set());
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [deletedNotice, setDeletedNotice] = useState(false);
-  const creating = useRef(false);
   const inFlight = useRef(new Set<string>());
+  const alive = useRef(new Set<string>());
+  const readyRef = useRef(false);
+  const loadTicket = useRef(0);
+  const confirmedTicket = useRef(new Map<string, number>());
   const pendingDeleteIds = useDeferredDeleteIds();
 
   const loadSaved = useCallback(async (switchTime: string) => {
@@ -63,41 +71,66 @@ export function WeightProvider({ children }: { children: ReactNode }) {
     return [...rows, latest];
   }, []);
 
-  const applyRows = useCallback((rows: WeightRecord[], nextSwitch: string) => {
+  const applyRows = useCallback((rows: WeightRecord[], nextSwitch: string, ticket: number) => {
+    const keep = new Set<string>();
+    for (const [id, at] of confirmedTicket.current) {
+      if (at >= ticket) keep.add(id);
+    }
+    for (const row of rows) confirmedTicket.current.delete(row.id);
     setLoadError(null);
-    setSaveState((current) => {
-      const serverIds = new Set(rows.map((row) => row.id));
-      return {
-        saved: rows,
-        pending: current.pending.filter((row) => !serverIds.has(row.id)),
-      };
-    });
+    setSaveState((current) => reconcileServerRows(current, rows, keep));
     setDaySwitch(nextSwitch);
+    setRefreshError(false);
     setReady(true);
   }, []);
 
+  useEffect(() => {
+    readyRef.current = ready;
+  }, [ready]);
+
   const reload = useCallback(async () => {
+    const ticket = ++loadTicket.current;
+    const background = readyRef.current;
+    if (background) {
+      setRefreshing(true);
+      setRefreshError(false);
+    }
     try {
-      const nextSwitch = await getDaySwitch();
-      applyRows(await loadSaved(nextSwitch), nextSwitch);
+      const loaded = await withLoadTimeout(
+        (async () => {
+          const nextSwitch = await getDaySwitch();
+          const rows = await loadSaved(nextSwitch);
+          return { nextSwitch, rows };
+        })(),
+      );
+      if (ticket !== loadTicket.current) return;
+      applyRows(loaded.rows, loaded.nextSwitch, ticket);
+      setRefreshError(false);
     } catch {
-      setLoadError('读取失败');
-      setReady(true);
+      if (ticket !== loadTicket.current) return;
+      if (readyRef.current) setRefreshError(true);
+      else {
+        setLoadError('读取失败');
+        setReady(true);
+      }
+    } finally {
+      if (ticket === loadTicket.current) setRefreshing(false);
     }
   }, [applyRows, loadSaved]);
 
   useEffect(() => {
     if (!session) return undefined;
+    const ticket = ++loadTicket.current;
     let cancelled = false;
     void getDaySwitch()
       .then(async (nextSwitch) => ({ nextSwitch, rows: await loadSaved(nextSwitch) }))
       .then(
         ({ rows, nextSwitch }) => {
-          if (cancelled) return;
-          applyRows(rows, nextSwitch);
+          if (cancelled || ticket !== loadTicket.current) return;
+          applyRows(rows, nextSwitch, ticket);
         },
         () => {
-          if (cancelled) return;
+          if (cancelled || ticket !== loadTicket.current) return;
           setLoadError('读取失败');
           setReady(true);
         },
@@ -108,10 +141,8 @@ export function WeightProvider({ children }: { children: ReactNode }) {
   }, [applyRows, loadSaved, session]);
 
   const saveWeight = useCallback(async (weightKg: number, existingId?: string) => {
-    if (!existingId && creating.current) return 'retry';
     const id = existingId ?? createId();
     if (inFlight.current.has(id)) return 'retry';
-    if (!existingId) creating.current = true;
     const existing = existingId ? saveState.pending.find((item) => item.id === existingId) : undefined;
     const recordedAt = existing ? new Date(existing.recordedAt) : new Date();
     const tz = existing?.tz ?? currentTimeZone();
@@ -131,43 +162,50 @@ export function WeightProvider({ children }: { children: ReactNode }) {
       return next;
     });
     inFlight.current.add(id);
-    setSaving(true);
-    try {
-      await upsertWeightRecord(record);
+    alive.current.add(id);
+    setSavingIds((current) => {
+      const next = new Set(current);
+      next.add(id);
+      return next;
+    });
+    void (async () => {
       try {
-        const rows = await loadSaved(switchTime);
-        setSaveState((current) => ({
-          saved: rows.some((row) => row.id === id) ? rows : confirmSave({ saved: rows, pending: [] }, record).saved,
-          pending: current.pending.filter((row) => row.id !== id && !rows.some((saved) => saved.id === row.id)),
-        }));
-      } catch {
-        setSaveState((current) => confirmSave(current, record));
-      }
-      showToast({ text: saveToastMessage(recordedAt, tz, switchTime) });
-      return 'saved';
-    } catch (error) {
-      if (weightSaveOutcome(error) === RECORD_DELETED) {
-        setSaveState((current) => ({
-          saved: current.saved.filter((row) => row.id !== id),
-          pending: current.pending.filter((row) => row.id !== id),
-        }));
-        setFailedIds((current) => {
+        await upsertWeightRecord(record);
+        if (!alive.current.has(id)) return;
+        confirmedTicket.current.set(id, loadTicket.current);
+        setSaveState((current) => (current.pending.some((row) => row.id === id) ? confirmSave(current, record) : current));
+        showToast({ text: saveToastMessage(recordedAt, tz, switchTime) });
+      } catch (error) {
+        confirmedTicket.current.delete(id);
+        if (!alive.current.has(id)) return;
+        if (weightSaveOutcome(error) === RECORD_DELETED) {
+          alive.current.delete(id);
+          setSaveState((current) => ({
+            saved: current.saved.filter((row) => row.id !== id),
+            pending: current.pending.filter((row) => row.id !== id),
+          }));
+          setFailedIds((current) => {
+            const next = new Set(current);
+            next.delete(id);
+            return next;
+          });
+          setDeletedNotice(true);
+          return;
+        }
+        setFailedIds((current) => new Set(current).add(id));
+        showToast({ text: '保存失败，请重试', tone: 'error' });
+      } finally {
+        inFlight.current.delete(id);
+        setSavingIds((current) => {
+          if (!current.has(id)) return current;
           const next = new Set(current);
           next.delete(id);
           return next;
         });
-        setDeletedNotice(true);
-        return 'deleted';
       }
-      setFailedIds((current) => new Set(current).add(id));
-      showToast({ text: '保存失败，请重试', tone: 'error' });
-      return 'retry';
-    } finally {
-      inFlight.current.delete(id);
-      if (!existingId) creating.current = false;
-      setSaving(false);
-    }
-  }, [daySwitch, loadSaved, saveState.pending]);
+    })();
+    return 'saved';
+  }, [daySwitch, saveState.pending]);
 
   const retry = useCallback(
     async (id: string) => {
@@ -183,6 +221,8 @@ export function WeightProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const dismiss = useCallback((id: string) => {
+    alive.current.delete(id);
+    confirmedTicket.current.delete(id);
     setSaveState((current) => ({
       saved: current.saved,
       pending: current.pending.filter((row) => row.id !== id),
@@ -203,6 +243,7 @@ export function WeightProvider({ children }: { children: ReactNode }) {
       }
       try {
         await softDeleteWeightRecord(id);
+        confirmedTicket.current.delete(id);
         setSaveState((current) => ({
           saved: current.saved.filter((row) => row.id !== id),
           pending: current.pending.filter((row) => row.id !== id),
@@ -245,15 +286,13 @@ export function WeightProvider({ children }: { children: ReactNode }) {
     await updateDaySwitch(normalized);
     setDaySwitch(normalized);
     try {
+      const ticket = ++loadTicket.current;
       const rows = await loadSaved(normalized);
-      setSaveState((current) => ({
-        saved: rows,
-        pending: current.pending.filter((row) => !rows.some((saved) => saved.id === row.id)),
-      }));
+      if (ticket === loadTicket.current) applyRows(rows, normalized, ticket);
     } catch {
       setLoadError('读取失败');
     }
-  }, [loadSaved]);
+  }, [applyRows, loadSaved]);
 
   const records = useMemo(() => visibleRecords(saveState), [saveState]);
   const value = useMemo<WeightContextValue>(
@@ -264,7 +303,9 @@ export function WeightProvider({ children }: { children: ReactNode }) {
       failedIds,
       pendingDeleteIds,
       deletedNotice,
-      saving,
+      savingIds,
+      refreshing,
+      refreshError,
       daySwitch,
       timeZone: currentTimeZone(),
       reload,
@@ -276,7 +317,7 @@ export function WeightProvider({ children }: { children: ReactNode }) {
       scheduleDelete,
       saveDaySwitch,
     }),
-    [ready, loadError, records, failedIds, pendingDeleteIds, deletedNotice, saving, daySwitch, reload, saveWeight, retry, dismiss, dismissDeletedNotice, removeRecord, scheduleDelete, saveDaySwitch],
+    [ready, loadError, records, failedIds, pendingDeleteIds, deletedNotice, savingIds, refreshing, refreshError, daySwitch, reload, saveWeight, retry, dismiss, dismissDeletedNotice, removeRecord, scheduleDelete, saveDaySwitch],
   );
 
   return <WeightContext.Provider value={value}>{children}</WeightContext.Provider>;

@@ -1,6 +1,8 @@
 import { expect, test } from '@jest/globals';
 
-import { moneyAxis, moneyAxisDomain } from './money-axis';
+// Same axis the chart draws. The projection test checks that domain, not a second copy.
+// eslint-disable-next-line no-restricted-imports
+import { moneyAxis, tickValueDomain } from '@/ui/chart-ticks';
 import { projectNetWorth } from './projection';
 import { projectionChart } from './projection-chart';
 
@@ -28,7 +30,11 @@ test('draws three lines and names the selected rate in the screen reader label',
   expect(chart.accessibilityLabel).toBe('实际、3%、5%、7%、目标，预计达标月份');
   expect(chart.series.map((series) => series.label)).toEqual(['目标', '3%', '7%', '5%']);
   expect(chart.series.map((series) => series.tone)).toEqual(['target', 'muted', 'muted', 'moss']);
-  expect(chart.series.find((series) => series.id === 'target')).toMatchObject({ tone: 'target', style: 'dotted' });
+  expect(chart.series.find((series) => series.id === 'target')).toMatchObject({
+    tone: 'target',
+    style: 'dotted',
+    thin: true,
+  });
   expect(chart.series.some((series) => (series.tone as string) === 'line')).toBe(false);
   expect(chart.series.find((series) => series.label === '5%')?.tone).toBe('moss');
   expect(chart.series.every((series) => series.points.every((point) => point.x >= 0 && point.x <= 1 && point.y >= 0 && point.y <= 1))).toBe(true);
@@ -66,7 +72,7 @@ test('no goal draws the three rate lines and no target line', () => {
 });
 
 test('y positions use the money axis domain and never the line tone', () => {
-  expect(moneyAxisDomain([10, 20])).toEqual({ min: 0, max: 20 });
+  expect(tickValueDomain(moneyAxis([10, 20]))).toEqual({ min: 0, max: 20 });
   expect(moneyAxis([10, 20]).map((tick) => tick.value)).toEqual([0, 5, 10, 15, 20]);
 
   const shared = {
@@ -95,7 +101,8 @@ test('y positions use the money axis domain and never the line tone', () => {
     ...lines.flatMap((line) => line.points.map((point) => point.netWorthUsd)),
     -40,
   ];
-  const domain = moneyAxisDomain(values);
+  const domain = tickValueDomain(moneyAxis(values));
+  if (!domain) throw new Error('money axis domain missing');
   const yOf = (value: number) => (value - domain.min) / (domain.max - domain.min);
   const selected = lines[1];
   const selectedSeries = chart.series.find((series) => series.label === '5%');
@@ -115,7 +122,8 @@ test('y positions use the money axis domain and never the line tone', () => {
     snapshot: 'skipped',
   });
   const positiveValues = [20, ...lines.flatMap((line) => line.points.map((point) => point.netWorthUsd))];
-  const positiveDomain = moneyAxisDomain(positiveValues);
+  const positiveDomain = tickValueDomain(moneyAxis(positiveValues));
+  if (!positiveDomain) throw new Error('money axis domain missing');
   const dataMin = Math.min(...positiveValues);
   expect(positiveDomain.min).toBe(0);
   expect(dataMin).toBeGreaterThan(0);

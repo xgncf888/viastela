@@ -78,6 +78,7 @@ export function Text({
   accessibilityLiveRegion,
   accessible,
   role,
+  numberOfLines,
   'aria-hidden': ariaHidden,
 }: {
   children: React.ReactNode;
@@ -92,6 +93,7 @@ export function Text({
   accessibilityLiveRegion?: 'none' | 'polite' | 'assertive';
   accessible?: boolean;
   role?: 'status' | 'alert';
+  numberOfLines?: number;
   'aria-hidden'?: boolean;
 }) {
   const theme = useTheme();
@@ -117,6 +119,7 @@ export function Text({
       accessibilityLiveRegion={accessibilityLiveRegion}
       accessible={accessible}
       role={role}
+      numberOfLines={numberOfLines}
       aria-hidden={ariaHidden}
       maxFontSizeMultiplier={maxFontSizeMultiplierFor(variant)}
       style={[

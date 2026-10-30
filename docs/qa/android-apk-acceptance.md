@@ -15,10 +15,10 @@
 | A-00c | 仓库里没有签名材料 | 搜 `*.jks`、`*.keystore`、`EXPO_TOKEN` 的值、`credentials.json`：零命中；`EXPO_TOKEN` 只在 GitHub Secrets 里，由 Yifeng 配 |
 | A-00d | `version.json` 和 sha256 | 网站上的 `version.json` 写着最新的 versionCode、下载地址和 sha256；下载下来的 APK 用 `sha256sum` 算出来的值和它一致；versionCode 比上一个包大 |
 | A-00e | App 内检查新版本 | 装旧包、网站上是新版本：提示有新版本；版本相同不提示；`version.json` 拿不到或格式不对时不提示也不崩 |
-| A-00f | https 登录回调打开 APK | 点 https 回调链接直接打开 APK，不弹浏览器选择框（`adb shell pm get-app-links com.viastela.app` 显示 verified）；回调白名单里只有精确地址，没有通配符 |
+| A-00f | https 登录回调打开 APK | 这一轮只查 `adb shell pm get-app-links com.viastela.app` 显示 verified。点开链接之后落到哪一页，等原生 OAuth 再验 |
 | A-00g | Yifeng 的安卓手机真机走通 | 邮箱 OTP 登录、记一条体重、删号，三步都通过；由 Yifeng 本人操作，我按这份清单核对截图和结果 |
 
-A-00f 涉及的回调白名单属于登录改动：四人全审，再加 Yifeng 点头；由 Yifeng 或 Grok Ultra 配置。
+这一轮不把 `https://viastela.vercel.app/auth/callback` 加进回调白名单。`app/` 没有 `/auth/callback`，网页 OAuth 回到站点根路径加上 returnPath。App Link 声明先留着，白名单里没有它也没有害处。原生 OAuth 时再加：那个改动加一个无界面路由（`exchangeCodeForSession` 之后转到 `/`，不记录、不露出 code），在 `viastela://auth/callback` 和这条 https 地址里只选一个，白名单只加那一个精确地址，并要 Yifeng 点头。那次改动四人全审。
 
 ## 1. 安装包本身
 

@@ -5,6 +5,7 @@ import { assetSaveNotice } from '@/core/asset-errors';
 import { deletedAccountUndo } from '@/core/asset-form';
 import { dashboardTotalUsd } from '@/core/asset-summary';
 import { balanceAfterUsd, balanceUsdRate } from '@/core/balance-write';
+import { useRefreshOnFocus } from '@/data/refresh-on-focus';
 import { createId } from '@/core/id';
 import { createResultSequence } from '@/core/latest-result';
 import { civilLocalDay, computeLocalDay } from '@/core/local-day';
@@ -185,6 +186,8 @@ export function AssetsScreen() {
   useEffect(() => {
     reloadRef.current = reload;
   }, [reload]);
+
+  useRefreshOnFocus(() => reload());
 
   useEffect(() => {
     let cancelled = false;

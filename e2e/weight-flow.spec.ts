@@ -94,7 +94,7 @@ test('a row-level security error other than record deleted can be retried', asyn
   await page.getByRole('button', { name: '再记 73.7 kg' }).click();
   await page.getByRole('button', { name: '保存' }).click();
   await expect(page.getByText('保存失败，请重试')).toBeVisible();
-  await closeRecordSheet(page).click();
+  await expect(recordSheetHeading(page)).toBeHidden();
   await expect(page.getByText('这条记录已在其他设备删除')).toHaveCount(0);
   await expect(page.getByText('保存失败，请重试')).toBeVisible();
   await expect(page.getByRole('button', { name: '重试' })).toBeVisible();

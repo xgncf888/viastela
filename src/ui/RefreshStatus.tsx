@@ -48,48 +48,68 @@ export function RefreshStatus({
     return undefined;
   }, [status]);
 
-  if (status === 'idle') return <>{idle}</>;
-  if (status === 'refreshing') {
-    return (
-      <Text variant="muted" accessibilityLiveRegion="none">
-        {REFRESHING_TEXT}
-      </Text>
-    );
-  }
   const clock = cachedQuoteClock(cachedAt, timeZone);
   const lead = clock ? `${REFRESH_FAILED_TEXT} · ${REFRESH_CACHED_PREFIX} ${clock} · ` : `${REFRESH_FAILED_TEXT} · `;
   return (
-    <View
-      accessibilityLiveRegion={Platform.OS === 'android' ? 'polite' : undefined}
-      role={Platform.OS === 'web' ? 'status' : undefined}
-      style={styles.row}
-    >
-      <Text variant="muted" tone={clock ? 'warning' : undefined}>
-        {lead}
-      </Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={REFRESH_RETRY_LABEL}
-        hitSlop={{ top: theme.space.sm, bottom: theme.space.sm, left: theme.space.sm, right: theme.space.sm }}
-        onPress={onRetry}
-        style={styles.retry}
-      >
-        <Text variant="body" tone="accent">
-          {REFRESH_RETRY_LABEL}
+    <View style={styles.slot}>
+      {status === 'idle' ? (
+        idle
+      ) : status === 'refreshing' ? (
+        <Text variant="muted" numberOfLines={1} accessibilityLiveRegion="none">
+          {REFRESHING_TEXT}
         </Text>
-      </Pressable>
+      ) : (
+        <View
+          accessibilityLiveRegion={Platform.OS === 'android' ? 'polite' : undefined}
+          role={Platform.OS === 'web' ? 'status' : undefined}
+          style={styles.row}
+        >
+          <Text variant="muted" tone="warning" numberOfLines={1} style={styles.lead}>
+            {lead}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={REFRESH_RETRY_LABEL}
+            onPress={onRetry}
+            style={styles.retry}
+          >
+            <Text variant="muted" tone="accent">
+              {REFRESH_RETRY_LABEL}
+            </Text>
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
 
+/** How far the 44px target hangs out of the caption line without growing it. */
+const retryBleed = (theme.layout.control - theme.lineHeight.sm) / 2;
+
 const styles = StyleSheet.create({
+  /** The caption line. The retry target hangs outside it; the line itself stays this tall. */
+  slot: {
+    height: theme.lineHeight.sm,
+    justifyContent: 'center',
+    overflow: 'visible',
+  },
   row: {
     alignItems: 'center',
+    alignSelf: 'stretch',
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
+    maxWidth: '100%',
+  },
+  /** Shrink before the retry target, and ellipsize instead of wrapping. */
+  lead: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   retry: {
+    alignItems: 'flex-start',
     justifyContent: 'center',
+    marginVertical: -retryBleed,
     minHeight: theme.layout.control,
+    minWidth: theme.layout.control,
   },
 });

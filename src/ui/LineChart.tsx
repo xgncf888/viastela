@@ -1,11 +1,22 @@
 import { createElement, useState, type ReactNode } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, Text as AxisText, View, type TextStyle } from 'react-native';
 import Svg, { Circle, Line, Polyline } from 'react-native-svg';
 
+import {
+  chartDecorations,
+  tickOffset,
+  tickValueDomain,
+  type ChartAxisLine,
+  type ChartGridLine,
+  type ChartTick,
+  type ChartXTick,
+} from './chart-ticks';
 import { Row } from './layout';
 import { Text } from './Text';
 import { theme } from './theme';
 import { useTheme, type AppTheme } from './ThemeProvider';
+
+export type { ChartTick, ChartXTick } from './chart-ticks';
 
 export type LinePoint = {
   id: string;
@@ -25,24 +36,36 @@ type Plot = {
   width: number;
   height: number;
   placed: Placed[];
-  gridY: number[];
 };
 
-function buildPlot(points: readonly LinePoint[], width: number, height: number): Plot | null {
+function buildPlot(
+  points: readonly LinePoint[],
+  width: number,
+  height: number,
+  ticks?: readonly ChartTick[],
+): Plot | null {
   if (points.length === 0 || width <= 0) return null;
   const padX = theme.space.md;
   const padY = theme.space.md;
-  const values = points.flatMap((point) => [point.raw, point.trend]);
-  let min = Math.min(...values);
-  let max = Math.max(...values);
-  if (max - min < 0.4) {
-    const mid = (max + min) / 2;
-    min = mid - 0.4;
-    max = mid + 0.4;
+  const domain = tickValueDomain(ticks);
+  let min: number;
+  let max: number;
+  if (domain) {
+    min = domain.min;
+    max = domain.max;
   } else {
-    const pad = (max - min) * 0.16;
-    min -= pad;
-    max += pad;
+    const values = points.flatMap((point) => [point.raw, point.trend]);
+    min = Math.min(...values);
+    max = Math.max(...values);
+    if (max - min < 0.4) {
+      const mid = (max + min) / 2;
+      min = mid - 0.4;
+      max = mid + 0.4;
+    } else {
+      const pad = (max - min) * 0.16;
+      min -= pad;
+      max += pad;
+    }
   }
   const span = max - min;
   const yFor = (value: number) => {
@@ -59,7 +82,6 @@ function buildPlot(points: readonly LinePoint[], width: number, height: number):
       rawY: yFor(point.raw),
       trendY: yFor(point.trend),
     })),
-    gridY: [0.25, 0.5, 0.75].map((ratio) => yFor(min + span * ratio)),
   };
 }
 
@@ -67,7 +89,58 @@ function svg(tag: string, props: Record<string, unknown>, ...children: ReactNode
   return createElement(tag, props, ...children);
 }
 
-function WebPlot({ plot, color }: { plot: Plot; color: AppTheme['color'] }) {
+/** Last point is `dotLast` with a card-colored stroke so it separates from the line. */
+export function chartMarkerDot(
+  index: number,
+  count: number,
+  fill: string,
+  card: string,
+): { r: number; fill: string; stroke?: string; strokeWidth?: number } {
+  const last = count > 0 && index === count - 1;
+  if (!last) return { r: theme.layout.dot / 2, fill };
+  return {
+    r: theme.layout.dotLast / 2,
+    fill,
+    stroke: card,
+    strokeWidth: theme.border.width,
+  };
+}
+
+function axisLines(axis: ChartAxisLine | null, width: number): ReactNode {
+  if (!axis) return null;
+  return [
+    svg('line', {
+      key: 'axis-y',
+      x1: 0,
+      x2: 0,
+      y1: axis.top,
+      y2: axis.bottom,
+      stroke: axis.stroke,
+      strokeWidth: theme.border.width,
+    }),
+    svg('line', {
+      key: 'axis-x',
+      x1: 0,
+      x2: width,
+      y1: axis.bottom,
+      y2: axis.bottom,
+      stroke: axis.stroke,
+      strokeWidth: theme.border.width,
+    }),
+  ];
+}
+
+function WebPlot({
+  plot,
+  color,
+  grid,
+  axis,
+}: {
+  plot: Plot;
+  color: AppTheme['color'];
+  grid: readonly ChartGridLine[];
+  axis: ChartAxisLine | null;
+}) {
   const trend = plot.placed.map((point) => `${point.x.toFixed(1)},${point.trendY.toFixed(1)}`).join(' ');
   return svg(
     'svg',
@@ -77,17 +150,18 @@ function WebPlot({ plot, color }: { plot: Plot; color: AppTheme['color'] }) {
       viewBox: `0 0 ${plot.width} ${plot.height}`,
       role: 'presentation',
     },
-    plot.gridY.map((y) =>
+    grid.map((line) =>
       svg('line', {
-        key: y,
+        key: line.y,
         x1: 0,
         x2: plot.width,
-        y1: y,
-        y2: y,
-        stroke: color.line,
+        y1: line.y,
+        y2: line.y,
+        stroke: line.stroke,
         strokeWidth: theme.border.width,
       }),
     ),
+    axisLines(axis, plot.width),
     svg('polyline', {
       points: trend,
       fill: 'none',
@@ -97,33 +171,55 @@ function WebPlot({ plot, color }: { plot: Plot; color: AppTheme['color'] }) {
       strokeLinejoin: 'round',
       strokeLinecap: 'round',
     }),
-    plot.placed.map((point) =>
+    plot.placed.map((point, index) =>
       svg('circle', {
         key: point.id,
         cx: point.x,
         cy: point.rawY,
-        r: theme.layout.dot / 2,
-        fill: color.accent,
+        ...chartMarkerDot(index, plot.placed.length, color.accent, color.card),
       }),
     ),
   );
 }
 
-function NativePlot({ plot, color }: { plot: Plot; color: AppTheme['color'] }) {
+function NativePlot({
+  plot,
+  color,
+  grid,
+  axis,
+}: {
+  plot: Plot;
+  color: AppTheme['color'];
+  grid: readonly ChartGridLine[];
+  axis: ChartAxisLine | null;
+}) {
   const trend = plot.placed.map((point) => `${point.x.toFixed(1)},${point.trendY.toFixed(1)}`).join(' ');
   return (
     <Svg width={plot.width} height={plot.height}>
-      {plot.gridY.map((y) => (
+      {grid.map((line) => (
         <Line
-          key={y}
+          key={line.y}
           x1={0}
           x2={plot.width}
-          y1={y}
-          y2={y}
-          stroke={color.line}
+          y1={line.y}
+          y2={line.y}
+          stroke={line.stroke}
           strokeWidth={theme.border.width}
         />
       ))}
+      {axis ? (
+        <>
+          <Line x1={0} x2={0} y1={axis.top} y2={axis.bottom} stroke={axis.stroke} strokeWidth={theme.border.width} />
+          <Line
+            x1={0}
+            x2={plot.width}
+            y1={axis.bottom}
+            y2={axis.bottom}
+            stroke={axis.stroke}
+            strokeWidth={theme.border.width}
+          />
+        </>
+      ) : null}
       <Polyline
         points={trend}
         fill="none"
@@ -133,9 +229,20 @@ function NativePlot({ plot, color }: { plot: Plot; color: AppTheme['color'] }) {
         strokeLinejoin="round"
         strokeLinecap="round"
       />
-      {plot.placed.map((point) => (
-        <Circle key={point.id} cx={point.x} cy={point.rawY} r={theme.layout.dot / 2} fill={color.accent} />
-      ))}
+      {plot.placed.map((point, index) => {
+        const mark = chartMarkerDot(index, plot.placed.length, color.accent, color.card);
+        return (
+          <Circle
+            key={point.id}
+            cx={point.x}
+            cy={point.rawY}
+            r={mark.r}
+            fill={mark.fill}
+            stroke={mark.stroke}
+            strokeWidth={mark.stroke ? mark.strokeWidth : undefined}
+          />
+        );
+      })}
     </Svg>
   );
 }
@@ -156,7 +263,6 @@ export type ChartSeries = {
 type SeriesPlot = {
   width: number;
   height: number;
-  gridY: number[];
   series: {
     id: string;
     tone: ChartTone;
@@ -182,7 +288,6 @@ function buildSeriesPlot(series: readonly ChartSeries[], width: number, height: 
   return {
     width,
     height,
-    gridY: [0.25, 0.5, 0.75].map((ratio) => height - padY - ratio * innerH),
     series: series.map((item) => ({
       id: item.id,
       tone: item.tone,
@@ -205,7 +310,7 @@ function toneColor(tone: ChartTone, color: AppTheme['color']): string {
   return color.muted;
 }
 
-/** Selected projection line is 1.8, the other rates are 1.2, the target is the 1px token. Actual stays the data stroke. */
+/** Selected projection line is strokeSelected. The other rates are strokeMinor. Target is the 1px border. Actual stays layout.stroke. */
 function seriesStrokeWidth(series: { thin: boolean; tone: ChartTone }): number {
   if (series.tone === 'target') return theme.border.width;
   if (series.tone === 'accent') return theme.layout.stroke;
@@ -213,13 +318,32 @@ function seriesStrokeWidth(series: { thin: boolean; tone: ChartTone }): number {
   return theme.layout.strokeSelected;
 }
 
-function SeriesWeb({ plot, color }: { plot: SeriesPlot; color: AppTheme['color'] }) {
+function SeriesWeb({
+  plot,
+  color,
+  grid,
+  axis,
+}: {
+  plot: SeriesPlot;
+  color: AppTheme['color'];
+  grid: readonly ChartGridLine[];
+  axis: ChartAxisLine | null;
+}) {
   return svg(
     'svg',
     { width: '100%', height: plot.height, viewBox: `0 0 ${plot.width} ${plot.height}`, role: 'presentation' },
-    plot.gridY.map((y) =>
-      svg('line', { key: y, x1: 0, x2: plot.width, y1: y, y2: y, stroke: color.line, strokeWidth: theme.border.width }),
+    grid.map((line) =>
+      svg('line', {
+        key: line.y,
+        x1: 0,
+        x2: plot.width,
+        y1: line.y,
+        y2: line.y,
+        stroke: line.stroke,
+        strokeWidth: theme.border.width,
+      }),
     ),
+    axisLines(axis, plot.width),
     plot.series.map((series) =>
       svg('polyline', {
         key: series.id,
@@ -234,13 +358,12 @@ function SeriesWeb({ plot, color }: { plot: SeriesPlot; color: AppTheme['color']
     ),
     plot.series.flatMap((series) =>
       series.markers
-        ? series.points.map((point) =>
+        ? series.points.map((point, index) =>
             svg('circle', {
               key: `${series.id}-${point.id}`,
               cx: point.x,
               cy: point.y,
-              r: theme.layout.dot / 2,
-              fill: toneColor(series.tone, color),
+              ...chartMarkerDot(index, series.points.length, toneColor(series.tone, color), color.card),
             }),
           )
         : [],
@@ -248,12 +371,43 @@ function SeriesWeb({ plot, color }: { plot: SeriesPlot; color: AppTheme['color']
   );
 }
 
-function SeriesNative({ plot, color }: { plot: SeriesPlot; color: AppTheme['color'] }) {
+function SeriesNative({
+  plot,
+  color,
+  grid,
+  axis,
+}: {
+  plot: SeriesPlot;
+  color: AppTheme['color'];
+  grid: readonly ChartGridLine[];
+  axis: ChartAxisLine | null;
+}) {
   return (
     <Svg width={plot.width} height={plot.height}>
-      {plot.gridY.map((y) => (
-        <Line key={y} x1={0} x2={plot.width} y1={y} y2={y} stroke={color.line} strokeWidth={theme.border.width} />
+      {grid.map((line) => (
+        <Line
+          key={line.y}
+          x1={0}
+          x2={plot.width}
+          y1={line.y}
+          y2={line.y}
+          stroke={line.stroke}
+          strokeWidth={theme.border.width}
+        />
       ))}
+      {axis ? (
+        <>
+          <Line x1={0} x2={0} y1={axis.top} y2={axis.bottom} stroke={axis.stroke} strokeWidth={theme.border.width} />
+          <Line
+            x1={0}
+            x2={plot.width}
+            y1={axis.bottom}
+            y2={axis.bottom}
+            stroke={axis.stroke}
+            strokeWidth={theme.border.width}
+          />
+        </>
+      ) : null}
       {plot.series.map((series) => (
         <Polyline
           key={series.id}
@@ -268,24 +422,40 @@ function SeriesNative({ plot, color }: { plot: SeriesPlot; color: AppTheme['colo
       ))}
       {plot.series.flatMap((series) =>
         series.markers
-          ? series.points.map((point) => (
-              <Circle
-                key={`${series.id}-${point.id}`}
-                cx={point.x}
-                cy={point.y}
-                r={theme.layout.dot / 2}
-                fill={toneColor(series.tone, color)}
-              />
-            ))
+          ? series.points.map((point, index) => {
+              const mark = chartMarkerDot(index, series.points.length, toneColor(series.tone, color), color.card);
+              return (
+                <Circle
+                  key={`${series.id}-${point.id}`}
+                  cx={point.x}
+                  cy={point.y}
+                  r={mark.r}
+                  fill={mark.fill}
+                  stroke={mark.stroke}
+                  strokeWidth={mark.stroke ? mark.strokeWidth : undefined}
+                />
+              );
+            })
           : [],
       )}
     </Svg>
   );
 }
 
+type ScaleProps = {
+  /** Y ticks. Grid lines move onto these. Omit them and the chart keeps the 25/50/75% grid. */
+  ticks?: readonly ChartTick[];
+  /** Written once at the top of the axis. Not repeated on each tick. */
+  unit?: string;
+  /** X ticks. Omit them and the chart keeps `startLabel` / `endLabel`. */
+  xTicks?: readonly ChartXTick[];
+  /** Plot height. Defaults to `layout.chart`. Callers pass `chartPhone`, `chartShort`, or `chartWide`. */
+  height?: number;
+};
+
 export function LineChart(
   props:
-    | {
+    | ({
         points: readonly LinePoint[];
         startLabel: string;
         endLabel: string;
@@ -293,14 +463,14 @@ export function LineChart(
         trendLabel: string;
         accessibilityLabel: string;
         series?: undefined;
-      }
-    | {
+      } & ScaleProps)
+    | ({
         series: readonly ChartSeries[];
         startLabel: string;
         endLabel: string;
         accessibilityLabel: string;
         points?: undefined;
-      },
+      } & ScaleProps),
 ) {
   if (props.series) return <SeriesLineChart {...props} series={props.series} />;
   return <LegacyLineChart {...props} />;
@@ -311,31 +481,52 @@ function SeriesLineChart({
   startLabel,
   endLabel,
   accessibilityLabel,
+  ticks,
+  unit,
+  xTicks,
+  height = theme.layout.chart,
 }: {
   series: readonly ChartSeries[];
   startLabel: string;
   endLabel: string;
   accessibilityLabel: string;
-}) {
+} & ScaleProps) {
   const { color } = useTheme();
-  const [width, setWidth] = useState(0);
-  const plot = buildSeriesPlot(series, width, theme.layout.chart);
   return (
     <View accessibilityRole="image" accessibilityLabel={accessibilityLabel}>
-      <View style={styles.frame} onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
-        {plot ? Platform.OS === 'web' ? <SeriesWeb plot={plot} color={color} /> : <SeriesNative plot={plot} color={color} /> : null}
-      </View>
-      <Row gap="md" wrap>
+      <ChartCanvas
+        ticks={ticks}
+        unit={unit}
+        color={color}
+        height={height}
+        renderPlot={(width, grid, axis) => {
+          const plot = buildSeriesPlot(series, width, height);
+          if (!plot) return null;
+          return Platform.OS === 'web' ? (
+            <SeriesWeb plot={plot} color={color} grid={grid} axis={axis} />
+          ) : (
+            <SeriesNative plot={plot} color={color} grid={grid} axis={axis} />
+          );
+        }}
+      />
+      <XLabels xTicks={xTicks} startLabel={startLabel} endLabel={endLabel} inset={ticks && ticks.length > 0 ? theme.layout.axisGutter : 0} />
+      <Legend wrap>
         {series.map((item) => (
           <Row key={item.id} gap="xs">
             <LegendSwatch styleName={item.style} color={toneColor(item.tone, color)} />
-            <Text variant="muted">{item.label}</Text>
+            <Text variant="caption">{item.label}</Text>
           </Row>
         ))}
-      </Row>
-      <Row justify="between">
-        <Text variant="muted">{startLabel}</Text>
-        <Text variant="muted">{endLabel}</Text>
+      </Legend>
+    </View>
+  );
+}
+
+function Legend({ children, wrap = false }: { children: ReactNode; wrap?: boolean }) {
+  return (
+    <View style={styles.legend}>
+      <Row gap="md" wrap={wrap}>
+        {children}
       </Row>
     </View>
   );
@@ -356,6 +547,10 @@ function LegacyLineChart({
   rawLabel,
   trendLabel,
   accessibilityLabel,
+  ticks,
+  unit,
+  xTicks,
+  height = theme.layout.chart,
 }: {
   points: readonly LinePoint[];
   startLabel: string;
@@ -363,32 +558,194 @@ function LegacyLineChart({
   rawLabel: string;
   trendLabel: string;
   accessibilityLabel: string;
-}) {
+} & ScaleProps) {
   const { color } = useTheme();
-  const [width, setWidth] = useState(0);
-  const plot = buildPlot(points, width, theme.layout.chart);
 
   return (
     <View accessibilityRole="image" accessibilityLabel={accessibilityLabel}>
-      <Row gap="md">
+      <ChartCanvas
+        ticks={ticks}
+        unit={unit}
+        color={color}
+        height={height}
+        renderPlot={(width, grid, axis) => {
+          const plot = buildPlot(points, width, height, ticks);
+          if (!plot) return null;
+          return Platform.OS === 'web' ? (
+            <WebPlot plot={plot} color={color} grid={grid} axis={axis} />
+          ) : (
+            <NativePlot plot={plot} color={color} grid={grid} axis={axis} />
+          );
+        }}
+      />
+      <XLabels xTicks={xTicks} startLabel={startLabel} endLabel={endLabel} inset={ticks && ticks.length > 0 ? theme.layout.axisGutter : 0} />
+      <Legend>
         <Row gap="xs">
           <View style={[styles.dot, { backgroundColor: color.accent }]} />
-          <Text variant="muted">{rawLabel}</Text>
+          <Text variant="caption">{rawLabel}</Text>
         </Row>
         <Row gap="xs">
           <View style={[styles.dash, { backgroundColor: color.moss }]} />
-          <Text variant="muted">{trendLabel}</Text>
+          <Text variant="caption">{trendLabel}</Text>
         </Row>
-      </Row>
-      <View style={styles.frame} onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
-        {plot ? Platform.OS === 'web' ? <WebPlot plot={plot} color={color} /> : <NativePlot plot={plot} color={color} /> : null}
-      </View>
+      </Legend>
+    </View>
+  );
+}
+
+function ChartCanvas({
+  ticks,
+  unit,
+  color,
+  height,
+  renderPlot,
+}: {
+  ticks?: readonly ChartTick[];
+  unit?: string;
+  color: AppTheme['color'];
+  height: number;
+  renderPlot: (width: number, grid: readonly ChartGridLine[], axis: ChartAxisLine | null) => ReactNode;
+}) {
+  const [width, setWidth] = useState(0);
+  const decorations = chartDecorations(ticks, color, height);
+  const hasTicks = (ticks?.length ?? 0) > 0;
+  const plot = (
+    <View
+      style={[hasTicks ? styles.plot : styles.frame, { height }]}
+      onLayout={(event) => {
+        const next = event.nativeEvent.layout.width;
+        setWidth((current) => (current === next ? current : next));
+      }}
+    >
+      {width > 0 ? renderPlot(width, decorations.lines, decorations.axis) : null}
+    </View>
+  );
+  if (!hasTicks && !unit) return plot;
+  return (
+    <View>
+      {unit ? <UnitLabel unit={unit} /> : null}
+      {hasTicks ? (
+        <View style={[styles.axisRow, { height }]}>
+          <YAxis ticks={ticks ?? []} height={height} />
+          {plot}
+        </View>
+      ) : (
+        plot
+      )}
+    </View>
+  );
+}
+
+function UnitLabel({ unit }: { unit: string }) {
+  const { color } = useTheme();
+  return (
+    <AxisText
+      accessible={false}
+      maxFontSizeMultiplier={theme.fontScale.heading}
+      style={[axisTextStyle(color.muted), styles.unit]}
+    >
+      {unit}
+    </AxisText>
+  );
+}
+
+function YAxis({ ticks, height }: { ticks: readonly ChartTick[]; height: number }) {
+  const { color } = useTheme();
+  return (
+    <View
+      accessible={false}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={[styles.gutter, { height }]}
+    >
+      {ticks.map((tick, index) => (
+        <AxisText
+          key={`${index}-${tick.label}`}
+          accessible={false}
+          maxFontSizeMultiplier={theme.fontScale.heading}
+          style={[
+            axisTextStyle(color.muted),
+            {
+              position: 'absolute',
+              top: tickOffset(tick.position, height) - theme.lineHeight.tick / 2,
+              left: 0,
+              width: theme.layout.axisGutter,
+            },
+          ]}
+        >
+          {tick.label}
+        </AxisText>
+      ))}
+    </View>
+  );
+}
+
+function XLabels({
+  xTicks,
+  startLabel,
+  endLabel,
+  inset,
+}: {
+  xTicks?: readonly ChartXTick[];
+  startLabel: string;
+  endLabel: string;
+  inset: number;
+}) {
+  if (!xTicks || xTicks.length === 0) {
+    return (
       <Row justify="between">
         <Text variant="muted">{startLabel}</Text>
         <Text variant="muted">{endLabel}</Text>
       </Row>
+    );
+  }
+  return <XAxis ticks={xTicks} inset={inset} />;
+}
+
+function XAxis({ ticks, inset }: { ticks: readonly ChartXTick[]; inset: number }) {
+  const { color } = useTheme();
+  return (
+    <View
+      accessible={false}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={[styles.xAxis, { marginLeft: inset }]}
+    >
+      {ticks.map((tick, index) => (
+        <AxisText
+          key={`${index}-${tick.label}`}
+          accessible={false}
+          maxFontSizeMultiplier={theme.fontScale.heading}
+          style={[axisTextStyle(color.muted), xTickStyle(tick.position)]}
+        >
+          {tick.label}
+        </AxisText>
+      ))}
     </View>
   );
+}
+
+function axisTextStyle(color: string): TextStyle {
+  return {
+    color,
+    fontSize: theme.font.tick,
+    lineHeight: theme.lineHeight.tick,
+    fontWeight: theme.fontWeight.regular,
+    fontFamily: Platform.OS === 'web' ? theme.fontFamily.mono : undefined,
+    fontVariant: ['tabular-nums', 'lining-nums'],
+    textAlign: 'right',
+  };
+}
+
+function xTickStyle(position: number): TextStyle {
+  if (position <= 0) return { position: 'absolute', left: 0, top: 0, textAlign: 'left' };
+  if (position >= 1) return { position: 'absolute', right: 0, top: 0, textAlign: 'right' };
+  return {
+    position: 'absolute',
+    left: `${position * 100}%`,
+    top: 0,
+    textAlign: 'center',
+  };
 }
 
 const styles = StyleSheet.create({
@@ -415,5 +772,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: theme.layout.stroke,
     borderStyle: 'dotted',
   },
-  frame: { height: theme.layout.chart, width: '100%' },
+  legend: { marginTop: theme.space.sm },
+  frame: { width: '100%' },
+  plot: { flex: 1 },
+  axisRow: { flexDirection: 'row', width: '100%' },
+  gutter: { width: theme.layout.axisGutter },
+  unit: { width: theme.layout.axisGutter, textAlign: 'right' },
+  xAxis: { height: theme.lineHeight.tick, position: 'relative' },
 });

@@ -214,6 +214,13 @@ function targetShadow() {
 const target = globalThis as unknown as Record<string, unknown>;
 target.document = documentShim;
 target.window = globalThis;
+if (typeof globalThis.addEventListener !== 'function') {
+  globalThis.addEventListener = () => undefined;
+  globalThis.removeEventListener = () => undefined;
+}
+if (typeof (globalThis as { location?: { href?: string } }).location?.href !== 'string') {
+  (globalThis as { location: { href: string } }).location = { href: 'http://127.0.0.1/' };
+}
 target.HTMLElement = HTMLElement;
 target.Element = Element;
 target.Node = Node;

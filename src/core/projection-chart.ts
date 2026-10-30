@@ -1,4 +1,6 @@
-import { moneyAxisDomain } from './money-axis';
+// `moneyAxis` lives in chart-ticks. Core does not keep a second copy.
+// eslint-disable-next-line no-restricted-imports
+import { moneyAxis, tickValueDomain } from '@/ui/chart-ticks';
 import { actualSeriesNote } from './quote-label';
 import type { NetWorthProjection } from './projection';
 import { annualRatePercent } from './projection-copy';
@@ -25,10 +27,12 @@ export type ProjectionChart = {
 };
 
 /**
- * Positions are 0 to 1 inside the money-axis domain, not the raw data min and max.
+ * Positions are 0 to 1 inside `moneyAxis`'s domain, not the raw data min and max.
  * The chart does not know dollars.
  * The selected line is moss. The other two are thinner muted dashes.
- * The target line uses the target tone and a dotted stroke. Actual points are omitted until there are two of them.
+ * Stroke widths are `layout.strokeSelected` and `layout.strokeMinor` in the chart.
+ * The target line is `target`, dotted, and 1px (`thin`).
+ * Actual points are omitted until there are two of them.
  */
 export function projectionChart(input: {
   lines: readonly [NetWorthProjection, NetWorthProjection, NetWorthProjection];
@@ -61,7 +65,7 @@ export function projectionChart(input: {
       style: 'dotted',
       tone: 'target',
       markers: false,
-      thin: false,
+      thin: true,
       points: [
         { id: 'target-start', x: 0, y: yOf(input.targetUsd) },
         { id: 'target-end', x: 1, y: yOf(input.targetUsd) },
@@ -100,6 +104,14 @@ export function projectionChart(input: {
     accessibilityLabel:
       input.targetUsd === null ? `实际、${labels.join('、')}` : `实际、${labels.join('、')}、目标，预计达标月份`,
   };
+}
+
+/** Inclusive min and max of main's `moneyAxis`. Not a second axis. */
+function moneyAxisDomain(values: readonly number[]): { min: number; max: number } {
+  const domain = tickValueDomain(moneyAxis(values));
+  if (domain) return domain;
+  const only = values.find((value) => Number.isFinite(value)) ?? 0;
+  return { min: only, max: only };
 }
 
 function clampIndex(mainRateIndex: number): number {

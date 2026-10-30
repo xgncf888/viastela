@@ -4,12 +4,15 @@ import { Pressable } from 'react-native';
 import { computeLocalDay, currentTimeZone } from '@/core/local-day';
 import { timelineSaveNotice } from '@/core/timeline-errors';
 import type { TimelineCursor } from '@/core/timeline-day';
+import { nextTimelineLoad } from '@/core/timeline-load';
 import { compareTimelineDesc, type TimelineFilter } from '@/core/timeline-page';
 import { groupTimeline, presentTimeline, type PresentedTimelineItem } from '@/core/timeline-present';
 import { scheduleDeferredDelete, useDeferredDeleteIds } from '@/features/record/deferred-delete';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { useShellInset } from '@/features/shell/AppShell';
+import { withLoadTimeout } from '@/data/load-timeout';
 import { getDaySwitch } from '@/data/profile';
+import { useRefreshOnFocus } from '@/data/refresh-on-focus';
 import {
   listTimelineAccounts,
   loadTimelinePage,
@@ -23,9 +26,11 @@ import { Card } from '@/ui/Card';
 import { Chip } from '@/ui/Chip';
 import { ChipGroup } from '@/ui/ChipGroup';
 import { EmptyState } from '@/ui/EmptyState';
-import { Callout, Row, ScreenHeader, Stack } from '@/ui/layout';
+import { LoadingRegion, type LoadingRegionName } from '@/ui/LoadingRegion';
+import { Row, ScreenHeader, Stack } from '@/ui/layout';
 import { MaskedAmount } from '@/ui/MaskedAmount';
 import { Screen } from '@/ui/Screen';
+import { SkeletonLedger } from '@/ui/Skeleton';
 import { Text } from '@/ui/Text';
 import { TimelineItem } from '@/ui/TimelineItem';
 import { DeletedRecordNotice } from '@/ui/deleted-record';
@@ -40,6 +45,9 @@ const FILTERS: { id: TimelineFilter; label: string }[] = [
   { id: 'journal', label: '日志' },
 ];
 
+/** Accessible region name. The shared list in `src/ui` does not include this page yet. */
+const TIMELINE_REGION = '时间线' as unknown as LoadingRegionName;
+
 type KeyedRecord = TimelineRecord & { dayKey: string };
 
 export function TimelineScreen() {
@@ -53,42 +61,85 @@ export function TimelineScreen() {
   const [accounts, setAccounts] = useState<TimelineAccountRow[]>([]);
   const [cursor, setCursor] = useState<TimelineCursor | null>(null);
   const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [masked, setMasked] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [seed, setSeed] = useState<JournalSeed | null>(null);
   const [deletedNotice, setDeletedNotice] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const generation = useRef(0);
+  const readyRef = useRef(false);
   const filterRef = useRef(filter);
   useEffect(() => {
     filterRef.current = filter;
   }, [filter]);
 
+  const settle = useCallback((hadContent: boolean, ok: boolean) => {
+    const next = nextTimelineLoad(hadContent, ok);
+    readyRef.current = next.ready;
+    setReady(next.ready);
+    setFailed(next.failed);
+    setRefreshError(next.refreshError);
+  }, []);
+
   const reload = useCallback(async (nextFilter: TimelineFilter, switchTime: string, zone: string) => {
     const ticket = generation.current + 1;
     generation.current = ticket;
-    setLoadError(null);
-    const [page, nextAccounts, hidden] = await Promise.all([
-      loadTimelinePage({ timeZone: zone, daySwitch: switchTime, filter: nextFilter, cursor: null }),
-      listTimelineAccounts(),
-      session ? readTimelineAmountsHidden(session.userId) : Promise.resolve(true),
-    ]);
-    if (ticket !== generation.current) return;
-    setRows(page.records);
-    setCursor(page.nextCursor);
-    setAccounts(nextAccounts);
-    setMasked(hidden);
-    setDaySwitch(switchTime);
-    setTimeZone(zone);
-    setReady(true);
-  }, [session]);
+    const background = readyRef.current;
+    if (background) {
+      setRefreshing(true);
+      setRefreshError(false);
+    } else {
+      setFailed(false);
+    }
+    try {
+      const [page, nextAccounts, hidden] = await withLoadTimeout(
+        Promise.all([
+          loadTimelinePage({ timeZone: zone, daySwitch: switchTime, filter: nextFilter, cursor: null }),
+          listTimelineAccounts(),
+          session ? readTimelineAmountsHidden(session.userId) : Promise.resolve(true),
+        ]),
+      );
+      if (ticket !== generation.current) return;
+      setRows(page.records);
+      setCursor(page.nextCursor);
+      setAccounts(nextAccounts);
+      setMasked(hidden);
+      setDaySwitch(switchTime);
+      setTimeZone(zone);
+      settle(background, true);
+    } catch {
+      if (ticket !== generation.current) return;
+      settle(background, false);
+    } finally {
+      if (ticket === generation.current) setRefreshing(false);
+    }
+  }, [session, settle]);
+
+  useRefreshOnFocus(() => {
+    if (!readyRef.current) return undefined;
+    return getDaySwitch()
+      .then((switchTime) => reload(filterRef.current, switchTime, currentTimeZone()))
+      .catch(() => {
+        setRefreshError(true);
+        setRefreshing(false);
+      });
+  });
 
   useEffect(() => {
     if (!session) return undefined;
     let cancelled = false;
     const zone = currentTimeZone();
+    const background = readyRef.current;
+    if (background) {
+      setRefreshing(true);
+      setRefreshError(false);
+    } else {
+      setFailed(false);
+    }
     void getDaySwitch()
       .then((switchTime) => {
         if (cancelled) return;
@@ -98,14 +149,14 @@ export function TimelineScreen() {
       })
       .catch(() => {
         if (cancelled) return;
-        setLoadError('读取失败');
-        setReady(true);
+        settle(background, false);
+        setRefreshing(false);
       });
     return () => {
       cancelled = true;
       generation.current += 1;
     };
-  }, [attempt, filter, reload, session]);
+  }, [attempt, filter, reload, session, settle]);
 
   const loadMore = useCallback(async () => {
     if (!cursor || !daySwitch || loadingMore) return;
@@ -142,6 +193,14 @@ export function TimelineScreen() {
     setSheetOpen(true);
   }
 
+  function retryRefresh() {
+    if (!daySwitch) {
+      setAttempt((current) => current + 1);
+      return;
+    }
+    void reload(filter, daySwitch, timeZone);
+  }
+
   const today = daySwitch ? computeLocalDay(new Date(), timeZone, daySwitch) : '';
   const visible = presentTimeline(
     [...rows].sort(compareTimelineDesc).filter((row) => !pendingDeleteIds.has(row.id)),
@@ -149,16 +208,6 @@ export function TimelineScreen() {
     timeZone,
   );
   const groups = today ? groupTimeline(visible, today) : [];
-
-  if (!ready) {
-    return (
-      <Screen>
-        <TimelineScroll inset={inset} onNearEnd={() => undefined}>
-          <Text variant="body">读取中</Text>
-        </TimelineScroll>
-      </Screen>
-    );
-  }
 
   return (
     <Screen>
@@ -168,7 +217,16 @@ export function TimelineScreen() {
           if (cursor && !loadingMore) void loadMore();
         }}
       >
-        <ScreenHeader kicker="记录" title="时间线" />
+        <ScreenHeader
+          kicker="记录"
+          title="时间线"
+          subtitle={{
+            failed: ready && refreshError,
+            refreshing: ready && refreshing,
+            timeZone,
+            onRetry: retryRefresh,
+          }}
+        />
         <Row justify="between" align="center" wrap>
           <ChipGroup>
             {FILTERS.map((choice) => (
@@ -179,9 +237,11 @@ export function TimelineScreen() {
                 onPress={() => {
                   if (choice.id === filter) return;
                   filterRef.current = choice.id;
-                  setReady(false);
-                  setRows([]);
                   setCursor(null);
+                  if (readyRef.current) {
+                    setRefreshing(true);
+                    setRefreshError(false);
+                  }
                   setFilter(choice.id);
                 }}
               />
@@ -189,77 +249,75 @@ export function TimelineScreen() {
           </ChipGroup>
           <Button label="写日志" onPress={openCreate} />
         </Row>
-        {loadError ? (
-          <Callout
-            message={loadError}
-            action={
-              <Button
-                label="重试"
-                variant="secondary"
-                onPress={() => {
-                  setReady(false);
-                  setLoadError(null);
-                  if (!daySwitch) {
-                    setAttempt((current) => current + 1);
-                    return;
-                  }
-                  void reload(filter, daySwitch, timeZone).catch(() => {
-                    setLoadError('读取失败');
-                    setReady(true);
-                  });
-                }}
-              />
+        <LoadingRegion
+          name={TIMELINE_REGION}
+          loading={!ready && !failed}
+          error={failed && !ready}
+          onRetry={() => {
+            setFailed(false);
+            if (!daySwitch) {
+              setAttempt((current) => current + 1);
+              return;
             }
-          />
-        ) : null}
-        {groups.length === 0 && !loadError ? (
-          <EmptyState title="还没有记录" description="" action={<Button label="写一条日志" onPress={openCreate} />} />
-        ) : (
-          groups.map((group) => (
-            <Stack key={group.dayKey} gap="sm">
-              <Text variant="heading" accessibilityRole="header">
-                {group.label}
-              </Text>
-              <Card>
-                {group.items.map((item) => (
-                  <Stack key={item.id} gap="xs">
-                    {item.editable ? (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`编辑 ${item.title}`}
-                        onPress={() => openJournal(item)}
-                      >
-                        <TimelineRow item={item} masked={masked} />
-                      </Pressable>
-                    ) : (
-                      <TimelineRow item={item} masked={masked} />
-                    )}
-                    {item.editable ? (
-                      <Row justify="end">
-                        <Button
-                          label="删除"
-                          variant="ghost"
-                          onPress={() =>
-                            scheduleDeferredDelete('journal', item.id, async () => {
-                              try {
-                                await softDeleteJournal(item.id);
-                              } catch (deleteError) {
-                                const notice = timelineSaveNotice(deleteError);
-                                if (notice.kind === 'record-deleted') setDeletedNotice(true);
-                                else showToast({ text: notice.message, tone: 'error' });
+            void reload(filter, daySwitch, timeZone);
+          }}
+          skeleton={
+            <Card>
+              <SkeletonLedger lines={3} />
+            </Card>
+          }
+        >
+          <Stack gap="lg">
+            {groups.length === 0 ? (
+              <EmptyState title="还没有记录" description="" action={<Button label="写一条日志" onPress={openCreate} />} />
+            ) : (
+              groups.map((group) => (
+                <Stack key={group.dayKey} gap="sm">
+                  <Text variant="heading" accessibilityRole="header">
+                    {group.label}
+                  </Text>
+                  <Card>
+                    {group.items.map((item) => (
+                      <Stack key={item.id} gap="xs">
+                        {item.editable ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`编辑 ${item.title}`}
+                            onPress={() => openJournal(item)}
+                          >
+                            <TimelineRow item={item} masked={masked} />
+                          </Pressable>
+                        ) : (
+                          <TimelineRow item={item} masked={masked} />
+                        )}
+                        {item.editable ? (
+                          <Row justify="end">
+                            <Button
+                              label="删除"
+                              variant="ghost"
+                              onPress={() =>
+                                scheduleDeferredDelete('journal', item.id, async () => {
+                                  try {
+                                    await softDeleteJournal(item.id);
+                                  } catch (deleteError) {
+                                    const notice = timelineSaveNotice(deleteError);
+                                    if (notice.kind === 'record-deleted') setDeletedNotice(true);
+                                    else showToast({ text: notice.message, tone: 'error' });
+                                  }
+                                })
                               }
-                            })
-                          }
-                        />
-                      </Row>
-                    ) : null}
-                  </Stack>
-                ))}
-              </Card>
-            </Stack>
-          ))
-        )}
-        {loadingMore ? <Text variant="body">读取中</Text> : null}
+                            />
+                          </Row>
+                        ) : null}
+                      </Stack>
+                    ))}
+                  </Card>
+                </Stack>
+              ))
+            )}
+            {loadingMore ? <Text variant="body">读取中</Text> : null}
+          </Stack>
+        </LoadingRegion>
       </TimelineScroll>
       {daySwitch ? (
         <JournalSheet
@@ -272,21 +330,13 @@ export function TimelineScreen() {
           }}
           onSaved={() => {
             setSheetOpen(false);
-            setReady(false);
-            void reload(filter, daySwitch, timeZone).catch(() => {
-              setLoadError('读取失败');
-              setReady(true);
-            });
+            void reload(filter, daySwitch, timeZone);
           }}
           onNotice={(notice) => {
             setSheetOpen(false);
             if (notice.kind === 'record-deleted') setDeletedNotice(true);
             else showToast({ text: notice.message, tone: 'error' });
-            setReady(false);
-            void reload(filter, daySwitch, timeZone).catch(() => {
-              setLoadError('读取失败');
-              setReady(true);
-            });
+            void reload(filter, daySwitch, timeZone);
           }}
         />
       ) : null}

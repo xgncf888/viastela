@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
+import { washPressStyle } from './press';
 import { Text } from './Text';
 import { theme as baseTheme } from './theme';
 import { useTheme } from './ThemeProvider';
+import { useReducedMotion } from './use-reduced-motion';
 
 /**
  * One ledger row (§5). Left: the item in `body` 500 with an optional `muted` subtitle.
@@ -41,6 +43,7 @@ export function ListRow({
   accessibilityLabel?: string;
 }) {
   const theme = useTheme();
+  const reducedMotion = useReducedMotion() === true;
   const body = (
     <>
       <View style={styles.item}>
@@ -82,7 +85,10 @@ export function ListRow({
         accessibilityState={expanded == null ? undefined : { expanded }}
         aria-expanded={expanded}
         onPress={onPress}
-        style={frame}
+        style={({ pressed }) => [
+          ...frame,
+          washPressStyle(pressed, reducedMotion, theme.press, theme.color.pressed, Platform.OS === 'web'),
+        ]}
       >
         {body}
       </Pressable>
