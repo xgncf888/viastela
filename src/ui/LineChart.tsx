@@ -1,6 +1,8 @@
 import { createElement, useState, type ReactNode } from 'react';
-import { Platform, StyleSheet, Text as AxisText, View, type TextStyle } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text as AxisText, View, type TextStyle } from 'react-native';
 import Svg, { Circle, Line, Polyline } from 'react-native-svg';
+
+import { formatMonthDay } from '@/core/local-day';
 
 import {
   chartDecorations,
@@ -27,6 +29,9 @@ export type LinePoint = {
 
 type Placed = {
   id: string;
+  position: number;
+  raw: number;
+  trend: number;
   x: number;
   rawY: number;
   trendY: number;
@@ -74,6 +79,9 @@ function buildPlot(
     height,
     placed: points.map((point) => ({
       id: point.id,
+      position: point.position,
+      raw: point.raw,
+      trend: point.trend,
       x: padX + point.position * inner,
       rawY: yFor(point.raw),
       trendY: yFor(point.trend),
@@ -131,13 +139,24 @@ function WebPlot({
   color,
   grid,
   axis,
+  activeId,
+  focusSeries,
+  onSelectId,
 }: {
   plot: Plot;
   color: AppTheme['color'];
   grid: readonly ChartGridLine[];
   axis: ChartAxisLine | null;
+  activeId?: string | null;
+  focusSeries?: 'all' | 'raw' | 'trend';
+  onSelectId?: (id: string | null) => void;
 }) {
   const trend = plot.placed.map((point) => `${point.x.toFixed(1)},${point.trendY.toFixed(1)}`).join(' ');
+  const rawLine = plot.placed.map((point) => `${point.x.toFixed(1)},${point.rawY.toFixed(1)}`).join(' ');
+  const activePoint = activeId ? plot.placed.find((point) => point.id === activeId) ?? null : null;
+  const dimRaw = focusSeries === 'trend';
+  const dimTrend = focusSeries === 'raw';
+
   return svg(
     'svg',
     {
@@ -145,6 +164,26 @@ function WebPlot({
       height: plot.height,
       viewBox: `0 0 ${plot.width} ${plot.height}`,
       role: 'presentation',
+      style: onSelectId ? { cursor: 'crosshair' } : undefined,
+      onMouseLeave: onSelectId ? () => onSelectId(null) : undefined,
+      onMouseMove: onSelectId
+        ? (event: { currentTarget: { getBoundingClientRect?: () => { left: number; width: number } }; clientX?: number }) => {
+            if (typeof event.clientX !== 'number' || !event.currentTarget?.getBoundingClientRect) return;
+            const rect = event.currentTarget.getBoundingClientRect();
+            if (!rect || rect.width <= 0) return;
+            const relX = ((event.clientX - rect.left) / rect.width) * plot.width;
+            let closest = plot.placed[0];
+            let bestDist = Math.abs(relX - closest.x);
+            for (const candidate of plot.placed) {
+              const dist = Math.abs(relX - candidate.x);
+              if (dist < bestDist) {
+                closest = candidate;
+                bestDist = dist;
+              }
+            }
+            onSelectId(closest.id);
+          }
+        : undefined,
     },
     grid.map((line) =>
       svg('line', {
@@ -158,23 +197,76 @@ function WebPlot({
       }),
     ),
     axisLines(axis, plot.width),
+    activePoint
+      ? svg('line', {
+          key: 'crosshair-x',
+          x1: activePoint.x,
+          x2: activePoint.x,
+          y1: theme.space.xs,
+          y2: plot.height - theme.space.xs,
+          stroke: color.ink,
+          strokeWidth: theme.border.width,
+          strokeDasharray: '3 3',
+          strokeOpacity: 0.35,
+        })
+      : null,
+    plot.placed.length > 1
+      ? svg('polyline', {
+          key: 'raw-line',
+          points: rawLine,
+          fill: 'none',
+          stroke: color.accent,
+          strokeWidth: theme.border.width,
+          strokeOpacity: dimRaw ? 0.15 : 0.38,
+          strokeLinejoin: 'round',
+          strokeLinecap: 'round',
+        })
+      : null,
     svg('polyline', {
       points: trend,
       fill: 'none',
       stroke: color.moss,
-      strokeWidth: theme.layout.stroke,
+      strokeWidth: focusSeries === 'trend' ? theme.layout.strokeSelected : theme.layout.stroke,
       strokeDasharray: '5 4',
+      strokeOpacity: dimTrend ? 0.25 : 1,
       strokeLinejoin: 'round',
       strokeLinecap: 'round',
     }),
-    plot.placed.map((point, index) =>
-      svg('circle', {
-        key: point.id,
-        cx: point.x,
-        cy: point.rawY,
-        ...chartMarkerDot(index, plot.placed.length, color.accent, color.card),
-      }),
-    ),
+    plot.placed.map((point, index) => {
+      const isSelected = activePoint?.id === point.id;
+      const base = chartMarkerDot(index, plot.placed.length, color.accent, color.card);
+      return svg(
+        'g',
+        { key: point.id },
+        isSelected
+          ? svg('circle', {
+              cx: point.x,
+              cy: point.rawY,
+              r: theme.layout.dotLast,
+              fill: color.accentSoft,
+            })
+          : null,
+        svg('circle', {
+          cx: point.x,
+          cy: point.rawY,
+          r: isSelected ? theme.layout.dotLast / 2 + 1 : base.r,
+          fill: base.fill,
+          fillOpacity: dimRaw ? 0.3 : 1,
+          stroke: isSelected ? color.card : base.stroke,
+          strokeWidth: isSelected ? theme.layout.stroke : base.strokeWidth,
+        }),
+        isSelected
+          ? svg('circle', {
+              cx: point.x,
+              cy: point.trendY,
+              r: theme.layout.dot / 2 + 1,
+              fill: color.moss,
+              stroke: color.card,
+              strokeWidth: theme.border.width,
+            })
+          : null,
+      );
+    }),
   );
 }
 
@@ -183,13 +275,21 @@ function NativePlot({
   color,
   grid,
   axis,
+  activeId,
+  focusSeries,
 }: {
   plot: Plot;
   color: AppTheme['color'];
   grid: readonly ChartGridLine[];
   axis: ChartAxisLine | null;
+  activeId?: string | null;
+  focusSeries?: 'all' | 'raw' | 'trend';
 }) {
   const trend = plot.placed.map((point) => `${point.x.toFixed(1)},${point.trendY.toFixed(1)}`).join(' ');
+  const activePoint = activeId ? plot.placed.find((point) => point.id === activeId) ?? null : null;
+  const dimRaw = focusSeries === 'trend';
+  const dimTrend = focusSeries === 'raw';
+
   return (
     <Svg width={plot.width} height={plot.height}>
       {grid.map((line) => (
@@ -216,26 +316,41 @@ function NativePlot({
           />
         </>
       ) : null}
+      {activePoint ? (
+        <Line
+          x1={activePoint.x}
+          x2={activePoint.x}
+          y1={theme.space.xs}
+          y2={plot.height - theme.space.xs}
+          stroke={color.ink}
+          strokeWidth={theme.border.width}
+          strokeDasharray="3 3"
+          strokeOpacity={0.35}
+        />
+      ) : null}
       <Polyline
         points={trend}
         fill="none"
         stroke={color.moss}
-        strokeWidth={theme.layout.stroke}
+        strokeWidth={focusSeries === 'trend' ? theme.layout.strokeSelected : theme.layout.stroke}
         strokeDasharray="5 4"
+        strokeOpacity={dimTrend ? 0.25 : 1}
         strokeLinejoin="round"
         strokeLinecap="round"
       />
       {plot.placed.map((point, index) => {
+        const isSelected = activePoint?.id === point.id;
         const mark = chartMarkerDot(index, plot.placed.length, color.accent, color.card);
         return (
           <Circle
             key={point.id}
             cx={point.x}
             cy={point.rawY}
-            r={mark.r}
+            r={isSelected ? theme.layout.dotLast / 2 + 1 : mark.r}
             fill={mark.fill}
-            stroke={mark.stroke}
-            strokeWidth={mark.stroke ? mark.strokeWidth : undefined}
+            fillOpacity={dimRaw ? 0.3 : 1}
+            stroke={isSelected ? color.card : mark.stroke}
+            strokeWidth={isSelected ? theme.layout.stroke : mark.stroke ? mark.strokeWidth : undefined}
           />
         );
       })}
@@ -268,6 +383,7 @@ type SeriesPlot = {
   height: number;
   series: {
     id: string;
+    label: string;
     tone: ChartTone;
     stroke: ChartStroke;
     markers: boolean;
@@ -292,6 +408,7 @@ function buildSeriesPlot(series: readonly ChartSeries[], width: number, height: 
     height,
     series: paintOrder(series).map((item) => ({
       id: item.id,
+      label: item.label,
       tone: item.tone,
       stroke: item.stroke,
       markers: item.markers === true,
@@ -317,15 +434,49 @@ function SeriesWeb({
   color,
   grid,
   axis,
+  activePointId,
+  focusedSeriesId,
+  onSelectPointId,
 }: {
   plot: SeriesPlot;
   color: AppTheme['color'];
   grid: readonly ChartGridLine[];
   axis: ChartAxisLine | null;
+  activePointId?: string | null;
+  focusedSeriesId?: string | null;
+  onSelectPointId?: (id: string | null) => void;
 }) {
+  const allPoints = plot.series.flatMap((series) => series.points);
+  const activePoint = activePointId ? allPoints.find((point) => point.id === activePointId) ?? null : null;
+
   return svg(
     'svg',
-    { width: '100%', height: plot.height, viewBox: `0 0 ${plot.width} ${plot.height}`, role: 'presentation' },
+    {
+      width: '100%',
+      height: plot.height,
+      viewBox: `0 0 ${plot.width} ${plot.height}`,
+      role: 'presentation',
+      style: onSelectPointId ? { cursor: 'crosshair' } : undefined,
+      onMouseLeave: onSelectPointId ? () => onSelectPointId(null) : undefined,
+      onMouseMove: onSelectPointId
+        ? (event: { currentTarget: { getBoundingClientRect?: () => { left: number; width: number } }; clientX?: number }) => {
+            if (typeof event.clientX !== 'number' || !event.currentTarget?.getBoundingClientRect || allPoints.length === 0) return;
+            const rect = event.currentTarget.getBoundingClientRect();
+            if (!rect || rect.width <= 0) return;
+            const relX = ((event.clientX - rect.left) / rect.width) * plot.width;
+            let closest = allPoints[0];
+            let bestDist = Math.abs(relX - closest.x);
+            for (const candidate of allPoints) {
+              const dist = Math.abs(relX - candidate.x);
+              if (dist < bestDist) {
+                closest = candidate;
+                bestDist = dist;
+              }
+            }
+            onSelectPointId(closest.id);
+          }
+        : undefined,
+    },
     grid.map((line) =>
       svg('line', {
         key: line.y,
@@ -338,18 +489,33 @@ function SeriesWeb({
       }),
     ),
     axisLines(axis, plot.width),
-    plot.series.map((series) =>
-      svg('polyline', {
+    activePoint
+      ? svg('line', {
+          key: 'crosshair-x',
+          x1: activePoint.x,
+          x2: activePoint.x,
+          y1: theme.space.xs,
+          y2: plot.height - theme.space.xs,
+          stroke: color.ink,
+          strokeWidth: theme.border.width,
+          strokeDasharray: '3 3',
+          strokeOpacity: 0.35,
+        })
+      : null,
+    plot.series.map((series) => {
+      const dimmed = focusedSeriesId != null && focusedSeriesId !== series.id;
+      return svg('polyline', {
         key: series.id,
         points: series.points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' '),
         fill: 'none',
         stroke: toneColor(series.tone, color),
-        strokeWidth: series.stroke.width,
+        strokeWidth: focusedSeriesId === series.id ? theme.layout.strokeSelected : series.stroke.width,
         strokeDasharray: series.stroke.dash,
+        strokeOpacity: dimmed ? 0.22 : 1,
         strokeLinejoin: 'round',
         strokeLinecap: 'round',
-      }),
-    ),
+      });
+    }),
     plot.series.flatMap((series) =>
       series.markers
         ? series.points.map((point, index) =>
@@ -445,6 +611,12 @@ type ScaleProps = {
   xTicks?: readonly ChartXTick[];
   /** Plot height. Defaults to `layout.chart`. Callers pass `chartPhone`, `chartShort`, or `chartWide`. */
   height?: number;
+  /** Enables interactive crosshair inspection and live readout bar. */
+  interactive?: boolean;
+  /** Externally controlled selected point ID for table-to-chart two-way highlighting. */
+  selectedPointId?: string | null;
+  /** Callback fired when a point is hovered or tapped. */
+  onSelectPointId?: (id: string | null) => void;
 };
 
 export function LineChart(
@@ -479,6 +651,9 @@ function SeriesLineChart({
   unit,
   xTicks,
   height = theme.layout.chart,
+  interactive = false,
+  selectedPointId,
+  onSelectPointId,
 }: {
   series: readonly ChartSeries[];
   startLabel: string;
@@ -486,6 +661,15 @@ function SeriesLineChart({
   accessibilityLabel: string;
 } & ScaleProps) {
   const { color } = useTheme();
+  const [internalPointId, setInternalPointId] = useState<string | null>(null);
+  const [focusedSeriesId, setFocusedSeriesId] = useState<string | null>(null);
+  const activePointId = selectedPointId !== undefined ? selectedPointId : internalPointId;
+
+  function handleSelectPoint(id: string | null) {
+    setInternalPointId(id);
+    onSelectPointId?.(id);
+  }
+
   return (
     <View accessibilityRole="image" accessibilityLabel={accessibilityLabel}>
       <ChartCanvas
@@ -497,7 +681,15 @@ function SeriesLineChart({
           const plot = buildSeriesPlot(series, width, height);
           if (!plot) return null;
           return Platform.OS === 'web' ? (
-            <SeriesWeb plot={plot} color={color} grid={grid} axis={axis} />
+            <SeriesWeb
+              plot={plot}
+              color={color}
+              grid={grid}
+              axis={axis}
+              activePointId={interactive ? activePointId : null}
+              focusedSeriesId={interactive ? focusedSeriesId : null}
+              onSelectPointId={interactive ? handleSelectPoint : undefined}
+            />
           ) : (
             <SeriesNative plot={plot} color={color} grid={grid} axis={axis} />
           );
@@ -505,13 +697,49 @@ function SeriesLineChart({
       />
       <XLabels xTicks={xTicks} startLabel={startLabel} endLabel={endLabel} inset={ticks && ticks.length > 0 ? theme.layout.axisGutter : 0} />
       <Legend wrap>
-        {series.map((item) => (
-          <Row key={item.id} gap="xs">
-            <LegendSwatch dash={item.stroke.dash} color={toneColor(item.tone, color)} />
-            <Text variant="caption">{item.label}</Text>
-          </Row>
-        ))}
+        {series.map((item) => {
+          const isFocused = focusedSeriesId === item.id;
+          const content = (
+            <Row gap="xs" align="center">
+              <LegendSwatch dash={item.stroke.dash} color={toneColor(item.tone, color)} />
+              <Text variant="caption">{item.label}</Text>
+            </Row>
+          );
+          if (!interactive) return <View key={item.id}>{content}</View>;
+          return (
+            <Pressable
+              key={item.id}
+              onPress={() => setFocusedSeriesId((current) => (current === item.id ? null : item.id))}
+              style={[
+                styles.legendButton,
+                {
+                  borderColor: isFocused ? color.ink : color.line,
+                  backgroundColor: isFocused ? color.fill : 'transparent',
+                },
+              ]}
+            >
+              {content}
+            </Pressable>
+          );
+        })}
       </Legend>
+      {interactive ? (
+        <View style={[styles.inspectBar, { backgroundColor: color.fill, borderColor: color.line }]}>
+          <Row justify="between" align="center" gap="sm" wrap>
+            <Row gap="xs" align="center">
+              <View style={[styles.inspectDot, { backgroundColor: activePointId ? color.accent : color.moss }]} />
+              <Text variant="caption">
+                {activePointId ? `十字检视 · 节点 ${activePointId}` : '移动指针或轻触图例胶囊，可单独聚焦曲线与节点'}
+              </Text>
+            </Row>
+            {focusedSeriesId ? (
+              <Text variant="caption" tone="accent">
+                {`已聚焦：${series.find((item) => item.id === focusedSeriesId)?.label ?? focusedSeriesId}`}
+              </Text>
+            ) : null}
+          </Row>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -532,6 +760,10 @@ function LegendSwatch({ dash, color }: { dash?: string; color: string }) {
   return <View style={[styles.swatch, styles.dashed, { borderColor: color }]} />;
 }
 
+function formatPointLabel(id: string): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(id) ? formatMonthDay(id) : id;
+}
+
 function LegacyLineChart({
   points,
   startLabel,
@@ -543,6 +775,9 @@ function LegacyLineChart({
   unit,
   xTicks,
   height = theme.layout.chart,
+  interactive = false,
+  selectedPointId,
+  onSelectPointId,
 }: {
   points: readonly LinePoint[];
   startLabel: string;
@@ -552,6 +787,19 @@ function LegacyLineChart({
   accessibilityLabel: string;
 } & ScaleProps) {
   const { color } = useTheme();
+  const [internalId, setInternalId] = useState<string | null>(null);
+  const [focusSeries, setFocusSeries] = useState<'all' | 'raw' | 'trend'>('all');
+  const activeId = selectedPointId !== undefined ? selectedPointId : internalId;
+
+  function handleSelect(id: string | null) {
+    setInternalId(id);
+    onSelectPointId?.(id);
+  }
+
+  const activeIndex = activeId ? points.findIndex((point) => point.id === activeId) : points.length - 1;
+  const inspected = activeIndex >= 0 ? points[activeIndex] : points[points.length - 1];
+  const prevPoint = activeIndex > 0 ? points[activeIndex - 1] : null;
+  const rawDelta = inspected && prevPoint ? inspected.raw - prevPoint.raw : null;
 
   return (
     <View accessibilityRole="image" accessibilityLabel={accessibilityLabel}>
@@ -564,23 +812,100 @@ function LegacyLineChart({
           const plot = buildPlot(points, width, height, ticks);
           if (!plot) return null;
           return Platform.OS === 'web' ? (
-            <WebPlot plot={plot} color={color} grid={grid} axis={axis} />
+            <WebPlot
+              plot={plot}
+              color={color}
+              grid={grid}
+              axis={axis}
+              activeId={interactive ? activeId : null}
+              focusSeries={interactive ? focusSeries : 'all'}
+              onSelectId={interactive ? handleSelect : undefined}
+            />
           ) : (
-            <NativePlot plot={plot} color={color} grid={grid} axis={axis} />
+            <NativePlot
+              plot={plot}
+              color={color}
+              grid={grid}
+              axis={axis}
+              activeId={interactive ? activeId : null}
+              focusSeries={interactive ? focusSeries : 'all'}
+            />
           );
         }}
       />
       <XLabels xTicks={xTicks} startLabel={startLabel} endLabel={endLabel} inset={ticks && ticks.length > 0 ? theme.layout.axisGutter : 0} />
       <Legend>
-        <Row gap="xs">
-          <View style={[styles.dot, { backgroundColor: color.accent }]} />
-          <Text variant="caption">{rawLabel}</Text>
-        </Row>
-        <Row gap="xs">
-          <View style={[styles.dash, { backgroundColor: color.moss }]} />
-          <Text variant="caption">{trendLabel}</Text>
-        </Row>
+        {interactive ? (
+          <>
+            <Pressable
+              onPress={() => setFocusSeries((current) => (current === 'raw' ? 'all' : 'raw'))}
+              style={[
+                styles.legendButton,
+                {
+                  borderColor: focusSeries === 'raw' ? color.ink : color.line,
+                  backgroundColor: focusSeries === 'raw' ? color.fill : 'transparent',
+                },
+              ]}
+            >
+              <Row gap="xs" align="center">
+                <View style={[styles.dot, { backgroundColor: color.accent }]} />
+                <Text variant="caption">{rawLabel}</Text>
+              </Row>
+            </Pressable>
+            <Pressable
+              onPress={() => setFocusSeries((current) => (current === 'trend' ? 'all' : 'trend'))}
+              style={[
+                styles.legendButton,
+                {
+                  borderColor: focusSeries === 'trend' ? color.ink : color.line,
+                  backgroundColor: focusSeries === 'trend' ? color.fill : 'transparent',
+                },
+              ]}
+            >
+              <Row gap="xs" align="center">
+                <View style={[styles.dash, { backgroundColor: color.moss }]} />
+                <Text variant="caption">{trendLabel}</Text>
+              </Row>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <Row gap="xs">
+              <View style={[styles.dot, { backgroundColor: color.accent }]} />
+              <Text variant="caption">{rawLabel}</Text>
+            </Row>
+            <Row gap="xs">
+              <View style={[styles.dash, { backgroundColor: color.moss }]} />
+              <Text variant="caption">{trendLabel}</Text>
+            </Row>
+          </>
+        )}
       </Legend>
+      {interactive && inspected ? (
+        <View style={[styles.inspectBar, { backgroundColor: color.fill, borderColor: color.line }]}>
+          <Row justify="between" align="center" gap="sm" wrap>
+            <Row gap="xs" align="center">
+              <View style={[styles.inspectDot, { backgroundColor: activeId ? color.accent : color.moss }]} />
+              <Text variant="caption">
+                {activeId ? `实时检视 ${formatPointLabel(inspected.id)}` : `最新节点 ${formatPointLabel(inspected.id)}`}
+              </Text>
+            </Row>
+            <Row gap="md" align="center" wrap>
+              <Text variant="caption">
+                {`晨重 ${inspected.raw.toFixed(1)}${unit ? ` ${unit}` : ''}`}
+              </Text>
+              <Text variant="caption">
+                {`平滑 ${inspected.trend.toFixed(2)}${unit ? ` ${unit}` : ''}`}
+              </Text>
+              {rawDelta !== null ? (
+                <Text variant="caption" tone={rawDelta <= 0 ? 'accent' : 'muted'}>
+                  {`较前次 ${rawDelta > 0 ? '+' : ''}${rawDelta.toFixed(1)}${unit ? ` ${unit}` : ''}`}
+                </Text>
+              ) : null}
+            </Row>
+          </Row>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -765,6 +1090,24 @@ const styles = StyleSheet.create({
     borderStyle: 'dotted',
   },
   legend: { marginTop: theme.space.sm },
+  legendButton: {
+    paddingHorizontal: theme.space.sm,
+    paddingVertical: theme.space.xs,
+    borderRadius: theme.radius.sm,
+    borderWidth: theme.border.width,
+  },
+  inspectBar: {
+    marginTop: theme.space.sm,
+    paddingHorizontal: theme.space.ms,
+    paddingVertical: theme.space.xs,
+    borderRadius: theme.radius.sm,
+    borderWidth: theme.border.width,
+  },
+  inspectDot: {
+    width: theme.layout.dot,
+    height: theme.layout.dot,
+    borderRadius: theme.radius.pill,
+  },
   frame: { width: '100%' },
   plot: { flex: 1 },
   axisRow: { flexDirection: 'row', width: '100%' },

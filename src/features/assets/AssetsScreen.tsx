@@ -300,7 +300,12 @@ export function AssetsScreen() {
                       timeZone={timeZone}
                       cachedAt={refreshCachedAt}
                     />
-                    <AssetMixRow model={model} masked={masked} />
+                    <AssetMixRow
+                      model={model}
+                      masked={masked}
+                      accountCount={visibleAccounts.length}
+                      holdingCount={visibleHoldings.length}
+                    />
                   </Stack>
                 }
                 aside={
@@ -323,7 +328,10 @@ export function AssetsScreen() {
                   <Stack gap="md">
                     <Card>
                       <Row justify="between" align="center" gap="sm">
-                        <Text variant="heading">账户</Text>
+                        <Row gap="sm" align="center">
+                          <Text variant="heading">账户</Text>
+                          <Text variant="caption">{`${visibleAccounts.length} 个账户`}</Text>
+                        </Row>
                         <Row gap="xs" align="center">
                           <Button label="全部更新余额" variant="ghost" onPress={() => setSheet('balances')} />
                           <Button label="添加账户" variant="secondary" size="mini" onPress={() => setSheet('account')} />
@@ -421,7 +429,12 @@ export function AssetsScreen() {
 
                     <Card>
                       <Row justify="between" align="center" gap="sm">
-                        <Text variant="heading">持仓</Text>
+                        <Row gap="sm" align="center">
+                          <Text variant="heading">持仓</Text>
+                          {visibleHoldings.length > 0 ? (
+                            <Text variant="caption">{`${visibleHoldings.length} 支标的`}</Text>
+                          ) : null}
+                        </Row>
                         <Button label="+ 持仓" variant="secondary" size="mini" onPress={() => setSheet('holding')} />
                       </Row>
                       <Divider />
@@ -429,6 +442,10 @@ export function AssetsScreen() {
                       {visibleHoldings.map((holding, index) => {
                         const account = visibleAccounts.find((item) => item.id === holding.accountId);
                         const priced = model.priced.get(holding.id);
+                        const shareRatio =
+                          priced && model.totalUsd && model.totalUsd > 0
+                            ? Math.min(1, Math.max(0, priced.value / model.totalUsd))
+                            : null;
                         return (
                           <Fragment key={holding.id}>
                             {index > 0 ? <Divider /> : null}
@@ -457,12 +474,16 @@ export function AssetsScreen() {
                                   </Text>
                                 )}
                               </Row>
+                              {!masked && shareRatio !== null ? <ProgressBar value={shareRatio} masked={masked} /> : null}
                               <Row justify="between" align="center" gap="sm" wrap>
                                 <Row gap="sm" align="center" wrap>
                                   {priced ? (
                                     <Text variant="muted" tone={priced.label.tone === 'warning' ? 'warning' : 'muted'}>
                                       {priced.label.text}
                                     </Text>
+                                  ) : null}
+                                  {!masked && shareRatio !== null ? (
+                                    <Text variant="caption">{`占净值 ${Math.round(shareRatio * 100)}%`}</Text>
                                   ) : null}
                                   {priced && holding.costBasisUsd !== null ? (
                                     <Text
@@ -703,12 +724,25 @@ function Overview({
   );
 }
 
-function AssetMixRow({ model, masked }: { model: DashboardModel; masked: boolean }) {
+function AssetMixRow({
+  model,
+  masked,
+  accountCount,
+  holdingCount,
+}: {
+  model: DashboardModel;
+  masked: boolean;
+  accountCount: number;
+  holdingCount: number;
+}) {
   return (
     <Row gap="ms" align="start">
       <View style={styles.metric}>
         <Card>
-          <Text variant="label">现金储备</Text>
+          <Row justify="between" align="center" gap="xs">
+            <Text variant="label">现金储备</Text>
+            <Text variant="caption">{`${accountCount} 个账户`}</Text>
+          </Row>
           {model.cashText ? (
             <MaskedAmount text={model.cashText} masked={masked} variant="metric" />
           ) : (
@@ -718,7 +752,10 @@ function AssetMixRow({ model, masked }: { model: DashboardModel; masked: boolean
       </View>
       <View style={styles.metric}>
         <Card>
-          <Text variant="label">证券持仓</Text>
+          <Row justify="between" align="center" gap="xs">
+            <Text variant="label">证券持仓</Text>
+            <Text variant="caption">{`${holdingCount} 支标的`}</Text>
+          </Row>
           {model.securitiesText ? (
             <MaskedAmount text={model.securitiesText} masked={masked} variant="metric" />
           ) : (
@@ -789,6 +826,7 @@ function Projection({
           unit="US$"
           startLabel={model.chartStart}
           endLabel={model.chartEnd}
+          interactive
           accessibilityLabel={model.chart.accessibilityLabel}
         />
       ) : (
@@ -828,6 +866,7 @@ function Conclusion({ sentence, masked }: { sentence: ProjectionSentence | null;
 }
 
 type DashboardModel = {
+  totalUsd: number | null;
   totalText: string | null;
   cashText: string | null;
   securitiesText: string | null;
@@ -945,6 +984,7 @@ function buildModel(input: {
     input.portfolio.accounts.filter((account) => account.deletedAt === null && !input.pending.has(account.id)).map((account) => account.id),
   );
   return {
+    totalUsd: total,
     totalText: total === null ? null : formatMoney(total, 'USD'),
     cashText: input.book ? formatMoney(cash, 'USD') : null,
     securitiesText: input.book ? formatMoney(securities, 'USD') : null,

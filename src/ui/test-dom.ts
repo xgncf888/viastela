@@ -214,6 +214,9 @@ function targetShadow() {
 const target = globalThis as unknown as Record<string, unknown>;
 target.document = documentShim;
 target.window = globalThis;
+if (typeof globalThis.navigator === 'undefined') {
+  target.navigator = { userAgent: 'node.js', product: 'ReactNative' };
+}
 if (typeof globalThis.addEventListener !== 'function') {
   globalThis.addEventListener = () => undefined;
   globalThis.removeEventListener = () => undefined;

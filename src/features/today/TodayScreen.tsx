@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
-import { View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import {
   computeLocalDay,
@@ -7,11 +7,12 @@ import {
   formatMonthDay,
   isBeforeDaySwitch,
   parseDaySwitch,
+  shiftLocalDay,
   weekdayLabel,
 } from '@/core/local-day';
-import { studyDaySummary, studyDetail, studyRecordsOnDay } from '@/core/study';
-import { formatTrainingLoad, trainingDaySummary, trainingSetsOnDay } from '@/core/training';
-import { formatKg, latestRecord, recordsOnDay } from '@/core/weight-stats';
+import { studyDaySummary, studyDetail, studyRecordsOnDay, type StudyRecord } from '@/core/study';
+import { formatTrainingLoad, trainingDaySummary, trainingSetsOnDay, type TrainingSet } from '@/core/training';
+import { formatKg, latestRecord, recordsOnDay, type WeightRecord } from '@/core/weight-stats';
 import { useRefreshOnFocus } from '@/data/refresh-on-focus';
 import { openRecordSheet } from '@/features/record/record-sheet-store';
 import { MonthEndNotice } from '@/features/today/MonthEndNotice';
@@ -33,6 +34,7 @@ import { Divider, Row, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
 import { skeletonHiddenProps, SkeletonDisplay, SkeletonLedger, SkeletonText } from '@/ui/Skeleton';
 import { Text } from '@/ui/Text';
+import { useTheme } from '@/ui/ThemeProvider';
 import { theme } from '@/ui/theme';
 import { useLoadGate } from '@/ui/use-load-gate';
 
@@ -84,11 +86,13 @@ export function TodayScreen() {
   const accounting = computeLocalDay(now, timeZone, daySwitch);
   const beforeSwitch = isBeforeDaySwitch(now, timeZone, daySwitch);
   const counted = excludePending(records, pendingDeleteIds);
+  const countedTraining = excludePending(training.sets, training.pendingDeleteIds);
+  const countedStudy = excludePending(study.records, study.pendingDeleteIds);
   const today = recordsOnDay(records, accounting);
   const visibleToday = recordsOnDay(counted, accounting);
   const last = latestRecord(records);
-  const trainingToday = trainingSetsOnDay(excludePending(training.sets, training.pendingDeleteIds), accounting);
-  const studyToday = studyRecordsOnDay(excludePending(study.records, study.pendingDeleteIds), accounting);
+  const trainingToday = trainingSetsOnDay(countedTraining, accounting);
+  const studyToday = studyRecordsOnDay(countedStudy, accounting);
   const readout = todayReadout(ready, today.length, last !== null);
   const trainingTitle = beforeSwitch ? `${formatMonthDay(accounting)}的训练` : '今天的训练';
   const studyTitle = beforeSwitch ? `${formatMonthDay(accounting)}的学习` : '今天的学习';
@@ -142,79 +146,88 @@ export function TodayScreen() {
               </Card>
             }
           >
-            <Card>
-              <Row justify="between" align="center" gap="sm">
-                <Row gap="sm" align="center">
-                  <Text variant="heading">{beforeSwitch ? `${formatMonthDay(accounting)}的记录` : '今天的记录'}</Text>
-                  <Text variant="label">{allLogged ? '已记 3/3' : `已记 ${loggedCount}/3`}</Text>
-                </Row>
-                {last && today.length > 0 ? (
-                  <Button
-                    label={`再记 ${formatKg(last.weightKg)} kg`}
-                    variant="secondary"
-                    size="mini"
-                    onPress={() => openRecordSheet(last.weightKg)}
-                  />
-                ) : null}
-              </Row>
-              <Divider />
-              {readout.firstRecord ? (
-                <EmptyState
-                  title={readout.firstRecord}
-                  description="记下体重后，这里会显示近 7 日均重。"
-                  action={<Button label="记录" variant="secondary" onPress={() => openRecordSheet()} />}
-                />
-              ) : null}
-              {today.length === 0 && last ? (
-                <EmptyState
-                  title="今天还没有记录"
-                  description="再记会带上上次的体重，点保存后才会写入。"
-                  action={
+            <Stack gap="md">
+              <Card>
+                <Row justify="between" align="center" gap="sm">
+                  <Row gap="sm" align="center">
+                    <Text variant="heading">{beforeSwitch ? `${formatMonthDay(accounting)}的记录` : '今天的记录'}</Text>
+                    <Text variant="label">{allLogged ? '已记 3/3' : `已记 ${loggedCount}/3`}</Text>
+                  </Row>
+                  {last && today.length > 0 ? (
                     <Button
                       label={`再记 ${formatKg(last.weightKg)} kg`}
                       variant="secondary"
+                      size="mini"
                       onPress={() => openRecordSheet(last.weightKg)}
                     />
-                  }
-                />
-              ) : null}
-              {visibleToday.map((record, index) => {
-                const failed = failedIds.has(record.id);
-                return (
-                  <Fragment key={record.id}>
-                    {index > 0 ? <Divider /> : null}
-                    <Stack gap="xs">
-                      <Row justify="between" align="center" gap="sm">
-                        <Row gap="md" align="center">
-                          <Text variant="label">{weighInLabel(index)}</Text>
-                          <Text variant="body">
-                            {formatKg(record.weightKg)} kg · {formatClock(record.recordedAt, record.tz)}
-                          </Text>
+                  ) : null}
+                </Row>
+                <Divider />
+                {readout.firstRecord ? (
+                  <EmptyState
+                    title={readout.firstRecord}
+                    description="记下体重后，这里会显示近 7 日均重。"
+                    action={<Button label="记录" variant="secondary" onPress={() => openRecordSheet()} />}
+                  />
+                ) : null}
+                {today.length === 0 && last ? (
+                  <EmptyState
+                    title="今天还没有记录"
+                    description="再记会带上上次的体重，点保存后才会写入。"
+                    action={
+                      <Button
+                        label={`再记 ${formatKg(last.weightKg)} kg`}
+                        variant="secondary"
+                        onPress={() => openRecordSheet(last.weightKg)}
+                      />
+                    }
+                  />
+                ) : null}
+                {visibleToday.map((record, index) => {
+                  const failed = failedIds.has(record.id);
+                  return (
+                    <Fragment key={record.id}>
+                      {index > 0 ? <Divider /> : null}
+                      <Stack gap="xs">
+                        <Row justify="between" align="center" gap="sm">
+                          <Row gap="md" align="center">
+                            <Text variant="label">{weighInLabel(index)}</Text>
+                            <Text variant="body">
+                              {formatKg(record.weightKg)} kg · {formatClock(record.recordedAt, record.tz)}
+                            </Text>
+                          </Row>
+                          {failed ? null : (
+                            <Button label="删除" variant="ghost" onPress={() => scheduleDelete(record.id)} />
+                          )}
                         </Row>
-                        {failed ? null : (
-                          <Button label="删除" variant="ghost" onPress={() => scheduleDelete(record.id)} />
-                        )}
-                      </Row>
-                      {failed ? (
-                        <Row gap="sm" wrap>
-                          <Text variant="muted" tone="danger">
-                            未保存
-                          </Text>
-                          <Button
-                            label="重试"
-                            variant="secondary"
-                            size="mini"
-                            onPress={() => void retry(record.id)}
-                            loading={savingIds.has(record.id)}
-                          />
-                          <Button label="放弃" variant="ghost" onPress={() => dismiss(record.id)} />
-                        </Row>
-                      ) : null}
-                    </Stack>
-                  </Fragment>
-                );
-              })}
-            </Card>
+                        {failed ? (
+                          <Row gap="sm" wrap>
+                            <Text variant="muted" tone="danger">
+                              未保存
+                            </Text>
+                            <Button
+                              label="重试"
+                              variant="secondary"
+                              size="mini"
+                              onPress={() => void retry(record.id)}
+                              loading={savingIds.has(record.id)}
+                            />
+                            <Button label="放弃" variant="ghost" onPress={() => dismiss(record.id)} />
+                          </Row>
+                        ) : null}
+                      </Stack>
+                    </Fragment>
+                  );
+                })}
+              </Card>
+
+              <WeeklyRhythmCard
+                endDay={accounting}
+                weightRecords={counted}
+                trainingSets={countedTraining}
+                studyRecords={countedStudy}
+              />
+            </Stack>
           </LoadingRegion>
         </Stack>
 
@@ -326,6 +339,119 @@ export function TodayScreen() {
           : null}
       </Content>
     </Screen>
+  );
+}
+
+function WeeklyRhythmCard({
+  endDay,
+  weightRecords,
+  trainingSets,
+  studyRecords,
+}: {
+  endDay: string;
+  weightRecords: readonly WeightRecord[];
+  trainingSets: readonly TrainingSet[];
+  studyRecords: readonly StudyRecord[];
+}) {
+  const { color } = useTheme();
+  const [selectedDay, setSelectedDay] = useState<string>(endDay);
+
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const dayKey = shiftLocalDay(endDay, -(6 - index));
+    const dayWeights = recordsOnDay(weightRecords, dayKey);
+    const dayTraining = trainingSetsOnDay(trainingSets, dayKey);
+    const dayStudy = studyRecordsOnDay(studyRecords, dayKey);
+    const studyMinutes = dayStudy.reduce((sum, item) => sum + item.durationMinutes, 0);
+    return {
+      dayKey,
+      hasWeight: dayWeights.length > 0,
+      trainingCount: dayTraining.length,
+      studyCount: dayStudy.length,
+      studyMinutes,
+    };
+  });
+
+  const activeDay = days.find((item) => item.dayKey === selectedDay) ?? days[days.length - 1];
+  const activeWeightDays = days.filter((item) => item.hasWeight).length;
+  const totalSets = days.reduce((sum, item) => sum + item.trainingCount, 0);
+  const totalStudyMin = days.reduce((sum, item) => sum + item.studyMinutes, 0);
+
+  return (
+    <Card>
+      <Row justify="between" align="center" gap="sm" wrap>
+        <Row gap="sm" align="center">
+          <Text variant="heading">近 7 日执行矩阵</Text>
+          <Text variant="caption">{`体重 ${activeWeightDays}/7 · 训练 ${totalSets} 组 · 学习 ${totalStudyMin} 分钟`}</Text>
+        </Row>
+        <Row gap="sm" align="center">
+          <Row gap="xs" align="center">
+            <View style={[styles.matrixDot, { backgroundColor: color.accent }]} />
+            <Text variant="caption">晨重</Text>
+          </Row>
+          <Row gap="xs" align="center">
+            <View style={[styles.matrixDot, { backgroundColor: color.moss }]} />
+            <Text variant="caption">训练</Text>
+          </Row>
+          <Row gap="xs" align="center">
+            <View style={[styles.matrixDot, { backgroundColor: color.target }]} />
+            <Text variant="caption">学习</Text>
+          </Row>
+        </Row>
+      </Row>
+      <Divider />
+      <Row justify="between" align="center" gap="xs">
+        {days.map((item) => {
+          const isSelected = activeDay?.dayKey === item.dayKey;
+          const isToday = item.dayKey === endDay;
+          return (
+            <Pressable
+              key={item.dayKey}
+              onPress={() => setSelectedDay(item.dayKey)}
+              style={[
+                styles.dayCell,
+                {
+                  borderColor: isSelected ? color.ink : color.line,
+                  backgroundColor: isSelected ? color.fill : color.card,
+                },
+              ]}
+            >
+              <Text variant="caption">{shortWeekday(item.dayKey)}</Text>
+              <Text variant="label">{isToday ? '今日' : item.dayKey.slice(8)}</Text>
+              <Row gap="xs" align="center" justify="center">
+                <View
+                  style={[
+                    styles.matrixDot,
+                    { backgroundColor: item.hasWeight ? color.accent : color.line },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.matrixDot,
+                    { backgroundColor: item.trainingCount > 0 ? color.moss : color.line },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.matrixDot,
+                    { backgroundColor: item.studyCount > 0 ? color.target : color.line },
+                  ]}
+                />
+              </Row>
+            </Pressable>
+          );
+        })}
+      </Row>
+      {activeDay ? (
+        <View style={[styles.inspectStrip, { backgroundColor: color.fill, borderColor: color.line }]}>
+          <Row justify="between" align="center" gap="sm" wrap>
+            <Text variant="caption">{`${formatMonthDay(activeDay.dayKey)} ${shortWeekday(activeDay.dayKey)}`}</Text>
+            <Text variant="caption">
+              {`晨重 ${activeDay.hasWeight ? '已记' : '未记'} · 训练 ${activeDay.trainingCount} 组 · 学习 ${activeDay.studyMinutes > 0 ? `${activeDay.studyMinutes} 分钟` : activeDay.studyCount > 0 ? `${activeDay.studyCount} 项` : '0 分钟'}`}
+            </Text>
+          </Row>
+        </View>
+      ) : null}
+    </Card>
   );
 }
 
@@ -446,3 +572,26 @@ function WeightColumn({
     </Stack>
   );
 }
+
+const styles = StyleSheet.create({
+  dayCell: {
+    flex: 1,
+    alignItems: 'center',
+    gap: theme.space.xs,
+    paddingVertical: theme.space.sm,
+    paddingHorizontal: theme.space.xs,
+    borderRadius: theme.radius.sm,
+    borderWidth: theme.border.width,
+  },
+  matrixDot: {
+    width: theme.layout.dot,
+    height: theme.layout.dot,
+    borderRadius: theme.radius.pill,
+  },
+  inspectStrip: {
+    paddingHorizontal: theme.space.ms,
+    paddingVertical: theme.space.xs,
+    borderRadius: theme.radius.sm,
+    borderWidth: theme.border.width,
+  },
+});
