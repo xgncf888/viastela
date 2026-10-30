@@ -23,7 +23,9 @@ test('a 220-tall chart places the grid and the axis from that height', () => {
   const height = theme.layout.chartWide;
   expect(height).toBe(220);
   const pad = theme.space.md;
-  const inner = height - pad * 2;
+  const inset = theme.space.sm;
+  expect(inset).toBe(8);
+  const inner = height - pad * 2 - inset;
   const ticks = [
     { position: 0, zero: false },
     { position: 0.5, zero: false },
@@ -31,23 +33,26 @@ test('a 220-tall chart places the grid and the axis from that height', () => {
   ];
   const drawn = chartDecorations(ticks, lightColor, height);
   expect(drawn.lines.map((line) => line.y)).toEqual([
-    height - pad,
-    height - pad - 0.5 * inner,
+    height - pad - inset,
+    height - pad - inset - 0.5 * inner,
     pad,
   ]);
   expect(drawn.lines[2].stroke).toBe(lightColor.muted);
   expect(drawn.axis).toEqual({ stroke: lightColor.chartAxis, top: pad, bottom: height - pad });
-  expect(tickOffset(0, height)).toBe(height - pad);
+  expect(tickOffset(0, height)).toBe(height - pad - inset);
   expect(tickOffset(1, height)).toBe(pad);
+  expect(drawn.axis && drawn.axis.bottom - tickOffset(0, height)).toBe(inset);
 });
 
 test('grid lines stay at 25/50/75% until ticks are passed, then sit on the ticks', () => {
   const height = theme.layout.chart;
   const pad = theme.space.md;
-  const inner = height - pad * 2;
+  const inner = height - pad * 2 - theme.space.sm;
   const plain = chartDecorations(undefined, lightColor, height);
   expect(plain.axis).toBeNull();
-  expect(plain.lines.map((line) => line.y)).toEqual([0.25, 0.5, 0.75].map((position) => height - pad - position * inner));
+  expect(plain.lines.map((line) => line.y)).toEqual(
+    [0.25, 0.5, 0.75].map((position) => height - pad - theme.space.sm - position * inner),
+  );
   expect(plain.lines.every((line) => line.stroke === lightColor.line)).toBe(true);
 
   const ticks = weightAxis([72, 76, 80]);

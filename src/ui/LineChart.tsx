@@ -46,7 +46,6 @@ function buildPlot(
 ): Plot | null {
   if (points.length === 0 || width <= 0) return null;
   const padX = theme.space.md;
-  const padY = theme.space.md;
   const domain = tickValueDomain(ticks);
   let min: number;
   let max: number;
@@ -68,10 +67,7 @@ function buildPlot(
     }
   }
   const span = max - min;
-  const yFor = (value: number) => {
-    const ratio = (value - min) / span;
-    return height - padY - ratio * (height - padY * 2);
-  };
+  const yFor = (value: number) => tickOffset((value - min) / span, height);
   const inner = width - padX * 2;
   return {
     width,
@@ -290,9 +286,7 @@ function paintOrder(series: readonly ChartSeries[]): ChartSeries[] {
 function buildSeriesPlot(series: readonly ChartSeries[], width: number, height: number): SeriesPlot | null {
   if (series.length === 0 || width <= 0) return null;
   const padX = theme.space.md;
-  const padY = theme.space.md;
   const innerW = Math.max(width - padX * 2, 0);
-  const innerH = Math.max(height - padY * 2, 0);
   return {
     width,
     height,
@@ -304,7 +298,7 @@ function buildSeriesPlot(series: readonly ChartSeries[], width: number, height: 
       points: item.points.map((point) => ({
         id: point.id,
         x: padX + point.x * innerW,
-        y: height - padY - point.y * innerH,
+        y: tickOffset(point.y, height),
       })),
     })),
   };

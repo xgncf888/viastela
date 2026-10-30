@@ -36,7 +36,7 @@ const LAYER_SELECTED = 2;
 const LAYER_ACTUAL = 3;
 
 /**
- * Positions are 0 to 1 inside the projection money axis, not the raw data min and max.
+ * Positions are 0 to 1 inside the money axis. Non-negative data floors at 0.
  * The chart does not know dollars. Color is `tone`. Weight and dash are not.
  * Actual is `ink` and solid. The selected rate is `accent` and solid.
  * The other two rates are `muted` dashes. The target is `target`, dotted.

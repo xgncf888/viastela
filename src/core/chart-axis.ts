@@ -109,34 +109,11 @@ export function moneyAxis(values: readonly number[], options?: { minStep?: numbe
 }
 
 /**
- * Share of the axis under which a positive baseline is sitting on the floor.
- * A 50-year projection does this (about 0.5%). A 30-year window stays near 2.5%,
- * and the standard money examples stay on their existing ticks.
- */
-const CRUSHED_BASELINE = 0.02;
-/** Where a crushed baseline should sit before the ticks are rounded outward. */
-const BASELINE_LIFT = 0.12;
-
-/**
- * Money ticks for the projection chart.
- * A non-negative series crushed against 0, which is the 50-year window, is padded
- * downward so the start and a low target leave the axis. Ranges that already have
- * room, a series that includes 0, and any series that crosses 0, keep `moneyAxis` ticks.
+ * Projection y ticks. Same values as `moneyAxis`.
+ * Non-negative data floors at 0. The chart leaves room above the x-axis in the plot, not by adding a negative tick.
  */
 export function projectionMoneyAxis(values: readonly number[]): ChartTick[] {
-  const finite = finiteValues(values);
-  const allZero = finite.every((value) => value === 0);
-  const base = moneyAxis(finite);
-  const domain = tickValueDomain(base);
-  if (!domain) return base;
-  const dataMin = Math.min(...finite);
-  if (dataMin < 0) return base;
-  const span = domain.max - domain.min;
-  const baseline = span === 0 ? 0 : (dataMin - domain.min) / span;
-  if (!allZero && (dataMin === 0 || baseline >= CRUSHED_BASELINE)) return base;
-  const lower = (dataMin - BASELINE_LIFT * domain.max) / (1 - BASELINE_LIFT);
-  if (!(lower < domain.min)) return base;
-  return moneyAxis([lower, domain.max], allZero ? { minStep: 1 } : undefined);
+  return moneyAxis(values);
 }
 
 function ticksFrom(

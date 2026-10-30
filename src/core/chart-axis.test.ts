@@ -67,7 +67,7 @@ test('all-zero money ticks use a minimum step of 1 and a domain with width', () 
   expect(moneyAxis([0]).map((tick) => tick.value)).toEqual([0, 1, 2]);
 });
 
-test('projection padding lifts a crushed 50-year baseline and leaves other money ticks', () => {
+test('projection ticks match the money axis, and a non-negative series never goes below 0', () => {
   expect(projectionMoneyAxis([12_000, 340_000]).map((tick) => tick.value)).toEqual(
     moneyAxis([12_000, 340_000]).map((tick) => tick.value),
   );
@@ -77,20 +77,15 @@ test('projection padding lifts a crushed 50-year baseline and leaves other money
     moneyAxis([-20_000, 80_000]).map((tick) => tick.label),
   );
 
-  const lifted = projectionMoneyAxis([20_000, 800_000, 3_105_616]);
-  expect(lifted.map((tick) => tick.value)).toEqual([-2_000_000, 0, 2_000_000, 4_000_000]);
-  const domain = tickValueDomain(lifted);
-  if (!domain) throw new Error('projection axis domain missing');
-  const y = (value: number) => (value - domain.min) / (domain.max - domain.min);
-  expect(y(20_000)).toBeGreaterThan(0.2);
-  expect(y(800_000)).toBeGreaterThan(y(20_000));
+  const fifty = projectionMoneyAxis([20_000, 800_000, 3_105_616]);
+  expect(fifty.map((tick) => tick.value)).toEqual([0, 1_000_000, 2_000_000, 3_000_000, 4_000_000]);
+  expect(fifty.every((tick) => tick.value >= 0)).toBe(true);
+  expect(Math.min(...fifty.map((tick) => tick.value))).toBe(0);
 
   const zeros = projectionMoneyAxis([0, 0, 0]);
-  expect(zeros.map((tick) => tick.value)).toEqual([-1, 0, 1, 2]);
-  const zeroDomain = tickValueDomain(zeros);
-  if (!zeroDomain) throw new Error('zero axis domain missing');
-  expect((0 - zeroDomain.min) / (zeroDomain.max - zeroDomain.min)).toBeGreaterThan(0);
-  expect(zeroDomain.max).toBeGreaterThan(zeroDomain.min);
+  expect(zeros.map((tick) => tick.value)).toEqual([0, 1, 2]);
+  expect(zeros.every((tick) => tick.value >= 0)).toBe(true);
+  expect(moneyAxis([0, 0, 0]).every((tick) => tick.value >= 0)).toBe(true);
 });
 
 function isNiceStep(step: number): boolean {

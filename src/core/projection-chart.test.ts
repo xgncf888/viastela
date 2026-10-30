@@ -166,7 +166,7 @@ test('legend order is the rates, then the target, and history is ink', () => {
   );
 });
 
-test('a 50-year window lifts the target and the curve starts off the axis', () => {
+test('a 50-year window keeps a zero floor', () => {
   const lines = projectNetWorthLines(
     {
       startUsd: 20_000,
@@ -177,7 +177,6 @@ test('a 50-year window lifts the target and the curve starts off the axis', () =
     [0.03, 0.05, 0.07],
   );
   const values = [800_000, ...lines.flatMap((line) => line.points.map((point) => point.netWorthUsd))];
-  const unpadded = moneyAxis(values).map((tick) => tick.value);
   const chart = projectionChart({
     lines,
     rates: [0.03, 0.05, 0.07],
@@ -186,11 +185,17 @@ test('a 50-year window lifts the target and the curve starts off the axis', () =
     targetUsd: 800_000,
     snapshot: null,
   });
-  expect(unpadded).toEqual([0, 1_000_000, 2_000_000, 3_000_000, 4_000_000]);
-  expect(chart.ticks.map((tick) => tick.value)).toEqual([-2_000_000, 0, 2_000_000, 4_000_000]);
-  const start = chart.series.find((series) => series.label === '5%')?.points[0]?.y ?? 0;
-  const target = chart.series.find((series) => series.id === 'target')?.points[0]?.y ?? 0;
-  expect(start).toBeGreaterThan(0.2);
-  expect(target).toBeGreaterThan(start);
-  expect(target).toBeLessThan(0.7);
+  const ticks = chart.ticks.map((tick) => tick.value);
+  expect(ticks).toEqual(moneyAxis(values).map((tick) => tick.value));
+  expect(ticks).toEqual([0, 1_000_000, 2_000_000, 3_000_000, 4_000_000]);
+  expect(Math.min(...ticks)).toBe(0);
+  expect(ticks.every((tick) => tick >= 0)).toBe(true);
+  const domain = tickValueDomain(chart.ticks);
+  if (!domain) throw new Error('money axis domain missing');
+  const yOf = (value: number) => (value - domain.min) / (domain.max - domain.min);
+  const start = chart.series.find((series) => series.label === '5%')?.points[0]?.y ?? -1;
+  const target = chart.series.find((series) => series.id === 'target')?.points[0]?.y ?? -1;
+  expect(start).toBeCloseTo(yOf(20_000));
+  expect(target).toBeCloseTo(yOf(800_000));
+  expect(target).toBeCloseTo(0.2);
 });
