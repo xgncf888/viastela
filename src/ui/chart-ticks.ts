@@ -41,11 +41,15 @@ type AxisColors = {
   chartAxis: string;
 };
 
-/** Vertical offset of a 0–1 axis position. 0 sits on the bottom padding. */
+/**
+ * Vertical offset of a 0–1 axis position.
+ * 0 sits `space.sm` above the x-axis so a baseline does not lie on the axis stroke.
+ */
 export function tickOffset(position: number, height: number = theme.layout.chart): number {
-  const padY = theme.space.md;
-  const inner = Math.max(height - padY * 2, 0);
-  return height - padY - position * inner;
+  const padTop = theme.space.md;
+  const padBottom = theme.space.md + theme.space.sm;
+  const inner = Math.max(height - padTop - padBottom, 0);
+  return height - padBottom - position * inner;
 }
 
 /**

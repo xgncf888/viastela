@@ -94,15 +94,26 @@ export function weightAxis(values: readonly number[]): ChartTick[] {
 /**
  * Money y axis. A non-negative minimum starts at 0.
  * A negative value keeps 0 on the axis and marks that tick.
+ * All zeros use a minimum step of 1 so the domain has a width.
  */
-export function moneyAxis(values: readonly number[]): ChartTick[] {
+export function moneyAxis(values: readonly number[], options?: { minStep?: number }): ChartTick[] {
   const finite = finiteValues(values);
   const dataMin = Math.min(...finite);
   const dataMax = Math.max(...finite);
   const crossesZero = dataMin < 0;
   const lo = crossesZero ? dataMin : 0;
   const hi = crossesZero ? Math.max(dataMax, 0) : dataMax;
-  return ticksFrom(niceAxis(lo, hi), 'compact', crossesZero);
+  const allZero = finite.every((value) => value === 0);
+  const minStep = options?.minStep ?? (allZero ? 1 : 0);
+  return ticksFrom(niceAxis(lo, hi, minStep > 0 ? { minStep } : undefined), 'compact', crossesZero);
+}
+
+/**
+ * Projection y ticks. Same values as `moneyAxis`.
+ * Non-negative data floors at 0. The chart leaves room above the x-axis in the plot, not by adding a negative tick.
+ */
+export function projectionMoneyAxis(values: readonly number[]): ChartTick[] {
+  return moneyAxis(values);
 }
 
 function ticksFrom(

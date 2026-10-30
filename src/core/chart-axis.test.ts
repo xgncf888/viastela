@@ -1,6 +1,6 @@
 import { expect, test } from '@jest/globals';
 
-import { formatChartTick, moneyAxis, niceAxis, weightAxis } from './chart-axis';
+import { formatChartTick, moneyAxis, niceAxis, projectionMoneyAxis, tickValueDomain, weightAxis } from './chart-axis';
 
 const NICE = [1, 2, 2.5, 5];
 
@@ -49,6 +49,43 @@ test('compact tick text matches the chart examples and leaves the unit off', () 
   expect(formatChartTick(1_200_000, 'compact')).toBe('1.2M');
   expect(formatChartTick(72.5, 'plain')).toBe('72.5');
   expect(formatChartTick(72, 'plain')).toBe('72');
+});
+
+test('all-zero money ticks use a minimum step of 1 and a domain with width', () => {
+  const ticks = moneyAxis([0, 0, 0]);
+  expect(ticks.map((tick) => tick.value)).toEqual([0, 1, 2]);
+  expect(ticks.map((tick) => tick.label)).toEqual(['0', '1', '2']);
+  const domain = tickValueDomain(ticks);
+  expect(domain).toEqual({ min: 0, max: 2 });
+  expect(domain && domain.max - domain.min).toBeGreaterThan(0);
+  for (const tick of ticks) {
+    expect(Number.isFinite(tick.position)).toBe(true);
+    expect(Number.isNaN(tick.position)).toBe(false);
+    expect(tick.position).toBeGreaterThanOrEqual(0);
+    expect(tick.position).toBeLessThanOrEqual(1);
+  }
+  expect(moneyAxis([0]).map((tick) => tick.value)).toEqual([0, 1, 2]);
+});
+
+test('projection ticks match the money axis, and a non-negative series never goes below 0', () => {
+  expect(projectionMoneyAxis([12_000, 340_000]).map((tick) => tick.value)).toEqual(
+    moneyAxis([12_000, 340_000]).map((tick) => tick.value),
+  );
+  expect(projectionMoneyAxis([0, 600_000]).map((tick) => tick.value)).toEqual([0, 200_000, 400_000, 600_000]);
+  expect(projectionMoneyAxis([10, 20]).map((tick) => tick.value)).toEqual([0, 5, 10, 15, 20]);
+  expect(projectionMoneyAxis([-20_000, 80_000]).map((tick) => tick.label)).toEqual(
+    moneyAxis([-20_000, 80_000]).map((tick) => tick.label),
+  );
+
+  const fifty = projectionMoneyAxis([20_000, 800_000, 3_105_616]);
+  expect(fifty.map((tick) => tick.value)).toEqual([0, 1_000_000, 2_000_000, 3_000_000, 4_000_000]);
+  expect(fifty.every((tick) => tick.value >= 0)).toBe(true);
+  expect(Math.min(...fifty.map((tick) => tick.value))).toBe(0);
+
+  const zeros = projectionMoneyAxis([0, 0, 0]);
+  expect(zeros.map((tick) => tick.value)).toEqual([0, 1, 2]);
+  expect(zeros.every((tick) => tick.value >= 0)).toBe(true);
+  expect(moneyAxis([0, 0, 0]).every((tick) => tick.value >= 0)).toBe(true);
 });
 
 function isNiceStep(step: number): boolean {

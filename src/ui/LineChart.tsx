@@ -46,7 +46,6 @@ function buildPlot(
 ): Plot | null {
   if (points.length === 0 || width <= 0) return null;
   const padX = theme.space.md;
-  const padY = theme.space.md;
   const domain = tickValueDomain(ticks);
   let min: number;
   let max: number;
@@ -68,10 +67,7 @@ function buildPlot(
     }
   }
   const span = max - min;
-  const yFor = (value: number) => {
-    const ratio = (value - min) / span;
-    return height - padY - ratio * (height - padY * 2);
-  };
+  const yFor = (value: number) => tickOffset((value - min) / span, height);
   const inner = width - padX * 2;
   return {
     width,
@@ -247,17 +243,24 @@ function NativePlot({
   );
 }
 
-export type ChartTone = 'accent' | 'moss' | 'muted' | 'target';
-export type ChartStyle = 'solid' | 'dashed' | 'dotted';
+export type ChartTone = 'accent' | 'ink' | 'moss' | 'muted' | 'target';
+
+/** Weight and dash for one series. The chart does not derive these from `tone`. */
+export type ChartStroke = {
+  width: number;
+  /** SVG stroke-dasharray. Omit for a solid line. */
+  dash?: string;
+};
 
 export type ChartSeries = {
   id: string;
   label: string;
   points: readonly { id: string; x: number; y: number }[];
-  style: ChartStyle;
   tone: ChartTone;
+  stroke: ChartStroke;
+  /** Lower values paint first. Omit it and the series array order is the paint order. */
+  layer?: number;
   markers?: boolean;
-  thin?: boolean;
 };
 
 type SeriesPlot = {
@@ -266,38 +269,36 @@ type SeriesPlot = {
   series: {
     id: string;
     tone: ChartTone;
-    style: ChartStyle;
+    stroke: ChartStroke;
     markers: boolean;
-    thin: boolean;
     points: { id: string; x: number; y: number }[];
   }[];
 };
 
-const DASH: Record<ChartStyle, string | undefined> = {
-  solid: undefined,
-  dashed: '5 4',
-  dotted: '2 3',
-};
+/** Paint order. The legend keeps the caller's array order. */
+function paintOrder(series: readonly ChartSeries[]): ChartSeries[] {
+  return series
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => (a.item.layer ?? a.index) - (b.item.layer ?? b.index) || a.index - b.index)
+    .map((entry) => entry.item);
+}
 
 function buildSeriesPlot(series: readonly ChartSeries[], width: number, height: number): SeriesPlot | null {
   if (series.length === 0 || width <= 0) return null;
   const padX = theme.space.md;
-  const padY = theme.space.md;
   const innerW = Math.max(width - padX * 2, 0);
-  const innerH = Math.max(height - padY * 2, 0);
   return {
     width,
     height,
-    series: series.map((item) => ({
+    series: paintOrder(series).map((item) => ({
       id: item.id,
       tone: item.tone,
-      style: item.style,
+      stroke: item.stroke,
       markers: item.markers === true,
-      thin: item.thin === true,
       points: item.points.map((point) => ({
         id: point.id,
         x: padX + point.x * innerW,
-        y: height - padY - point.y * innerH,
+        y: tickOffset(point.y, height),
       })),
     })),
   };
@@ -305,17 +306,10 @@ function buildSeriesPlot(series: readonly ChartSeries[], width: number, height: 
 
 function toneColor(tone: ChartTone, color: AppTheme['color']): string {
   if (tone === 'accent') return color.accent;
+  if (tone === 'ink') return color.ink;
   if (tone === 'moss') return color.moss;
   if (tone === 'target') return color.target;
   return color.muted;
-}
-
-/** Selected projection line is strokeSelected. The other rates are strokeMinor. Target is the 1px border. Actual stays layout.stroke. */
-function seriesStrokeWidth(series: { thin: boolean; tone: ChartTone }): number {
-  if (series.tone === 'target') return theme.border.width;
-  if (series.tone === 'accent') return theme.layout.stroke;
-  if (series.thin) return theme.layout.strokeMinor;
-  return theme.layout.strokeSelected;
 }
 
 function SeriesWeb({
@@ -350,8 +344,8 @@ function SeriesWeb({
         points: series.points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' '),
         fill: 'none',
         stroke: toneColor(series.tone, color),
-        strokeWidth: seriesStrokeWidth(series),
-        strokeDasharray: DASH[series.style],
+        strokeWidth: series.stroke.width,
+        strokeDasharray: series.stroke.dash,
         strokeLinejoin: 'round',
         strokeLinecap: 'round',
       }),
@@ -414,8 +408,8 @@ function SeriesNative({
           points={series.points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ')}
           fill="none"
           stroke={toneColor(series.tone, color)}
-          strokeWidth={seriesStrokeWidth(series)}
-          strokeDasharray={DASH[series.style]}
+          strokeWidth={series.stroke.width}
+          strokeDasharray={series.stroke.dash}
           strokeLinejoin="round"
           strokeLinecap="round"
         />
@@ -513,7 +507,7 @@ function SeriesLineChart({
       <Legend wrap>
         {series.map((item) => (
           <Row key={item.id} gap="xs">
-            <LegendSwatch styleName={item.style} color={toneColor(item.tone, color)} />
+            <LegendSwatch dash={item.stroke.dash} color={toneColor(item.tone, color)} />
             <Text variant="caption">{item.label}</Text>
           </Row>
         ))}
@@ -532,11 +526,9 @@ function Legend({ children, wrap = false }: { children: ReactNode; wrap?: boolea
   );
 }
 
-function LegendSwatch({ styleName, color }: { styleName: ChartStyle; color: string }) {
-  if (styleName === 'solid') return <View style={[styles.dot, { backgroundColor: color }]} />;
-  if (styleName === 'dotted') {
-    return <View style={[styles.swatch, styles.dotted, { borderColor: color }]} />;
-  }
+function LegendSwatch({ dash, color }: { dash?: string; color: string }) {
+  if (!dash) return <View style={[styles.dot, { backgroundColor: color }]} />;
+  if (dash === '2 3') return <View style={[styles.swatch, styles.dotted, { borderColor: color }]} />;
   return <View style={[styles.swatch, styles.dashed, { borderColor: color }]} />;
 }
 
