@@ -1,8 +1,9 @@
+import { moneyAxis, tickValueDomain } from './chart-axis';
 import { actualSeriesNote } from './quote-label';
 import type { NetWorthProjection } from './projection';
 import { annualRatePercent } from './projection-copy';
 
-export type ChartTone = 'accent' | 'moss' | 'muted' | 'line' | 'target';
+export type ChartTone = 'accent' | 'moss' | 'muted' | 'target';
 export type ChartStyle = 'solid' | 'dashed' | 'dotted';
 
 export type ProjectionChartPoint = { id: string; x: number; y: number };
@@ -24,10 +25,11 @@ export type ProjectionChart = {
 };
 
 /**
- * Positions are 0 to 1. The chart does not know dollars.
- * The selected line is moss at the chart's normal stroke. The other two are thinner muted dashes.
+ * Positions are 0 to 1 inside `moneyAxis`'s domain, not the raw data min and max.
+ * The chart does not know dollars.
+ * The selected line is moss. The other two are thinner muted dashes.
+ * Stroke widths are `layout.strokeSelected` and `layout.strokeMinor` in the chart.
  * The target line is `target`, dotted, and 1px (`thin`).
- * §6 also names 1.8 and 1.2. Those are not theme tokens, so this file does not invent them.
  * Actual points are omitted until there are two of them.
  */
 export function projectionChart(input: {
@@ -49,9 +51,9 @@ export function projectionChart(input: {
     ...input.lines.flatMap((line) => line.points.map((point) => point.netWorthUsd)),
     ...actualMonths.map((point) => point.totalUsd),
   ];
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const yOf = (value: number) => (max === min ? 0.5 : (value - min) / (max - min));
+  const domain = moneyAxisDomain(values);
+  const domainSpan = domain.max - domain.min;
+  const yOf = (value: number) => (domainSpan === 0 ? 0.5 : (value - domain.min) / domainSpan);
   const series: ProjectionChartSeries[] = [];
   const span = Math.max(input.lines[0].points.length - 1, 1);
   if (input.targetUsd !== null) {
@@ -100,6 +102,14 @@ export function projectionChart(input: {
     accessibilityLabel:
       input.targetUsd === null ? `实际、${labels.join('、')}` : `实际、${labels.join('、')}、目标，预计达标月份`,
   };
+}
+
+/** Inclusive min and max of `moneyAxis`. */
+function moneyAxisDomain(values: readonly number[]): { min: number; max: number } {
+  const domain = tickValueDomain(moneyAxis(values));
+  if (domain) return domain;
+  const only = values.find((value) => Number.isFinite(value)) ?? 0;
+  return { min: only, max: only };
 }
 
 function clampIndex(mainRateIndex: number): number {

@@ -284,7 +284,7 @@ export function AssetsScreen() {
             action={<Button label="添加第一个账户" onPress={() => setSheet('account')} />}
           />
         ) : model ? (
-          <>
+          <Stack gap="md">
             <Overview
               model={model}
               masked={masked}
@@ -459,7 +459,7 @@ export function AssetsScreen() {
                 />
               ))}
             </Card>
-          </>
+          </Stack>
         ) : null}
         </LoadingRegion>
       </Content>
@@ -587,7 +587,7 @@ function Overview({
       {model.missLine ? (
         <Text variant="heading">{model.missLine}</Text>
       ) : model.totalText ? (
-        <MaskedAmount text={model.totalText} masked={masked} variant="display" tone="accent" />
+        <MaskedAmount text={model.totalText} masked={masked} variant="display" tone="ink" />
       ) : (
         <Text variant="display">暂无价格</Text>
       )}

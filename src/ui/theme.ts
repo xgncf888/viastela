@@ -207,6 +207,8 @@ export const theme = {
     dot: 5,
     dotLast: 8,
     stroke: 1.5,
+    strokeSelected: 1.8,
+    strokeMinor: 1.2,
     progress: 4,
     mark: 22,
     maskWidth: 64,

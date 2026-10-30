@@ -247,7 +247,7 @@ function NativePlot({
   );
 }
 
-export type ChartTone = 'accent' | 'moss' | 'muted' | 'line' | 'target';
+export type ChartTone = 'accent' | 'moss' | 'muted' | 'target';
 export type ChartStyle = 'solid' | 'dashed' | 'dotted';
 
 export type ChartSeries = {
@@ -307,8 +307,15 @@ function toneColor(tone: ChartTone, color: AppTheme['color']): string {
   if (tone === 'accent') return color.accent;
   if (tone === 'moss') return color.moss;
   if (tone === 'target') return color.target;
-  if (tone === 'line') return color.line;
   return color.muted;
+}
+
+/** Selected projection line is strokeSelected. The other rates are strokeMinor. Target is the 1px border. Actual stays layout.stroke. */
+function seriesStrokeWidth(series: { thin: boolean; tone: ChartTone }): number {
+  if (series.tone === 'target') return theme.border.width;
+  if (series.tone === 'accent') return theme.layout.stroke;
+  if (series.thin) return theme.layout.strokeMinor;
+  return theme.layout.strokeSelected;
 }
 
 function SeriesWeb({
@@ -343,7 +350,7 @@ function SeriesWeb({
         points: series.points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' '),
         fill: 'none',
         stroke: toneColor(series.tone, color),
-        strokeWidth: series.thin ? theme.border.width : theme.layout.stroke,
+        strokeWidth: seriesStrokeWidth(series),
         strokeDasharray: DASH[series.style],
         strokeLinejoin: 'round',
         strokeLinecap: 'round',
@@ -407,7 +414,7 @@ function SeriesNative({
           points={series.points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ')}
           fill="none"
           stroke={toneColor(series.tone, color)}
-          strokeWidth={series.thin ? theme.border.width : theme.layout.stroke}
+          strokeWidth={seriesStrokeWidth(series)}
           strokeDasharray={DASH[series.style]}
           strokeLinejoin="round"
           strokeLinecap="round"

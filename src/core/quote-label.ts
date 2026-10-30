@@ -39,7 +39,7 @@ export function quoteStatusLabel(input: {
   if (input.status === 'stale' || input.possiblyExpired) {
     return { text: STALE_LABEL, tone: 'warning' };
   }
-  return { text: `价格更新于 ${formatQuoteClock(input.asOf, input.timeZone)}`, tone: 'muted' };
+  return { text: `行情更新于 ${formatQuoteClock(input.asOf, input.timeZone)}`, tone: 'muted' };
 }
 
 export type QuoteFailureCopy = {
@@ -134,7 +134,7 @@ export function quoteSetStatus(input: {
   const fresh = priced.filter((quote) => quote.source === 'finnhub' && quote.status === 'fresh');
   if (fresh.length !== priced.length) return null;
   const oldest = fresh.reduce((left, right) => (left.asOf < right.asOf ? left : right));
-  return { text: `价格更新于 ${formatQuoteClock(oldest.asOf, input.timeZone)}`, tone: 'muted' };
+  return { text: `行情更新于 ${formatQuoteClock(oldest.asOf, input.timeZone)}`, tone: 'muted' };
 }
 
 /**

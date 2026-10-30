@@ -26,6 +26,7 @@ test('cost_basis with a price says 按成本价估算 and never a clock time', (
       timeZone: 'Asia/Singapore',
     });
     expect(label.text).toBe(COST_BASIS_LABEL);
+    expect(label.text).not.toContain('行情更新于');
     expect(label.text).not.toContain('价格更新于');
   }
 });
@@ -57,7 +58,7 @@ test('finnhub fresh uses the user timezone, and stale or a failed refresh says �
       asOf: AS_OF,
       timeZone: 'Asia/Singapore',
     }),
-  ).toEqual({ text: '价格更新于 08:30', tone: 'muted' });
+  ).toEqual({ text: '行情更新于 08:30', tone: 'muted' });
   expect(
     quoteStatusLabel({
       source: 'finnhub',
@@ -123,7 +124,7 @@ test('the quote set uses the oldest fresh clock, any stale row, or cost basis', 
       quotes: [fresh('2026-01-15T01:30:00.000Z'), fresh('2026-01-15T00:30:00.000Z')],
       timeZone: 'Asia/Singapore',
     }),
-  ).toEqual({ text: '价格更新于 08:30', tone: 'muted' });
+  ).toEqual({ text: '行情更新于 08:30', tone: 'muted' });
   expect(
     quoteSetStatus({
       quotes: [fresh(AS_OF), { source: 'finnhub', status: 'stale', asOf: AS_OF }],
