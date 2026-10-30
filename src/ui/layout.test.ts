@@ -5,7 +5,7 @@ import { afterEach, expect, jest, test } from '@jest/globals';
 import { act, createElement, type ComponentProps, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
-import { LineChart } from './LineChart';
+import { chartMarkerDot, LineChart } from './LineChart';
 import { Columns, Divider, headerSubtitleContent, ScreenHeader } from './layout';
 import { maxFontSizeMultiplierFor } from './text-scale';
 import { Text } from './Text';
@@ -270,6 +270,100 @@ test('LineChart height defaults to layout.chart and otherwise uses the prop', ()
   expect(heights.filter((value) => value === `${wide}px`).length).toBeGreaterThanOrEqual(2);
   const label = exactText(node, ticks[0].label) as HTMLElement;
   expect(label.style.top).toBe(`${tickOffset(ticks[0].position, wide) - theme.lineHeight.tick / 2}px`);
+});
+
+test('SeriesLineChart height defaults to layout.chart and otherwise uses the prop', () => {
+  const series = [
+    {
+      id: 'rate',
+      label: '5%',
+      style: 'solid' as const,
+      tone: 'accent' as const,
+      points: [
+        { id: 'a', x: 0, y: 0.2 },
+        { id: 'b', x: 1, y: 0.8 },
+      ],
+    },
+  ];
+  const props = {
+    series,
+    startLabel: '2026',
+    endLabel: '2030',
+    accessibilityLabel: '推算',
+  };
+  const def = mount(createElement(LineChart, props));
+  expect(styleHeights(def)).toContain(`${theme.layout.chart}px`);
+
+  const wide = theme.layout.chartWide;
+  expect(wide).toBe(220);
+  const ticks = weightAxis([72, 80]);
+  const node = mount(createElement(LineChart, { ...props, height: wide, ticks, unit: 'US$' }));
+  const heights = styleHeights(node);
+  expect(heights.filter((value) => value === `${wide}px`).length).toBeGreaterThanOrEqual(2);
+  const label = exactText(node, ticks[0].label) as HTMLElement;
+  expect(label.style.top).toBe(`${tickOffset(ticks[0].position, wide) - theme.lineHeight.tick / 2}px`);
+});
+
+test('chart legends sit below the axis labels and use caption', () => {
+  const weight = mount(
+    createElement(LineChart, {
+      points: [
+        { id: 'a', position: 0, raw: 72.4, trend: 73 },
+        { id: 'b', position: 1, raw: 78.6, trend: 76 },
+      ],
+      startLabel: '10/01',
+      endLabel: '10/28',
+      rawLabel: '每日晨重',
+      trendLabel: '平滑趋势',
+      accessibilityLabel: '近 28 日体重',
+    }),
+  );
+  const weightText = weight.textContent ?? '';
+  expect(weightText.indexOf('10/28')).toBeGreaterThanOrEqual(0);
+  expect(weightText.indexOf('10/28')).toBeLessThan(weightText.indexOf('每日晨重'));
+  expect(weightText.indexOf('每日晨重')).toBeLessThan(weightText.indexOf('平滑趋势'));
+  const raw = exactText(weight, '每日晨重') as HTMLElement;
+  expect(raw.style.fontSize).toBe(`${theme.font.caption}px`);
+  expect(raw.style.lineHeight).toBe(`${theme.lineHeight.caption}px`);
+  expect(raw.style.color).toBe(rgba(lightColor.muted));
+
+  const series = mount(
+    createElement(LineChart, {
+      series: [
+        {
+          id: 'target',
+          label: '目标',
+          style: 'dotted' as const,
+          tone: 'target' as const,
+          points: [
+            { id: 's', x: 0, y: 0.4 },
+            { id: 'e', x: 1, y: 0.4 },
+          ],
+        },
+      ],
+      startLabel: '2026',
+      endLabel: '2030',
+      accessibilityLabel: '推算',
+    }),
+  );
+  const seriesText = series.textContent ?? '';
+  expect(seriesText.indexOf('2030')).toBeLessThan(seriesText.indexOf('目标'));
+  const target = exactText(series, '目标') as HTMLElement;
+  expect(target.style.fontSize).toBe(`${theme.font.caption}px`);
+  expect(target.style.color).toBe(rgba(lightColor.muted));
+});
+
+test('the last chart dot is dotLast with a card-colored stroke', () => {
+  const earlier = chartMarkerDot(0, 2, lightColor.accent, lightColor.card);
+  expect(earlier.r * 2).toBe(theme.layout.dot);
+  expect(earlier.stroke).toBeUndefined();
+
+  const last = chartMarkerDot(1, 2, lightColor.accent, lightColor.card);
+  expect(last.r * 2).toBe(theme.layout.dotLast);
+  expect(theme.layout.dotLast).toBe(8);
+  expect(last.fill).toBe(lightColor.accent);
+  expect(last.stroke).toBe(lightColor.card);
+  expect(last.strokeWidth).toBe(theme.border.width);
 });
 
 function styleHeights(node: HTMLElement): string[] {
