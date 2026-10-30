@@ -1,6 +1,6 @@
 import { expect, test } from '@jest/globals';
 
-import { formatChartTick, moneyAxis, niceAxis, weightAxis } from './chart-axis';
+import { formatChartTick, moneyAxis, niceAxis, projectionMoneyAxis, tickValueDomain, weightAxis } from './chart-axis';
 
 const NICE = [1, 2, 2.5, 5];
 
@@ -49,6 +49,48 @@ test('compact tick text matches the chart examples and leaves the unit off', () 
   expect(formatChartTick(1_200_000, 'compact')).toBe('1.2M');
   expect(formatChartTick(72.5, 'plain')).toBe('72.5');
   expect(formatChartTick(72, 'plain')).toBe('72');
+});
+
+test('all-zero money ticks use a minimum step of 1 and a domain with width', () => {
+  const ticks = moneyAxis([0, 0, 0]);
+  expect(ticks.map((tick) => tick.value)).toEqual([0, 1, 2]);
+  expect(ticks.map((tick) => tick.label)).toEqual(['0', '1', '2']);
+  const domain = tickValueDomain(ticks);
+  expect(domain).toEqual({ min: 0, max: 2 });
+  expect(domain && domain.max - domain.min).toBeGreaterThan(0);
+  for (const tick of ticks) {
+    expect(Number.isFinite(tick.position)).toBe(true);
+    expect(Number.isNaN(tick.position)).toBe(false);
+    expect(tick.position).toBeGreaterThanOrEqual(0);
+    expect(tick.position).toBeLessThanOrEqual(1);
+  }
+  expect(moneyAxis([0]).map((tick) => tick.value)).toEqual([0, 1, 2]);
+});
+
+test('projection padding lifts a crushed 50-year baseline and leaves other money ticks', () => {
+  expect(projectionMoneyAxis([12_000, 340_000]).map((tick) => tick.value)).toEqual(
+    moneyAxis([12_000, 340_000]).map((tick) => tick.value),
+  );
+  expect(projectionMoneyAxis([0, 600_000]).map((tick) => tick.value)).toEqual([0, 200_000, 400_000, 600_000]);
+  expect(projectionMoneyAxis([10, 20]).map((tick) => tick.value)).toEqual([0, 5, 10, 15, 20]);
+  expect(projectionMoneyAxis([-20_000, 80_000]).map((tick) => tick.label)).toEqual(
+    moneyAxis([-20_000, 80_000]).map((tick) => tick.label),
+  );
+
+  const lifted = projectionMoneyAxis([20_000, 800_000, 3_105_616]);
+  expect(lifted.map((tick) => tick.value)).toEqual([-2_000_000, 0, 2_000_000, 4_000_000]);
+  const domain = tickValueDomain(lifted);
+  if (!domain) throw new Error('projection axis domain missing');
+  const y = (value: number) => (value - domain.min) / (domain.max - domain.min);
+  expect(y(20_000)).toBeGreaterThan(0.2);
+  expect(y(800_000)).toBeGreaterThan(y(20_000));
+
+  const zeros = projectionMoneyAxis([0, 0, 0]);
+  expect(zeros.map((tick) => tick.value)).toEqual([-1, 0, 1, 2]);
+  const zeroDomain = tickValueDomain(zeros);
+  if (!zeroDomain) throw new Error('zero axis domain missing');
+  expect((0 - zeroDomain.min) / (zeroDomain.max - zeroDomain.min)).toBeGreaterThan(0);
+  expect(zeroDomain.max).toBeGreaterThan(zeroDomain.min);
 });
 
 function isNiceStep(step: number): boolean {

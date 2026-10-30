@@ -94,15 +94,49 @@ export function weightAxis(values: readonly number[]): ChartTick[] {
 /**
  * Money y axis. A non-negative minimum starts at 0.
  * A negative value keeps 0 on the axis and marks that tick.
+ * All zeros use a minimum step of 1 so the domain has a width.
  */
-export function moneyAxis(values: readonly number[]): ChartTick[] {
+export function moneyAxis(values: readonly number[], options?: { minStep?: number }): ChartTick[] {
   const finite = finiteValues(values);
   const dataMin = Math.min(...finite);
   const dataMax = Math.max(...finite);
   const crossesZero = dataMin < 0;
   const lo = crossesZero ? dataMin : 0;
   const hi = crossesZero ? Math.max(dataMax, 0) : dataMax;
-  return ticksFrom(niceAxis(lo, hi), 'compact', crossesZero);
+  const allZero = finite.every((value) => value === 0);
+  const minStep = options?.minStep ?? (allZero ? 1 : 0);
+  return ticksFrom(niceAxis(lo, hi, minStep > 0 ? { minStep } : undefined), 'compact', crossesZero);
+}
+
+/**
+ * Share of the axis under which a positive baseline is sitting on the floor.
+ * A 50-year projection does this (about 0.5%). A 30-year window stays near 2.5%,
+ * and the standard money examples stay on their existing ticks.
+ */
+const CRUSHED_BASELINE = 0.02;
+/** Where a crushed baseline should sit before the ticks are rounded outward. */
+const BASELINE_LIFT = 0.12;
+
+/**
+ * Money ticks for the projection chart.
+ * A non-negative series crushed against 0, which is the 50-year window, is padded
+ * downward so the start and a low target leave the axis. Ranges that already have
+ * room, a series that includes 0, and any series that crosses 0, keep `moneyAxis` ticks.
+ */
+export function projectionMoneyAxis(values: readonly number[]): ChartTick[] {
+  const finite = finiteValues(values);
+  const allZero = finite.every((value) => value === 0);
+  const base = moneyAxis(finite);
+  const domain = tickValueDomain(base);
+  if (!domain) return base;
+  const dataMin = Math.min(...finite);
+  if (dataMin < 0) return base;
+  const span = domain.max - domain.min;
+  const baseline = span === 0 ? 0 : (dataMin - domain.min) / span;
+  if (!allZero && (dataMin === 0 || baseline >= CRUSHED_BASELINE)) return base;
+  const lower = (dataMin - BASELINE_LIFT * domain.max) / (1 - BASELINE_LIFT);
+  if (!(lower < domain.min)) return base;
+  return moneyAxis([lower, domain.max], allZero ? { minStep: 1 } : undefined);
 }
 
 function ticksFrom(

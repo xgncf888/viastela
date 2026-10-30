@@ -277,8 +277,8 @@ test('SeriesLineChart height defaults to layout.chart and otherwise uses the pro
     {
       id: 'rate',
       label: '5%',
-      style: 'solid' as const,
       tone: 'accent' as const,
+      stroke: { width: theme.layout.strokeSelected },
       points: [
         { id: 'a', x: 0, y: 0.2 },
         { id: 'b', x: 1, y: 0.8 },
@@ -333,8 +333,8 @@ test('chart legends sit below the axis labels and use caption', () => {
         {
           id: 'target',
           label: '目标',
-          style: 'dotted' as const,
           tone: 'target' as const,
+          stroke: { width: theme.border.width, dash: '2 3' },
           points: [
             { id: 's', x: 0, y: 0.4 },
             { id: 'e', x: 1, y: 0.4 },

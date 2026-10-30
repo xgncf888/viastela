@@ -70,7 +70,7 @@ import { Chip } from '@/ui/Chip';
 import { ChipGroup } from '@/ui/ChipGroup';
 import { Content } from '@/ui/Content';
 import { EmptyState } from '@/ui/EmptyState';
-import { LineChart } from '@/ui/LineChart';
+import { LineChart, type ChartStroke } from '@/ui/LineChart';
 import { LoadingRegion } from '@/ui/LoadingRegion';
 import { Callout, Row, ScreenHeader, Stack } from '@/ui/layout';
 import { RefreshStatus } from '@/ui/RefreshStatus';
@@ -627,6 +627,14 @@ function Overview({
   );
 }
 
+/** DESIGN §6. Weight and dash are chosen per series. Tone only picks the color. */
+function projectionStroke(id: string, selectedId: string): ChartStroke {
+  if (id === 'actual') return { width: theme.layout.stroke };
+  if (id === 'target') return { width: theme.border.width, dash: '2 3' };
+  if (id === selectedId) return { width: theme.layout.strokeSelected };
+  return { width: theme.layout.strokeMinor, dash: '4 3' };
+}
+
 function Projection({
   model,
   masked,
@@ -664,12 +672,14 @@ function Projection({
           series={model.chart.series.map((series) => ({
             id: series.id,
             label: series.label,
-            style: series.style,
             tone: series.tone,
+            layer: series.layer,
             markers: series.markers,
-            thin: series.thin,
+            stroke: projectionStroke(series.id, model.chart?.selectedSeriesId ?? ''),
             points: series.points.map((point) => ({ id: point.id, x: point.x, y: point.y })),
           }))}
+          ticks={model.chart.ticks}
+          unit="US$"
           startLabel={model.chartStart}
           endLabel={model.chartEnd}
           accessibilityLabel={model.chart.accessibilityLabel}
