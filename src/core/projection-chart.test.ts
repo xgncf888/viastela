@@ -1,8 +1,6 @@
 import { expect, test } from '@jest/globals';
 
-// Same axis the chart draws. The projection test checks that domain, not a second copy.
-// eslint-disable-next-line no-restricted-imports
-import { moneyAxis, tickValueDomain } from '@/ui/chart-ticks';
+import { moneyAxis, tickValueDomain } from './chart-axis';
 import { projectNetWorth } from './projection';
 import { projectionChart } from './projection-chart';
 

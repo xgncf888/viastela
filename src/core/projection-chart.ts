@@ -1,6 +1,4 @@
-// `moneyAxis` lives in chart-ticks. Core does not keep a second copy.
-// eslint-disable-next-line no-restricted-imports
-import { moneyAxis, tickValueDomain } from '@/ui/chart-ticks';
+import { moneyAxis, tickValueDomain } from './chart-axis';
 import { actualSeriesNote } from './quote-label';
 import type { NetWorthProjection } from './projection';
 import { annualRatePercent } from './projection-copy';
@@ -106,7 +104,7 @@ export function projectionChart(input: {
   };
 }
 
-/** Inclusive min and max of main's `moneyAxis`. Not a second axis. */
+/** Inclusive min and max of `moneyAxis`. */
 function moneyAxisDomain(values: readonly number[]): { min: number; max: number } {
   const domain = tickValueDomain(moneyAxis(values));
   if (domain) return domain;
