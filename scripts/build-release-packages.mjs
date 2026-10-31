@@ -79,7 +79,12 @@ function main() {
     if (existsSync(macAppSrc)) {
       const releaseApp = path.join(RELEASES_DIR, appBundleName);
       rmSync(releaseApp, { recursive: true, force: true });
-      cpSync(macAppSrc, releaseApp, { recursive: true });
+      execFileSync('ditto', [macAppSrc, releaseApp], { stdio: 'inherit' });
+      try {
+        execFileSync('codesign', ['--force', '--deep', '--sign', '-', releaseApp], { stdio: 'inherit' });
+      } catch {
+        // Ignore codesign warning if command-line tools are restricted
+      }
     }
   }
 
