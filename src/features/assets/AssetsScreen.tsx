@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 
 import { assetSaveNotice } from '@/core/asset-errors';
 import { deletedAccountUndo } from '@/core/asset-form';
@@ -262,7 +262,12 @@ export function AssetsScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={masked ? '显示金额' : '隐藏金额'}
                 onPress={() => void persistMask(!masked)}
-                style={styles.eye}
+                style={{
+                  minHeight: theme.layout.control,
+                  minWidth: theme.layout.control,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
               >
                 <Text variant="muted">{masked ? '显示' : '隐藏'}</Text>
               </Pressable>
@@ -300,12 +305,7 @@ export function AssetsScreen() {
                       timeZone={timeZone}
                       cachedAt={refreshCachedAt}
                     />
-                    <AssetMixRow
-                      model={model}
-                      masked={masked}
-                      accountCount={visibleAccounts.length}
-                      holdingCount={visibleHoldings.length}
-                    />
+                    <AssetMixRow model={model} masked={masked} />
                   </Stack>
                 }
                 aside={
@@ -328,13 +328,10 @@ export function AssetsScreen() {
                   <Stack gap="md">
                     <Card>
                       <Row justify="between" align="center" gap="sm">
-                        <Row gap="sm" align="center">
-                          <Text variant="heading">账户</Text>
-                          <Text variant="caption">{`${visibleAccounts.length} 个账户`}</Text>
-                        </Row>
+                        <Text variant="heading">账户</Text>
                         <Row gap="xs" align="center">
                           <Button label="全部更新余额" variant="ghost" onPress={() => setSheet('balances')} />
-                          <Button label="添加账户" variant="secondary" size="mini" onPress={() => setSheet('account')} />
+                          <Button label="添加账户" variant="secondary" size="mini" accessibilityLabel="添加账户" onPress={() => setSheet('account')} />
                         </Row>
                       </Row>
                       <Divider />
@@ -360,7 +357,7 @@ export function AssetsScreen() {
                             >
                               <Row justify="between" align="center" gap="sm">
                                 <Row gap="sm" align="center">
-                                  <Text variant="body" style={styles.rowTitle}>
+                                  <Text variant="body" style={{ fontWeight: theme.fontWeight.medium }}>
                                     {account.name}
                                   </Text>
                                   <Text variant="caption">{account.currency}</Text>
@@ -372,7 +369,7 @@ export function AssetsScreen() {
                                 />
                               </Row>
                               <Row justify="between" align="center" gap="sm" wrap>
-                                <View style={styles.metaCell}>
+                                <View style={{ flex: 1 }}>
                                   {balance && account.currency !== 'USD' && model.approx.get(account.id) != null ? (
                                     <Text
                                       variant="muted"
@@ -429,30 +426,21 @@ export function AssetsScreen() {
 
                     <Card>
                       <Row justify="between" align="center" gap="sm">
-                        <Row gap="sm" align="center">
-                          <Text variant="heading">持仓</Text>
-                          {visibleHoldings.length > 0 ? (
-                            <Text variant="caption">{`${visibleHoldings.length} 支标的`}</Text>
-                          ) : null}
-                        </Row>
-                        <Button label="+ 持仓" variant="secondary" size="mini" onPress={() => setSheet('holding')} />
+                        <Text variant="heading">持仓</Text>
+                        <Button label="+ 持仓" variant="secondary" size="mini" accessibilityLabel="添加持仓" onPress={() => setSheet('holding')} />
                       </Row>
                       <Divider />
                       {visibleHoldings.length === 0 ? <Text variant="muted">还没有持仓</Text> : null}
                       {visibleHoldings.map((holding, index) => {
                         const account = visibleAccounts.find((item) => item.id === holding.accountId);
                         const priced = model.priced.get(holding.id);
-                        const shareRatio =
-                          priced && model.totalUsd && model.totalUsd > 0
-                            ? Math.min(1, Math.max(0, priced.value / model.totalUsd))
-                            : null;
                         return (
                           <Fragment key={holding.id}>
                             {index > 0 ? <Divider /> : null}
                             <Stack gap="xs">
                               <Row justify="between" align="center" gap="sm">
                                 <Row gap="sm" align="center" wrap>
-                                  <Text variant="body" style={styles.rowTitle}>
+                                  <Text variant="body" style={{ fontWeight: theme.fontWeight.medium }}>
                                     {holding.symbol}
                                   </Text>
                                   {account ? <Text variant="caption">{account.name}</Text> : null}
@@ -474,16 +462,12 @@ export function AssetsScreen() {
                                   </Text>
                                 )}
                               </Row>
-                              {!masked && shareRatio !== null ? <ProgressBar value={shareRatio} masked={masked} /> : null}
                               <Row justify="between" align="center" gap="sm" wrap>
                                 <Row gap="sm" align="center" wrap>
                                   {priced ? (
                                     <Text variant="muted" tone={priced.label.tone === 'warning' ? 'warning' : 'muted'}>
                                       {priced.label.text}
                                     </Text>
-                                  ) : null}
-                                  {!masked && shareRatio !== null ? (
-                                    <Text variant="caption">{`占净值 ${Math.round(shareRatio * 100)}%`}</Text>
                                   ) : null}
                                   {priced && holding.costBasisUsd !== null ? (
                                     <Text
@@ -684,7 +668,7 @@ function Overview({
           timeZone={timeZone}
           idle={
             model.quoteStatus ? (
-              <Text variant="muted" tone={model.quoteStatus.tone === 'warning' ? 'warning' : 'muted'} style={styles.quoteClock}>
+              <Text variant="muted" tone={model.quoteStatus.tone === 'warning' ? 'warning' : 'muted'} style={{ fontVariant: ['tabular-nums'] }}>
                 {model.quoteStatus.text}
               </Text>
             ) : null
@@ -724,25 +708,12 @@ function Overview({
   );
 }
 
-function AssetMixRow({
-  model,
-  masked,
-  accountCount,
-  holdingCount,
-}: {
-  model: DashboardModel;
-  masked: boolean;
-  accountCount: number;
-  holdingCount: number;
-}) {
+function AssetMixRow({ model, masked }: { model: DashboardModel; masked: boolean }) {
   return (
     <Row gap="ms" align="start">
-      <View style={styles.metric}>
+      <View style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0 }}>
         <Card>
-          <Row justify="between" align="center" gap="xs">
-            <Text variant="label">现金储备</Text>
-            <Text variant="caption">{`${accountCount} 个账户`}</Text>
-          </Row>
+          <Text variant="label">现金储备</Text>
           {model.cashText ? (
             <MaskedAmount text={model.cashText} masked={masked} variant="metric" />
           ) : (
@@ -750,12 +721,9 @@ function AssetMixRow({
           )}
         </Card>
       </View>
-      <View style={styles.metric}>
+      <View style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0 }}>
         <Card>
-          <Row justify="between" align="center" gap="xs">
-            <Text variant="label">证券持仓</Text>
-            <Text variant="caption">{`${holdingCount} 支标的`}</Text>
-          </Row>
+          <Text variant="label">证券持仓</Text>
           {model.securitiesText ? (
             <MaskedAmount text={model.securitiesText} masked={masked} variant="metric" />
           ) : (
@@ -807,7 +775,13 @@ function Projection({
           accessibilityRole="button"
           accessibilityLabel="已隐藏金额"
           onPress={onReveal}
-          style={[styles.hiddenChart, { backgroundColor: palette.color.fill }]}
+          style={{
+            height: theme.layout.chart,
+            borderRadius: theme.radius.lg,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: palette.color.fill,
+          }}
         >
           <Text variant="body">已隐藏金额</Text>
         </Pressable>
@@ -826,7 +800,6 @@ function Projection({
           unit="US$"
           startLabel={model.chartStart}
           endLabel={model.chartEnd}
-          interactive
           accessibilityLabel={model.chart.accessibilityLabel}
         />
       ) : (
@@ -866,7 +839,6 @@ function Conclusion({ sentence, masked }: { sentence: ProjectionSentence | null;
 }
 
 type DashboardModel = {
-  totalUsd: number | null;
   totalText: string | null;
   cashText: string | null;
   securitiesText: string | null;
@@ -984,7 +956,6 @@ function buildModel(input: {
     input.portfolio.accounts.filter((account) => account.deletedAt === null && !input.pending.has(account.id)).map((account) => account.id),
   );
   return {
-    totalUsd: total,
     totalText: total === null ? null : formatMoney(total, 'USD'),
     cashText: input.book ? formatMoney(cash, 'USD') : null,
     securitiesText: input.book ? formatMoney(securities, 'USD') : null,
@@ -1113,12 +1084,12 @@ function AssetsSkeleton() {
         <SkeletonText lines={1} variant="muted" />
       </Card>
       <Row gap="ms" align="start">
-        <View style={styles.metric}>
+        <View style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0 }}>
           <Card>
             <SkeletonMetric />
           </Card>
         </View>
-        <View style={styles.metric}>
+        <View style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0 }}>
           <Card>
             <SkeletonMetric />
           </Card>
@@ -1130,30 +1101,3 @@ function AssetsSkeleton() {
     </Stack>
   );
 }
-
-const styles = StyleSheet.create({
-  metric: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 0,
-  },
-  rowTitle: {
-    fontWeight: theme.fontWeight.medium,
-  },
-  metaCell: {
-    flex: 1,
-  },
-  eye: {
-    minHeight: theme.layout.control,
-    minWidth: theme.layout.control,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quoteClock: { fontVariant: ['tabular-nums'] },
-  hiddenChart: {
-    height: theme.layout.chart,
-    borderRadius: theme.radius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

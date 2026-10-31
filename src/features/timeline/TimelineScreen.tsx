@@ -203,11 +203,12 @@ export function TimelineScreen() {
   }
 
   const today = daySwitch ? computeLocalDay(new Date(), timeZone, daySwitch) : '';
-  const activeRows = [...rows].sort(compareTimelineDesc).filter((row) => !pendingDeleteIds.has(row.id));
-  const visible = presentTimeline(activeRows, accounts, timeZone);
+  const visible = presentTimeline(
+    [...rows].sort(compareTimelineDesc).filter((row) => !pendingDeleteIds.has(row.id)),
+    accounts,
+    timeZone,
+  );
   const groups = today ? groupTimeline(visible, today) : [];
-  const journalCount = visible.filter((item) => item.editable).length;
-  const moneyCount = visible.length - journalCount;
 
   return (
     <Screen>
@@ -228,30 +229,25 @@ export function TimelineScreen() {
           }}
         />
         <Row justify="between" align="center" wrap>
-          <Row gap="md" align="center" wrap>
-            <ChipGroup>
-              {FILTERS.map((choice) => (
-                <Chip
-                  key={choice.id}
-                  label={choice.label}
-                  selected={filter === choice.id}
-                  onPress={() => {
-                    if (choice.id === filter) return;
-                    filterRef.current = choice.id;
-                    setCursor(null);
-                    if (readyRef.current) {
-                      setRefreshing(true);
-                      setRefreshError(false);
-                    }
-                    setFilter(choice.id);
-                  }}
-                />
-              ))}
-            </ChipGroup>
-            {ready && visible.length > 0 ? (
-              <Text variant="caption">{`共 ${visible.length} 笔 · 资金 ${moneyCount} · 日志 ${journalCount}`}</Text>
-            ) : null}
-          </Row>
+          <ChipGroup>
+            {FILTERS.map((choice) => (
+              <Chip
+                key={choice.id}
+                label={choice.label}
+                selected={filter === choice.id}
+                onPress={() => {
+                  if (choice.id === filter) return;
+                  filterRef.current = choice.id;
+                  setCursor(null);
+                  if (readyRef.current) {
+                    setRefreshing(true);
+                    setRefreshError(false);
+                  }
+                  setFilter(choice.id);
+                }}
+              />
+            ))}
+          </ChipGroup>
           <Button label="写日志" onPress={openCreate} />
         </Row>
         <LoadingRegion
@@ -280,12 +276,9 @@ export function TimelineScreen() {
             ) : (
               groups.map((group) => (
                 <Stack key={group.dayKey} gap="sm">
-                  <Row justify="between" align="center">
-                    <Text variant="heading" accessibilityRole="header">
-                      {group.label}
-                    </Text>
-                    <Text variant="caption">{`${group.items.length} 条记录`}</Text>
-                  </Row>
+                  <Text variant="heading" accessibilityRole="header">
+                    {group.label}
+                  </Text>
                   <Card>
                     {group.items.map((item, index) => (
                       <Fragment key={item.id}>
