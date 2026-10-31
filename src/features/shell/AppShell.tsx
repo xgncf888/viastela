@@ -25,18 +25,37 @@ import { useStudy } from '@/features/study/StudyProvider';
 import { useTraining } from '@/features/training/TrainingProvider';
 import { excludePending } from '@/features/weight/weight-copy';
 import { useWeight } from '@/features/weight/WeightProvider';
-import { NavItem, ShellFrame, SidebarFrame, TabBar, useLayoutClass, useShellInset } from '@/ui/chrome';
+import {
+  type NavBadgeTone,
+  NavGroupLabel,
+  type NavIconKind,
+  NavItem,
+  ShellFrame,
+  SidebarFrame,
+  TabBar,
+  useLayoutClass,
+  useShellInset,
+} from '@/ui/chrome';
 import { DeletedRecordNotice } from '@/ui/deleted-record';
-import { Text } from '@/ui/Text';
 import { showToast, ToastHost } from '@/ui/toast';
-import { WorkbenchCommandPalette, WorkbenchSidebarPanel } from '@/ui/WorkbenchConsole';
+import {
+  WorkbenchCommandPalette,
+  WorkbenchScopeModal,
+  WorkbenchSidebarPanel,
+} from '@/ui/WorkbenchConsole';
 
-const TABS = [
-  { id: 'today', href: '/', label: '今日', shortcut: '⌘1' },
-  { id: 'assets', href: '/assets', label: '资产', shortcut: '⌘2' },
-  { id: 'trend', href: '/trend', label: '趋势', shortcut: '⌘3' },
-  { id: 'timeline', href: '/timeline', label: '时间线', shortcut: '⌘4' },
-  { id: 'me', href: '/me', label: '我的', shortcut: '⌘5' },
+const TABS: readonly {
+  id: 'today' | 'assets' | 'trend' | 'timeline' | 'me';
+  href: '/' | '/assets' | '/trend' | '/timeline' | '/me';
+  label: string;
+  icon: NavIconKind;
+  shortcut: string;
+}[] = [
+  { id: 'today', href: '/', label: '今日', icon: 'today', shortcut: '⌘1' },
+  { id: 'assets', href: '/assets', label: '资产', icon: 'assets', shortcut: '⌘2' },
+  { id: 'trend', href: '/trend', label: '趋势', icon: 'trend', shortcut: '⌘3' },
+  { id: 'timeline', href: '/timeline', label: '时间线', icon: 'timeline', shortcut: '⌘4' },
+  { id: 'me', href: '/me', label: '我的', icon: 'me', shortcut: '⌘5' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -54,6 +73,7 @@ type DesktopBridge = {
   closeRecord: () => void;
   navigate: (tabId: TabId) => void;
   openCommandPalette: () => void;
+  openScopeModal: () => void;
 };
 
 type CharioteerPluginRuntimeBridge = {
@@ -69,6 +89,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const routeTab = currentTab(usePathname());
   const [armed, setArmed] = useState<{ id: TabId; route: TabId } | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [scopeOpen, setScopeOpen] = useState(false);
   const [hostAttached, setHostAttached] = useState(false);
   const current = armed && armed.route === routeTab ? armed.id : routeTab;
 
@@ -183,6 +204,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         if (target) router.replace(target.href);
       },
       openCommandPalette: () => setPaletteOpen(true),
+      openScopeModal: () => setScopeOpen(true),
     };
 
     const pluginRuntime: CharioteerPluginRuntimeBridge = {
@@ -225,6 +247,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (scopeOpen) {
+          event.preventDefault();
+          setScopeOpen(false);
+          return;
+        }
         if (paletteOpen) {
           event.preventDefault();
           setPaletteOpen(false);
@@ -248,6 +275,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         if (lower === 'p') {
           event.preventDefault();
           setPaletteOpen((open) => !open);
+          return;
+        }
+        if (!event.shiftKey && lower === 'b') {
+          event.preventDefault();
+          setScopeOpen((open) => !open);
           return;
         }
         if (event.shiftKey && lower === 't') {
@@ -286,14 +318,24 @@ export function AppShell({ children }: { children: ReactNode }) {
       delete hostWindow.__viastelaDesktop;
       delete hostWindow.__charioteerPlugin;
     };
-  }, [executeCommandById, manifest, paletteOpen, runtimeMode]);
+  }, [executeCommandById, manifest, paletteOpen, runtimeMode, scopeOpen]);
 
-  function badgeForTab(tabId: TabId): string {
-    if (tabId === 'today') return todayBadge;
-    if (tabId === 'trend') return trendBadge;
-    if (tabId === 'assets') return '⌘2';
-    if (tabId === 'timeline') return '⌘4';
-    return '⌘5';
+  function badgeForTab(tabId: TabId): { text: string; tone: NavBadgeTone } {
+    if (tabId === 'today') {
+      return {
+        text: todayBadge,
+        tone: loggedCount === 3 ? 'live' : loggedCount > 0 ? 'alert' : 'neutral',
+      };
+    }
+    if (tabId === 'trend') {
+      return {
+        text: trendBadge,
+        tone: lastWeight ? 'neutral' : 'shortcut',
+      };
+    }
+    if (tabId === 'assets') return { text: 'USD', tone: 'neutral' };
+    if (tabId === 'timeline') return { text: '⌘4', tone: 'shortcut' };
+    return { text: 'v1.0', tone: 'live' };
   }
 
   async function copyPluginManifest() {
@@ -302,6 +344,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       await navigator.clipboard.writeText(json);
       showToast({ text: '已复制 Charioteer 插件清单 (charioteer-plugin.json)' });
       setPaletteOpen(false);
+      setScopeOpen(false);
     }
   }
 
@@ -310,29 +353,39 @@ export function AppShell({ children }: { children: ReactNode }) {
       sidebar={
         side ? (
           <SidebarFrame
-            title={brand.webName}
-            subtitle={`个人工作台 · ${brand.displayName}`}
+            title={brand.slug}
+            subtitle={`${brand.webName} · 个人工作台`}
+            badgeLabel={runtimeMode === 'charioteer-host' ? 'Mounted' : 'Personal OS'}
+            onQuickAction={() => openRecordSheet()}
+            onOpenPalette={() => setPaletteOpen(true)}
             panel={
               <WorkbenchSidebarPanel
                 mode={runtimeMode}
                 weightLogged={weightLogged}
                 trainingLogged={trainingLogged}
                 studyLogged={studyLogged}
+                timeZone={weight.timeZone}
                 onQuickRecord={() => openRecordSheet()}
                 onOpenPalette={() => setPaletteOpen(true)}
+                onOpenScope={() => setScopeOpen(true)}
               />
             }
-            footer={<Text variant="muted">{`${brand.webName} Workbench · ${weight.timeZone}`}</Text>}
           >
-            {TABS.map((tab) => (
-              <NavItem
-                key={tab.id}
-                label={tab.label}
-                badge={badgeForTab(tab.id)}
-                selected={current === tab.id}
-                onPress={() => go(tab)}
-              />
-            ))}
+            <NavGroupLabel label="WORKBENCH · 核心视图" />
+            {TABS.map((tab) => {
+              const badge = badgeForTab(tab.id);
+              return (
+                <NavItem
+                  key={tab.id}
+                  label={tab.label}
+                  icon={tab.icon}
+                  badge={badge.text}
+                  badgeTone={badge.tone}
+                  selected={current === tab.id}
+                  onPress={() => go(tab)}
+                />
+              );
+            })}
           </SidebarFrame>
         ) : null
       }
@@ -363,6 +416,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           setPaletteOpen(false);
           executeCommandById(cmd.id);
         }}
+        onCopyManifest={() => void copyPluginManifest()}
+      />
+      <WorkbenchScopeModal
+        visible={scopeOpen}
+        mode={runtimeMode}
+        manifest={manifest}
+        onClose={() => setScopeOpen(false)}
         onCopyManifest={() => void copyPluginManifest()}
       />
       <DeletedRecordNotice

@@ -38,7 +38,12 @@ import { Text } from '@/ui/Text';
 import { useTheme } from '@/ui/ThemeProvider';
 import { theme } from '@/ui/theme';
 import { useLoadGate } from '@/ui/use-load-gate';
-import { WorkbenchConsoleCard } from '@/ui/WorkbenchConsole';
+import {
+  CockpitHeaderBar,
+  CockpitPillButton,
+  TagChip,
+  WorkbenchConsoleCard,
+} from '@/ui/WorkbenchConsole';
 
 function shortWeekday(localDay: string): string {
   return weekdayLabel(localDay).replace('星期', '周');
@@ -122,13 +127,41 @@ export function TodayScreen() {
         })
       : 'standalone';
 
+  const openDesktopBridge = (action: 'palette' | 'scope') => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const bridge = (
+      window as unknown as {
+        __viastelaDesktop?: {
+          openCommandPalette?: () => void;
+          openScopeModal?: () => void;
+        };
+      }
+    ).__viastelaDesktop;
+    if (action === 'palette') bridge?.openCommandPalette?.();
+    else bridge?.openScopeModal?.();
+  };
+
+  const hudSummary = `${last ? `${formatKg(last.weightKg)} kg · ` : ''}${loggedCount}/3 已记`;
+
   return (
     <Screen>
       <Content width="wide" inset={inset}>
         <ScreenHeader
           kicker="今日"
           title={`${formatMonthDay(accounting)} ${shortWeekday(accounting)}`}
-          trailing={layout === 'compact' ? <BrandMark /> : undefined}
+          trailing={
+            layout === 'compact' ? (
+              <BrandMark />
+            ) : (
+              <CockpitHeaderBar
+                mode={hostMode}
+                hudText={hudSummary}
+                onOpenRecord={() => openRecordSheet(last?.weightKg)}
+                onOpenPalette={() => openDesktopBridge('palette')}
+                onOpenScope={() => openDesktopBridge('scope')}
+              />
+            )
+          }
           subtitle={{
             failed: refreshError || training.refreshError || study.refreshError,
             refreshing: refreshing || training.refreshing || study.refreshing,
@@ -176,7 +209,10 @@ export function TodayScreen() {
                     <Row gap="sm" align="center">
                       <Text variant="heading">{beforeSwitch ? `${formatMonthDay(accounting)}的记录` : '今天的记录'}</Text>
                       {loggedCount > 0 ? (
-                        <Text variant="label">{allLogged ? '今天都记完了' : `已记 ${loggedCount}/3`}</Text>
+                        <TagChip
+                          label={allLogged ? '今天都记完了' : `已记 ${loggedCount}/3`}
+                          tone={allLogged ? 'exec' : 'owner'}
+                        />
                       ) : null}
                     </Row>
                     {last && today.length > 0 ? (
@@ -252,6 +288,7 @@ export function TodayScreen() {
                     onQuickTraining={() => openRecordSheet(undefined, 'training')}
                     onQuickStudy={() => openRecordSheet(undefined, 'study')}
                     onQuickJournal={() => openRecordSheet(undefined, 'block')}
+                    onOpenScope={() => openDesktopBridge('scope')}
                   />
                   <WeeklyRhythmCard
                     endDay={accounting}
@@ -401,15 +438,27 @@ function FailedSaveRow({
   );
 }
 
-function RhythmMarker({ recorded }: { recorded: boolean }) {
+function RhythmMarker({
+  recorded,
+  kind = 'ink',
+}: {
+  recorded: boolean;
+  kind?: 'weight' | 'training' | 'study' | 'ink';
+}) {
   const { color } = useTheme();
+  const fill =
+    kind === 'weight'
+      ? color.accent
+      : kind === 'training'
+        ? color.green
+        : color.ink;
   return (
     <View
       style={{
         width: theme.layout.dotLast,
         height: theme.layout.dotLast,
         borderRadius: theme.radius.pill,
-        backgroundColor: recorded ? color.ink : 'transparent',
+        backgroundColor: recorded ? fill : 'transparent',
         borderWidth: recorded ? 0 : theme.border.width,
         borderColor: color.line,
       }}
@@ -446,12 +495,20 @@ function WeeklyRhythmCard({
     };
   });
 
-  const activeDay = days.find((item) => item.dayKey === selectedDay) ?? days[days.length - 1];
+  const activeIdx = Math.max(
+    0,
+    days.findIndex((item) => item.dayKey === selectedDay),
+  );
+  const activeDay = days[activeIdx] ?? days[days.length - 1];
   const activeWeightDays = days.filter((item) => item.hasWeight).length;
   const totalSets = days.reduce((sum, item) => sum + item.trainingCount, 0);
   const totalStudyMin = days.reduce((sum, item) => sum + item.studyMinutes, 0);
 
-  const rows: { key: 'weight' | 'training' | 'study'; label: string; isRecorded: (day: (typeof days)[number]) => boolean }[] = [
+  const rows: {
+    key: 'weight' | 'training' | 'study';
+    label: string;
+    isRecorded: (day: (typeof days)[number]) => boolean;
+  }[] = [
     { key: 'weight', label: '晨重', isRecorded: (day) => day.hasWeight },
     { key: 'training', label: '训练', isRecorded: (day) => day.trainingCount > 0 },
     { key: 'study', label: '学习', isRecorded: (day) => day.studyCount > 0 },
@@ -461,88 +518,114 @@ function WeeklyRhythmCard({
     <View testID="today-weekly-rhythm">
       <Card>
         <Row justify="between" align="center" gap="sm" wrap>
-          <Row gap="sm" align="center">
+          <Row gap="sm" align="center" wrap>
             <Text variant="heading">近 7 天</Text>
-            <Text variant="caption">{`晨重 ${activeWeightDays}/7 · 训练 ${totalSets} 组 · 学习 ${totalStudyMin} 分钟`}</Text>
+            <TagChip
+              label={`晨重 ${activeWeightDays}/7 · 训练 ${totalSets} 组 · 学习 ${totalStudyMin} min`}
+              tone="pod"
+            />
           </Row>
-          <Row gap="md" align="center">
-            <Row gap="xs" align="center">
-              <RhythmMarker recorded />
-              <Text variant="caption">已记</Text>
-            </Row>
-            <Row gap="xs" align="center">
-              <RhythmMarker recorded={false} />
-              <Text variant="caption">未记</Text>
-            </Row>
+          <Row gap="xs" align="center">
+            <CockpitPillButton
+              label="◀"
+              accessibilityLabel="检视前一天"
+              onPress={() => {
+                const prev = days[Math.max(0, activeIdx - 1)];
+                if (prev) setSelectedDay(prev.dayKey);
+              }}
+            />
+            <CockpitPillButton
+              label="▶"
+              accessibilityLabel="检视后一天"
+              onPress={() => {
+                const next = days[Math.min(days.length - 1, activeIdx + 1)];
+                if (next) setSelectedDay(next.dayKey);
+              }}
+            />
+            <CockpitPillButton
+              label="Latest"
+              accessibilityLabel="跳回今日"
+              onPress={() => setSelectedDay(endDay)}
+            />
           </Row>
         </Row>
         <Divider />
-        <Stack gap="xs">
-          <Row justify="between" align="center" gap="xs">
-            <View style={{ width: theme.layout.timeColumn }} />
-            {days.map((item) => {
-              const isToday = item.dayKey === endDay;
-              const isSelected = activeDay?.dayKey === item.dayKey;
-              return (
-                <Pressable
-                  key={item.dayKey}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${formatMonthDay(item.dayKey)} ${shortWeekday(item.dayKey)}`}
-                  accessibilityState={{ selected: isSelected }}
-                  onPress={() => setSelectedDay(item.dayKey)}
-                  style={{
-                    flex: 1,
-                    minWidth: theme.layout.control,
-                    minHeight: theme.layout.control,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: theme.radius.sm,
-                    backgroundColor: isSelected ? color.fill : 'transparent',
-                  }}
-                >
-                  <Text variant="caption">{shortWeekday(item.dayKey)}</Text>
-                  <Text variant="label" tone={isToday ? 'ink' : 'muted'}>
-                    {isToday ? '今日' : item.dayKey.slice(8)}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </Row>
-          {rows.map((row) => (
-            <Fragment key={row.key}>
-              <Divider />
-              <Row justify="between" align="center" gap="xs">
-                <View style={{ width: theme.layout.timeColumn, justifyContent: 'center' }}>
-                  <Text variant="caption">{row.label}</Text>
-                </View>
-                {days.map((item) => {
-                  const recorded = row.isRecorded(item);
-                  const isSelected = activeDay?.dayKey === item.dayKey;
-                  return (
-                    <Pressable
-                      key={`${row.key}-${item.dayKey}`}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${formatMonthDay(item.dayKey)} ${row.label} ${recorded ? '已记' : '未记'}`}
-                      accessibilityState={{ selected: isSelected }}
-                      onPress={() => setSelectedDay(item.dayKey)}
-                      style={{
-                        flex: 1,
-                        minWidth: theme.layout.control,
-                        minHeight: theme.layout.control,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        borderRadius: theme.radius.sm,
-                        backgroundColor: isSelected ? color.fill : 'transparent',
-                      }}
-                    >
-                      <RhythmMarker recorded={recorded} />
-                    </Pressable>
-                  );
-                })}
-              </Row>
-            </Fragment>
-          ))}
-        </Stack>
+        <View
+          style={{
+            padding: theme.space.sm,
+            borderRadius: theme.radius.sm,
+            borderWidth: theme.border.width,
+            borderColor: color.lineSoft,
+            backgroundColor: color.surface,
+          }}
+        >
+          <Stack gap="xs">
+            <Row justify="between" align="center" gap="xs">
+              <View style={{ width: theme.layout.timeColumn }} />
+              {days.map((item) => {
+                const isToday = item.dayKey === endDay;
+                const isSelected = activeDay?.dayKey === item.dayKey;
+                return (
+                  <Pressable
+                    key={item.dayKey}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${formatMonthDay(item.dayKey)} ${shortWeekday(item.dayKey)}`}
+                    accessibilityState={{ selected: isSelected }}
+                    onPress={() => setSelectedDay(item.dayKey)}
+                    style={{
+                      flex: 1,
+                      minWidth: theme.layout.control,
+                      minHeight: theme.layout.control,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: theme.radius.sm,
+                      backgroundColor: isSelected ? color.accentSoft : 'transparent',
+                    }}
+                  >
+                    <Text variant="caption">{shortWeekday(item.dayKey)}</Text>
+                    <Text variant="label" tone={isToday ? 'ink' : 'muted'}>
+                      {isToday ? '今日' : item.dayKey.slice(8)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </Row>
+            {rows.map((row) => (
+              <Fragment key={row.key}>
+                <Divider />
+                <Row justify="between" align="center" gap="xs">
+                  <View style={{ width: theme.layout.timeColumn, justifyContent: 'center' }}>
+                    <Text variant="caption">{row.label}</Text>
+                  </View>
+                  {days.map((item) => {
+                    const recorded = row.isRecorded(item);
+                    const isSelected = activeDay?.dayKey === item.dayKey;
+                    return (
+                      <Pressable
+                        key={`${row.key}-${item.dayKey}`}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${formatMonthDay(item.dayKey)} ${row.label} ${recorded ? '已记' : '未记'}`}
+                        accessibilityState={{ selected: isSelected }}
+                        onPress={() => setSelectedDay(item.dayKey)}
+                        style={{
+                          flex: 1,
+                          minWidth: theme.layout.control,
+                          minHeight: theme.layout.control,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: theme.radius.sm,
+                          backgroundColor: isSelected ? color.accentSoft : 'transparent',
+                        }}
+                      >
+                        <RhythmMarker recorded={recorded} kind={row.key} />
+                      </Pressable>
+                    );
+                  })}
+                </Row>
+              </Fragment>
+            ))}
+          </Stack>
+        </View>
         {activeDay ? (
           <View
             style={{
@@ -550,12 +633,18 @@ function WeeklyRhythmCard({
               paddingVertical: theme.space.xs,
               borderRadius: theme.radius.sm,
               borderWidth: theme.border.width,
-              borderColor: color.line,
-              backgroundColor: color.fill,
+              borderColor: color.lineSoft,
+              backgroundColor: color.surface,
             }}
           >
             <Row justify="between" align="center" gap="sm" wrap>
-              <Text variant="caption">{`${formatMonthDay(activeDay.dayKey)} ${shortWeekday(activeDay.dayKey)}`}</Text>
+              <Row gap="xs" align="center">
+                <TagChip
+                  label={`${formatMonthDay(activeDay.dayKey)} ${shortWeekday(activeDay.dayKey)}`}
+                  tone="owner"
+                />
+                <Text variant="caption">实时槽位检视</Text>
+              </Row>
               <Text variant="caption">
                 {`晨重 ${activeDay.hasWeight ? '已记' : '未记'} · 训练 ${activeDay.trainingCount} 组 · 学习 ${activeDay.studyMinutes > 0 ? `${activeDay.studyMinutes} 分钟` : activeDay.studyCount > 0 ? `${activeDay.studyCount} 项` : '0 分钟'}`}
               </Text>

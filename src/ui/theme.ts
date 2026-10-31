@@ -13,6 +13,8 @@ export type Palette = {
   card: string;
   surface: string;
   fill: string;
+  pill: string;
+  pillHover: string;
   /** Full-bleed press wash for rows, tappable cards, and tabs. */
   pressed: string;
   bar: string;
@@ -28,6 +30,8 @@ export type Palette = {
   accentSoft: string;
   pos: string;
   moss: string;
+  green: string;
+  greenSoft: string;
   target: string;
   chartGrid: string;
   chartAxis: string;
@@ -49,6 +53,8 @@ export const lightColor: Palette = {
   card: '#FFFFFF',
   surface: '#FBFAF6',
   fill: '#F1EFE8',
+  pill: '#EAE6DA',
+  pillHover: '#E1DDD0',
   pressed: 'rgba(38, 36, 31, 0.06)',
   bar: '#F7F4EC',
   ink: '#26241F',
@@ -63,6 +69,8 @@ export const lightColor: Palette = {
   accentSoft: '#F5ECE5',
   pos: '#4F6F5A',
   moss: '#6E9079',
+  green: '#1F5E4B',
+  greenSoft: '#E5F1EC',
   target: '#7A786F',
   chartGrid: '#E7E2D6',
   chartAxis: '#5F5E57',
@@ -83,6 +91,8 @@ export const darkColor: Palette = {
   card: '#1E1E1C',
   surface: '#232321',
   fill: '#2A2A27',
+  pill: 'rgba(255, 255, 255, 0.08)',
+  pillHover: 'rgba(255, 255, 255, 0.13)',
   pressed: 'rgba(250, 249, 245, 0.08)',
   bar: '#1E1E1C',
   ink: '#FAF9F5',
@@ -97,6 +107,8 @@ export const darkColor: Palette = {
   accentSoft: '#4A3830',
   pos: '#8AAB94',
   moss: '#8AAB94',
+  green: '#69B380',
+  greenSoft: 'rgba(105, 179, 128, 0.15)',
   target: '#8C8A82',
   chartGrid: '#2A2A27',
   chartAxis: '#6A6962',

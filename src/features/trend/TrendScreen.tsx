@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 
 import { computeLocalDay, formatClock, formatMonthDay, weekdayLabel } from '@/core/local-day';
 import { formatKg, summarizeWindow } from '@/core/weight-stats';
@@ -21,6 +21,11 @@ import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { useTheme } from '@/ui/ThemeProvider';
 import { theme } from '@/ui/theme';
+import {
+  CockpitHeaderBar,
+  CockpitPillButton,
+  TagChip,
+} from '@/ui/WorkbenchConsole';
 
 import { chartSeries } from './chart-model';
 
@@ -59,10 +64,30 @@ export function TrendScreen() {
   const meanRaw =
     rawValues.length > 0 ? rawValues.reduce((sum, value) => sum + value, 0) / rawValues.length : null;
 
-  const activePoint =
-    (selectedDay ? series.points.find((point) => point.id === selectedDay) : null) ??
-    series.points[series.points.length - 1] ??
-    null;
+  const activeIdx =
+    selectedDay !== null
+      ? Math.max(0, series.points.findIndex((point) => point.id === selectedDay))
+      : series.points.length - 1;
+  const activePoint = series.points[activeIdx] ?? null;
+
+  const minPoint =
+    series.points.length > 0
+      ? series.points.reduce((best, cur) => (cur.raw < best.raw ? cur : best), series.points[0]!)
+      : null;
+
+  const openDesktopBridge = (action: 'palette' | 'scope') => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const bridge = (
+      window as unknown as {
+        __viastelaDesktop?: {
+          openCommandPalette?: () => void;
+          openScopeModal?: () => void;
+        };
+      }
+    ).__viastelaDesktop;
+    if (action === 'palette') bridge?.openCommandPalette?.();
+    else bridge?.openScopeModal?.();
+  };
 
   return (
     <Screen>
@@ -70,6 +95,20 @@ export function TrendScreen() {
         <ScreenHeader
           kicker="趋势"
           title="近 7 日"
+          trailing={
+            layout !== 'compact' ? (
+              <CockpitHeaderBar
+                hudText={
+                  activePoint
+                    ? `${formatMonthDay(activePoint.id)} · ${formatKg(activePoint.raw)} kg`
+                    : `${startLabel} — ${endLabel}`
+                }
+                onOpenRecord={() => openRecordSheet()}
+                onOpenPalette={() => openDesktopBridge('palette')}
+                onOpenScope={() => openDesktopBridge('scope')}
+              />
+            ) : undefined
+          }
           subtitle={{
             failed: refreshError,
             refreshing,
@@ -87,8 +126,47 @@ export function TrendScreen() {
               <AverageHeadline records={counted} endDay={endDay} />
               <Card>
                 <Row justify="between" align="center" gap="sm" wrap>
-                  <Text variant="heading">近 28 天走势</Text>
-                  <Text variant="caption">{`${startLabel} — ${endLabel}`}</Text>
+                  <Row gap="sm" align="center" wrap>
+                    <Text variant="heading">近 28 天走势</Text>
+                    <TagChip label={`${startLabel} — ${endLabel}`} tone="pod" />
+                  </Row>
+                  {series.points.length > 1 ? (
+                    <Row gap="xs" align="center">
+                      <CockpitPillButton
+                        label="◀"
+                        accessibilityLabel="前一个采样日"
+                        onPress={() => {
+                          const prev = series.points[Math.max(0, activeIdx - 1)];
+                          if (prev) setSelectedDay(prev.id);
+                        }}
+                      />
+                      <CockpitPillButton
+                        label="▶"
+                        accessibilityLabel="后一个采样日"
+                        onPress={() => {
+                          const next = series.points[Math.min(series.points.length - 1, activeIdx + 1)];
+                          if (next) setSelectedDay(next.id);
+                        }}
+                      />
+                      {minPoint ? (
+                        <CockpitPillButton
+                          label="Low"
+                          accessibilityLabel="跳转区间最低晨重"
+                          onPress={() => setSelectedDay(minPoint.id)}
+                        />
+                      ) : null}
+                      <CockpitPillButton
+                        label="Latest"
+                        accessibilityLabel="跳转最新晨重"
+                        onPress={() => {
+                          const latest = series.points[series.points.length - 1];
+                          if (latest) setSelectedDay(latest.id);
+                        }}
+                      />
+                    </Row>
+                  ) : (
+                    <Text variant="caption">{`${startLabel} — ${endLabel}`}</Text>
+                  )}
                 </Row>
                 <Divider />
                 {!ready ? <Text variant="muted">{LOADING_TEXT}</Text> : null}
@@ -101,28 +179,52 @@ export function TrendScreen() {
                 ) : null}
                 {ready && series.points.length > 0 ? (
                   <Stack gap="sm">
-                    <LineChart
-                      points={series.points}
-                      ticks={ticks}
-                      unit="kg"
-                      height={chartHeight}
-                      startLabel={startLabel}
-                      endLabel={endLabel}
-                      rawLabel="每日晨重"
-                      trendLabel="平滑趋势"
-                      accessibilityLabel={`近 28 天走势，${startLabel}至${endLabel}。圆点是每天最早的体重，虚线是平滑趋势，不是均重。`}
-                    />
+                    <View
+                      style={{
+                        padding: theme.space.sm,
+                        borderRadius: theme.radius.sm,
+                        borderWidth: theme.border.width,
+                        borderColor: color.lineSoft,
+                        backgroundColor: color.surface,
+                      }}
+                    >
+                      <LineChart
+                        points={series.points}
+                        ticks={ticks}
+                        unit="kg"
+                        height={chartHeight}
+                        startLabel={startLabel}
+                        endLabel={endLabel}
+                        rawLabel="每日晨重"
+                        trendLabel="平滑趋势"
+                        accessibilityLabel={`近 28 天走势，${startLabel}至${endLabel}。圆点是每天最早的体重，虚线是平滑趋势，不是均重。`}
+                      />
+                    </View>
                     {activePoint ? (
-                      <Row justify="between" align="center" gap="sm" wrap>
-                        <Text variant="caption">
-                          {`${formatMonthDay(activePoint.id)} · 晨重 ${formatKg(activePoint.raw)} kg · 趋势 ${formatKg(activePoint.trend)} kg`}
-                        </Text>
-                        {meanRaw !== null && minRaw !== null && maxRaw !== null ? (
-                          <Text variant="caption">
-                            {`28 天 均值 ${formatKg(meanRaw)} kg · 最低 ${formatKg(minRaw)} kg · 最高 ${formatKg(maxRaw)} kg`}
-                          </Text>
-                        ) : null}
-                      </Row>
+                      <View
+                        style={{
+                          paddingHorizontal: theme.space.ms,
+                          paddingVertical: theme.space.xs,
+                          borderRadius: theme.radius.sm,
+                          borderWidth: theme.border.width,
+                          borderColor: color.lineSoft,
+                          backgroundColor: color.surface,
+                        }}
+                      >
+                        <Row justify="between" align="center" gap="sm" wrap>
+                          <Row gap="xs" align="center" wrap>
+                            <TagChip label={formatMonthDay(activePoint.id)} tone="owner" />
+                            <Text variant="caption">
+                              {`晨重 ${formatKg(activePoint.raw)} kg · 趋势 ${formatKg(activePoint.trend)} kg`}
+                            </Text>
+                          </Row>
+                          {meanRaw !== null && minRaw !== null && maxRaw !== null ? (
+                            <Text variant="caption">
+                              {`28D 均值 ${formatKg(meanRaw)} kg · 极值 ${formatKg(minRaw)}–${formatKg(maxRaw)} kg`}
+                            </Text>
+                          ) : null}
+                        </Row>
+                      </View>
                     ) : null}
                     <Text variant="muted">圆点是每天最早的体重。虚线是指数平滑，不是另一条均重。</Text>
                   </Stack>
@@ -134,7 +236,7 @@ export function TrendScreen() {
             <Card>
               <Row justify="between" align="center">
                 <Text variant="heading">近 7 日明细</Text>
-                <Text variant="caption">按记账日倒序</Text>
+                <TagChip label="按记账日倒序" tone="pod" />
               </Row>
               <Divider />
               {days.map((day, index) => {
@@ -154,7 +256,7 @@ export function TrendScreen() {
                         justifyContent: 'center',
                         paddingHorizontal: theme.space.xs,
                         borderRadius: theme.radius.sm,
-                        backgroundColor: isSelected ? color.fill : 'transparent',
+                        backgroundColor: isSelected ? color.accentSoft : 'transparent',
                       }}
                     >
                       <Stack gap="xs">
