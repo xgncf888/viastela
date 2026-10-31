@@ -33,6 +33,7 @@ export function Content({
         : theme.layout.content;
   return (
     <ScrollView
+      style={scrollClearance(inset)}
       contentContainerStyle={[
         styles.content,
         {
@@ -52,13 +53,26 @@ export function Content({
   );
 }
 
+/**
+ * The tab bar and the toast above it cover the bottom of the scrollport.
+ * `scroll-padding` makes scroll-into-view stop above both, so the last card
+ * can be pressed.
+ */
+function scrollClearance(inset: number): ViewStyle | undefined {
+  if (Platform.OS !== 'web' || inset < theme.layout.tabBar) return undefined;
+  return {
+    scrollPaddingBottom: `calc(${theme.layout.tabBar}px + ${theme.layout.control}px + ${theme.space.md}px + env(safe-area-inset-bottom))`,
+  } as ViewStyle;
+}
+
 function bottomPadding(inset: number): ViewStyle | null {
   if (inset <= 0) return null;
   // The shell inset is the tab bar plus a gap. On the installed web app that gap
   // has to grow with the home indicator, which the web safe-area context reports as 0.
   if (Platform.OS === 'web' && inset >= theme.layout.tabBar) {
+    // Clear the tab bar and the toast that sits on it, plus the same gap.
     return {
-      paddingBottom: `calc(${theme.layout.tabBar}px + ${theme.space.md}px + env(safe-area-inset-bottom))` as unknown as number,
+      paddingBottom: `calc(${theme.layout.tabBar}px + ${theme.layout.control}px + ${theme.space.md}px + env(safe-area-inset-bottom))` as unknown as number,
     };
   }
   return { paddingBottom: inset };
