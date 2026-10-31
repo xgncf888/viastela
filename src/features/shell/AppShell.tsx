@@ -354,8 +354,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         side ? (
           <SidebarFrame
             title={brand.slug}
-            subtitle={`${brand.webName} · 个人工作台`}
-            badgeLabel={runtimeMode === 'charioteer-host' ? 'Mounted' : 'Personal OS'}
+            badgeLabel={runtimeMode === 'charioteer-host' ? 'Plugin' : `${brand.webName} OS`}
             onQuickAction={() => openRecordSheet()}
             onOpenPalette={() => setPaletteOpen(true)}
             panel={

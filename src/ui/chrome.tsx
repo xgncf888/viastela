@@ -52,8 +52,7 @@ export function ShellFrame({
 
 export function SidebarFrame({
   title,
-  subtitle,
-  badgeLabel = 'Personal OS',
+  badgeLabel = '星途 OS',
   onQuickAction,
   onOpenPalette,
   panel,
@@ -74,12 +73,9 @@ export function SidebarFrame({
   const width = layout === 'medium' ? theme.layout.sidebarCompact : theme.layout.sidebar;
   return (
     <View style={[styles.sidebar, { width, backgroundColor: color.paperDeep, borderRightColor: color.line }]}>
+      {/* Top window bar: reserves space on the left for native macOS traffic lights without drawing duplicate fake dots */}
       <View style={styles.windowBar}>
-        <View style={styles.trafficLights} aria-hidden>
-          <View style={[styles.trafficDot, { backgroundColor: '#FF5F57' }]} />
-          <View style={[styles.trafficDot, { backgroundColor: '#FEBC2E' }]} />
-          <View style={[styles.trafficDot, { backgroundColor: '#28C840' }]} />
-        </View>
+        <View style={styles.trafficLightReserve} aria-hidden />
         {onOpenPalette ? (
           <Pressable
             accessibilityRole="button"
@@ -103,21 +99,14 @@ export function SidebarFrame({
       <View style={styles.brandRow}>
         <View style={styles.brandLeft}>
           <View style={[styles.brandSquircle, { backgroundColor: color.card, borderColor: color.line }]}>
-            <BrandMark />
+            <BrandMark size={16} />
           </View>
-          <View style={styles.brandTextWrap}>
-            <Text variant="heading" style={styles.brandWordmark}>
-              {title}
-            </Text>
-            {subtitle ? (
-              <Text variant="caption" tone="muted" style={styles.subtitleSmall} numberOfLines={1}>
-                {subtitle}
-              </Text>
-            ) : null}
-          </View>
+          <Text variant="heading" style={styles.brandWordmark} numberOfLines={1}>
+            {title}
+          </Text>
         </View>
         <View style={[styles.brandBadge, { backgroundColor: color.accentSoft }]}>
-          <Text variant="caption" style={[styles.brandBadgeText, { color: color.accent }]}>
+          <Text variant="caption" style={[styles.brandBadgeText, { color: color.accent }]} numberOfLines={1}>
             {badgeLabel}
           </Text>
         </View>
@@ -329,15 +318,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  trafficLights: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  trafficDot: {
-    width: 11,
-    height: 11,
-    borderRadius: theme.radius.pill,
+  trafficLightReserve: {
+    width: 64,
+    height: 14,
   },
   windowTag: {
     paddingHorizontal: 6,
@@ -351,7 +334,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: theme.space.xs,
     paddingHorizontal: theme.space.xs,
-    paddingVertical: theme.space.xs,
+    paddingVertical: 6,
   },
   brandLeft: {
     flexDirection: 'row',
@@ -361,30 +344,25 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   brandSquircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+    width: 26,
+    height: 26,
+    borderRadius: 7,
     borderWidth: theme.border.width,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  brandTextWrap: {
-    flex: 1,
-    minWidth: 0,
+    flexShrink: 0,
   },
   brandWordmark: {
     fontSize: 16,
     lineHeight: 20,
     fontWeight: theme.fontWeight.semibold,
-  },
-  subtitleSmall: {
-    fontSize: 11,
-    lineHeight: 14,
+    flexShrink: 1,
   },
   brandBadge: {
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 5,
+    flexShrink: 0,
   },
   brandBadgeText: {
     fontFamily: theme.fontFamily.mono,
