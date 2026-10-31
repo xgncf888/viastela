@@ -1,9 +1,19 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import { waitForTodayLoaded } from './selectors';
 import { installApi, signIn, weightRow } from './session';
 
 const day = '2026-10-29';
+
+/**
+ * Kilograms in the 今日 weight column.
+ * 趋势 stays mounted and its smoothed-trend card repeats the same `N.N kg`
+ * string, so a page-level exact match is ambiguous. The column heading is the
+ * container this assertion is about.
+ */
+function todayWeightKg(page: Page, text: string) {
+  return page.getByText('体重', { exact: true }).locator('..').getByText(text, { exact: true });
+}
 const cors = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': '*',
@@ -119,14 +129,14 @@ test('今日 -> 趋势 -> 今日 within 400ms shows weight written while away', 
   await installApi(page, { weights });
   await page.goto('/');
   await waitForTodayLoaded(page);
-  await expect(page.getByText('76.4 kg', { exact: true })).toBeVisible();
+  await expect(todayWeightKg(page, '76.4 kg')).toBeVisible();
 
   weights.splice(0, 1, weightRow('w-2', day, 80.2));
   const started = Date.now();
   await page.getByRole('button', { name: '趋势', exact: true }).click({ noWaitAfter: true });
   await page.getByRole('button', { name: '今日', exact: true }).click({ noWaitAfter: true });
   expect(Date.now() - started).toBeLessThan(400);
-  await expect(page.getByText('80.2 kg', { exact: true })).toBeVisible();
+  await expect(todayWeightKg(page, '80.2 kg')).toBeVisible();
   await expect(page.getByText('76.4 kg', { exact: true })).toHaveCount(0);
 });
 

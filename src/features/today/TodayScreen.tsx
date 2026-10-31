@@ -386,7 +386,7 @@ function WeeklyRhythmCard({
         <Row gap="sm" align="center">
           <Row gap="xs" align="center">
             <View style={[styles.matrixDot, { backgroundColor: color.accent }]} />
-            <Text variant="caption">晨重</Text>
+            <Text variant="caption">称重</Text>
           </Row>
           <Row gap="xs" align="center">
             <View style={[styles.matrixDot, { backgroundColor: color.moss }]} />
