@@ -119,6 +119,9 @@ function applyDocumentTitle(html) {
 }
 
 const RESET_STYLE = `    <style id="expo-reset">
+      * {
+        -webkit-tap-highlight-color: transparent;
+      }
       /* These styles make the body full-height */
       html,
       body {

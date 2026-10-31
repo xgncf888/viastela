@@ -66,7 +66,7 @@ function RootNavigator({ paper }: { paper: string }) {
   const deleted = useAccountDeletedFlag();
   if (!ready) return <BootScreen />;
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: paper } }}>
+    <Stack screenOptions={{ headerShown: false, animation: 'none', contentStyle: { backgroundColor: paper } }}>
       <Stack.Protected guard={Boolean(session) && !deleted} redirectTo={deleted ? '/account/deleted' : '/login'}>
         <Stack.Screen name="(app)" />
         <Stack.Screen name="account/delete" />

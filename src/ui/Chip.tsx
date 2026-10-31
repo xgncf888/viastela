@@ -17,11 +17,11 @@ export function Chip({ label, selected, onPress }: { label: string; selected: bo
       onPress={onPress}
       style={({ pressed }) => [
         styles.chip,
+        washPressStyle(pressed, reducedMotion, press, color.pressed, Platform.OS === 'web'),
         {
-          backgroundColor: selected ? color.fill : color.surface,
+          backgroundColor: pressed ? color.pressed : selected ? color.fill : color.surface,
           borderColor: selected ? color.ink : color.line,
         },
-        washPressStyle(pressed, reducedMotion, press, color.pressed, Platform.OS === 'web'),
       ]}
     >
       <Text variant="body" tone={selected ? 'ink' : 'muted'} style={selected ? styles.selectedLabel : styles.label}>

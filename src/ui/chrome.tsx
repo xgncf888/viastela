@@ -116,8 +116,8 @@ export function NavItem({
       style={({ pressed }) => [
         styles.nav,
         side ? styles.navSide : styles.navTab,
-        side && selected ? { backgroundColor: color.fill } : null,
         washPressStyle(pressed, reducedMotion, press, color.pressed, Platform.OS === 'web'),
+        side && selected && !pressed ? { backgroundColor: color.fill } : null,
       ]}
     >
       <View

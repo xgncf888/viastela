@@ -20,6 +20,7 @@ export default function AppLayout() {
               screenOptions={{
                 headerShown: tabNavigator.headerShown,
                 lazy: tabNavigator.lazy,
+                animation: 'none',
                 sceneStyle: { backgroundColor: color.paper },
               }}
             >
