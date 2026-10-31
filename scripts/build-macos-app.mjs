@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
  * Builds the native macOS desktop bundle (`Viastela Studio.app` + `.zip` / `.dmg`)
- * wrapping the exported Web bundle (`dist/`) in a native Cocoa + WKWebView vibrancy shell.
+ * wrapping the exported Web bundle (`dist/`) in a native Cocoa + WKWebView vibrancy shell
+ * with the custom Astrolabe Star-V 1024px macOS icon.
  */
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +25,8 @@ const INFO_PLIST = `<?xml version="1.0" encoding="UTF-8"?>
 <dict>
   <key>CFBundleExecutable</key>
   <string>ViastelaStudio</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon.png</string>
   <key>CFBundleIdentifier</key>
   <string>com.viastela.studio.mac</string>
   <key>CFBundleName</key>
@@ -47,6 +50,140 @@ const INFO_PLIST = `<?xml version="1.0" encoding="UTF-8"?>
 </plist>
 `;
 
+const ICON_SWIFT = `import Cocoa
+
+func drawAstrolabeIcon(size: Int) -> Data? {
+    let s = CGFloat(size)
+    guard let rep = NSBitmapImageRep(
+        bitmapDataPlanes: nil,
+        pixelsWide: size,
+        pixelsHigh: size,
+        bitsPerSample: 8,
+        samplesPerPixel: 4,
+        hasAlpha: true,
+        isPlanar: false,
+        colorSpaceName: .deviceRGB,
+        bytesPerRow: 0,
+        bitsPerPixel: 0
+    ) else { return nil }
+
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+    guard let ctx = NSGraphicsContext.current?.cgContext else { return nil }
+
+    let inset = s * 0.088
+    let box = CGRect(x: inset, y: inset, width: s - inset * 2, height: s - inset * 2)
+    let radius = box.width * 0.225
+    let squircle = CGPath(roundedRect: box, cornerWidth: radius, cornerHeight: radius, transform: nil)
+
+    ctx.saveGState()
+    ctx.setShadow(offset: CGSize(width: 0, height: -s * 0.018), blur: s * 0.04, color: NSColor(calibratedWhite: 0, alpha: 0.35).cgColor)
+    ctx.addPath(squircle)
+    ctx.setFillColor(NSColor(calibratedRed: 0.969, green: 0.957, blue: 0.925, alpha: 1.0).cgColor)
+    ctx.fillPath()
+    ctx.restoreGState()
+
+    ctx.saveGState()
+    ctx.addPath(squircle)
+    ctx.clip()
+    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    let paperColors = [
+        NSColor(calibratedRed: 0.976, green: 0.965, blue: 0.937, alpha: 1.0).cgColor,
+        NSColor(calibratedRed: 0.918, green: 0.898, blue: 0.851, alpha: 1.0).cgColor
+    ] as CFArray
+    if let grad = CGGradient(colorsSpace: colorSpace, colors: paperColors, locations: [0.0, 1.0]) {
+        ctx.drawLinearGradient(grad, start: CGPoint(x: s * 0.5, y: box.maxY), end: CGPoint(x: s * 0.5, y: box.minY), options: [])
+    }
+    ctx.addPath(squircle)
+    ctx.setStrokeColor(NSColor(calibratedRed: 0.85, green: 0.82, blue: 0.76, alpha: 0.9).cgColor)
+    ctx.setLineWidth(s * 0.008)
+    ctx.strokePath()
+    ctx.restoreGState()
+
+    let center = CGPoint(x: s * 0.5, y: s * 0.5)
+    let medRadius = s * 0.345
+    let medRect = CGRect(x: center.x - medRadius, y: center.y - medRadius, width: medRadius * 2, height: medRadius * 2)
+
+    ctx.saveGState()
+    ctx.setShadow(offset: CGSize(width: 0, height: -s * 0.012), blur: s * 0.025, color: NSColor(calibratedWhite: 0, alpha: 0.42).cgColor)
+    ctx.fillEllipse(in: medRect)
+    ctx.restoreGState()
+
+    ctx.saveGState()
+    ctx.addEllipse(in: medRect)
+    ctx.clip()
+    let medColors = [
+        NSColor(calibratedRed: 0.13, green: 0.135, blue: 0.155, alpha: 1.0).cgColor,
+        NSColor(calibratedRed: 0.075, green: 0.078, blue: 0.09, alpha: 1.0).cgColor
+    ] as CFArray
+    if let medGrad = CGGradient(colorsSpace: colorSpace, colors: medColors, locations: [0.0, 1.0]) {
+        ctx.drawLinearGradient(medGrad, start: CGPoint(x: center.x, y: medRect.maxY), end: CGPoint(x: center.x, y: medRect.minY), options: [])
+    }
+    ctx.restoreGState()
+
+    let outerRingR = s * 0.295
+    let innerRingR = s * 0.265
+    let goldStroke = NSColor(calibratedRed: 0.86, green: 0.72, blue: 0.56, alpha: 0.55).cgColor
+    ctx.setStrokeColor(goldStroke)
+    ctx.setLineWidth(max(1.0, s * 0.003))
+    ctx.strokeEllipse(in: CGRect(x: center.x - outerRingR, y: center.y - outerRingR, width: outerRingR * 2, height: outerRingR * 2))
+    ctx.strokeEllipse(in: CGRect(x: center.x - innerRingR, y: center.y - innerRingR, width: innerRingR * 2, height: innerRingR * 2))
+
+    for i in 0..<72 {
+        let angle = CGFloat(i) * (.pi * 2.0 / 72.0)
+        let isMajor = (i % 6 == 0)
+        let isCardinal = (i % 18 == 0)
+        let r1 = isCardinal ? (innerRingR - s * 0.012) : innerRingR
+        let r2 = isCardinal ? (outerRingR + s * 0.012) : (isMajor ? outerRingR : (innerRingR + (outerRingR - innerRingR) * 0.55))
+        ctx.setLineWidth(isCardinal ? max(1.5, s * 0.0045) : max(1.0, s * 0.0022))
+        ctx.setStrokeColor(NSColor(calibratedRed: 0.88, green: 0.74, blue: 0.58, alpha: isCardinal ? 0.85 : (isMajor ? 0.55 : 0.32)).cgColor)
+        ctx.move(to: CGPoint(x: center.x + cos(angle) * r1, y: center.y + sin(angle) * r1))
+        ctx.addLine(to: CGPoint(x: center.x + cos(angle) * r2, y: center.y + sin(angle) * r2))
+        ctx.strokePath()
+    }
+
+    let vPath = CGMutablePath()
+    vPath.move(to: CGPoint(x: s * 0.355, y: s * 0.595))
+    vPath.addLine(to: CGPoint(x: s * 0.500, y: s * 0.335))
+    vPath.addLine(to: CGPoint(x: s * 0.645, y: s * 0.595))
+    ctx.saveGState()
+    ctx.setShadow(offset: CGSize(width: 0, height: -s * 0.006), blur: s * 0.015, color: NSColor(calibratedWhite: 0, alpha: 0.5).cgColor)
+    ctx.addPath(vPath)
+    ctx.setStrokeColor(NSColor(calibratedRed: 0.969, green: 0.957, blue: 0.925, alpha: 1.0).cgColor)
+    ctx.setLineWidth(s * 0.044)
+    ctx.setLineCap(.round)
+    ctx.setLineJoin(.round)
+    ctx.strokePath()
+    ctx.restoreGState()
+
+    let starCenter = CGPoint(x: s * 0.500, y: s * 0.635)
+    let outerS = s * 0.068
+    let innerS = s * 0.021
+    let starPath = CGMutablePath()
+    for i in 0..<8 {
+        let angle = CGFloat(i) * (.pi / 4.0) + (.pi / 2.0)
+        let r = (i % 2 == 0) ? outerS : innerS
+        let pt = CGPoint(x: starCenter.x + cos(angle) * r, y: starCenter.y + sin(angle) * r)
+        if i == 0 { starPath.move(to: pt) } else { starPath.addLine(to: pt) }
+    }
+    starPath.closeSubpath()
+
+    ctx.saveGState()
+    ctx.setShadow(offset: .zero, blur: s * 0.032, color: NSColor(calibratedRed: 0.80, green: 0.47, blue: 0.36, alpha: 0.85).cgColor)
+    ctx.addPath(starPath)
+    ctx.setFillColor(NSColor(calibratedRed: 0.80, green: 0.47, blue: 0.36, alpha: 1.0).cgColor)
+    ctx.fillPath()
+    ctx.restoreGState()
+
+    NSGraphicsContext.restoreGraphicsState()
+    return rep.representation(using: .png, properties: [:])
+}
+
+if let data = drawAstrolabeIcon(size: 1024) {
+    try? data.write(to: URL(fileURLWithPath: CommandLine.arguments[1]))
+}
+`;
+
 const SWIFT_SOURCE = `import Cocoa
 import WebKit
 
@@ -55,6 +192,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     var webView: WKWebView!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if let iconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "png"),
+           let iconImage = NSImage(contentsOf: iconURL) {
+            NSApp.applicationIconImage = iconImage
+        }
+
         let screenRect = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let width: CGFloat = min(1440, screenRect.width * 0.92)
         let height: CGFloat = min(900, screenRect.height * 0.90)
@@ -127,20 +269,19 @@ function main() {
   mkdirSync(RESOURCES_DIR, { recursive: true });
   writeFileSync(path.join(CONTENTS, 'Info.plist'), INFO_PLIST, 'utf8');
 
-  const iconSrc = path.join(ROOT, 'public', 'icons', 'icon-512.png');
-  if (existsSync(iconSrc)) {
-    copyFileSync(iconSrc, path.join(RESOURCES_DIR, 'AppIcon.png'));
-  }
-
   const distDir = path.join(ROOT, 'dist');
   if (existsSync(distDir)) {
     execFileSync('cp', ['-R', distDir, WEB_DEST], { stdio: 'inherit' });
   }
 
   const tmpDir = mkdtempSync(path.join(os.tmpdir(), 'viastela-macos-'));
+  const iconSwiftFile = path.join(tmpDir, 'RenderIcon.swift');
   const swiftFile = path.join(tmpDir, 'ViastelaStudio.swift');
   const binPath = path.join(MACOS_DIR, 'ViastelaStudio');
+  const iconOutPath = path.join(RESOURCES_DIR, 'AppIcon.png');
   try {
+    writeFileSync(iconSwiftFile, ICON_SWIFT, 'utf8');
+    execFileSync('swift', [iconSwiftFile, iconOutPath], { stdio: 'inherit' });
     writeFileSync(swiftFile, SWIFT_SOURCE, 'utf8');
     execFileSync('swiftc', ['-O', swiftFile, '-framework', 'Cocoa', '-framework', 'WebKit', '-o', binPath], {
       stdio: 'inherit',
