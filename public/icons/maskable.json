@@ -1,12 +1,12 @@
 {
   "fitsSafeZone": true,
-  "farthest": 149.73,
+  "farthest": 174.59,
   "safeRadius": 204.8,
   "bounds": {
-    "minX": 128,
-    "minY": 118,
-    "maxX": 383,
-    "maxY": 393
+    "minX": 81,
+    "minY": 82,
+    "maxX": 430,
+    "maxY": 429
   },
   "source": "512x512",
   "scaledTo": 1
