@@ -6,7 +6,8 @@ node_modules/
 dist/
 build/
 web-build/
-releases/
+releases/*.app/
+/*.app/
 
 # Generated from src/config/brand.ts during export. The product name must not be committed outside that file.
 /public/manifest.webmanifest

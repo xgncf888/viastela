@@ -27,6 +27,7 @@ module.exports = [
       'scripts/**',
       'web-build/**',
       'releases/**',
+      '**/*.app/**',
       'ios/**',
       'android/**',
     ],

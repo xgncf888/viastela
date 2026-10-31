@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Builds all local distributable packages into `releases/`:
+ * Builds all local distributable packages into `releases/` and syncs `<displayName>.app`
+ * to the workspace root so it can be launched or dragged to /Applications in one step:
  * 1. `releases/<displayName>.app` & `releases/viastela-macos.zip` (macOS Native Desktop App)
  * 2. `releases/viastela-web-pwa.zip` (Standalone Web & Mobile PWA Bundle)
  * 3. `releases/viastela-charioteer-plugin.zip` (Charioteer Perspective Plugin Bundle)
@@ -28,6 +29,16 @@ function sha256File(filePath) {
   const hash = createHash('sha256');
   hash.update(readFileSync(filePath));
   return hash.digest('hex');
+}
+
+function copySignedApp(srcApp, destApp) {
+  rmSync(destApp, { recursive: true, force: true });
+  execFileSync('ditto', [srcApp, destApp], { stdio: 'inherit' });
+  try {
+    execFileSync('codesign', ['--force', '--deep', '--sign', '-', destApp], { stdio: 'pipe' });
+  } catch {
+    // Ignore codesign warning if command-line tools are restricted
+  }
 }
 
 function main() {
@@ -77,13 +88,11 @@ function main() {
     const appBundleName = `${displayName}.app`;
     const macAppSrc = path.join(MACOS_BUILD_DIR, appBundleName);
     if (existsSync(macAppSrc)) {
-      const releaseApp = path.join(RELEASES_DIR, appBundleName);
-      rmSync(releaseApp, { recursive: true, force: true });
-      execFileSync('ditto', [macAppSrc, releaseApp], { stdio: 'inherit' });
-      try {
-        execFileSync('codesign', ['--force', '--deep', '--sign', '-', releaseApp], { stdio: 'inherit' });
-      } catch {
-        // Ignore codesign warning if command-line tools are restricted
+      copySignedApp(macAppSrc, path.join(RELEASES_DIR, appBundleName));
+      copySignedApp(macAppSrc, path.join(ROOT, appBundleName));
+      const parentWorkspaceDir = path.resolve(ROOT, '..');
+      if (existsSync(path.join(parentWorkspaceDir, 'Charioteer.app')) || existsSync(path.join(parentWorkspaceDir, appBundleName))) {
+        copySignedApp(macAppSrc, path.join(parentWorkspaceDir, appBundleName));
       }
     }
   }
