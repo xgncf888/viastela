@@ -12,7 +12,7 @@ const day = '2026-10-29';
  * container this assertion is about.
  */
 function todayWeightKg(page: Page, text: string) {
-  return page.getByText('体重', { exact: true }).locator('..').getByText(text, { exact: true });
+  return page.getByTestId('today-weight-column').getByText(text, { exact: true });
 }
 const cors = {
   'access-control-allow-origin': '*',

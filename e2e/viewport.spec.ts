@@ -40,7 +40,7 @@ async function openToday(page: Page, width: number, height: number, ledgerRows: 
   });
   await page.goto('/');
   await waitForTodayLoaded(page);
-  await expect(page.getByText('晨重', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('today-records').getByText('晨重', { exact: true })).toBeVisible();
 }
 
 /** The bottom bar is the grandparent of a tab item (TabBar > tabs > NavItem). */
@@ -71,7 +71,7 @@ async function expectMainRecordOnFirstScreen(page: Page) {
     Array.from(document.querySelectorAll('div')).some((node) => node.scrollTop > 1),
   );
   expect(scrolled).toBe(false);
-  const firstRow = page.getByText('晨重', { exact: true });
+  const firstRow = page.getByTestId('today-records').getByText('晨重', { exact: true });
   const buttonBox = await button.boundingBox();
   const rowBox = await firstRow.boundingBox();
   expect(buttonBox).not.toBeNull();
@@ -138,3 +138,15 @@ for (const viewport of [
     await expect(navItem(page, '今日')).toHaveAttribute('aria-selected', 'false');
   });
 }
+
+test('at 390x844 the trend chart is on the first screen', async ({ page }) => {
+  await openToday(page, 390, 844, 1);
+  await navItem(page, '趋势').click();
+  const chart = page.getByRole('img', { name: /近 28 天走势/ });
+  await expect(chart).toBeVisible();
+  await expect(chart).toBeInViewport();
+  const box = await chart.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.y).toBeGreaterThanOrEqual(0);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(844);
+});

@@ -308,7 +308,7 @@ async function recordButtonStates(page: Page): Promise<Record<'idle' | 'night' |
     await route.fallback();
   });
   await page.goto('/');
-  await expect(page.getByText('晨重', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('today-records').getByText('晨重', { exact: true })).toBeVisible();
   await expect(page.getByText('凌晨 4 点前的记录算作前一天')).toHaveCount(0);
   const idle = await recordButtonY(page);
 
@@ -319,7 +319,7 @@ async function recordButtonStates(page: Page): Promise<Record<'idle' | 'night' |
 
   await page.clock.setFixedTime(new Date(`${day}T08:00:00.000Z`));
   await page.reload();
-  await expect(page.getByText('晨重', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('today-records').getByText('晨重', { exact: true })).toBeVisible();
   mode = 'delay';
   const seen = weightGets;
   await page.getByRole('button', { name: '时间线', exact: true }).click();
