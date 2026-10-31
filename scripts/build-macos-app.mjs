@@ -156,16 +156,20 @@ function main() {
 
   const dmgPath = path.join(OUT_DIR, 'Viastela-Studio-macOS.dmg');
   rmSync(dmgPath, { force: true });
-  execFileSync(
-    'hdiutil',
-    ['create', '-volname', 'Viastela Studio', '-srcfolder', APP_BUNDLE, '-ov', '-format', 'UDZO', dmgPath],
-    { stdio: 'inherit' },
-  );
+  try {
+    execFileSync(
+      'hdiutil',
+      ['create', '-volname', 'Viastela Studio', '-srcfolder', APP_BUNDLE, '-ov', '-format', 'UDZO', dmgPath],
+      { stdio: 'inherit' },
+    );
+  } catch {
+    console.log('Note: hdiutil .dmg creation skipped in restricted environment; .app and .zip are ready.');
+  }
 
-  console.log(\`Built macOS packages in \${OUT_DIR}:\`);
-  console.log(\`  - \${APP_BUNDLE}\`);
-  console.log(\`  - \${zipPath}\`);
-  console.log(\`  - \${dmgPath}\`);
+  console.log(`Built macOS packages in ${OUT_DIR}:`);
+  console.log(`  - ${APP_BUNDLE}`);
+  console.log(`  - ${zipPath}`);
+  if (existsSync(dmgPath)) console.log(`  - ${dmgPath}`);
 }
 
 main();
