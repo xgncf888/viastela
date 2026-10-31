@@ -105,7 +105,7 @@ function buildUnsignedIpa(displayName) {
   if (existsSync(distDir)) {
     cpSync(distDir, webRoot, { recursive: true });
   } else if (existsSync(webZip)) {
-    execFileSync('unzip', ['-q', webZip, '-d', webRoot], { stdio: 'inherit' });
+    execFileSync('ditto', ['-x', '-k', webZip, webRoot], { stdio: 'inherit' });
   }
 
   cpSync(path.join(ROOT, 'assets', 'icon.png'), path.join(appDir, 'AppIcon60x60@3x.png'));
@@ -151,6 +151,8 @@ function buildUnsignedIpa(displayName) {
     'utf8',
   );
 
+  // Name the file main.swift and invoke UIApplicationMain directly at top-level
+  // (avoids Swift's `'main' attribute cannot be used in a module that contains top-level code` error).
   const swiftSrc = path.join(workDir, 'main.swift');
   writeFileSync(
     swiftSrc,
@@ -189,15 +191,16 @@ final class LocalSchemeHandler: NSObject, WKURLSchemeHandler {
         case "png": mime = "image/png"
         default: mime = "application/octet-stream"
         }
-        let resp = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": mime, "Access-Control-Allow-Origin": "*"])!
-        urlSchemeTask.didReceive(resp)
-        urlSchemeTask.didReceive(data)
-        urlSchemeTask.didFinish()
+        if let resp = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": mime, "Access-Control-Allow-Origin": "*"]) {
+            urlSchemeTask.didReceive(resp)
+            urlSchemeTask.didReceive(data)
+            urlSchemeTask.didFinish()
+        }
     }
     func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
 }
 
-class RootVC: UIViewController {
+final class RootVC: UIViewController {
     var webView: WKWebView!
     override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
     override func viewDidLoad() {
@@ -218,7 +221,6 @@ class RootVC: UIViewController {
     }
 }
 
-@main
 class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
@@ -229,6 +231,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return true
     }
 }
+
+let _ = UIApplicationMain(
+    CommandLine.argc,
+    CommandLine.unsafeArgv,
+    nil,
+    NSStringFromClass(AppDelegate.self)
+)
 `,
     'utf8',
   );
@@ -243,13 +252,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       '-sdk',
       sdkPath,
       '-target',
-      'arm64-apple-ios16.0',
+      'arm64-apple-ios15.0',
       swiftSrc,
       '-o',
       path.join(appDir, displayName),
     ],
     { stdio: 'inherit' },
   );
+
+  try {
+    execFileSync('codesign', ['--force', '--sign', '-', appDir], { stdio: 'pipe' });
+  } catch {
+    // Unsigned bundle is fine for sideloading tools
+  }
 
   const ipaOut = path.join(RELEASES_DIR, 'viastela-ios-unsigned.ipa');
   rmSync(ipaOut, { force: true });

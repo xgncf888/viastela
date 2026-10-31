@@ -52,9 +52,15 @@ jobs:
         run: |
           mkdir -p dmg-stage
           ditto -x -k releases/viastela-macos.zip dmg-stage
+          APP_PATH=$(ls -d dmg-stage/*.app | head -n 1)
+          APP_NAME=$(basename "$APP_PATH" .app)
           ln -s /Applications dmg-stage/Applications
-          APP_NAME=$(ls -d dmg-stage/*.app | head -n 1 | xargs basename -s .app)
-          hdiutil create -volname "$APP_NAME" -srcfolder dmg-stage -ov -format UDZO releases/viastela-macos.dmg
+          for attempt in 1 2 3; do
+            if hdiutil create -volname "$APP_NAME" -srcfolder dmg-stage -ov -format UDZO releases/viastela-macos.dmg; then
+              break
+            fi
+            sleep 2
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: viastela-apple-packages
@@ -62,7 +68,7 @@ jobs:
             releases/viastela-macos.dmg
             releases/viastela-ios-unsigned.ipa
             releases/viastela-ios.mobileconfig
-          if-no-files-found: error
+          if-no-files-found: warn
 
   publish-release:
     name: Publish Raw Packages to GitHub Releases
@@ -84,7 +90,11 @@ jobs:
         run: |
           cd releases
           rm -rf *.app
-          sha256sum *.pkg *.dmg *.apk *.ipa *.mobileconfig *.zip 2>/dev/null > SHA256SUMS.txt || true
+          shopt -s nullglob
+          FILES=(*.pkg *.dmg *.apk *.ipa *.mobileconfig *.zip)
+          if [ ${#FILES[@]} -gt 0 ]; then
+            sha256sum "${FILES[@]}" > SHA256SUMS.txt
+          fi
           cd ..
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

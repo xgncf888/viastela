@@ -27,6 +27,7 @@ const result = spawnSync(
     ':!DESIGN.md',
     ':!docs/email-otp-hosted.md',
     ':!supabase/config.toml',
+    ':!releases/**',
   ],
   { encoding: 'utf8' },
 );

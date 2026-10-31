@@ -2,8 +2,8 @@
 /**
  * Zero-npm-dependency standalone Android APK builder (`releases/viastela-android.apk`).
  * Uses `$ANDROID_HOME` (`aapt2`, `javac`, `d8`, `zipalign`, `apksigner`, `keytool`)
- * to package the exported web bundle (`dist/` or `releases/viastela-web-pwa.zip`)
- * into a native offline Android WebView APK with the Black-Gold Astrolabe icon.
+ * to package `releases/viastela-web-pwa.zip` into a native offline Android WebView APK
+ * (`assets/webbundle.bin`, preserving `_expo/` JS bundles intact) with the Black-Gold icon.
  */
 import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -20,16 +20,28 @@ function readDisplayName() {
   return match ? match[1] : 'App';
 }
 
-function findLatestSubdir(parentDir) {
+function findBuildToolsDir(parentDir) {
   if (!existsSync(parentDir)) return null;
-  const entries = readdirSync(parentDir).sort();
+  const entries = readdirSync(parentDir)
+    .filter((e) => /^\d+\.\d+\.\d+$/.test(e))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   return entries.length > 0 ? path.join(parentDir, entries[entries.length - 1]) : null;
+}
+
+function findPlatformDir(parentDir) {
+  if (!existsSync(parentDir)) return null;
+  const entries = readdirSync(parentDir)
+    .filter((e) => /^android-\d+$/.test(e))
+    .sort((a, b) => Number(a.split('-')[1]) - Number(b.split('-')[1]));
+  if (entries.length === 0) return null;
+  const preferred = entries.find((e) => e === 'android-34') || entries[entries.length - 1];
+  return path.join(parentDir, preferred);
 }
 
 function main() {
   const androidHome = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || '';
-  const buildToolsDir = findLatestSubdir(path.join(androidHome, 'build-tools'));
-  const platformDir = findLatestSubdir(path.join(androidHome, 'platforms'));
+  const buildToolsDir = findBuildToolsDir(path.join(androidHome, 'build-tools'));
+  const platformDir = findPlatformDir(path.join(androidHome, 'platforms'));
 
   if (!buildToolsDir || !platformDir) {
     console.log('Skipping local Android APK build (ANDROID_HOME build-tools/platforms not installed on this machine).');
@@ -46,27 +58,22 @@ function main() {
   const workDir = path.join(os.tmpdir(), `viastela-apk-${Date.now()}`);
   const srcDir = path.join(workDir, 'src', 'app', 'viastela');
   const resDir = path.join(workDir, 'res');
-  const assetsWebDir = path.join(workDir, 'assets', 'www');
+  const assetsDir = path.join(workDir, 'assets');
   const classesDir = path.join(workDir, 'classes');
 
   mkdirSync(srcDir, { recursive: true });
   mkdirSync(path.join(resDir, 'mipmap-xxxhdpi'), { recursive: true });
   mkdirSync(path.join(resDir, 'values'), { recursive: true });
-  mkdirSync(assetsWebDir, { recursive: true });
+  mkdirSync(assetsDir, { recursive: true });
   mkdirSync(classesDir, { recursive: true });
   mkdirSync(RELEASES_DIR, { recursive: true });
 
-  // Populate web assets from dist/ or releases/viastela-web-pwa.zip
-  const distDir = path.join(ROOT, 'dist');
   const webZip = path.join(RELEASES_DIR, 'viastela-web-pwa.zip');
-  if (existsSync(distDir)) {
-    cpSync(distDir, assetsWebDir, { recursive: true });
-  } else if (existsSync(webZip)) {
-    execFileSync('unzip', ['-q', webZip, '-d', assetsWebDir], { stdio: 'inherit' });
-  } else {
-    throw new Error('Neither dist/ nor releases/viastela-web-pwa.zip found.');
+  if (!existsSync(webZip)) {
+    throw new Error('releases/viastela-web-pwa.zip not found.');
   }
-
+  // Store as webbundle.bin so aapt2 never strips `_expo/` directories
+  cpSync(webZip, path.join(assetsDir, 'webbundle.bin'));
   cpSync(path.join(ROOT, 'assets', 'icon.png'), path.join(resDir, 'mipmap-xxxhdpi', 'ic_launcher.png'));
 
   writeFileSync(
@@ -125,12 +132,45 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 public class MainActivity extends Activity {
     private WebView webView;
+    private File wwwRoot;
+
+    private void ensureWebBundleExtracted() {
+        wwwRoot = new File(getFilesDir(), "www-v1");
+        File indexHtml = new File(wwwRoot, "index.html");
+        if (indexHtml.exists()) return;
+        try (InputStream raw = getAssets().open("webbundle.bin");
+             ZipInputStream zis = new ZipInputStream(raw)) {
+            ZipEntry entry;
+            byte[] buf = new byte[8192];
+            while ((entry = zis.getNextEntry()) != null) {
+                File out = new File(wwwRoot, entry.getName());
+                if (entry.isDirectory()) {
+                    out.mkdirs();
+                } else {
+                    File parent = out.getParentFile();
+                    if (parent != null) parent.mkdirs();
+                    try (FileOutputStream fos = new FileOutputStream(out)) {
+                        int n;
+                        while ((n = zis.read(buf)) > 0) {
+                            fos.write(buf, 0, n);
+                        }
+                    }
+                }
+                zis.closeEntry();
+            }
+        } catch (Exception ignored) {}
+    }
 
     private static String guessMime(String path) {
         if (path.endsWith(".html")) return "text/html";
@@ -150,6 +190,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ensureWebBundleExtracted();
+
         Window window = getWindow();
         if (window != null) {
             window.setStatusBarColor(Color.parseColor("#171512"));
@@ -174,22 +216,22 @@ public class MainActivity extends Activity {
                     if (relPath == null || relPath.isEmpty() || "/".equals(relPath)) {
                         relPath = "/index.html";
                     }
-                    String assetPath = "www" + relPath;
-                    try {
-                        InputStream is = getAssets().open(assetPath);
-                        Map<String, String> headers = new HashMap<>();
-                        headers.put("Access-Control-Allow-Origin", "*");
-                        return new WebResourceResponse(guessMime(assetPath), "UTF-8", 200, "OK", headers, is);
-                    } catch (Exception e) {
-                        try {
-                            InputStream htmlIs = getAssets().open("www" + relPath + ".html");
-                            return new WebResourceResponse("text/html", "UTF-8", 200, "OK", new HashMap<String, String>(), htmlIs);
-                        } catch (Exception e2) {
-                            try {
-                                InputStream rootIs = getAssets().open("www/index.html");
-                                return new WebResourceResponse("text/html", "UTF-8", 200, "OK", new HashMap<String, String>(), rootIs);
-                            } catch (Exception ignored) {}
+                    File target = new File(wwwRoot, relPath.startsWith("/") ? relPath.substring(1) : relPath);
+                    if (!target.exists() || target.isDirectory()) {
+                        File htmlCandidate = new File(wwwRoot, (relPath.startsWith("/") ? relPath.substring(1) : relPath) + ".html");
+                        if (htmlCandidate.exists()) {
+                            target = htmlCandidate;
+                        } else {
+                            target = new File(wwwRoot, "index.html");
                         }
+                    }
+                    if (target.exists() && target.isFile()) {
+                        try {
+                            InputStream is = new FileInputStream(target);
+                            Map<String, String> headers = new HashMap<>();
+                            headers.put("Access-Control-Allow-Origin", "*");
+                            return new WebResourceResponse(guessMime(target.getName()), "UTF-8", 200, "OK", headers, is);
+                        } catch (Exception ignored) {}
                     }
                 }
                 return super.shouldInterceptRequest(view, request);
@@ -230,7 +272,9 @@ public class MainActivity extends Activity {
       '--java',
       path.join(workDir, 'src'),
       '-A',
-      path.join(workDir, 'assets'),
+      assetsDir,
+      '-0',
+      '.bin',
       compiledResZip,
     ],
     { stdio: 'inherit' },
@@ -239,7 +283,9 @@ public class MainActivity extends Activity {
   execFileSync(
     'javac',
     [
-      '--release',
+      '-source',
+      '11',
+      '-target',
       '11',
       '-cp',
       androidJar,
