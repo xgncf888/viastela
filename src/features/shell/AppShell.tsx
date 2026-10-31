@@ -1,7 +1,14 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Platform } from 'react-native';
 import { router, usePathname } from 'expo-router';
 
 import { brand } from '@/config/brand';
+import {
+  closeRecordSheet,
+  getRecordSheetSnapshot,
+  openRecordSheet,
+  type RecordSheetKind,
+} from '@/features/record/record-sheet-store';
 import { RecordSheet } from '@/features/record/RecordSheet';
 import { useStudy } from '@/features/study/StudyProvider';
 import { useTraining } from '@/features/training/TrainingProvider';
@@ -29,6 +36,12 @@ function currentTab(pathname: string): TabId {
   return 'today';
 }
 
+type DesktopBridge = {
+  openRecord: (kind?: RecordSheetKind) => void;
+  closeRecord: () => void;
+  navigate: (tabId: TabId) => void;
+};
+
 export function AppShell({ children }: { children: ReactNode }) {
   const layout = useLayoutClass();
   const side = layout !== 'compact';
@@ -41,6 +54,50 @@ export function AppShell({ children }: { children: ReactNode }) {
     setArmed({ id: tab.id, route: routeTab });
     router.replace(tab.href);
   }
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+    const hostWindow = window as unknown as { __viastelaDesktop?: DesktopBridge };
+    hostWindow.__viastelaDesktop = {
+      openRecord: (kind = 'weight') => openRecordSheet(undefined, kind),
+      closeRecord: () => closeRecordSheet(),
+      navigate: (tabId) => {
+        const target = TABS.find((item) => item.id === tabId);
+        if (target) router.replace(target.href);
+      },
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && getRecordSheetSnapshot().open) {
+        event.preventDefault();
+        closeRecordSheet();
+        return;
+      }
+      const mod = event.metaKey || event.ctrlKey;
+      if (mod && !event.shiftKey && !event.altKey) {
+        const lower = event.key.toLowerCase();
+        if (lower === 'k') {
+          event.preventDefault();
+          if (getRecordSheetSnapshot().open) closeRecordSheet();
+          else openRecordSheet();
+          return;
+        }
+        const index = Number.parseInt(event.key, 10) - 1;
+        if (index >= 0 && index < TABS.length) {
+          const target = TABS[index];
+          if (target) {
+            event.preventDefault();
+            router.replace(target.href);
+          }
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      delete hostWindow.__viastelaDesktop;
+    };
+  }, []);
+
   const { deletedNotice, dismissDeletedNotice } = useWeight();
   const trainingDeleted = useTraining();
   const studyDeleted = useStudy();

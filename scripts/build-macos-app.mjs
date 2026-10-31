@@ -15,9 +15,9 @@ const brandSource = readFileSync(path.join(ROOT, 'src', 'config', 'brand.ts'), '
 const displayName = brandSource.match(/displayName:\s*'([^']+)'/)?.[1] ?? 'App';
 
 const OUT_DIR = path.resolve(process.env.MACOS_OUT_DIR ?? path.join(ROOT, 'web-build', 'macos'));
-const APP_TITLE = `${displayName} Studio`;
+const APP_TITLE = displayName;
 const APP_NAME = `${APP_TITLE}.app`;
-const EXEC_NAME = `${displayName}Studio`;
+const EXEC_NAME = displayName;
 const APP_BUNDLE = path.join(OUT_DIR, APP_NAME);
 const CONTENTS = path.join(APP_BUNDLE, 'Contents');
 const MACOS_DIR = path.join(CONTENTS, 'MacOS');
@@ -33,7 +33,7 @@ const INFO_PLIST = `<?xml version="1.0" encoding="UTF-8"?>
   <key>CFBundleIconFile</key>
   <string>AppIcon.png</string>
   <key>CFBundleIdentifier</key>
-  <string>com.viastela.studio.mac</string>
+  <string>com.viastela.app.mac</string>
   <key>CFBundleName</key>
   <string>${APP_TITLE}</string>
   <key>CFBundleDisplayName</key>
@@ -192,9 +192,10 @@ if let data = drawAstrolabeIcon(size: 1024) {
 const SWIFT_SOURCE = `import Cocoa
 import WebKit
 
-class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWindowDelegate {
     var window: NSWindow!
     var webView: WKWebView!
+    var statusItem: NSStatusItem!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if let iconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "png"),
@@ -202,9 +203,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             NSApp.applicationIconImage = iconImage
         }
 
+        setupMainMenu()
+        setupStatusItem()
+
         let screenRect = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let width: CGFloat = min(1440, screenRect.width * 0.92)
-        let height: CGFloat = min(900, screenRect.height * 0.90)
+        let width: CGFloat = min(1320, screenRect.width * 0.90)
+        let height: CGFloat = min(860, screenRect.height * 0.88)
         let frame = NSRect(
             x: screenRect.origin.x + (screenRect.width - width) / 2,
             y: screenRect.origin.y + (screenRect.height - height) / 2,
@@ -221,18 +225,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         window.title = "${APP_TITLE}"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
-        window.appearance = NSAppearance(named: .darkAqua)
-        window.backgroundColor = NSColor(calibratedRed: 0.067, green: 0.071, blue: 0.082, alpha: 1.0)
-        window.minSize = NSSize(width: 960, height: 640)
+        if #available(macOS 11.0, *) {
+            window.toolbarStyle = .unifiedCompact
+            window.titlebarSeparatorStyle = .none
+        }
+        window.isMovableByWindowBackground = false
+        window.backgroundColor = NSColor(calibratedRed: 0.969, green: 0.957, blue: 0.925, alpha: 1.0)
+        window.minSize = NSSize(width: 390, height: 640)
+        window.delegate = self
+        window.setFrameAutosaveName("AppMainWindow")
 
         let visualEffect = NSVisualEffectView(frame: window.contentView!.bounds)
         visualEffect.autoresizingMask = [.width, .height]
         visualEffect.material = .underWindowBackground
         visualEffect.blendingMode = .behindWindow
-        visualEffect.state = .active
+        visualEffect.state = .followsWindowActiveState
 
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
+        let injectCSS = """
+        document.documentElement.style.overscrollBehavior = 'none';
+        document.body.style.overscrollBehavior = 'none';
+        document.body.style.webkitUserSelect = 'none';
+        """
+        let userScript = WKUserScript(source: injectCSS, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+        config.userContentController.addUserScript(userScript)
 
         webView = WKWebView(frame: visualEffect.bounds, configuration: config)
         webView.autoresizingMask = [.width, .height]
@@ -244,6 +261,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
 
+        loadAppBundle()
+    }
+
+    func loadAppBundle() {
         if let indexURL = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "web") {
             webView.loadFileURL(indexURL, allowingReadAccessTo: indexURL.deletingLastPathComponent())
         } else {
@@ -251,8 +272,165 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         }
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+    func setupMainMenu() {
+        let mainMenu = NSMenu()
+
+        // App Menu
+        let appMenuItem = NSMenuItem()
+        mainMenu.addItem(appMenuItem)
+        let appMenu = NSMenu()
+        appMenuItem.submenu = appMenu
+        appMenu.addItem(withTitle: "关于 ${APP_TITLE}", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(NSMenuItem.separator())
+        let quickRecordItem = NSMenuItem(title: "快速记录…", action: #selector(openQuickRecord), keyEquivalent: "n")
+        quickRecordItem.target = self
+        appMenu.addItem(quickRecordItem)
+        appMenu.addItem(NSMenuItem.separator())
+        appMenu.addItem(withTitle: "隐藏 ${APP_TITLE}", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        let hideOthers = NSMenuItem(title: "隐藏其他", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        hideOthers.keyEquivalentModifierMask = [.command, .option]
+        appMenu.addItem(hideOthers)
+        appMenu.addItem(withTitle: "全部显示", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        appMenu.addItem(NSMenuItem.separator())
+        appMenu.addItem(withTitle: "退出 ${APP_TITLE}", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+
+        // Edit Menu (essential for WKWebView Cmd+C/V/X/A/Z)
+        let editMenuItem = NSMenuItem()
+        mainMenu.addItem(editMenuItem)
+        let editMenu = NSMenu(title: "编辑")
+        editMenuItem.submenu = editMenu
+        editMenu.addItem(withTitle: "撤销", action: Selector(("undo:")), keyEquivalent: "z")
+        editMenu.addItem(withTitle: "重做", action: Selector(("redo:")), keyEquivalent: "Z")
+        editMenu.addItem(NSMenuItem.separator())
+        editMenu.addItem(withTitle: "剪切", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "拷贝", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "粘贴", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: "全选", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+
+        // Navigate / View Menu
+        let navMenuItem = NSMenuItem()
+        mainMenu.addItem(navMenuItem)
+        let navMenu = NSMenu(title: "视图")
+        navMenuItem.submenu = navMenu
+        let tabs: [(String, String, Selector)] = [
+            ("今日", "1", #selector(navToday)),
+            ("资产", "2", #selector(navAssets)),
+            ("趋势", "3", #selector(navTrend)),
+            ("时间线", "4", #selector(navTimeline)),
+            ("我的", "5", #selector(navMe))
+        ]
+        for (title, key, sel) in tabs {
+            let item = NSMenuItem(title: title, action: sel, keyEquivalent: key)
+            item.target = self
+            navMenu.addItem(item)
+        }
+        navMenu.addItem(NSMenuItem.separator())
+        let reloadItem = NSMenuItem(title: "重新加载", action: #selector(reloadWebView), keyEquivalent: "r")
+        reloadItem.target = self
+        navMenu.addItem(reloadItem)
+
+        // Window Menu
+        let windowMenuItem = NSMenuItem()
+        mainMenu.addItem(windowMenuItem)
+        let windowMenu = NSMenu(title: "窗口")
+        windowMenuItem.submenu = windowMenu
+        windowMenu.addItem(withTitle: "最小化", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowMenu.addItem(withTitle: "缩放", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        let closeItem = NSMenuItem(title: "关闭窗口", action: #selector(hideWindow), keyEquivalent: "w")
+        closeItem.target = self
+        windowMenu.addItem(closeItem)
+
+        NSApp.mainMenu = mainMenu
+        NSApp.windowsMenu = windowMenu
+    }
+
+    func setupStatusItem() {
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        if let button = statusItem.button {
+            button.title = "✦"
+            button.toolTip = "${APP_TITLE} — 点击打开或快速记录"
+        }
+        let menu = NSMenu()
+        let showItem = NSMenuItem(title: "打开主窗口", action: #selector(showMainWindow), keyEquivalent: "")
+        showItem.target = self
+        menu.addItem(showItem)
+        menu.addItem(NSMenuItem.separator())
+
+        let recWeight = NSMenuItem(title: "记体重…", action: #selector(openQuickRecord), keyEquivalent: "k")
+        recWeight.target = self
+        menu.addItem(recWeight)
+
+        let recTrain = NSMenuItem(title: "记训练…", action: #selector(openQuickTraining), keyEquivalent: "")
+        recTrain.target = self
+        menu.addItem(recTrain)
+
+        let recStudy = NSMenuItem(title: "记学习…", action: #selector(openQuickStudy), keyEquivalent: "")
+        recStudy.target = self
+        menu.addItem(recStudy)
+
+        let recBlock = NSMenuItem(title: "记时间块 / 随手记…", action: #selector(openQuickBlock), keyEquivalent: "")
+        recBlock.target = self
+        menu.addItem(recBlock)
+
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(withTitle: "退出", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        statusItem.menu = menu
+    }
+
+    @objc func showMainWindow() {
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc func hideWindow() {
+        window.orderOut(nil)
+    }
+
+    @objc func reloadWebView() {
+        webView.reload()
+    }
+
+    func invokeBridge(_ js: String) {
+        showMainWindow()
+        webView.evaluateJavaScript(js, completionHandler: nil)
+    }
+
+    @objc func openQuickRecord() {
+        invokeBridge("window.__viastelaDesktop && window.__viastelaDesktop.openRecord('weight');")
+    }
+
+    @objc func openQuickTraining() {
+        invokeBridge("window.__viastelaDesktop && window.__viastelaDesktop.openRecord('training');")
+    }
+
+    @objc func openQuickStudy() {
+        invokeBridge("window.__viastelaDesktop && window.__viastelaDesktop.openRecord('study');")
+    }
+
+    @objc func openQuickBlock() {
+        invokeBridge("window.__viastelaDesktop && window.__viastelaDesktop.openRecord('block');")
+    }
+
+    @objc func navToday() { invokeBridge("window.__viastelaDesktop && window.__viastelaDesktop.navigate('today');") }
+    @objc func navAssets() { invokeBridge("window.__viastelaDesktop && window.__viastelaDesktop.navigate('assets');") }
+    @objc func navTrend() { invokeBridge("window.__viastelaDesktop && window.__viastelaDesktop.navigate('trend');") }
+    @objc func navTimeline() { invokeBridge("window.__viastelaDesktop && window.__viastelaDesktop.navigate('timeline');") }
+    @objc func navMe() { invokeBridge("window.__viastelaDesktop && window.__viastelaDesktop.navigate('me');") }
+
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        window.orderOut(nil)
+        return false
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag {
+            showMainWindow()
+        }
         return true
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        return false
     }
 }
 
@@ -281,7 +459,7 @@ function main() {
 
   const tmpDir = mkdtempSync(path.join(os.tmpdir(), 'viastela-macos-'));
   const iconSwiftFile = path.join(tmpDir, 'RenderIcon.swift');
-  const swiftFile = path.join(tmpDir, 'StudioHost.swift');
+  const swiftFile = path.join(tmpDir, 'AppHost.swift');
   const binPath = path.join(MACOS_DIR, EXEC_NAME);
   const iconOutPath = path.join(RESOURCES_DIR, 'AppIcon.png');
   try {
@@ -296,11 +474,11 @@ function main() {
     rmSync(tmpDir, { recursive: true, force: true });
   }
 
-  const zipPath = path.join(OUT_DIR, 'viastela-studio-macos.zip');
+  const zipPath = path.join(OUT_DIR, 'viastela-macos.zip');
   rmSync(zipPath, { force: true });
   execFileSync('ditto', ['-c', '-k', '--keepParent', APP_BUNDLE, zipPath], { stdio: 'inherit' });
 
-  const dmgPath = path.join(OUT_DIR, 'viastela-studio-macos.dmg');
+  const dmgPath = path.join(OUT_DIR, 'viastela-macos.dmg');
   rmSync(dmgPath, { force: true });
   try {
     execFileSync(

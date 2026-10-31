@@ -7,6 +7,7 @@ import { recentTopicNames, studySaveToast, type RecentTopicRow, type StudyRecord
 import { RECORD_DELETED, weightSaveOutcome } from '@/core/weight-write';
 import { getDaySwitch } from '@/data/profile';
 import { withLoadTimeout } from '@/data/load-timeout';
+import { readRecordOutbox, removeOutboxStudyRecord, saveOutboxStudyRecord } from '@/data/record-outbox';
 import { listRecentTopics, listStudyRecords, softDeleteStudyRecord, upsertStudyRecord } from '@/data/study';
 import { useAuth } from '@/features/auth/AuthProvider';
 import {
@@ -123,14 +124,30 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!session) return undefined;
-    const ticket = ++loadTicket.current;
+    const userId = session.userId;
     let cancelled = false;
+    void readRecordOutbox(userId).then((outbox) => {
+      if (cancelled || outbox.studyRecords.length === 0) return;
+      for (const item of outbox.studyRecords) alive.current.add(item.id);
+      setSaveState((current) => {
+        let next = current;
+        for (const item of outbox.studyRecords) next = beginSave(next, item);
+        return next;
+      });
+      setFailedIds((current) => {
+        const next = new Set(current);
+        for (const item of outbox.studyRecords) next.add(item.id);
+        return next;
+      });
+    });
+    const ticket = ++loadTicket.current;
     void getDaySwitch()
       .then(async (nextSwitch) => ({ nextSwitch, ...(await loadSaved(nextSwitch)) }))
       .then(
         ({ records: rows, recent, nextSwitch }) => {
           if (cancelled || ticket !== loadTicket.current) return;
           applyRows(rows, recent, nextSwitch, ticket);
+          for (const row of rows) void removeOutboxStudyRecord(userId, row.id);
         },
         () => {
           if (cancelled || ticket !== loadTicket.current) return;
@@ -158,6 +175,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       const recordedAt = existing ? new Date(existing.recordedAt) : new Date();
       const tz = existing?.tz ?? currentTimeZone();
       const switchTime = daySwitch;
+      const userId = session?.userId ?? '';
       const record: StudyRecord = {
         id,
         topic: input.topic,
@@ -185,6 +203,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       void (async () => {
         try {
           await upsertStudyRecord(record);
+          if (userId) void removeOutboxStudyRecord(userId, id);
           if (!alive.current.has(id)) return;
           confirmedTicket.current.set(id, loadTicket.current);
           setSaveState((current) => (current.pending.some((row) => row.id === id) ? confirmSave(current, record) : current));
@@ -194,6 +213,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           confirmedTicket.current.delete(id);
           if (!alive.current.has(id)) return;
           if (weightSaveOutcome(error) === RECORD_DELETED) {
+            if (userId) void removeOutboxStudyRecord(userId, id);
             alive.current.delete(id);
             setSaveState((current) => ({
               saved: current.saved.filter((row) => row.id !== id),
@@ -207,6 +227,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
             setDeletedNotice(true);
             return;
           }
+          if (userId) void saveOutboxStudyRecord(userId, record);
           setFailedIds((current) => new Set(current).add(id));
           showToast({ text: '保存失败，请重试', tone: 'error' });
         } finally {
@@ -221,7 +242,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       })();
       return 'saved';
     },
-    [daySwitch, saveState.pending],
+    [daySwitch, saveState.pending, session?.userId],
   );
 
   const retry = useCallback(
@@ -239,6 +260,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   );
 
   const dismiss = useCallback((id: string) => {
+    if (session) void removeOutboxStudyRecord(session.userId, id);
     alive.current.delete(id);
     confirmedTicket.current.delete(id);
     setSaveState((current) => ({
@@ -250,7 +272,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       next.delete(id);
       return next;
     });
-  }, []);
+  }, [session]);
 
   const dismissDeletedNotice = useCallback(() => {
     setDeletedNotice(false);

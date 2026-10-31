@@ -5,6 +5,7 @@ import { isSupabaseConfigured } from '@/config/env';
 import { getSupabase } from './client';
 import { currentOrigin, oauthRedirectTo, type OAuthProvider } from './oauth';
 import { clearQuoteCache } from './quoteCache';
+import { clearRecordOutbox } from './record-outbox';
 import { clearServiceWorkerRuntimeCache } from './runtime-cache';
 
 export type AuthSession = {
@@ -92,8 +93,13 @@ export async function leaveDeviceSession(userId: string | null, authSignOut: () 
     await authSignOut();
   } finally {
     await clearServiceWorkerRuntimeCache();
-    if (userId) await clearQuoteCache(userId);
-    else await clearQuoteCache();
+    if (userId) {
+      await clearQuoteCache(userId);
+      await clearRecordOutbox(userId);
+    } else {
+      await clearQuoteCache();
+      await clearRecordOutbox();
+    }
   }
 }
 

@@ -58,8 +58,8 @@ jobs:
         with:
           name: viastela-macos-desktop
           path: |
-            web-build/macos/viastela-studio-macos.dmg
-            web-build/macos/viastela-studio-macos.zip
+            web-build/macos/viastela-macos.dmg
+            web-build/macos/viastela-macos.zip
           if-no-files-found: error
 
   android-package:

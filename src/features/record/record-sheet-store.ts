@@ -1,4 +1,4 @@
-export type RecordSheetKind = 'weight' | 'training' | 'study';
+export type RecordSheetKind = 'weight' | 'training' | 'study' | 'block';
 
 type RecordSheetSnapshot = {
   open: boolean;

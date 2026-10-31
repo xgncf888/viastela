@@ -8,6 +8,8 @@ import {
   STUDY_MINUTE_CHOICES,
   type StudyField,
 } from '@/core/study';
+import { timelineSaveNotice } from '@/core/timeline-errors';
+import { MOOD_LABELS, normalizeJournalDraft, validateJournal } from '@/core/timeline-journal';
 import {
   BAND_LABEL,
   BAND_LEVELS,
@@ -25,6 +27,7 @@ import {
 } from '@/core/training';
 import { parseWeightKg } from '@/core/weight-input';
 import { formatKg, latestRecord } from '@/core/weight-stats';
+import { saveJournal } from '@/data/timeline';
 import { useStudy } from '@/features/study/StudyProvider';
 import { useTraining } from '@/features/training/TrainingProvider';
 import { excludePending } from '@/features/weight/weight-copy';
@@ -90,9 +93,14 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
   const [note, setNote] = useState('');
   const [studyError, setStudyError] = useState<string | null>(null);
   const [studyField, setStudyField] = useState<StudyField | null>(null);
+  const [blockBody, setBlockBody] = useState('');
+  const [blockMood, setBlockMood] = useState<number | null>(null);
+  const [blockError, setBlockError] = useState<string | null>(null);
+  const [blockSaving, setBlockSaving] = useState(false);
   const draftId = useRef<string | null>(null);
   const trainingId = useRef<string | null>(null);
   const studyId = useRef<string | null>(null);
+  const blockId = useRef<string | null>(null);
   const exerciseNames = exerciseChoices(recentExercises);
   useEffect(() => {
     if (trainingFormHasUnsavedEdits({ exercise, reps, mode, weight: load, bandLevel: band }, trainingBaseline)) {
@@ -235,6 +243,38 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
       existingId: studyId.current,
     });
     closeRecordSheet();
+  }
+
+  async function onSaveBlock() {
+    const tz = currentTimeZone();
+    const today = computeLocalDay(new Date(), tz, daySwitch);
+    const draft = { body: blockBody, entryDay: today, mood: blockMood, tags: ['时间块'] };
+    const invalid = validateJournal(draft, today);
+    if (invalid) {
+      setBlockError(invalid);
+      return;
+    }
+    const normalized = normalizeJournalDraft(draft);
+    if (!blockId.current) blockId.current = createId();
+    setBlockSaving(true);
+    setBlockError(null);
+    try {
+      await saveJournal({
+        id: blockId.current,
+        body: normalized.body,
+        entryDay: normalized.entryDay,
+        tz,
+        mood: normalized.mood,
+        tags: [...normalized.tags],
+      });
+      showToast({ text: '已记下' });
+      closeRecordSheet();
+    } catch (saveError) {
+      const notice = timelineSaveNotice(saveError);
+      setBlockError(notice.message);
+    } finally {
+      setBlockSaving(false);
+    }
   }
 
   return (
@@ -482,9 +522,42 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
           <Button label="保存" fill onPress={() => void onSaveStudy()} />
         </Stack>
       ) : (
-        <Stack gap="sm">
-          <Text variant="heading">即将推出</Text>
-          <Text variant="muted">{TYPES.find((item) => item.id === type)?.label} 还不能记。这一周先把体重记下来。</Text>
+        <Stack gap="md">
+          <Stack gap="xs">
+            <Text variant="heading">即将推出</Text>
+            <Text variant="muted">完整时间块排程即将推出，现在可以直接记下时间块或随手记并同步到时间线。</Text>
+          </Stack>
+          <TextField
+            label="内容"
+            value={blockBody}
+            onChangeText={(next) => {
+              setBlockBody(next);
+              setBlockError(null);
+            }}
+            placeholder="记下刚才专注做的事或此刻想法"
+            autoFocus
+            error={blockError}
+          />
+          <Stack gap="xs">
+            <Text variant="label">状态（选填）</Text>
+            <ChipGroup>
+              {MOOD_LABELS.map((label, index) => {
+                const moodValue = index + 1;
+                return (
+                  <Chip
+                    key={label}
+                    label={label}
+                    selected={blockMood === moodValue}
+                    onPress={() => {
+                      setBlockMood(blockMood === moodValue ? null : moodValue);
+                      setBlockError(null);
+                    }}
+                  />
+                );
+              })}
+            </ChipGroup>
+          </Stack>
+          <Button label="保存" fill loading={blockSaving} onPress={() => void onSaveBlock()} />
         </Stack>
       )}
     </Stack>

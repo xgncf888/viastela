@@ -6,6 +6,7 @@ import { beginSave, confirmSave, reconcileServerRows, visibleRecords, type SaveS
 import { recentExerciseNames, type RecentExerciseRow, type TrainingSet } from '@/core/training';
 import { RECORD_DELETED, weightSaveOutcome } from '@/core/weight-write';
 import { withLoadTimeout } from '@/data/load-timeout';
+import { readRecordOutbox, removeOutboxTrainingSet, saveOutboxTrainingSet } from '@/data/record-outbox';
 import { listRecentExercises, listTrainingSets, softDeleteTrainingSet, upsertTrainingSet } from '@/data/training';
 import { getDaySwitch } from '@/data/profile';
 import { useAuth } from '@/features/auth/AuthProvider';
@@ -124,14 +125,30 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!session) return undefined;
-    const ticket = ++loadTicket.current;
+    const userId = session.userId;
     let cancelled = false;
+    void readRecordOutbox(userId).then((outbox) => {
+      if (cancelled || outbox.trainingSets.length === 0) return;
+      for (const item of outbox.trainingSets) alive.current.add(item.id);
+      setSaveState((current) => {
+        let next = current;
+        for (const item of outbox.trainingSets) next = beginSave(next, item);
+        return next;
+      });
+      setFailedIds((current) => {
+        const next = new Set(current);
+        for (const item of outbox.trainingSets) next.add(item.id);
+        return next;
+      });
+    });
+    const ticket = ++loadTicket.current;
     void getDaySwitch()
       .then(async (nextSwitch) => ({ nextSwitch, ...(await loadSaved(nextSwitch)) }))
       .then(
         ({ sets: rows, recent, nextSwitch }) => {
           if (cancelled || ticket !== loadTicket.current) return;
           applyRows(rows, recent, nextSwitch, ticket);
+          for (const row of rows) void removeOutboxTrainingSet(userId, row.id);
         },
         () => {
           if (cancelled || ticket !== loadTicket.current) return;
@@ -160,6 +177,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
       const recordedAt = existing ? new Date(existing.recordedAt) : new Date();
       const tz = existing?.tz ?? currentTimeZone();
       const switchTime = daySwitch;
+      const userId = session?.userId ?? '';
       const set: TrainingSet = {
         id,
         exercise: input.exercise,
@@ -188,6 +206,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
       void (async () => {
         try {
           await upsertTrainingSet(set);
+          if (userId) void removeOutboxTrainingSet(userId, id);
           if (!alive.current.has(id)) return;
           confirmedTicket.current.set(id, loadTicket.current);
           setSaveState((current) => (current.pending.some((row) => row.id === id) ? confirmSave(current, set) : current));
@@ -196,6 +215,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
           confirmedTicket.current.delete(id);
           if (!alive.current.has(id)) return;
           if (weightSaveOutcome(error) === RECORD_DELETED) {
+            if (userId) void removeOutboxTrainingSet(userId, id);
             alive.current.delete(id);
             setSaveState((current) => ({
               saved: current.saved.filter((row) => row.id !== id),
@@ -209,6 +229,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
             setDeletedNotice(true);
             return;
           }
+          if (userId) void saveOutboxTrainingSet(userId, set);
           setFailedIds((current) => new Set(current).add(id));
           showToast({ text: '保存失败，请重试', tone: 'error' });
         } finally {
@@ -223,7 +244,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
       })();
       return 'saved';
     },
-    [daySwitch, saveState.pending],
+    [daySwitch, saveState.pending, session?.userId],
   );
 
   const retry = useCallback(
@@ -242,6 +263,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
   );
 
   const dismiss = useCallback((id: string) => {
+    if (session) void removeOutboxTrainingSet(session.userId, id);
     alive.current.delete(id);
     confirmedTicket.current.delete(id);
     setSaveState((current) => ({
@@ -253,7 +275,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
       next.delete(id);
       return next;
     });
-  }, []);
+  }, [session]);
 
   const dismissDeletedNotice = useCallback(() => {
     setDeletedNotice(false);
