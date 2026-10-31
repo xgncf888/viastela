@@ -57,7 +57,7 @@ export function MeScreen() {
 
   return (
     <Screen>
-      <Content inset={inset}>
+      <Content width="wide" inset={inset}>
         <ScreenHeader kicker="我的" title={brand.displayName} />
         <Card>
           <Stack gap="md">

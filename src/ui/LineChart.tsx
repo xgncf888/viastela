@@ -658,7 +658,7 @@ function YAxis({ ticks, height }: { ticks: readonly ChartTick[]; height: number 
           accessible={false}
           maxFontSizeMultiplier={theme.fontScale.heading}
           style={[
-            axisTextStyle(color.muted),
+            yAxisTextStyle(color.muted),
             {
               position: 'absolute',
               top: tickOffset(tick.position, height) - theme.lineHeight.tick / 2,
@@ -726,6 +726,18 @@ function axisTextStyle(color: string): TextStyle {
     lineHeight: theme.lineHeight.tick,
     fontWeight: theme.fontWeight.regular,
     fontFamily: Platform.OS === 'web' ? theme.fontFamily.mono : undefined,
+    fontVariant: ['tabular-nums', 'lining-nums'],
+    textAlign: 'right',
+  };
+}
+
+function yAxisTextStyle(color: string): TextStyle {
+  return {
+    color,
+    fontSize: theme.font.caption,
+    lineHeight: theme.lineHeight.caption,
+    fontWeight: theme.fontWeight.regular,
+    fontFamily: Platform.OS === 'web' ? theme.fontFamily.sans : undefined,
     fontVariant: ['tabular-nums', 'lining-nums'],
     textAlign: 'right',
   };

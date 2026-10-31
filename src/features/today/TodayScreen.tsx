@@ -53,7 +53,7 @@ export function TodayScreen() {
     loadError,
     records,
     failedIds,
-    savingIds,
+     Refreshing: _unused,
     refreshing,
     refreshError,
     daySwitch,
@@ -63,7 +63,7 @@ export function TodayScreen() {
     dismiss,
     scheduleDelete,
     pendingDeleteIds,
-  } = useWeight();
+  } = useWeight() as ReturnType<typeof useWeight> & { Refreshing?: never };
   const training = useTraining();
   const study = useStudy();
   const inset = useShellInset();
@@ -148,17 +148,18 @@ export function TodayScreen() {
           >
             <Stack gap="md">
               <View testID="today-records">
-                <Card>
+                <Stack gap="sm">
                   <Row justify="between" align="center" gap="sm">
                     <Row gap="sm" align="center">
                       <Text variant="heading">{beforeSwitch ? `${formatMonthDay(accounting)}的记录` : '今天的记录'}</Text>
-                      <Text variant="label">{allLogged ? '已记 3/3' : `已记 ${loggedCount}/3`}</Text>
+                      {loggedCount > 0 ? (
+                        <Text variant="label">{allLogged ? '今天都记完了' : `已记 ${loggedCount}/3`}</Text>
+                      ) : null}
                     </Row>
                     {last && today.length > 0 ? (
                       <Button
                         label={`再记 ${formatKg(last.weightKg)} kg`}
                         variant="secondary"
-                        size="mini"
                         onPress={() => openRecordSheet(last.weightKg)}
                       />
                     ) : null}
@@ -202,25 +203,16 @@ export function TodayScreen() {
                             )}
                           </Row>
                           {failed ? (
-                            <Row gap="sm" wrap>
-                              <Text variant="muted" tone="danger">
-                                未保存
-                              </Text>
-                              <Button
-                                label="重试"
-                                variant="secondary"
-                                size="mini"
-                                onPress={() => void retry(record.id)}
-                                loading={savingIds.has(record.id)}
-                              />
-                              <Button label="放弃" variant="ghost" onPress={() => dismiss(record.id)} />
-                            </Row>
+                            <FailedSaveRow
+                              onRetry={() => void retry(record.id)}
+                              onDismiss={() => dismiss(record.id)}
+                            />
                           ) : null}
                         </Stack>
                       </Fragment>
                     );
                   })}
-                </Card>
+                </Stack>
               </View>
 
               {layout === 'expanded' ? (
@@ -306,13 +298,10 @@ export function TodayScreen() {
                   onDelete={failed ? undefined : () => training.scheduleDelete(set.id)}
                 >
                   {failed ? (
-                    <Row gap="sm" wrap>
-                      <Text variant="muted" tone="danger">
-                        未保存
-                      </Text>
-                      <Button label="重试" variant="secondary" size="mini" onPress={() => void training.retry(set.id)} loading={training.savingIds.has(set.id)} />
-                      <Button label="放弃" variant="ghost" onPress={() => training.dismiss(set.id)} />
-                    </Row>
+                    <FailedSaveRow
+                      onRetry={() => void training.retry(set.id)}
+                      onDismiss={() => training.dismiss(set.id)}
+                    />
                   ) : null}
                 </SetRow>
               );
@@ -329,13 +318,10 @@ export function TodayScreen() {
                   onDelete={failed ? undefined : () => study.scheduleDelete(record.id)}
                 >
                   {failed ? (
-                    <Row gap="sm" wrap>
-                      <Text variant="muted" tone="danger">
-                        未保存
-                      </Text>
-                      <Button label="重试" variant="secondary" size="mini" onPress={() => void study.retry(record.id)} loading={study.savingIds.has(record.id)} />
-                      <Button label="放弃" variant="ghost" onPress={() => study.dismiss(record.id)} />
-                    </Row>
+                    <FailedSaveRow
+                      onRetry={() => void study.retry(record.id)}
+                      onDismiss={() => study.dismiss(record.id)}
+                    />
                   ) : null}
                 </SetRow>
               );
@@ -343,6 +329,37 @@ export function TodayScreen() {
           : null}
       </Content>
     </Screen>
+  );
+}
+
+function FailedSaveRow({
+  onRetry,
+  onDismiss,
+}: {
+  onRetry: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <Row gap="xs" align="center" wrap>
+      <Text variant="muted" tone="danger">
+        未保存 ·
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="重试"
+        onPress={onRetry}
+        style={{
+          minHeight: theme.layout.control,
+          minWidth: theme.layout.control,
+          justifyContent: 'center',
+        }}
+      >
+        <Text variant="muted" tone="accent">
+          重试
+        </Text>
+      </Pressable>
+      <Button label="放弃" variant="ghost" onPress={onDismiss} />
+    </Row>
   );
 }
 

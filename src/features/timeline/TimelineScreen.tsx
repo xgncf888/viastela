@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { computeLocalDay, currentTimeZone } from '@/core/local-day';
 import { timelineSaveNotice } from '@/core/timeline-errors';
@@ -34,6 +34,7 @@ import { SkeletonLedger } from '@/ui/Skeleton';
 import { Text } from '@/ui/Text';
 import { TimelineItem } from '@/ui/TimelineItem';
 import { DeletedRecordNotice } from '@/ui/deleted-record';
+import { theme } from '@/ui/theme';
 import { showToast } from '@/ui/toast';
 
 import { JournalSheet, type JournalSeed } from './JournalSheet';
@@ -290,12 +291,13 @@ export function TimelineScreen() {
                       <Fragment key={item.id}>
                         {index > 0 ? <Divider /> : null}
                         <Row justify="between" align="start" gap="sm">
-                          <View style={styles.itemBody}>
+                          <View style={{ flex: 1, minWidth: 0 }}>
                             {item.editable ? (
                               <Pressable
                                 accessibilityRole="button"
                                 accessibilityLabel={`编辑 ${item.title}`}
                                 onPress={() => openJournal(item)}
+                                style={{ minHeight: theme.layout.control, justifyContent: 'center' }}
                               >
                                 <TimelineRow item={item} masked={masked} />
                               </Pressable>
@@ -366,10 +368,3 @@ function TimelineRow({ item, masked }: { item: PresentedTimelineItem; masked: bo
         : item.detail;
   return <TimelineItem title={item.title} detail={detail} time={item.time} />;
 }
-
-const styles = StyleSheet.create({
-  itemBody: {
-    flex: 1,
-    minWidth: 0,
-  },
-});

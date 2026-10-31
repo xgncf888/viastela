@@ -17,6 +17,7 @@ export function StatusCard({
   summary,
   hint,
   actionLabel,
+  actionAccessibilityLabel,
   onPress,
   onAction,
 }: {
@@ -24,6 +25,7 @@ export function StatusCard({
   summary: string;
   hint?: string;
   actionLabel?: string;
+  actionAccessibilityLabel?: string;
   onPress?: () => void;
   onAction?: () => void;
 }) {
@@ -38,7 +40,13 @@ export function StatusCard({
         </View>
         {hint ? <Text variant="muted">{hint}</Text> : null}
         {actionLabel && onAction ? (
-          <Button label={actionLabel} variant="secondary" size="mini" onPress={onAction} />
+          <Button
+            label={actionLabel}
+            accessibilityLabel={actionAccessibilityLabel ?? actionLabel}
+            variant="secondary"
+            size="mini"
+            onPress={onAction}
+          />
         ) : null}
       </Row>
     </>

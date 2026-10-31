@@ -1,9 +1,10 @@
 import { useSyncExternalStore } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { dismissQueuedToast, emptyToastQueue, enqueueToast } from '@/core/toast-queue';
 
+import { layoutClassForWidth } from './layout-class';
 import { Text } from './Text';
 import { theme as baseTheme } from './theme';
 import { useTheme } from './ThemeProvider';
@@ -122,6 +123,7 @@ function ToastView({ toast }: { toast: ToastMessage }) {
     return (
       <Pressable
         accessibilityRole="alert"
+        accessibilityLabel={toast.text}
         onPress={() => dismissToast(toast.id)}
         style={[styles.toast, { backgroundColor }]}
       >
@@ -157,9 +159,12 @@ function ToastView({ toast }: { toast: ToastMessage }) {
 export function ToastHost() {
   const toast = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const layout = layoutClassForWidth(width);
   if (toast.errors.length === 0 && !toast.current && !toast.pinned) return null;
+  const bottomOffset = layout === 'compact' ? baseTheme.layout.tabBar : baseTheme.space.lg;
   return (
-    <View pointerEvents="box-none" style={[styles.host, { bottom: insets.bottom + baseTheme.layout.tabBar }]}>
+    <View pointerEvents="box-none" style={[styles.host, { bottom: insets.bottom + bottomOffset }]}>
       <View pointerEvents="box-none" style={styles.stack}>
         {toast.errors.map((item) => (
           <ToastView key={item.id} toast={item} />
