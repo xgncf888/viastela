@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
+import { Pressable, View } from 'react-native';
 
 import { computeLocalDay, formatClock, formatMonthDay, weekdayLabel } from '@/core/local-day';
 import { formatKg, summarizeWindow } from '@/core/weight-stats';
@@ -18,6 +19,7 @@ import { LineChart } from '@/ui/LineChart';
 import { Callout, Columns, Divider, Row, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
+import { useTheme } from '@/ui/ThemeProvider';
 import { theme } from '@/ui/theme';
 
 import { chartSeries } from './chart-model';
@@ -30,7 +32,9 @@ export function TrendScreen() {
   const { ready, loadError, records, pendingDeleteIds, daySwitch, timeZone, reload, refreshing, refreshError } = useWeight();
   const inset = useShellInset();
   const layout = useLayoutClass();
+  const { color } = useTheme();
   const [now, setNow] = useState(() => new Date());
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30_000);
@@ -54,6 +58,11 @@ export function TrendScreen() {
   const maxRaw = rawValues.length > 0 ? Math.max(...rawValues) : null;
   const meanRaw =
     rawValues.length > 0 ? rawValues.reduce((sum, value) => sum + value, 0) / rawValues.length : null;
+
+  const activePoint =
+    (selectedDay ? series.points.find((point) => point.id === selectedDay) : null) ??
+    series.points[series.points.length - 1] ??
+    null;
 
   return (
     <Screen>
@@ -103,10 +112,17 @@ export function TrendScreen() {
                       trendLabel="平滑趋势"
                       accessibilityLabel={`近 28 天走势，${startLabel}至${endLabel}。圆点是每天最早的体重，虚线是平滑趋势，不是均重。`}
                     />
-                    {meanRaw !== null && minRaw !== null && maxRaw !== null ? (
-                      <Text variant="caption">
-                        {`28 天 均值 ${formatKg(meanRaw)} kg · 最低 ${formatKg(minRaw)} kg · 最高 ${formatKg(maxRaw)} kg`}
-                      </Text>
+                    {activePoint ? (
+                      <Row justify="between" align="center" gap="sm" wrap>
+                        <Text variant="caption">
+                          {`${formatMonthDay(activePoint.id)} · 晨重 ${formatKg(activePoint.raw)} kg · 趋势 ${formatKg(activePoint.trend)} kg`}
+                        </Text>
+                        {meanRaw !== null && minRaw !== null && maxRaw !== null ? (
+                          <Text variant="caption">
+                            {`28 天 均值 ${formatKg(meanRaw)} kg · 最低 ${formatKg(minRaw)} kg · 最高 ${formatKg(maxRaw)} kg`}
+                          </Text>
+                        ) : null}
+                      </Row>
                     ) : null}
                     <Text variant="muted">圆点是每天最早的体重。虚线是指数平滑，不是另一条均重。</Text>
                   </Stack>
@@ -121,35 +137,56 @@ export function TrendScreen() {
                 <Text variant="caption">按记账日倒序</Text>
               </Row>
               <Divider />
-              {days.map((day, index) => (
-                <Fragment key={day.localDay}>
-                  {index > 0 ? <Divider /> : null}
-                  <Stack gap="xs">
-                    <Row justify="between" align="center" gap="sm">
-                      <Row gap="xs" align="center">
-                        <Text variant="body">{formatMonthDay(day.localDay)}</Text>
-                        <Text variant="caption">{shortWeekday(day.localDay)}</Text>
-                      </Row>
-                      {day.primary ? (
-                        <Text variant="body">
-                          {weighInLabel(0)} {formatKg(day.primary.weightKg)} kg ·{' '}
-                          {formatClock(day.primary.recordedAt, day.primary.tz)}
-                        </Text>
-                      ) : (
-                        <Text variant="muted">无记录</Text>
-                      )}
-                    </Row>
-                    {day.notes.map((note, noteIndex) => (
-                      <Row key={note.id} justify="end">
-                        <Text variant="muted">
-                          {weighInLabel(noteIndex + 1)} {formatKg(note.weightKg)} kg ·{' '}
-                          {formatClock(note.recordedAt, note.tz)}
-                        </Text>
-                      </Row>
-                    ))}
-                  </Stack>
-                </Fragment>
-              ))}
+              {days.map((day, index) => {
+                const isSelected = activePoint?.id === day.localDay && day.primary !== null;
+                return (
+                  <Fragment key={day.localDay}>
+                    {index > 0 ? <Divider /> : null}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`${formatMonthDay(day.localDay)} ${shortWeekday(day.localDay)}`}
+                      accessibilityState={{ selected: isSelected }}
+                      onPress={() => {
+                        if (day.primary) setSelectedDay(day.localDay);
+                      }}
+                      style={{
+                        minHeight: theme.layout.control,
+                        justifyContent: 'center',
+                        paddingHorizontal: theme.space.xs,
+                        borderRadius: theme.radius.sm,
+                        backgroundColor: isSelected ? color.fill : 'transparent',
+                      }}
+                    >
+                      <Stack gap="xs">
+                        <Row justify="between" align="center" gap="sm">
+                          <Row gap="xs" align="center">
+                            <Text variant="body">{formatMonthDay(day.localDay)}</Text>
+                            <Text variant="caption">{shortWeekday(day.localDay)}</Text>
+                          </Row>
+                          {day.primary ? (
+                            <Text variant="body">
+                              {weighInLabel(0)} {formatKg(day.primary.weightKg)} kg ·{' '}
+                              {formatClock(day.primary.recordedAt, day.primary.tz)}
+                            </Text>
+                          ) : (
+                            <Text variant="muted">无记录</Text>
+                          )}
+                        </Row>
+                        {day.notes.map((note, noteIndex) => (
+                          <View key={note.id}>
+                            <Row justify="end">
+                              <Text variant="muted">
+                                {weighInLabel(noteIndex + 1)} {formatKg(note.weightKg)} kg ·{' '}
+                                {formatClock(note.recordedAt, note.tz)}
+                              </Text>
+                            </Row>
+                          </View>
+                        ))}
+                      </Stack>
+                    </Pressable>
+                  </Fragment>
+                );
+              })}
             </Card>
           }
         />

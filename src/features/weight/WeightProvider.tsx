@@ -237,6 +237,15 @@ export function WeightProvider({ children }: { children: ReactNode }) {
     [saveState.pending, saveWeight],
   );
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return undefined;
+    const onOnline = () => {
+      for (const id of failedIds) void retry(id);
+    };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [failedIds, retry]);
+
   const dismissDeletedNotice = useCallback(() => {
     setDeletedNotice(false);
   }, []);

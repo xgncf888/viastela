@@ -2,7 +2,8 @@
 /**
  * Builds the native macOS desktop bundle (`.app` + `.zip` / `.dmg`)
  * wrapping the exported Web bundle (`dist/`) in a native Cocoa + WKWebView vibrancy shell
- * with the custom Astrolabe Star-V 1024px macOS icon.
+ * with a custom `WKURLSchemeHandler` (`app://localhost/...`) so root-relative `/_expo/...`
+ * scripts and SPA routes load cleanly without a blank screen.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -189,13 +190,357 @@ if let data = drawAstrolabeIcon(size: 1024) {
 }
 `;
 
+const LOCAL_STANDALONE_BRIDGE_JS = `
+(function installLocalStandaloneBackend() {
+  var STORAGE_KEY = 'viastela.desktop.standalone.db.v1';
+  var SESSION_KEY = 'sb-127-auth-token';
+  var USER_ID = '00000000-0000-4000-8000-000000000001';
+
+  function loadDb() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    var now = new Date();
+    function isoDaysAgo(d, h) {
+      var dt = new Date(now.getTime() - d * 86400000);
+      dt.setHours(h || 8, 15, 0, 0);
+      return dt.toISOString();
+    }
+    function dayStr(d) {
+      var dt = new Date(now.getTime() - d * 86400000);
+      var y = dt.getFullYear();
+      var m = String(dt.getMonth() + 1).padStart(2, '0');
+      var day = String(dt.getDate()).padStart(2, '0');
+      return y + '-' + m + '-' + day;
+    }
+    var seeded = {
+      profiles: [{ user_id: USER_ID, day_switch: '04:00', updated_at: now.toISOString() }],
+      weight_records: [
+        { id: 'w-seed-6', user_id: USER_ID, weight_kg: 73.6, recorded_at: isoDaysAgo(6, 8), tz: 'Asia/Singapore', local_day: dayStr(6), updated_at: isoDaysAgo(6, 8), deleted_at: null },
+        { id: 'w-seed-5', user_id: USER_ID, weight_kg: 73.4, recorded_at: isoDaysAgo(5, 8), tz: 'Asia/Singapore', local_day: dayStr(5), updated_at: isoDaysAgo(5, 8), deleted_at: null },
+        { id: 'w-seed-4', user_id: USER_ID, weight_kg: 73.2, recorded_at: isoDaysAgo(4, 8), tz: 'Asia/Singapore', local_day: dayStr(4), updated_at: isoDaysAgo(4, 8), deleted_at: null },
+        { id: 'w-seed-3', user_id: USER_ID, weight_kg: 73.0, recorded_at: isoDaysAgo(3, 8), tz: 'Asia/Singapore', local_day: dayStr(3), updated_at: isoDaysAgo(3, 8), deleted_at: null },
+        { id: 'w-seed-2', user_id: USER_ID, weight_kg: 72.8, recorded_at: isoDaysAgo(2, 8), tz: 'Asia/Singapore', local_day: dayStr(2), updated_at: isoDaysAgo(2, 8), deleted_at: null },
+        { id: 'w-seed-1', user_id: USER_ID, weight_kg: 72.6, recorded_at: isoDaysAgo(1, 8), tz: 'Asia/Singapore', local_day: dayStr(1), updated_at: isoDaysAgo(1, 8), deleted_at: null },
+        { id: 'w-seed-0', user_id: USER_ID, weight_kg: 72.4, recorded_at: isoDaysAgo(0, 8), tz: 'Asia/Singapore', local_day: dayStr(0), updated_at: isoDaysAgo(0, 8), deleted_at: null }
+      ],
+      training_sets: [
+        { id: 't-seed-1', user_id: USER_ID, exercise: '哑铃卧推', reps: 10, weight_kg: 32, band_level: null, recorded_at: isoDaysAgo(0, 9), tz: 'Asia/Singapore', local_day: dayStr(0), updated_at: isoDaysAgo(0, 9), deleted_at: null },
+        { id: 't-seed-2', user_id: USER_ID, exercise: '深蹲', reps: 8, weight_kg: 60, band_level: null, recorded_at: isoDaysAgo(1, 18), tz: 'Asia/Singapore', local_day: dayStr(1), updated_at: isoDaysAgo(1, 18), deleted_at: null }
+      ],
+      study_records: [
+        { id: 's-seed-1', user_id: USER_ID, topic: 'AI Infra', duration_minutes: 45, note: 'DeepSeek Harness 与多端本地架构', recorded_at: isoDaysAgo(0, 10), tz: 'Asia/Singapore', local_day: dayStr(0), updated_at: isoDaysAgo(0, 10), deleted_at: null }
+      ],
+      journal_entries: [
+        { id: 'j-seed-1', user_id: USER_ID, body: '完成个人多端 App 原生桌面壳与离线同步队列升级', entry_day: dayStr(0), tz: 'Asia/Singapore', mood: 5, tags: ['架构', '时间块'], created_at: isoDaysAgo(0, 11), updated_at: isoDaysAgo(0, 11), deleted_at: null }
+      ],
+      asset_accounts: [
+        { id: 'acc-seed-1', user_id: USER_ID, name: '主现金账户', kind: 'cash', currency: 'USD', created_at: isoDaysAgo(10, 9), updated_at: isoDaysAgo(0, 9), deleted_at: null },
+        { id: 'acc-seed-2', user_id: USER_ID, name: '长线证券账户', kind: 'brokerage', currency: 'USD', created_at: isoDaysAgo(10, 9), updated_at: isoDaysAgo(0, 9), deleted_at: null }
+      ],
+      account_balances: [
+        { id: 'bal-seed-1', user_id: USER_ID, account_id: 'acc-seed-1', amount: 85000, currency: 'USD', units_per_usd: 1, recorded_at: isoDaysAgo(0, 9), tz: 'Asia/Singapore', local_day: dayStr(0), updated_at: isoDaysAgo(0, 9), deleted_at: null }
+      ],
+      holdings: [
+        { id: 'hold-seed-1', user_id: USER_ID, account_id: 'acc-seed-2', symbol: 'NVDA', quantity: 500, cost_basis_usd: 65000, created_at: isoDaysAgo(5, 9), updated_at: isoDaysAgo(0, 9), deleted_at: null }
+      ],
+      net_worth_goals: [
+        { id: 'goal-seed-1', user_id: USER_ID, target_usd: 500000, target_date: null, updated_at: isoDaysAgo(0, 9) }
+      ],
+      projection_assumptions: [
+        { id: 'assump-seed-1', user_id: USER_ID, start_usd: 155000, start_month: dayStr(0).slice(0, 7) + '-01', monthly_net_usd: 4500, return_rates: [0.03, 0.05, 0.07], main_rate_index: 2, updated_at: isoDaysAgo(0, 9) }
+      ],
+      net_worth_snapshots: [
+        { id: 'snap-seed-1', user_id: USER_ID, snapshot_month: dayStr(30).slice(0, 7) + '-01', total_usd: 148000, cash_usd: 82000, securities_usd: 66000, updated_at: isoDaysAgo(30, 9) },
+        { id: 'snap-seed-2', user_id: USER_ID, snapshot_month: dayStr(0).slice(0, 7) + '-01', total_usd: 155000, cash_usd: 85000, securities_usd: 70000, updated_at: isoDaysAgo(0, 9) }
+      ],
+      asset_events: [],
+      push_subscriptions: [],
+      reminder_settings: []
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
+    return seeded;
+  }
+
+  function saveDb(db) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    } catch (e) {}
+  }
+
+  function ensureLocalSession() {
+    try {
+      if (localStorage.getItem('viastela.desktop.signed_out') === '1') return;
+      if (localStorage.getItem(SESSION_KEY)) return;
+      var nowSec = Math.floor(Date.now() / 1000);
+      var payload = btoa(JSON.stringify({
+        sub: USER_ID,
+        email: 'yifeng@viastela.local',
+        aud: 'authenticated',
+        role: 'authenticated',
+        iat: nowSec,
+        exp: nowSec + 365 * 86400,
+        amr: [{ method: 'otp', timestamp: nowSec }]
+      })).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+      var fakeJwt = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' + payload + '.local';
+      var session = {
+        access_token: fakeJwt,
+        refresh_token: 'local-refresh',
+        token_type: 'bearer',
+        expires_in: 365 * 86400,
+        expires_at: nowSec + 365 * 86400,
+        user: {
+          id: USER_ID,
+          aud: 'authenticated',
+          role: 'authenticated',
+          email: 'yifeng@viastela.local',
+          app_metadata: { provider: 'email' },
+          user_metadata: {}
+        }
+      };
+      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    } catch (e) {}
+  }
+
+  ensureLocalSession();
+
+  function buildTimelineRows(db) {
+    var items = [];
+    (db.journal_entries || []).forEach(function(j) {
+      if (j.deleted_at) return;
+      items.push({
+        id: j.id,
+        kind: 'journal',
+        occurred_at: j.updated_at || j.created_at || new Date().toISOString(),
+        local_day: j.entry_day,
+        ref_id: j.id,
+        payload: { body: j.body, mood: j.mood, tags: j.tags || [] }
+      });
+    });
+    (db.account_balances || []).forEach(function(b) {
+      if (b.deleted_at) return;
+      items.push({
+        id: b.id,
+        kind: 'balance_recorded',
+        occurred_at: b.recorded_at,
+        local_day: b.local_day,
+        ref_id: b.account_id,
+        payload: { account_id: b.account_id, amount: b.amount, currency: b.currency }
+      });
+    });
+    return items;
+  }
+
+  function handleLocalRest(urlObj, method, bodyText, headers) {
+    var db = loadDb();
+    var pathname = urlObj.pathname;
+    if (pathname.indexOf('/auth/v1/user') !== -1 || pathname.indexOf('/auth/v1/token') !== -1 || pathname.indexOf('/auth/v1/verify') !== -1) {
+      localStorage.removeItem('viastela.desktop.signed_out');
+      ensureLocalSession();
+      var sess = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}');
+      return new Response(JSON.stringify(pathname.indexOf('/user') !== -1 ? sess.user : sess), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (pathname.indexOf('/auth/v1/otp') !== -1) {
+      return new Response(JSON.stringify({}), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (pathname.indexOf('/auth/v1/logout') !== -1) {
+      localStorage.setItem('viastela.desktop.signed_out', '1');
+      localStorage.removeItem(SESSION_KEY);
+      return new Response(JSON.stringify({}), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (pathname.indexOf('/functions/v1/quotes') !== -1) {
+      var cashUsd = (db.account_balances || []).filter(function(b) { return !b.deleted_at; }).reduce(function(s, b) { return s + Number(b.amount || 0); }, 0);
+      var secUsd = 0;
+      var quotes = (db.holdings || []).filter(function(h) { return !h.deleted_at; }).map(function(h) {
+        var price = 140;
+        secUsd += Number(h.quantity || 0) * price;
+        return { symbol: h.symbol, price: price, currency: 'USD', as_of: new Date().toISOString(), status: 'fresh', source: 'finnhub' };
+      });
+      return new Response(JSON.stringify({
+        quotes: quotes,
+        rates: [],
+        source: 'finnhub',
+        total_usd: cashUsd + secUsd,
+        cash_usd: cashUsd,
+        securities_usd: secUsd,
+        unpriced: 0,
+        stale: false,
+        snapshot: 'written'
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    var match = pathname.match(/\\/rest\\/v1\\/([a-z0-9_]+)/i);
+    if (!match) return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    var table = match[1];
+    var rows = table === 'timeline' ? buildTimelineRows(db) : (db[table] || []);
+
+    if (method === 'GET') {
+      var filtered = rows.slice();
+      urlObj.searchParams.forEach(function(val, key) {
+        if (key === 'select' || key === 'order' || key === 'limit' || key === 'on_conflict' || key === 'or') return;
+        if (val === 'is.null') {
+          filtered = filtered.filter(function(r) { return r[key] === null || r[key] === undefined; });
+        } else if (val === 'not.is.null') {
+          filtered = filtered.filter(function(r) { return r[key] !== null && r[key] !== undefined; });
+        } else if (val.indexOf('eq.') === 0) {
+          var target = val.slice(3);
+          filtered = filtered.filter(function(r) { return String(r[key]) === target; });
+        } else if (val.indexOf('gte.') === 0) {
+          var minVal = val.slice(4);
+          filtered = filtered.filter(function(r) { return String(r[key]) >= minVal; });
+        } else if (val.indexOf('lte.') === 0) {
+          var maxVal = val.slice(4);
+          filtered = filtered.filter(function(r) { return String(r[key]) <= maxVal; });
+        }
+      });
+      var orderParam = urlObj.searchParams.get('order');
+      if (orderParam) {
+        var firstOrder = orderParam.split(',')[0].split('.');
+        var col = firstOrder[0];
+        var desc = firstOrder[1] === 'desc';
+        filtered.sort(function(a, b) {
+          var va = String(a[col] || '');
+          var vb = String(b[col] || '');
+          return desc ? vb.localeCompare(va) : va.localeCompare(vb);
+        });
+      }
+      var limitParam = urlObj.searchParams.get('limit');
+      if (limitParam) filtered = filtered.slice(0, Number(limitParam));
+      var accept = (headers && (headers['Accept'] || headers['accept'])) || '';
+      if (accept.indexOf('vnd.pgrst.object+json') !== -1) {
+        var single = filtered[0] || null;
+        return new Response(JSON.stringify(single), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response(JSON.stringify(filtered), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    if (method === 'POST') {
+      var incoming = bodyText ? JSON.parse(bodyText) : {};
+      var itemsToUpsert = Array.isArray(incoming) ? incoming : [incoming];
+      if (!db[table]) db[table] = [];
+      var conflictKey = urlObj.searchParams.get('on_conflict') || 'id';
+      itemsToUpsert.forEach(function(item) {
+        var nextItem = Object.assign({ deleted_at: null, updated_at: new Date().toISOString() }, item);
+        var idx = db[table].findIndex(function(r) { return r[conflictKey] && r[conflictKey] === nextItem[conflictKey]; });
+        if (idx >= 0) db[table][idx] = Object.assign({}, db[table][idx], nextItem);
+        else db[table].push(nextItem);
+      });
+      saveDb(db);
+      return new Response(JSON.stringify(itemsToUpsert), { status: 201, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    if (method === 'PATCH') {
+      var patch = bodyText ? JSON.parse(bodyText) : {};
+      if (!db[table]) db[table] = [];
+      var updated = [];
+      db[table] = db[table].map(function(r) {
+        var matches = true;
+        urlObj.searchParams.forEach(function(val, key) {
+          if (val.indexOf('eq.') === 0 && String(r[key]) !== val.slice(3)) matches = false;
+        });
+        if (!matches) return r;
+        var nextRow = Object.assign({}, r, patch, { updated_at: new Date().toISOString() });
+        updated.push(nextRow);
+        return nextRow;
+      });
+      saveDb(db);
+      return new Response(JSON.stringify(updated), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }
+
+  var origFetch = window.fetch.bind(window);
+  window.fetch = function(input, init) {
+    var urlStr = typeof input === 'string' ? input : (input && input.url ? input.url : String(input));
+    if (urlStr.indexOf('127.0.0.1:54321') !== -1) {
+      return origFetch(input, init).catch(function() {
+        var urlObj = new URL(urlStr);
+        var method = (init && init.method) || (input && input.method) || 'GET';
+        var bodyText = init && typeof init.body === 'string' ? init.body : '';
+        var headers = (init && init.headers) || {};
+        return handleLocalRest(urlObj, method.toUpperCase(), bodyText, headers);
+      });
+    }
+    return origFetch(input, init);
+  };
+})();
+`;
+
 const SWIFT_SOURCE = `import Cocoa
 import WebKit
+
+class BundleSchemeHandler: NSObject, WKURLSchemeHandler {
+    let webRoot: URL
+
+    init(webRoot: URL) {
+        self.webRoot = webRoot
+        super.init()
+    }
+
+    func mimeType(for ext: String) -> String {
+        switch ext.lowercased() {
+        case "html": return "text/html; charset=utf-8"
+        case "js", "mjs": return "application/javascript; charset=utf-8"
+        case "css": return "text/css; charset=utf-8"
+        case "json", "webmanifest", "map": return "application/json; charset=utf-8"
+        case "svg": return "image/svg+xml"
+        case "png": return "image/png"
+        case "ico": return "image/x-icon"
+        case "woff2": return "font/woff2"
+        case "woff": return "font/woff"
+        case "ttf": return "font/ttf"
+        default: return "application/octet-stream"
+        }
+    }
+
+    func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
+        guard let url = urlSchemeTask.request.url else {
+            urlSchemeTask.didFailWithError(NSError(domain: NSURLErrorDomain, code: NSURLErrorBadURL))
+            return
+        }
+        var relPath = url.path
+        if relPath.hasPrefix("/") {
+            relPath.removeFirst()
+        }
+        if relPath.isEmpty {
+            relPath = "index.html"
+        }
+
+        var fileURL = webRoot.appendingPathComponent(relPath)
+        var isDir: ObjCBool = false
+        if !FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir) || isDir.boolValue {
+            fileURL = webRoot.appendingPathComponent("index.html")
+        }
+
+        guard let data = try? Data(contentsOf: fileURL) else {
+            urlSchemeTask.didFailWithError(NSError(domain: NSURLErrorDomain, code: NSURLErrorFileDoesNotExist))
+            return
+        }
+
+        let mime = mimeType(for: fileURL.pathExtension)
+        let headers: [String: String] = [
+            "Content-Type": mime,
+            "Content-Length": "\\(data.count)",
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "no-cache"
+        ]
+        if let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers) {
+            urlSchemeTask.didReceive(response)
+        }
+        urlSchemeTask.didReceive(data)
+        urlSchemeTask.didFinish()
+    }
+
+    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
+}
 
 class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWindowDelegate {
     var window: NSWindow!
     var webView: WKWebView!
     var statusItem: NSStatusItem!
+    var schemeHandler: BundleSchemeHandler?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if let iconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "png"),
@@ -243,13 +588,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
 
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
+        if let webRoot = Bundle.main.resourceURL?.appendingPathComponent("web") {
+            let handler = BundleSchemeHandler(webRoot: webRoot)
+            self.schemeHandler = handler
+            config.setURLSchemeHandler(handler, forURLScheme: "app")
+        }
+
+        let standaloneBridge = ${JSON.stringify(LOCAL_STANDALONE_BRIDGE_JS)}
+        let startScript = WKUserScript(source: standaloneBridge, injectionTime: .atDocumentStart, forMainFrameOnly: true)
+        config.userContentController.addUserScript(startScript)
+
         let injectCSS = """
         document.documentElement.style.overscrollBehavior = 'none';
         document.body.style.overscrollBehavior = 'none';
-        document.body.style.webkitUserSelect = 'none';
         """
-        let userScript = WKUserScript(source: injectCSS, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
-        config.userContentController.addUserScript(userScript)
+        let endScript = WKUserScript(source: injectCSS, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+        config.userContentController.addUserScript(endScript)
 
         webView = WKWebView(frame: visualEffect.bounds, configuration: config)
         webView.autoresizingMask = [.width, .height]
@@ -265,8 +619,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     }
 
     func loadAppBundle() {
-        if let indexURL = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "web") {
-            webView.loadFileURL(indexURL, allowingReadAccessTo: indexURL.deletingLastPathComponent())
+        if Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "web") != nil {
+            webView.load(URLRequest(url: URL(string: "app://localhost/")!))
         } else {
             webView.load(URLRequest(url: URL(string: "http://127.0.0.1:4173")!))
         }

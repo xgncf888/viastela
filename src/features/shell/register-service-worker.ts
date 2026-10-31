@@ -11,6 +11,7 @@ export function registerServiceWorker(): void {
   if (registered) return;
   if (Platform.OS !== 'web' || typeof window === 'undefined') return;
   if (process.env.NODE_ENV !== 'production') return;
+  if (window.location.protocol !== 'http:' && window.location.protocol !== 'https:') return;
   if (!('serviceWorker' in navigator)) return;
   registered = true;
 

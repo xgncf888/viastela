@@ -262,6 +262,15 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
     [saveSet, saveState.pending],
   );
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return undefined;
+    const onOnline = () => {
+      for (const id of failedIds) void retry(id);
+    };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [failedIds, retry]);
+
   const dismiss = useCallback((id: string) => {
     if (session) void removeOutboxTrainingSet(session.userId, id);
     alive.current.delete(id);

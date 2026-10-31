@@ -1,17 +1,21 @@
 import { useState } from 'react';
-import { Platform } from 'react-native';
+import { Platform, Share, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 
 import { brand } from '@/config/brand';
+import { backupFilename, buildPersonalDataBackup } from '@/core/data-export';
+import { computeLocalDay } from '@/core/local-day';
 import { signOut } from '@/data/auth';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { homeScreenInstallHint } from '@/features/me/home-screen-hint';
 import { RemindersCard } from '@/features/me/RemindersCard';
 import { useShellInset } from '@/features/shell/AppShell';
+import { excludePending } from '@/features/weight/weight-copy';
 import { useWeight } from '@/features/weight/WeightProvider';
 import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
 import { Content } from '@/ui/Content';
+import { layoutClassForWidth } from '@/ui/layout-class';
 import { Field, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
@@ -32,14 +36,19 @@ function installHint(): string | null {
 
 export function MeScreen() {
   const { session } = useAuth();
-  const { daySwitch, timeZone, saveDaySwitch } = useWeight();
+  const weight = useWeight();
+  const { daySwitch, timeZone, saveDaySwitch } = weight;
   const inset = useShellInset();
+  const { width } = useWindowDimensions();
+  const layout = layoutClassForWidth(width);
   const [draft, setDraft] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const value = draft ?? daySwitch;
   const hint = installHint();
+
+  const liveWeights = excludePending(weight.records ?? [], weight.pendingDeleteIds ?? new Set());
 
   async function onSave() {
     setSaving(true);
@@ -52,6 +61,53 @@ export function MeScreen() {
       setError(saveError instanceof Error && saveError.message.includes('04:00') ? saveError.message : '保存失败，请重试');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function onExportBackup() {
+    const now = new Date();
+    const localDay = computeLocalDay(now, timeZone, daySwitch);
+    const payload = buildPersonalDataBackup({
+      exportedAt: now,
+      timeZone,
+      daySwitch,
+      weights: liveWeights,
+      trainingSets: [],
+      studyRecords: [],
+    });
+    const json = JSON.stringify(payload, null, 2);
+    const filename = backupFilename(localDay);
+
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      try {
+        const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = filename;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+        showToast({ text: `已导出 ${filename}` });
+        return;
+      } catch {
+        // Fall through to clipboard or Share API if Blob download is restricted.
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(json);
+        showToast({ text: '已复制 JSON 备份到剪贴板' });
+        return;
+      }
+    }
+
+    try {
+      await Share.share({
+        title: filename,
+        message: json,
+      });
+    } catch {
+      showToast({ text: '导出未完成，请重试', tone: 'error' });
     }
   }
 
@@ -81,6 +137,19 @@ export function MeScreen() {
           </Stack>
         </Card>
         {Platform.OS === 'web' ? <RemindersCard /> : null}
+        <Card>
+          <Stack gap="md">
+            <Text variant="heading">个人数据备份</Text>
+            <Text variant="muted">将当前体重与个人记录导出为结构化 JSON 文件，方便本地留存或跨端迁移。</Text>
+            <Button label="导出 JSON 备份" variant="secondary" onPress={() => void onExportBackup()} />
+            {Platform.OS === 'web' && layout !== 'compact' ? (
+              <Field
+                label="桌面快捷键"
+                value="⌘K / ⌘N 快速记录 · Esc 关闭弹窗 · ⌘1–⌘5 切换栏目"
+              />
+            ) : null}
+          </Stack>
+        </Card>
         <Button label="隐私政策" variant="ghost" onPress={() => router.push('/privacy')} />
         <Stack gap="lg">
           <Button
