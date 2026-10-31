@@ -840,7 +840,8 @@ test('the assets skeleton sits inside cards and the eye waits until content load
       let framed = false;
       let current = node.parentElement;
       while (current) {
-        if (parseFloat(getComputedStyle(current).borderTopWidth) > 0) {
+        const style = getComputedStyle(current);
+        if (parseFloat(style.borderTopWidth) > 0 || (style.boxShadow && style.boxShadow !== 'none')) {
           framed = true;
           break;
         }

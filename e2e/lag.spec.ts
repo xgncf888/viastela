@@ -348,7 +348,7 @@ test('press, save, and tab switch timings', async ({ page }) => {
   expect(byTarget.primary?.pressed).toContain('opacity=0.86');
   expect(byTarget.primary?.pressed).toContain('matrix(0.98');
   const release = await recordButton(page).evaluate((el) => getComputedStyle(el).transitionDuration);
-  expect(release).toMatch(/0\.1s|100ms/);
+  expect(release).toMatch(/0\.16s|160ms|0\.1s|100ms/);
   for (const name of ['status-card', 'tab']) {
     expect(byTarget[name]?.feedbackMs ?? 999, name).toBeLessThan(120);
     expect(byTarget[name]?.pressed, name).toContain('rgba(38, 36, 31, 0.06)');

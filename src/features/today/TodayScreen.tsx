@@ -566,7 +566,7 @@ function AverageBlock({
     ) : null;
   const detail =
     phase === 'content' ? (
-      <Text variant="muted">{caption.detail}</Text>
+      <Text variant="muted" style={{ lineHeight: theme.lineHeight.sm }}>{caption.detail}</Text>
     ) : phase === 'skeleton' ? (
       <SkeletonText lines={1} variant="muted" />
     ) : null;
@@ -574,9 +574,9 @@ function AverageBlock({
     <Card>
       <View style={{ minHeight: averageBlockBodyHeight(), gap: theme.space.sm }}>
         <LineBox height={theme.lineHeight.sm}>
-          <Text variant="muted">7 日均重</Text>
+          <Text variant="muted" style={{ lineHeight: theme.lineHeight.sm }}>7 日均重</Text>
         </LineBox>
-        <LineBox height={theme.lineHeight.display} hidden={phase === 'wait' || phase === 'skeleton'}>
+        <LineBox height={theme.lineHeight.display - 2} hidden={phase === 'wait' || phase === 'skeleton'}>
           {value}
         </LineBox>
         <LineBox height={theme.lineHeight.sm} hidden={phase !== 'content'}>
@@ -589,7 +589,7 @@ function AverageBlock({
 
 /** Title line, display line, and detail line, plus the two gaps between them. */
 function averageBlockBodyHeight(): number {
-  return theme.lineHeight.sm + theme.space.sm + theme.lineHeight.display + theme.space.sm + theme.lineHeight.sm;
+  return theme.lineHeight.sm + theme.space.sm + (theme.lineHeight.display - 2) + theme.space.sm + theme.lineHeight.sm;
 }
 
 function LineBox({
