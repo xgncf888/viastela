@@ -152,6 +152,7 @@ export function Button({
           styles.base,
           {
             backgroundColor: background,
+            borderWidth: variant === 'secondary' || mini ? baseTheme.border.width : 0,
             borderColor: variant === 'secondary' || mini ? theme.color.line : 'transparent',
           },
           motion,
@@ -188,7 +189,6 @@ const styles = StyleSheet.create({
   base: {
     minHeight: baseTheme.layout.control,
     borderRadius: baseTheme.radius.button,
-    borderWidth: baseTheme.border.width,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: baseTheme.space.md,

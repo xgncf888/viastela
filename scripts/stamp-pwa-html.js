@@ -118,25 +118,12 @@ function applyDocumentTitle(html) {
   return html.replace(/<title>[^<]*<\/title>/, title);
 }
 
-function stampHtml(html) {
-  let next = html.replace('<html lang="en">', '<html lang="zh-Hans">');
-  if (!next.includes('viewport-fit=cover')) {
-    next = next.replace(
-      'width=device-width, initial-scale=1, shrink-to-fit=no',
-      'width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover',
-    );
-  }
-  const tags = pwaHeadTags();
-  if (next.includes(tags)) return next;
-  next = stripPwaHeadTags(next);
-  return next.replace('</head>', `${tags}\n  </head>`);
-}
-
 const RESET_STYLE = `    <style id="expo-reset">
       /* These styles make the body full-height */
       html,
       body {
         height: 100%;
+        background-color: #F7F4EC;
       }
       /* These styles disable body scrolling if you are using <ScrollView> */
       body {
@@ -148,8 +135,35 @@ const RESET_STYLE = `    <style id="expo-reset">
         display: flex;
         height: 100%;
         flex: 1;
+        background-color: #F7F4EC;
+      }
+      #root [style*="rgb(242, 242, 242)"] {
+        background-color: #F7F4EC !important;
+      }
+      @media (prefers-color-scheme: dark) {
+        html,
+        body,
+        #root,
+        #root [style*="rgb(242, 242, 242)"] {
+          background-color: #141413 !important;
+        }
       }
     </style>`;
+
+function stampHtml(html) {
+  let next = html.replace('<html lang="en">', '<html lang="zh-Hans">');
+  if (!next.includes('viewport-fit=cover')) {
+    next = next.replace(
+      'width=device-width, initial-scale=1, shrink-to-fit=no',
+      'width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover',
+    );
+  }
+  next = next.replace(/[ \t]*<style id="expo-reset">[\s\S]*?<\/style>/, RESET_STYLE);
+  const tags = pwaHeadTags();
+  if (next.includes(tags)) return next;
+  next = stripPwaHeadTags(next);
+  return next.replace('</head>', `${tags}\n  </head>`);
+}
 
 function publicIndexHtml() {
   return `<!DOCTYPE html>

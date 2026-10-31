@@ -140,9 +140,10 @@ export function TodayScreen() {
               void reload();
             }}
             skeleton={
-              <Card>
+              <Stack gap="sm">
+                <Divider />
                 <SkeletonLedger lines={3} />
-              </Card>
+              </Stack>
             }
           >
             <Stack gap="md">
