@@ -1,18 +1,23 @@
 #!/usr/bin/env node
 /**
- * Builds the native macOS desktop bundle (`Viastela Studio.app` + `.zip` / `.dmg`)
+ * Builds the native macOS desktop bundle (`.app` + `.zip` / `.dmg`)
  * wrapping the exported Web bundle (`dist/`) in a native Cocoa + WKWebView vibrancy shell
  * with the custom Astrolabe Star-V 1024px macOS icon.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const OUT_DIR = path.resolve(process.env.MACOS_OUT_DIR ?? path.join(ROOT, 'build', 'macos'));
-const APP_NAME = 'Viastela Studio.app';
+const brandSource = readFileSync(path.join(ROOT, 'src', 'config', 'brand.ts'), 'utf8');
+const displayName = brandSource.match(/displayName:\s*'([^']+)'/)?.[1] ?? 'App';
+
+const OUT_DIR = path.resolve(process.env.MACOS_OUT_DIR ?? path.join(ROOT, 'web-build', 'macos'));
+const APP_TITLE = `${displayName} Studio`;
+const APP_NAME = `${APP_TITLE}.app`;
+const EXEC_NAME = `${displayName}Studio`;
 const APP_BUNDLE = path.join(OUT_DIR, APP_NAME);
 const CONTENTS = path.join(APP_BUNDLE, 'Contents');
 const MACOS_DIR = path.join(CONTENTS, 'MacOS');
@@ -24,15 +29,15 @@ const INFO_PLIST = `<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0">
 <dict>
   <key>CFBundleExecutable</key>
-  <string>ViastelaStudio</string>
+  <string>${EXEC_NAME}</string>
   <key>CFBundleIconFile</key>
   <string>AppIcon.png</string>
   <key>CFBundleIdentifier</key>
   <string>com.viastela.studio.mac</string>
   <key>CFBundleName</key>
-  <string>Viastela Studio</string>
+  <string>${APP_TITLE}</string>
   <key>CFBundleDisplayName</key>
-  <string>Viastela Studio</string>
+  <string>${APP_TITLE}</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
@@ -213,7 +218,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Viastela Studio"
+        window.title = "${APP_TITLE}"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.appearance = NSAppearance(named: .darkAqua)
@@ -276,8 +281,8 @@ function main() {
 
   const tmpDir = mkdtempSync(path.join(os.tmpdir(), 'viastela-macos-'));
   const iconSwiftFile = path.join(tmpDir, 'RenderIcon.swift');
-  const swiftFile = path.join(tmpDir, 'ViastelaStudio.swift');
-  const binPath = path.join(MACOS_DIR, 'ViastelaStudio');
+  const swiftFile = path.join(tmpDir, 'StudioHost.swift');
+  const binPath = path.join(MACOS_DIR, EXEC_NAME);
   const iconOutPath = path.join(RESOURCES_DIR, 'AppIcon.png');
   try {
     writeFileSync(iconSwiftFile, ICON_SWIFT, 'utf8');
@@ -291,16 +296,16 @@ function main() {
     rmSync(tmpDir, { recursive: true, force: true });
   }
 
-  const zipPath = path.join(OUT_DIR, 'Viastela-Studio-macOS.zip');
+  const zipPath = path.join(OUT_DIR, 'viastela-studio-macos.zip');
   rmSync(zipPath, { force: true });
   execFileSync('ditto', ['-c', '-k', '--keepParent', APP_BUNDLE, zipPath], { stdio: 'inherit' });
 
-  const dmgPath = path.join(OUT_DIR, 'Viastela-Studio-macOS.dmg');
+  const dmgPath = path.join(OUT_DIR, 'viastela-studio-macos.dmg');
   rmSync(dmgPath, { force: true });
   try {
     execFileSync(
       'hdiutil',
-      ['create', '-volname', 'Viastela Studio', '-srcfolder', APP_BUNDLE, '-ov', '-format', 'UDZO', dmgPath],
+      ['create', '-volname', APP_TITLE, '-srcfolder', APP_BUNDLE, '-ov', '-format', 'UDZO', dmgPath],
       { stdio: 'inherit' },
     );
   } catch {

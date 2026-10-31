@@ -58,8 +58,8 @@ jobs:
         with:
           name: viastela-macos-desktop
           path: |
-            build/macos/Viastela-Studio-macOS.dmg
-            build/macos/Viastela-Studio-macOS.zip
+            web-build/macos/viastela-studio-macos.dmg
+            web-build/macos/viastela-studio-macos.zip
           if-no-files-found: error
 
   android-package:
@@ -110,10 +110,10 @@ jobs:
           WORKSPACE=$(ls -d *.xcworkspace | head -n 1)
           SCHEME="${WORKSPACE%.xcworkspace}"
           xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration Release -sdk iphonesimulator -derivedDataPath build CODE_SIGNING_ALLOWED=NO
-          mkdir -p ../build/ios
-          ditto -c -k --keepParent build/Build/Products/Release-iphonesimulator/*.app ../build/ios/Viastela-iOS-Simulator.app.zip
+          mkdir -p ../web-build/ios
+          ditto -c -k --keepParent build/Build/Products/Release-iphonesimulator/*.app ../web-build/ios/viastela-ios-simulator.app.zip
       - uses: actions/upload-artifact@v4
         with:
           name: viastela-ios-simulator-app
-          path: build/ios/Viastela-iOS-Simulator.app.zip
+          path: web-build/ios/viastela-ios-simulator.app.zip
           if-no-files-found: error
