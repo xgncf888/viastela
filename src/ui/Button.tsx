@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from 'react-native';
 
+import { cardSurfaceStyle } from './Card';
 import { solidPressStyle, pressTransition } from './press';
 import { Text } from './Text';
 import { theme as baseTheme } from './theme';
@@ -94,10 +95,11 @@ export function Button({
   const mini = size === 'mini';
   const ghost = variant === 'ghost' && !mini;
   const solid = (variant === 'primary' || variant === 'danger') && !mini;
+  const secondary = variant === 'secondary' && !mini;
   const labelTone: Tone = mini
     ? 'ink'
     : variant === 'primary'
-      ? 'onAccent'
+      ? 'inverse'
       : variant === 'danger'
         ? 'inverse'
         : variant === 'ghost'
@@ -129,7 +131,7 @@ export function Button({
       }}
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}
-      style={({ pressed }) => {
+      style={({ pressed }): ViewStyle[] => {
         const down = pressed && !inactive;
         const background = solid
           ? variant === 'danger'
@@ -137,11 +139,15 @@ export function Button({
             : hot
               ? theme.color.accentHover
               : theme.color.accent
-          : hot || down
-            ? variant === 'ghost' && tone === 'danger' && !down
-              ? theme.color.dangerSoft
-              : theme.color.fill
-            : 'transparent';
+          : secondary
+            ? down || hot
+              ? theme.color.fill
+              : theme.color.card
+            : hot || down
+              ? variant === 'ghost' && tone === 'danger' && !down
+                ? theme.color.dangerSoft
+                : theme.color.fill
+              : 'transparent';
         const motion = solid
           ? solidPressStyle(down, disabled, reducedMotion, theme.press, Platform.OS === 'web')
           : {
@@ -150,16 +156,17 @@ export function Button({
             };
         return [
           styles.base,
+          secondary ? cardSurfaceStyle(background, theme.color.line) : {},
           {
             backgroundColor: background,
-            borderWidth: variant === 'secondary' || mini ? baseTheme.border.width : 0,
-            borderColor: variant === 'secondary' || mini ? theme.color.line : 'transparent',
+            borderWidth: secondary || mini ? baseTheme.border.width : 0,
+            borderColor: secondary || mini ? theme.color.line : 'transparent',
           },
           motion,
-          mini ? styles.mini : null,
-          ghost ? styles.ghost : null,
-          fill && !ghost ? styles.fill : null,
-          locked != null ? { minWidth: locked } : null,
+          mini ? styles.mini : {},
+          ghost ? styles.ghost : {},
+          fill && !ghost ? styles.fill : {},
+          locked != null ? { minWidth: locked } : {},
         ];
       }}
     >
@@ -172,12 +179,12 @@ export function Button({
             color={spinner}
             size={theme.space.md}
           />
-          <Text variant={mini ? 'label' : 'body'} tone={labelTone} style={styles.label}>
+          <Text variant="label" tone={labelTone} style={styles.label}>
             {visible}
           </Text>
         </View>
       ) : (
-        <Text variant={mini ? 'label' : 'body'} tone={labelTone} style={styles.label}>
+        <Text variant="label" tone={labelTone} style={styles.label}>
           {visible}
         </Text>
       )}
@@ -188,11 +195,11 @@ export function Button({
 const styles = StyleSheet.create({
   base: {
     minHeight: baseTheme.layout.control,
-    borderRadius: baseTheme.radius.button,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: baseTheme.space.md,
-    paddingVertical: baseTheme.space.sm,
+    paddingVertical: 6,
     minWidth: baseTheme.layout.control,
   },
   content: {
@@ -200,11 +207,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: baseTheme.space.sm,
   },
-  label: { fontWeight: '500' },
+  label: {
+    fontWeight: baseTheme.fontWeight.semibold,
+    letterSpacing: 0.2,
+  },
   mini: {
     minHeight: baseTheme.layout.controlMini,
     height: baseTheme.layout.controlMini,
-    borderRadius: baseTheme.radius.mini,
+    borderRadius: 7,
     paddingHorizontal: baseTheme.space.sm,
     paddingVertical: 0,
   },

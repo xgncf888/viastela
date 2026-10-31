@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { View } from 'react-native';
 
 import { createId } from '@/core/id';
 import { computeLocalDay, currentTimeZone, sheetAccountingHint } from '@/core/local-day';
@@ -41,6 +42,7 @@ import { Sheet } from '@/ui/Sheet';
 import { Text } from '@/ui/Text';
 import { TextField } from '@/ui/TextField';
 import { showToast } from '@/ui/toast';
+import { TagChip } from '@/ui/WorkbenchConsole';
 
 import { closeRecordSheet, getRecordSheetSnapshot, subscribeRecordSheet } from './record-sheet-store';
 
@@ -277,24 +279,30 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
     }
   }
 
+  // Note: `closeRecordSheet(page)` in E2E tests resolves `recordSheetHeading(page).locator('xpath=..').getByRole('button', { name: '关闭', exact: true })`,
+  // so `记录` heading and `关闭` button MUST remain direct siblings inside this top `<Row>`.
   return (
-    <Stack gap="md">
+    <Stack gap="ms">
       <Row justify="between" align="center">
         <Text variant="heading" accessibilityRole="header">
           记录
         </Text>
-        <Button label="关闭" variant="ghost" onPress={closeRecordSheet} />
+        <Row gap="xs" align="center">
+          <TagChip label={accountingDay} tone="pod" />
+          <Button label="关闭" variant="ghost" onPress={closeRecordSheet} />
+        </Row>
       </Row>
       <Divider />
-      <ChipGroup>
+      <ChipGroup segmented>
         {TYPES.map((item) => (
           <Chip key={item.id} label={item.label} selected={type === item.id} onPress={() => setType(item.id)} />
         ))}
       </ChipGroup>
       {type === 'weight' ? (
-        <Stack gap="md">
+        <Stack gap="ms">
           <TextField
             label="体重（kg）"
+            labelTrailing={<TagChip label="MORNING / RETEST" tone="neutral" />}
             value={value}
             onChangeText={setValue}
             placeholder="例如 72.4"
@@ -303,23 +311,29 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
             error={error}
             helper={hint ?? undefined}
           />
-          {last && prefillKg == null ? (
-            <Button
-              label={`填入上次 ${formatKg(last.weightKg)}`}
-              variant="secondary"
-              fill
-              onPress={() => {
-                setValue(formatKg(last.weightKg));
-                setError(null);
-              }}
-            />
-          ) : null}
-          <Button label="保存" fill onPress={onSave} />
+          <Row gap="sm" align="center">
+            {last && prefillKg == null ? (
+              <View style={{ flex: 1 }}>
+                <Button
+                  label={`填入上次 ${formatKg(last.weightKg)}`}
+                  variant="secondary"
+                  fill
+                  onPress={() => {
+                    setValue(formatKg(last.weightKg));
+                    setError(null);
+                  }}
+                />
+              </View>
+            ) : null}
+            <View style={{ flex: 1 }}>
+              <Button label="保存" fill onPress={onSave} />
+            </View>
+          </Row>
         </Stack>
       ) : type === 'training' ? (
-        <Stack gap="md">
+        <Stack gap="ms">
           <Stack gap="xs">
-            <Text variant="label">选择动作</Text>
+            <Text variant="caption">选择动作</Text>
             <ChipGroup>
               {exerciseNames.map((name) => (
                 <Chip
@@ -360,8 +374,8 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
             />
           ) : null}
           <Stack gap="xs">
-            <Text variant="label">负重类型</Text>
-            <ChipGroup>
+            <Text variant="caption">负重类型</Text>
+            <ChipGroup segmented>
               <Chip
                 label="重量"
                 selected={mode === 'weight'}
@@ -381,19 +395,36 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
             </ChipGroup>
           </Stack>
           {mode === 'weight' ? (
-            <TextField
-              label="重量（kg）"
-              value={load}
-              onChangeText={(next) => {
-                setLoad(next);
-                setTrainingError(null);
-              }}
-              placeholder="例如 40"
-              keyboardType="decimal-pad"
-              error={trainingField === 'weight' ? trainingError : null}
-            />
+            <Row gap="sm" align="start">
+              <View style={{ flex: 1 }}>
+                <TextField
+                  label="重量（kg）"
+                  value={load}
+                  onChangeText={(next) => {
+                    setLoad(next);
+                    setTrainingError(null);
+                  }}
+                  placeholder="例如 40"
+                  keyboardType="decimal-pad"
+                  error={trainingField === 'weight' ? trainingError : null}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <TextField
+                  label="次数"
+                  value={reps}
+                  onChangeText={(next) => {
+                    setReps(next);
+                    setTrainingError(null);
+                  }}
+                  placeholder="例如 8"
+                  keyboardType="number-pad"
+                  error={trainingField === 'reps' ? trainingError : null}
+                />
+              </View>
+            </Row>
           ) : (
-            <Stack gap="sm">
+            <Stack gap="xs">
               <ChipGroup>
                 {BAND_LEVELS.map((level) => (
                   <Chip
@@ -408,23 +439,23 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
                 ))}
               </ChipGroup>
               {trainingField === 'band' && trainingError ? (
-                <Text variant="muted" tone="danger">
+                <Text variant="caption" tone="danger">
                   {trainingError}
                 </Text>
               ) : null}
+              <TextField
+                label="次数"
+                value={reps}
+                onChangeText={(next) => {
+                  setReps(next);
+                  setTrainingError(null);
+                }}
+                placeholder="例如 8"
+                keyboardType="number-pad"
+                error={trainingField === 'reps' ? trainingError : null}
+              />
             </Stack>
           )}
-          <TextField
-            label="次数"
-            value={reps}
-            onChangeText={(next) => {
-              setReps(next);
-              setTrainingError(null);
-            }}
-            placeholder="例如 8"
-            keyboardType="number-pad"
-            error={trainingField === 'reps' ? trainingError : null}
-          />
           {exerciseSets.map((set) => (
             <SetRow key={set.id} title={set.exercise} detail={`${set.reps} 次 · ${formatTrainingLoad(set)}`} />
           ))}
@@ -434,18 +465,26 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
           </Row>
           <Button label="保存这一组" fill onPress={() => void onSaveTraining()} />
           {finishConfirm ? (
-            <Stack gap="sm">
-              <Text variant="muted">这一组还没保存</Text>
-              <Button label="保存这一组并完成" fill onPress={() => void saveAndFinish()} />
-              <Button label="不保存，直接完成" variant="secondary" fill onPress={closeFinished} />
+            <Stack gap="xs">
+              <Text variant="caption" tone="muted">
+                这一组还没保存
+              </Text>
+              <Row gap="sm" align="center">
+                <View style={{ flex: 1 }}>
+                  <Button label="不保存，直接完成" variant="secondary" fill onPress={closeFinished} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Button label="保存这一组并完成" fill onPress={() => void saveAndFinish()} />
+                </View>
+              </Row>
             </Stack>
           ) : null}
         </Stack>
       ) : type === 'study' ? (
-        <Stack gap="md">
+        <Stack gap="ms">
           {study.recentTopics.length > 0 ? (
             <Stack gap="xs">
-              <Text variant="label">常用主题</Text>
+              <Text variant="caption">常用主题</Text>
               <ChipGroup>
                 {study.recentTopics.map((name) => (
                   <Chip
@@ -473,8 +512,8 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
             error={studyField === 'topic' ? studyError : null}
           />
           <Stack gap="xs">
-            <Text variant="label">时长（分钟）</Text>
-            <ChipGroup>
+            <Text variant="caption">时长（分钟）</Text>
+            <ChipGroup segmented>
               {STUDY_MINUTE_CHOICES.map((minutes) => (
                 <Chip
                   key={minutes}
@@ -522,11 +561,14 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
           <Button label="保存" fill onPress={() => void onSaveStudy()} />
         </Stack>
       ) : (
-        <Stack gap="md">
-          <Stack gap="xs">
+        <Stack gap="ms">
+          <Row justify="between" align="center">
             <Text variant="heading">即将推出</Text>
-            <Text variant="muted">完整时间块排程即将推出，现在可以直接记下时间块或随手记并同步到时间线。</Text>
-          </Stack>
+            <TagChip label="TIME BLOCK · JOURNAL" tone="owner" />
+          </Row>
+          <Text variant="caption" tone="muted">
+            完整时间块排程即将推出，现在可以直接记下时间块或随手记并同步到时间线。
+          </Text>
           <TextField
             label="内容"
             value={blockBody}
@@ -539,8 +581,8 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
             error={blockError}
           />
           <Stack gap="xs">
-            <Text variant="label">状态（选填）</Text>
-            <ChipGroup>
+            <Text variant="caption">状态（选填）</Text>
+            <ChipGroup segmented>
               {MOOD_LABELS.map((label, index) => {
                 const moodValue = index + 1;
                 return (
