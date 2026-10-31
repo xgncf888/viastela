@@ -1,7 +1,10 @@
 name: Build All-Platform Packages
 
-# Publishes prebuilt Web PWA, Charioteer Plugin, and macOS packages (.zip + .dmg built on macos-latest)
-# directly to GitHub Releases (`latest`) without fragile cloud npm registry dependencies.
+# Zero-npm-dependency multi-platform native package builder & publisher:
+# 1. `android-apk`: Compiles standalone signed `viastela-android.apk` (~1.6 MB) using `$ANDROID_HOME` in ~15s.
+# 2. `apple-packages`: Compiles native `viastela-ios-unsigned.ipa` (~1.6 MB) and `viastela-macos.dmg` (~2.1 MB) in ~20s.
+# 3. `publish-release`: Publishes all raw native installers (.pkg, .dmg, .apk, .ipa, .mobileconfig) to GitHub Releases (`latest`)
+#    and syncs the raw mobile packages back into `releases/`.
 on:
   workflow_dispatch:
   push:
@@ -19,56 +22,96 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  macos-dmg:
-    name: Build macOS .dmg Installer
+  android-apk:
+    name: Build Native Android .apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Compile & sign standalone viastela-android.apk
+        run: node scripts/build-android-apk.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: viastela-android-apk
+          path: releases/viastela-android.apk
+          if-no-files-found: error
+
+  apple-packages:
+    name: Build macOS .dmg & iOS .ipa
     runs-on: macos-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Build .dmg from signed macOS bundle
+      - name: Build native iOS .ipa and .mobileconfig
+        run: node scripts/build-ios-ipa.mjs
+      - name: Build macOS .dmg from signed bundle
         run: |
-          mkdir -p dmg-stage release-out
+          mkdir -p dmg-stage
           ditto -x -k releases/viastela-macos.zip dmg-stage
           ln -s /Applications dmg-stage/Applications
           APP_NAME=$(ls -d dmg-stage/*.app | head -n 1 | xargs basename -s .app)
-          hdiutil create -volname "$APP_NAME" -srcfolder dmg-stage -ov -format UDZO release-out/viastela-macos.dmg
+          hdiutil create -volname "$APP_NAME" -srcfolder dmg-stage -ov -format UDZO releases/viastela-macos.dmg
       - uses: actions/upload-artifact@v4
         with:
-          name: viastela-macos-dmg
-          path: release-out/viastela-macos.dmg
+          name: viastela-apple-packages
+          path: |
+            releases/viastela-macos.dmg
+            releases/viastela-ios-unsigned.ipa
+            releases/viastela-ios.mobileconfig
           if-no-files-found: error
 
   publish-release:
-    name: Publish to GitHub Releases
+    name: Publish Raw Packages to GitHub Releases
     needs:
-      - macos-dmg
+      - android-apk
+      - apple-packages
     runs-on: ubuntu-latest
     if: always()
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
       - uses: actions/download-artifact@v4
         with:
-          path: release-assets
+          path: releases
           merge-multiple: true
         continue-on-error: true
-      - name: Collect all release packages & checksums
+      - name: Update SHA256SUMS.txt & commit mobile packages to releases/
         run: |
-          mkdir -p release-assets
-          cp releases/*.zip release-assets/
-          cd release-assets
-          sha256sum *.zip *.dmg 2>/dev/null > SHA256SUMS.txt || sha256sum *.zip > SHA256SUMS.txt
-      - name: Publish or Update GitHub Release
+          cd releases
+          rm -rf *.app
+          sha256sum *.pkg *.dmg *.apk *.ipa *.mobileconfig *.zip 2>/dev/null > SHA256SUMS.txt || true
+          cd ..
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add releases/
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(release): update raw Android .apk, iOS .ipa, and macOS .dmg packages [skip ci]"
+            git push origin HEAD:${{ github.ref_name }} || true
+          fi
+      - name: Publish or Update GitHub Release (`latest`)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
-          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Latest Multi-Platform Release' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Latest All-Platform Native Installers' }}
           body: |
-            ### Direct Download Packages (`${{ github.sha }}`)
-            - **`viastela-macos.dmg`**: macOS disk image installer (drag to Applications)
-            - **`viastela-macos.zip`**: macOS native desktop application bundle (`.app`)
-            - **`viastela-web-pwa.zip`**: Standalone Web & mobile PWA bundle
-            - **`viastela-charioteer-plugin.zip`**: Charioteer v1.0 Perspective plugin (`@charioteer/viastela`)
-            - **`SHA256SUMS.txt`**: SHA-256 checksums for all archives
+            ### Raw Native Installers (No Unzipping Required)
+            - **macOS Native Installer**: `viastela-macos.pkg` / `viastela-macos.dmg` (Double-click to install directly to `/Applications`)
+            - **Android Native App**: `viastela-android.apk` (Tap to install directly on Android phones)
+            - **iOS Direct Home-Screen App**: `viastela-ios.mobileconfig` (Open in Safari or AirDrop to iPhone to install directly to Home Screen without sideloading)
+            - **iOS Native Bundle**: `viastela-ios-unsigned.ipa` (For AltStore / Sideloadly / TrollStore)
+            - **Charioteer Plugin**: `viastela-charioteer-plugin.zip` (`@charioteer/viastela`)
           prerelease: false
           make_latest: true
-          files: release-assets/*
+          files: |
+            releases/*.pkg
+            releases/*.dmg
+            releases/*.apk
+            releases/*.ipa
+            releases/*.mobileconfig
+            releases/*.zip
+            releases/SHA256SUMS.txt

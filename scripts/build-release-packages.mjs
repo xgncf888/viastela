@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 /**
- * Builds all local distributable packages into `releases/` and syncs `<displayName>.app`
- * to the workspace root so it can be launched or dragged to /Applications in one step:
- * 1. `releases/<displayName>.app` & `releases/viastela-macos.zip` (macOS Native Desktop App)
- * 2. `releases/viastela-web-pwa.zip` (Standalone Web & Mobile PWA Bundle)
- * 3. `releases/viastela-charioteer-plugin.zip` (Charioteer Perspective Plugin Bundle)
- * 4. `releases/SHA256SUMS.txt` (SHA-256 Checksum Manifest)
+ * Builds all local distributable packages into `releases/` and syncs `<displayName>.app`:
+ * 1. `releases/viastela-macos.pkg` (Native macOS Single-File Installer, ~2.1 MB)
+ * 2. `releases/<displayName>.app` & `releases/viastela-macos.zip` (macOS Native Desktop App)
+ * 3. `releases/viastela-ios.mobileconfig` (Native iOS 1-Tap Home Screen Installer Profile)
+ * 4. `releases/viastela-ios-unsigned.ipa` (Native iOS IPA when Xcode iphoneos SDK is available)
+ * 5. `releases/viastela-android.apk` (Native Android APK when ANDROID_HOME is available)
+ * 6. `releases/viastela-web-pwa.zip` & `releases/viastela-charioteer-plugin.zip`
+ * 7. `releases/SHA256SUMS.txt` (SHA-256 Checksum Manifest)
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -53,10 +55,10 @@ function main() {
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0',
   };
 
-  console.log('1/4 Exporting Web & PWA static bundle...');
+  console.log('1/5 Exporting Web & PWA static bundle...');
   execFileSync('npm', ['run', 'export:web'], { cwd: ROOT, env, stdio: 'inherit' });
 
-  console.log('2/4 Packaging Web PWA & Charioteer Plugin archives...');
+  console.log('2/5 Packaging Web PWA & Charioteer Plugin archives...');
   const webZip = path.join(RELEASES_DIR, 'viastela-web-pwa.zip');
   rmSync(webZip, { force: true });
   execFileSync('ditto', ['-c', '-k', DIST_DIR, webZip], { stdio: 'inherit' });
@@ -71,7 +73,7 @@ function main() {
   rmSync(pluginStage, { recursive: true, force: true });
 
   if (process.platform === 'darwin') {
-    console.log('3/4 Building macOS native desktop bundle...');
+    console.log('3/5 Building macOS native desktop bundle & .pkg installer...');
     execFileSync('node', [path.join(ROOT, 'scripts', 'build-macos-app.mjs')], {
       cwd: ROOT,
       env,
@@ -88,18 +90,42 @@ function main() {
     const appBundleName = `${displayName}.app`;
     const macAppSrc = path.join(MACOS_BUILD_DIR, appBundleName);
     if (existsSync(macAppSrc)) {
-      copySignedApp(macAppSrc, path.join(RELEASES_DIR, appBundleName));
+      const releaseApp = path.join(RELEASES_DIR, appBundleName);
+      copySignedApp(macAppSrc, releaseApp);
       copySignedApp(macAppSrc, path.join(ROOT, appBundleName));
       const parentWorkspaceDir = path.resolve(ROOT, '..');
       if (existsSync(path.join(parentWorkspaceDir, 'Charioteer.app')) || existsSync(path.join(parentWorkspaceDir, appBundleName))) {
         copySignedApp(macAppSrc, path.join(parentWorkspaceDir, appBundleName));
       }
+      // Build single-file native macOS .pkg installer
+      const macPkgOut = path.join(RELEASES_DIR, 'viastela-macos.pkg');
+      rmSync(macPkgOut, { force: true });
+      execFileSync(
+        'pkgbuild',
+        [
+          '--component',
+          releaseApp,
+          '--install-location',
+          '/Applications',
+          '--identifier',
+          'app.viastela.desktop',
+          '--version',
+          '1.0.0',
+          macPkgOut,
+        ],
+        { stdio: 'inherit' },
+      );
     }
   }
 
-  console.log('4/4 Writing SHA256SUMS.txt...');
+  console.log('4/5 Building mobile packages (iOS .mobileconfig/.ipa & Android .apk)...');
+  execFileSync('node', [path.join(ROOT, 'scripts', 'build-ios-ipa.mjs')], { cwd: ROOT, env, stdio: 'inherit' });
+  execFileSync('node', [path.join(ROOT, 'scripts', 'build-android-apk.mjs')], { cwd: ROOT, env, stdio: 'inherit' });
+
+  console.log('5/5 Writing SHA256SUMS.txt...');
+  const packageExts = ['.pkg', '.dmg', '.apk', '.ipa', '.mobileconfig', '.zip'];
   const files = readdirSync(RELEASES_DIR)
-    .filter((name) => name.endsWith('.zip') || name.endsWith('.dmg') || name.endsWith('.apk') || name.endsWith('.ipa'))
+    .filter((name) => packageExts.some((ext) => name.endsWith(ext)))
     .sort();
   const lines = files.map((name) => {
     const full = path.join(RELEASES_DIR, name);
@@ -108,7 +134,7 @@ function main() {
   });
   writeFileSync(path.join(RELEASES_DIR, 'SHA256SUMS.txt'), `${lines.join('\n')}\n`, 'utf8');
 
-  console.log(`\nAll local release packages ready in ${RELEASES_DIR}:`);
+  console.log(`\nAll release packages ready in ${RELEASES_DIR}:`);
   for (const line of lines) {
     console.log(`  - ${line}`);
   }
