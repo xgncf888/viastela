@@ -1,5 +1,6 @@
-47031353f3e8f8d2ad905a32d2a17052e66c381b6082c9d5c27bb0a0d038e17b  viastela-charioteer-plugin.zip  (1477 KB)
-d4620b6e15cd3d4ef540386f11757a3b3b8ff7d83c2d584dc81666490aeb883d  viastela-ios.mobileconfig  (29 KB)
-09dfc91fca2dd78e90b111e40eadf3ba7f4f608deb798c0b7b6aeade62fc6c44  viastela-macos.pkg  (2149 KB)
-4884ea5cb6b17980382db162963a110f486d020461124365ae832fb9d4b50b74  viastela-macos.zip  (2194 KB)
-e9f9409d79b9e1c4b92a777bb5a165e79ac169456c1bd521b6631cce4d88f635  viastela-web-pwa.zip  (1473 KB)
+09dfc91fca2dd78e90b111e40eadf3ba7f4f608deb798c0b7b6aeade62fc6c44  viastela-macos.pkg
+faab1d79595361dffedd23565f0cc01ae3edb07f953ff321bba96cca70e93e25  viastela-android.apk
+d4620b6e15cd3d4ef540386f11757a3b3b8ff7d83c2d584dc81666490aeb883d  viastela-ios.mobileconfig
+47031353f3e8f8d2ad905a32d2a17052e66c381b6082c9d5c27bb0a0d038e17b  viastela-charioteer-plugin.zip
+4884ea5cb6b17980382db162963a110f486d020461124365ae832fb9d4b50b74  viastela-macos.zip
+e9f9409d79b9e1c4b92a777bb5a165e79ac169456c1bd521b6631cce4d88f635  viastela-web-pwa.zip
