@@ -1,0 +1,119 @@
+name: Build All-Platform Packages
+
+# Builds downloadable installation packages across Web (PWA zip), macOS (.dmg & .app.zip),
+# Android (.apk via Gradle), and iOS Simulator (.app.zip via Xcode).
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - gemini/ui-refinement
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-packages-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321' }}
+  EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0' }}
+
+jobs:
+  web-package:
+    name: Web PWA Bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run export:web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: viastela-web-pwa
+          path: dist/
+          if-no-files-found: error
+
+  macos-package:
+    name: macOS Desktop (.dmg & .app)
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run export:web
+      - name: Build macOS .app, .zip, and .dmg
+        run: node scripts/build-macos-app.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: viastela-macos-desktop
+          path: |
+            build/macos/Viastela-Studio-macOS.dmg
+            build/macos/Viastela-Studio-macOS.zip
+          if-no-files-found: error
+
+  android-package:
+    name: Android APK (Standalone Gradle)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: npm ci
+      - name: Prebuild Android project
+        run: npx expo prebuild --platform android --non-interactive
+      - name: Assemble Release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: viastela-android-apk
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+  ios-package:
+    name: iOS App Bundle (Xcode)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Prebuild iOS project
+        run: npx expo prebuild --platform ios --non-interactive
+      - name: Install CocoaPods
+        working-directory: ios
+        run: pod install
+      - name: Build iOS Simulator .app
+        working-directory: ios
+        run: |
+          WORKSPACE=$(ls -d *.xcworkspace | head -n 1)
+          SCHEME="${WORKSPACE%.xcworkspace}"
+          xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration Release -sdk iphonesimulator -derivedDataPath build CODE_SIGNING_ALLOWED=NO
+          mkdir -p ../build/ios
+          ditto -c -k --keepParent build/Build/Products/Release-iphonesimulator/*.app ../build/ios/Viastela-iOS-Simulator.app.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: viastela-ios-simulator-app
+          path: build/ios/Viastela-iOS-Simulator.app.zip
+          if-no-files-found: error
