@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 
+import { detectRuntimeHostMode } from '@/core/charioteer-plugin';
 import {
   computeLocalDay,
   formatClock,
@@ -37,6 +38,7 @@ import { Text } from '@/ui/Text';
 import { useTheme } from '@/ui/ThemeProvider';
 import { theme } from '@/ui/theme';
 import { useLoadGate } from '@/ui/use-load-gate';
+import { WorkbenchConsoleCard } from '@/ui/WorkbenchConsole';
 
 function shortWeekday(localDay: string): string {
   return weekdayLabel(localDay).replace('星期', '周');
@@ -98,6 +100,27 @@ export function TodayScreen() {
   const allLogged = visibleToday.length > 0 && trainingToday.length > 0 && studyToday.length > 0;
   const loggedCount =
     (visibleToday.length > 0 ? 1 : 0) + (trainingToday.length > 0 ? 1 : 0) + (studyToday.length > 0 ? 1 : 0);
+
+  const activeWeightDays = Array.from({ length: 7 }, (_, index) => {
+    const dayKey = shiftLocalDay(accounting, -(6 - index));
+    return recordsOnDay(counted, dayKey).length > 0 ? 1 : 0;
+  }).reduce<number>((sum, val) => sum + val, 0);
+
+  const trainingVolumeKg = trainingToday.reduce(
+    (sum, item) => sum + (item.weightKg ?? 0) * item.reps,
+    0,
+  );
+  const studyMinutesToday = studyToday.reduce((sum, item) => sum + item.durationMinutes, 0);
+
+  const hostMode =
+    Platform.OS === 'web' && typeof window !== 'undefined'
+      ? detectRuntimeHostMode({
+          hasHostGlobal: Boolean(
+            (window as unknown as { __charioteerHost?: unknown }).__charioteerHost,
+          ),
+          search: window.location?.search ?? '',
+        })
+      : 'standalone';
 
   return (
     <Screen>
@@ -216,12 +239,27 @@ export function TodayScreen() {
               </View>
 
               {layout === 'expanded' ? (
-                <WeeklyRhythmCard
-                  endDay={accounting}
-                  weightRecords={counted}
-                  trainingSets={countedTraining}
-                  studyRecords={countedStudy}
-                />
+                <>
+                  <WorkbenchConsoleCard
+                    mode={hostMode}
+                    loggedCount={loggedCount}
+                    activeWeightDays={activeWeightDays}
+                    trainingSetsCount={trainingToday.length}
+                    trainingVolumeKg={trainingVolumeKg}
+                    studyMinutes={studyMinutesToday}
+                    studyCount={studyToday.length}
+                    onQuickWeight={() => openRecordSheet(last?.weightKg, 'weight')}
+                    onQuickTraining={() => openRecordSheet(undefined, 'training')}
+                    onQuickStudy={() => openRecordSheet(undefined, 'study')}
+                    onQuickJournal={() => openRecordSheet(undefined, 'block')}
+                  />
+                  <WeeklyRhythmCard
+                    endDay={accounting}
+                    weightRecords={counted}
+                    trainingSets={countedTraining}
+                    studyRecords={countedStudy}
+                  />
+                </>
               ) : null}
             </Stack>
           </LoadingRegion>

@@ -1,0 +1,79 @@
+{
+  "protocolVersion": "1.0.0",
+  "id": "@charioteer/viastela",
+  "name": "星途 · 个人节律与长期资产工作台",
+  "version": "1.0.0",
+  "kind": "perspective",
+  "scope": "open-source",
+  "description": "个人节律（晨重、力量训练、专注学习）与长期净值轨迹工作台，支持独立多端运行或按 Charioteer 协议挂载。",
+  "permissions": ["event-bus"],
+  "entrypoints": {
+    "ui": "/",
+    "manifest": "/charioteer-plugin.json"
+  },
+  "contributions": {
+    "sidebarTracks": [
+      {
+        "id": "today",
+        "title": "星途 · 今日工作台",
+        "shortcut": "⌘1",
+        "badge": "Today",
+        "entryUrl": "/"
+      },
+      {
+        "id": "assets",
+        "title": "星途 · 长期资产",
+        "shortcut": "⌘2",
+        "badge": "Assets",
+        "entryUrl": "/assets"
+      },
+      {
+        "id": "trend",
+        "title": "星途 · 均重趋势",
+        "shortcut": "⌘3",
+        "badge": "Trend",
+        "entryUrl": "/trend"
+      },
+      {
+        "id": "timeline",
+        "title": "星途 · 时间线台账",
+        "shortcut": "⌘4",
+        "badge": "Ledger",
+        "entryUrl": "/timeline"
+      }
+    ],
+    "commands": [
+      {
+        "id": "viastela.quickRecordWeight",
+        "title": "快速记录晨重 / 复测",
+        "shortcut": "⌘K",
+        "category": "record"
+      },
+      {
+        "id": "viastela.quickRecordTraining",
+        "title": "快速记录力量训练组数",
+        "shortcut": "⇧⌘T",
+        "category": "record"
+      },
+      {
+        "id": "viastela.quickRecordStudy",
+        "title": "快速记录专注学习时长",
+        "shortcut": "⇧⌘L",
+        "category": "record"
+      },
+      {
+        "id": "viastela.quickRecordJournal",
+        "title": "快速记录时间块与日常随笔",
+        "shortcut": "⇧⌘J",
+        "category": "record"
+      }
+    ],
+    "dataProviders": [
+      {
+        "id": "viastela.personal-ledger",
+        "label": "Local-First Personal Ledger & Offline Outbox",
+        "targetPerspective": "@charioteer/viastela"
+      }
+    ]
+  }
+}

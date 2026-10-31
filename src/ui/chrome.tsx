@@ -46,7 +46,19 @@ export function ShellFrame({
   );
 }
 
-export function SidebarFrame({ title, footer, children }: { title: string; footer?: ReactNode; children: ReactNode }) {
+export function SidebarFrame({
+  title,
+  subtitle,
+  panel,
+  footer,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  panel?: ReactNode;
+  footer?: ReactNode;
+  children: ReactNode;
+}) {
   const { color } = useTheme();
   const layout = useLayoutClass();
   const width = layout === 'medium' ? theme.layout.sidebarCompact : theme.layout.sidebar;
@@ -54,9 +66,17 @@ export function SidebarFrame({ title, footer, children }: { title: string; foote
     <View style={[styles.sidebar, { width, backgroundColor: color.paperDeep, borderRightColor: color.line }]}>
       <View style={[styles.brandRow, { borderBottomColor: color.line }]}>
         <BrandMark />
-        <Text variant="title">{title}</Text>
+        <View style={styles.brandTextWrap}>
+          <Text variant="title">{title}</Text>
+          {subtitle ? (
+            <Text variant="caption" tone="muted" numberOfLines={1}>
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
       </View>
       <View style={styles.sideNav}>{children}</View>
+      {panel}
       {footer ? <View style={[styles.footer, { borderTopColor: color.line }]}>{footer}</View> : null}
     </View>
   );
@@ -86,11 +106,13 @@ export function TabBar({ children }: { children: ReactNode }) {
 
 export function NavItem({
   label,
+  badge,
   selected,
   onPress,
   placement = 'side',
 }: {
   label: string;
+  badge?: string;
   selected: boolean;
   onPress: () => void;
   placement?: 'side' | 'tab';
@@ -102,6 +124,7 @@ export function NavItem({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={label}
       accessibilityState={{ selected }}
       aria-selected={Platform.OS === 'web' ? selected : undefined}
       onPressIn={() => {
@@ -120,15 +143,22 @@ export function NavItem({
         side && selected && !pressed ? { backgroundColor: color.fill } : null,
       ]}
     >
-      <View
-        style={[
-          side ? styles.sideIndicator : styles.tabIndicator,
-          { backgroundColor: selected ? color.ink : 'transparent' },
-        ]}
-      />
-      <Text variant="tab" tone={selected ? 'ink' : 'muted'} style={selected ? styles.navSelected : undefined}>
-        {label}
-      </Text>
+      <View style={side ? styles.sideMain : styles.tabMain}>
+        <View
+          style={[
+            side ? styles.sideIndicator : styles.tabIndicator,
+            { backgroundColor: selected ? color.ink : 'transparent' },
+          ]}
+        />
+        <Text variant="tab" tone={selected ? 'ink' : 'muted'} style={selected ? styles.navSelected : undefined}>
+          {label}
+        </Text>
+      </View>
+      {side && badge ? (
+        <Text variant="caption" tone="muted" style={styles.badgeText} numberOfLines={1}>
+          {badge}
+        </Text>
+      ) : null}
     </Pressable>
   );
 }
@@ -155,6 +185,10 @@ const styles = StyleSheet.create({
     paddingBottom: theme.space.md,
     borderBottomWidth: theme.border.width,
   },
+  brandTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
   sideNav: { gap: theme.space.xs, flex: 1 },
   footer: {
     paddingTop: theme.space.md,
@@ -177,9 +211,18 @@ const styles = StyleSheet.create({
   navSide: {
     flexDirection: 'row',
     alignSelf: 'stretch',
-    justifyContent: 'flex-start',
+    justifyContent: 'space-between',
     gap: theme.space.sm,
     borderRadius: theme.radius.sm,
+  },
+  sideMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.space.sm,
+  },
+  tabMain: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   navTab: {
     flex: 1,
@@ -197,4 +240,8 @@ const styles = StyleSheet.create({
     marginBottom: theme.space.xs,
   },
   navSelected: { fontWeight: theme.fontWeight.semibold },
+  badgeText: {
+    fontFamily: theme.fontFamily.mono,
+    fontVariant: ['tabular-nums'],
+  },
 });

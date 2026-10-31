@@ -3,6 +3,11 @@ import { Platform, Share, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 
 import { brand } from '@/config/brand';
+import {
+  buildCharioteerPluginManifest,
+  CHARIOTEER_PLUGIN_PROTOCOL_VERSION,
+  detectRuntimeHostMode,
+} from '@/core/charioteer-plugin';
 import { backupFilename, buildPersonalDataBackup } from '@/core/data-export';
 import { computeLocalDay } from '@/core/local-day';
 import { signOut } from '@/data/auth';
@@ -49,6 +54,16 @@ export function MeScreen() {
   const hint = installHint();
 
   const liveWeights = excludePending(weight.records ?? [], weight.pendingDeleteIds ?? new Set());
+  const pluginManifest = buildCharioteerPluginManifest();
+  const hostMode =
+    Platform.OS === 'web' && typeof window !== 'undefined'
+      ? detectRuntimeHostMode({
+          hasHostGlobal: Boolean(
+            (window as unknown as { __charioteerHost?: unknown }).__charioteerHost,
+          ),
+          search: window.location?.search ?? '',
+        })
+      : 'standalone';
 
   async function onSave() {
     setSaving(true);
@@ -111,6 +126,23 @@ export function MeScreen() {
     }
   }
 
+  async function onCopyPluginManifest() {
+    const json = JSON.stringify(pluginManifest, null, 2);
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+      await navigator.clipboard.writeText(json);
+      showToast({ text: '已复制 Charioteer 插件清单 (charioteer-plugin.json)' });
+      return;
+    }
+    try {
+      await Share.share({
+        title: 'charioteer-plugin.json',
+        message: json,
+      });
+    } catch {
+      showToast({ text: '复制未完成，请重试', tone: 'error' });
+    }
+  }
+
   return (
     <Screen>
       <Content width="wide" inset={inset}>
@@ -139,15 +171,38 @@ export function MeScreen() {
         {Platform.OS === 'web' ? <RemindersCard /> : null}
         <Card>
           <Stack gap="md">
+            <Text variant="heading">个人工作台与 Charioteer 插件协议</Text>
+            <Field
+              label="当前运行形态"
+              value={
+                hostMode === 'charioteer-host'
+                  ? '已挂载至 Charioteer 宿主 (Perspective 插件模式)'
+                  : '独立应用运行 (Standalone Local-First 工作台)'
+              }
+            />
+            <Field
+              label="Charioteer 插件标识"
+              value={`${pluginManifest.id} · Protocol v${CHARIOTEER_PLUGIN_PROTOCOL_VERSION} (${pluginManifest.kind})`}
+              hint="保持独立跨端应用体验的同时，支持通过 /charioteer-plugin.json 注册到 Charioteer 通用宿主。"
+            />
+            {Platform.OS === 'web' && layout !== 'compact' ? (
+              <Field
+                label="工作台全局快捷键"
+                value="⌘K 快记面板 · ⌘P 指令面板 · ⇧⌘T/L/J 专项快记 · ⌘1–⌘5 切换栏目"
+              />
+            ) : null}
+            <Button
+              label="复制 Charioteer 插件清单"
+              variant="secondary"
+              onPress={() => void onCopyPluginManifest()}
+            />
+          </Stack>
+        </Card>
+        <Card>
+          <Stack gap="md">
             <Text variant="heading">个人数据备份</Text>
             <Text variant="muted">将当前体重与个人记录导出为结构化 JSON 文件，方便本地留存或跨端迁移。</Text>
             <Button label="导出 JSON 备份" variant="secondary" onPress={() => void onExportBackup()} />
-            {Platform.OS === 'web' && layout !== 'compact' ? (
-              <Field
-                label="桌面快捷键"
-                value="⌘K / ⌘N 快速记录 · Esc 关闭弹窗 · ⌘1–⌘5 切换栏目"
-              />
-            ) : null}
           </Stack>
         </Card>
         <Button label="隐私政策" variant="ghost" onPress={() => router.push('/privacy')} />
