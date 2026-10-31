@@ -20,6 +20,7 @@
     "test:e2e": "playwright test",
     "export:web": "expo export --platform web && node scripts/stamp-pwa-html.js",
     "build:macos": "node scripts/build-macos-app.mjs",
+    "build:packages": "node scripts/build-release-packages.mjs",
     "prebuild:pwa": "node scripts/stamp-pwa-html.js --prebuild",
     "prepare": "node scripts/install-hooks.mjs",
     "test:screenshots": "SCREENSHOTS=1 playwright test"

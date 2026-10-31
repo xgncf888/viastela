@@ -1,7 +1,8 @@
 name: Build All-Platform Packages
 
-# Builds downloadable installation packages across Web (PWA zip), macOS (.dmg & .app.zip),
-# Android (.apk via Gradle), and iOS Simulator (.app.zip via Xcode).
+# Builds downloadable installation packages across Web (PWA zip), Charioteer Plugin (.zip),
+# macOS (.dmg & .app.zip), Android (.apk via Gradle), and iOS (.app.zip & unsigned .ipa via Xcode),
+# and publishes them both as Workflow Artifacts and directly to GitHub Releases.
 on:
   workflow_dispatch:
   push:
@@ -12,7 +13,7 @@ on:
       - 'v*'
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: build-packages-${{ github.ref }}
@@ -24,7 +25,7 @@ env:
 
 jobs:
   web-package:
-    name: Web PWA Bundle
+    name: Web PWA & Charioteer Plugin
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -35,10 +36,19 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run export:web
+      - name: Archive Web PWA and Charioteer Plugin bundles
+        run: |
+          mkdir -p release-assets plugin-stage/public
+          cd dist && zip -r ../release-assets/viastela-web-pwa.zip . && cd ..
+          cp -R dist/* plugin-stage/public/
+          cp public/charioteer-plugin.json plugin-stage/charioteer-plugin.json
+          cd plugin-stage && zip -r ../release-assets/viastela-charioteer-plugin.zip . && cd ..
       - uses: actions/upload-artifact@v4
         with:
           name: viastela-web-pwa
-          path: dist/
+          path: |
+            release-assets/viastela-web-pwa.zip
+            release-assets/viastela-charioteer-plugin.zip
           if-no-files-found: error
 
   macos-package:
@@ -82,15 +92,18 @@ jobs:
         run: npx expo prebuild --platform android --non-interactive
       - name: Assemble Release APK
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon
+        run: |
+          ./gradlew assembleRelease --no-daemon
+          mkdir -p ../release-assets
+          cp app/build/outputs/apk/release/*.apk ../release-assets/viastela-android.apk
       - uses: actions/upload-artifact@v4
         with:
           name: viastela-android-apk
-          path: android/app/build/outputs/apk/release/*.apk
+          path: release-assets/viastela-android.apk
           if-no-files-found: error
 
   ios-package:
-    name: iOS App Bundle (Xcode)
+    name: iOS App Bundle (.app.zip & unsigned .ipa)
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
@@ -105,16 +118,55 @@ jobs:
       - name: Install CocoaPods
         working-directory: ios
         run: pod install
-      - name: Build iOS Simulator .app
+      - name: Build iOS Simulator .app and Unsigned Device .ipa
         working-directory: ios
         run: |
           WORKSPACE=$(ls -d *.xcworkspace | head -n 1)
           SCHEME="${WORKSPACE%.xcworkspace}"
-          xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration Release -sdk iphonesimulator -derivedDataPath build CODE_SIGNING_ALLOWED=NO
-          mkdir -p ../web-build/ios
-          ditto -c -k --keepParent build/Build/Products/Release-iphonesimulator/*.app ../web-build/ios/viastela-ios-simulator.app.zip
+          xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration Release -sdk iphonesimulator -derivedDataPath build-sim CODE_SIGNING_ALLOWED=NO
+          mkdir -p ../release-assets
+          ditto -c -k --keepParent build-sim/Build/Products/Release-iphonesimulator/*.app ../release-assets/viastela-ios-simulator.app.zip
+          xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration Release -sdk iphoneos -derivedDataPath build-ios CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+          mkdir -p Payload
+          cp -R build-ios/Build/Products/Release-iphoneos/*.app Payload/
+          zip -r ../release-assets/viastela-ios-unsigned.ipa Payload
       - uses: actions/upload-artifact@v4
         with:
-          name: viastela-ios-simulator-app
-          path: web-build/ios/viastela-ios-simulator.app.zip
+          name: viastela-ios-packages
+          path: |
+            release-assets/viastela-ios-simulator.app.zip
+            release-assets/viastela-ios-unsigned.ipa
           if-no-files-found: error
+
+  publish-release:
+    name: Publish to GitHub Releases
+    needs:
+      - web-package
+      - macos-package
+      - android-package
+      - ios-package
+    runs-on: ubuntu-latest
+    if: always() && (needs.web-package.result == 'success' || needs.macos-package.result == 'success')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: all-packages
+          merge-multiple: true
+      - name: Generate SHA256SUMS.txt
+        working-directory: all-packages
+        run: sha256sum * > SHA256SUMS.txt
+      - name: Publish or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Latest Multi-Platform Build' }}
+          body: |
+            Automated multi-platform build from commit `${{ github.sha }}`.
+            - `viastela-macos.dmg` / `viastela-macos.zip`: macOS native desktop application
+            - `viastela-web-pwa.zip`: Standalone Web & mobile PWA bundle
+            - `viastela-charioteer-plugin.zip`: Charioteer Perspective plugin package (`@charioteer/viastela`)
+            - `viastela-android.apk`: Android standalone release package
+            - `viastela-ios-unsigned.ipa` / `viastela-ios-simulator.app.zip`: iOS packages
+          prerelease: false
+          make_latest: true
+          files: all-packages/*
