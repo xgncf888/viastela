@@ -141,6 +141,7 @@ const RESET_STYLE = `    <style id="expo-reset">
       /* These styles disable body scrolling if you are using <ScrollView> */
       body {
         overflow: hidden;
+        background-color: #F7F4EC;
       }
       /* These styles make the root element full-height */
       #root {

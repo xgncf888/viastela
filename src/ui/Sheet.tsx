@@ -1,5 +1,6 @@
 import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 
+import { cardSurfaceStyle } from './Card';
 import { theme as baseTheme } from './theme';
 import { useTheme } from './ThemeProvider';
 
@@ -20,10 +21,7 @@ export function Sheet({
         <View
           style={[
             styles.card,
-            {
-              backgroundColor: theme.color.card,
-              borderColor: theme.color.line,
-            },
+            cardSurfaceStyle(theme.color.card, theme.color.line),
           ]}
         >
           {children}
@@ -46,11 +44,10 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: baseTheme.layout.content,
-    borderTopLeftRadius: baseTheme.radius.md,
-    borderTopRightRadius: baseTheme.radius.md,
-    borderBottomLeftRadius: Platform.OS === 'web' ? baseTheme.radius.md : 0,
-    borderBottomRightRadius: Platform.OS === 'web' ? baseTheme.radius.md : 0,
-    borderWidth: baseTheme.border.width,
+    borderTopLeftRadius: baseTheme.radius.sheet,
+    borderTopRightRadius: baseTheme.radius.sheet,
+    borderBottomLeftRadius: Platform.OS === 'web' ? baseTheme.radius.sheet : 0,
+    borderBottomRightRadius: Platform.OS === 'web' ? baseTheme.radius.sheet : 0,
     padding: baseTheme.space.lg,
     gap: baseTheme.space.md,
     maxHeight: '90%',

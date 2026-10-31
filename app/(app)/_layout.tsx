@@ -5,8 +5,10 @@ import { AppShell } from '@/features/shell/AppShell';
 import { tabNavigator } from '@/features/shell/tab-navigator';
 import { TrainingProvider } from '@/features/training/TrainingProvider';
 import { WeightProvider } from '@/features/weight/WeightProvider';
+import { useTheme } from '@/ui/ThemeProvider';
 
 export default function AppLayout() {
+  const { color } = useTheme();
   return (
     <WeightProvider>
       <TrainingProvider>
@@ -15,7 +17,11 @@ export default function AppLayout() {
             <Tabs
               detachInactiveScreens={tabNavigator.detachInactiveScreens}
               tabBar={() => null}
-              screenOptions={{ headerShown: tabNavigator.headerShown, lazy: tabNavigator.lazy }}
+              screenOptions={{
+                headerShown: tabNavigator.headerShown,
+                lazy: tabNavigator.lazy,
+                sceneStyle: { backgroundColor: color.paper },
+              }}
             >
               <Tabs.Screen name="index" />
               <Tabs.Screen name="assets" />

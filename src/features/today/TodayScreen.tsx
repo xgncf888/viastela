@@ -53,7 +53,6 @@ export function TodayScreen() {
     loadError,
     records,
     failedIds,
-     Refreshing: _unused,
     refreshing,
     refreshError,
     daySwitch,
@@ -63,7 +62,7 @@ export function TodayScreen() {
     dismiss,
     scheduleDelete,
     pendingDeleteIds,
-  } = useWeight() as ReturnType<typeof useWeight> & { Refreshing?: never };
+  } = useWeight();
   const training = useTraining();
   const study = useStudy();
   const inset = useShellInset();

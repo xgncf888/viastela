@@ -187,7 +187,7 @@ export function Button({
 const styles = StyleSheet.create({
   base: {
     minHeight: baseTheme.layout.control,
-    borderRadius: baseTheme.radius.md,
+    borderRadius: baseTheme.radius.button,
     borderWidth: baseTheme.border.width,
     alignItems: 'center',
     justifyContent: 'center',
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
   mini: {
     minHeight: baseTheme.layout.controlMini,
     height: baseTheme.layout.controlMini,
-    borderRadius: baseTheme.radius.sm,
+    borderRadius: baseTheme.radius.mini,
     paddingHorizontal: baseTheme.space.sm,
     paddingVertical: 0,
   },

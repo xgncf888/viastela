@@ -3,7 +3,7 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from './Button';
 import { useLayoutClass } from './chrome';
-import { Card } from './Card';
+import { Card, cardSurfaceStyle } from './Card';
 import { Row, Stack } from './layout';
 import { pressTransition } from './press';
 import { Text } from './Text';
@@ -66,10 +66,7 @@ export function StatusCard({
       style={({ pressed }) => [
         styles.frame,
         styles.pressCard,
-        {
-          backgroundColor: pressed ? theme.color.pressed : theme.color.card,
-          borderColor: theme.color.line,
-        },
+        cardSurfaceStyle(pressed ? theme.color.pressed : theme.color.card, theme.color.line),
         pressTransition(pressed, reducedMotion, theme.press, Platform.OS === 'web'),
       ]}
     >
@@ -104,8 +101,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   pressCard: {
-    borderRadius: baseTheme.radius.md,
-    borderWidth: baseTheme.border.width,
+    borderRadius: baseTheme.radius.card,
     padding: baseTheme.space.md,
     gap: baseTheme.space.sm,
   },

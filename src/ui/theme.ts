@@ -2,8 +2,8 @@
  * Design tokens. Imported by app.config.js, so this file must stay free of React Native.
  * Screens and feature UI take colors and sizes from here; ESLint rejects raw values.
  *
- * Light palette follows the warm editorial spec in DESIGN.md. Inspired by Claude.ai's
- * warm minimalism; not affiliated with Anthropic. No proprietary font files.
+ * Light palette follows the warm editorial spec in DESIGN.md and v2 token refinements.
+ * Inspired by Claude.ai's warm minimalism; not affiliated with Anthropic. No proprietary font files.
  *
  * `accentText` and `accentSoft` stay until call sites move to ink. New UI does not use them.
  */
@@ -44,17 +44,17 @@ export type Palette = {
 };
 
 export const lightColor: Palette = {
-  paper: '#F6F5F0',
+  paper: '#F7F4EC',
   paperDeep: '#F1EFE8',
   card: '#FFFFFF',
   surface: '#FBFAF6',
   fill: '#F1EFE8',
   pressed: 'rgba(38, 36, 31, 0.06)',
-  bar: '#F6F5F0',
+  bar: '#F7F4EC',
   ink: '#26241F',
   muted: '#5F5E57',
   textFaint: '#6A6962',
-  line: '#ECEAE2',
+  line: '#E7E2D6',
   lineSoft: '#F0EEE7',
   accent: '#CC785C',
   accentHover: '#D08A70',
@@ -64,7 +64,7 @@ export const lightColor: Palette = {
   pos: '#4F6F5A',
   moss: '#6E9079',
   target: '#7A786F',
-  chartGrid: '#ECEAE2',
+  chartGrid: '#E7E2D6',
   chartAxis: '#5F5E57',
   toast: '#26241F',
   onToast: '#FAF9F5',
@@ -118,6 +118,7 @@ export const theme = {
     sm: 8,
     ms: 12,
     md: 16,
+    page: 20,
     lg: 24,
     xl: 32,
     xxl: 48,
@@ -128,21 +129,22 @@ export const theme = {
     sm: 13,
     tab: 14,
     md: 15,
-    lg: 16,
+    lg: 17,
     metric: 20,
-    xl: 28,
-    display: 32,
+    xl: 30,
+    display: 36,
   },
   lineHeight: {
     tick: 12,
     caption: 16,
     sm: 18,
+    muted: 20,
     tab: 20,
-    md: 22,
-    lg: 22,
+    md: 24,
+    lg: 24,
     metric: 26,
     xl: 34,
-    display: 38,
+    display: 40,
   },
   fontWeight: {
     regular: '400',
@@ -160,9 +162,13 @@ export const theme = {
     mono: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
   },
   radius: {
-    sm: 8,
-    md: 10,
-    lg: 10,
+    sm: 10,
+    mini: 10,
+    button: 12,
+    md: 14,
+    card: 14,
+    lg: 14,
+    sheet: 16,
     bar: 2,
     pill: 999,
   },
@@ -170,13 +176,30 @@ export const theme = {
     width: 1,
     indicator: 2,
   },
+  shadow: {
+    card: {
+      web: '0 1px 2px rgba(38,36,31,.04), 0 0 0 1px rgba(38,36,31,.06)',
+      ios: {
+        shadowColor: '#26241F',
+        shadowOpacity: 0.06,
+        shadowRadius: 2,
+        shadowOffset: { width: 0, height: 1 },
+      },
+      android: {
+        elevation: 1,
+      },
+    },
+  },
   /**
-   * Press feedback. A later theme can swap these without editing components.
+   * Press and sheet motion tokens (v2: 50ms press, 160ms release, 280ms sheet).
    * Disabled opacity stays the existing 0.55.
    */
   press: {
-    inMs: 0,
-    releaseMs: 100,
+    inMs: 50,
+    releaseMs: 160,
+    sheetMs: 280,
+    easing: 'cubic-bezier(0.2, 0, 0, 1)',
+    sheetEasing: 'cubic-bezier(0.32, 0.72, 0, 1)',
     opacity: 0.86,
     scale: 0.98,
     disabledOpacity: 0.55,

@@ -226,7 +226,7 @@ export function ScreenHeader({
             onRetry={subtitle.onRetry}
             timeZone={subtitle.timeZone}
             cachedAt={subtitle.cachedAt}
-            idle={choice.text ? <Text variant="muted" numberOfLines={1}>{choice.text}</Text> : null}
+            idle={choice.text ? <Text variant="muted" numberOfLines={1} style={styles.subtitleText}>{choice.text}</Text> : null}
           />
         </View>
       ) : (
@@ -329,13 +329,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'visible',
   },
+  subtitleText: {
+    lineHeight: theme.lineHeight.sm,
+  },
   center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   tone: {
-    borderRadius: theme.radius.lg,
+    borderRadius: theme.radius.sheet,
     padding: theme.space.md,
     gap: theme.space.sm,
   },

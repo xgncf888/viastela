@@ -11,20 +11,23 @@ installWebSerifFace();
 type Variant = TextVariant;
 type Tone = 'ink' | 'muted' | 'inverse' | 'accent' | 'onAccent' | 'danger' | 'moss' | 'warning';
 
+const webSerif = Platform.select({
+  web: webTitleFontFamily(),
+  default: undefined,
+});
+
 const variantStyle: Record<Variant, TextStyle> = {
   display: {
     fontSize: baseTheme.font.display,
     lineHeight: baseTheme.lineHeight.display,
-    fontWeight: baseTheme.fontWeight.semibold,
+    fontWeight: baseTheme.fontWeight.medium,
+    fontFamily: webSerif,
   },
   title: {
     fontSize: baseTheme.font.xl,
     lineHeight: baseTheme.lineHeight.xl,
-    fontWeight: baseTheme.fontWeight.semibold,
-    fontFamily: Platform.select({
-      web: webTitleFontFamily(),
-      default: undefined,
-    }),
+    fontWeight: baseTheme.fontWeight.medium,
+    fontFamily: webSerif,
   },
   metric: {
     fontSize: baseTheme.font.metric,
@@ -34,7 +37,8 @@ const variantStyle: Record<Variant, TextStyle> = {
   heading: {
     fontSize: baseTheme.font.lg,
     lineHeight: baseTheme.lineHeight.lg,
-    fontWeight: baseTheme.fontWeight.semibold,
+    fontWeight: baseTheme.fontWeight.medium,
+    fontFamily: webSerif,
   },
   body: {
     fontSize: baseTheme.font.md,
@@ -58,12 +62,13 @@ const variantStyle: Record<Variant, TextStyle> = {
   },
   muted: {
     fontSize: baseTheme.font.sm,
-    lineHeight: baseTheme.lineHeight.sm,
+    lineHeight: baseTheme.lineHeight.muted,
     fontWeight: baseTheme.fontWeight.regular,
   },
 };
 
 const mutedVariants = new Set<Variant>(['muted', 'label', 'caption']);
+const serifVariants = new Set<Variant>(['display', 'title', 'heading']);
 
 export function Text({
   children,
@@ -98,7 +103,8 @@ export function Text({
 }) {
   const theme = useTheme();
   const resolvedTone = tone ?? (mutedVariants.has(variant) ? 'muted' : 'ink');
-  const titleUsesSans = variant === 'title' && Platform.OS === 'web' && !serifCovers(plainText(children));
+  const serifUsesSystemFallback =
+    serifVariants.has(variant) && Platform.OS === 'web' && !serifCovers(plainText(children));
   const toneColor: Record<Tone, string> = {
     ink: theme.color.ink,
     muted: theme.color.muted,
@@ -127,7 +133,7 @@ export function Text({
         variantStyle[variant],
         { color: toneColor[resolvedTone] },
         style,
-        titleUsesSans ? { fontFamily: baseTheme.fontFamily.sans } : null,
+        serifUsesSystemFallback ? { fontFamily: baseTheme.fontFamily.serif } : null,
       ]}
     >
       {children}

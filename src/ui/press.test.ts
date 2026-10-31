@@ -3,10 +3,13 @@ import { expect, test } from '@jest/globals';
 import { darkColor, lightColor, theme } from './theme';
 import { pressTransition, solidPressStyle, washPressStyle } from './press';
 
-test('press tokens are the baseline Hazel can swap later', () => {
+test('press tokens match v2 motion specification', () => {
   expect(theme.press).toEqual({
-    inMs: 0,
-    releaseMs: 100,
+    inMs: 50,
+    releaseMs: 160,
+    sheetMs: 280,
+    easing: 'cubic-bezier(0.2, 0, 0, 1)',
+    sheetEasing: 'cubic-bezier(0.32, 0.72, 0, 1)',
     opacity: 0.86,
     scale: 0.98,
     disabledOpacity: 0.55,
@@ -15,11 +18,12 @@ test('press tokens are the baseline Hazel can swap later', () => {
   expect(darkColor.pressed).toBe('rgba(250, 249, 245, 0.08)');
 });
 
-test('solid press uses the theme opacity and scale, and snaps in', () => {
+test('solid press uses the theme opacity and scale, and snaps when reduced motion is enabled', () => {
   const pressed = solidPressStyle(true, false, false, theme.press, true);
   expect(pressed.opacity).toBe(theme.press.opacity);
   expect(pressed.transform).toEqual([{ scale: theme.press.scale }]);
   expect(pressed.transitionDuration).toBe(`${theme.press.inMs}ms`);
+  expect(pressed.transitionTimingFunction).toBe(theme.press.easing);
 
   const resting = solidPressStyle(false, false, false, theme.press, true);
   expect(resting.opacity).toBe(1);
@@ -31,7 +35,7 @@ test('solid press uses the theme opacity and scale, and snaps in', () => {
   expect(disabled.transform).toBeUndefined();
 
   const reduced = solidPressStyle(false, false, true, theme.press, true);
-  expect(reduced.transitionDuration).toBe(`${theme.press.inMs}ms`);
+  expect(reduced.transitionDuration).toBe('0ms');
 });
 
 test('row and tab press washes the full surface with the pressed token', () => {

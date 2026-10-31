@@ -55,7 +55,7 @@ export function RefreshStatus({
       {status === 'idle' ? (
         idle
       ) : status === 'refreshing' ? (
-        <Text variant="muted" numberOfLines={1} accessibilityLiveRegion="none">
+        <Text variant="muted" numberOfLines={1} accessibilityLiveRegion="none" style={styles.slotText}>
           {REFRESHING_TEXT}
         </Text>
       ) : (
@@ -64,7 +64,7 @@ export function RefreshStatus({
           role={Platform.OS === 'web' ? 'status' : undefined}
           style={styles.row}
         >
-          <Text variant="muted" tone="warning" numberOfLines={1} style={styles.lead}>
+          <Text variant="muted" tone="warning" numberOfLines={1} style={[styles.lead, styles.slotText]}>
             {lead}
           </Text>
           <Pressable
@@ -73,7 +73,7 @@ export function RefreshStatus({
             onPress={onRetry}
             style={styles.retry}
           >
-            <Text variant="muted" tone="accent">
+            <Text variant="muted" tone="accent" style={styles.slotText}>
               {REFRESH_RETRY_LABEL}
             </Text>
           </Pressable>
@@ -92,6 +92,9 @@ const styles = StyleSheet.create({
     height: theme.lineHeight.sm,
     justifyContent: 'center',
     overflow: 'visible',
+  },
+  slotText: {
+    lineHeight: theme.lineHeight.sm,
   },
   row: {
     alignItems: 'center',

@@ -122,7 +122,8 @@ async function framed(node: ReturnType<Page['locator']>): Promise<boolean> {
   return node.evaluate((element) => {
     let current = element.parentElement;
     while (current) {
-      if (parseFloat(getComputedStyle(current).borderTopWidth) > 0) return true;
+      const style = getComputedStyle(current);
+      if (parseFloat(style.borderTopWidth) > 0 || (style.boxShadow && style.boxShadow !== 'none')) return true;
       current = current.parentElement;
     }
     return false;

@@ -22,7 +22,8 @@ export function Content({
 }) {
   const layout = useLayoutClass();
   const { width: windowWidth } = useWindowDimensions();
-  const pad = layout === 'compact' ? theme.space.md : theme.space.xl;
+  const padY = layout === 'compact' ? theme.space.md : theme.space.xl;
+  const padX = layout === 'compact' ? theme.space.page : theme.space.xl;
   const maxWidth =
     measure === 'auth'
       ? windowWidth <= theme.layout.authFull
@@ -39,9 +40,9 @@ export function Content({
         {
           gap: theme.space[gap],
           maxWidth,
-          paddingTop: pad,
-          paddingHorizontal: pad,
-          paddingBottom: pad,
+          paddingTop: padY,
+          paddingHorizontal: padX,
+          paddingBottom: padY,
         },
         bottomPadding(inset),
         align === 'center' ? styles.center : null,

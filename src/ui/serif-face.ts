@@ -29,7 +29,7 @@ export function installWebSerifFace(): void {
   const family = JSON.stringify(`${brand.displayName}${SERIF_FACE_SUFFIX}`);
   style.appendChild(
     document.createTextNode(
-      `@font-face{font-family:${family};src:url("${SERIF_FONT_URL}") format("woff2");font-weight:600;font-style:normal;font-display:swap;}`,
+      `@font-face{font-family:${family};src:url("${SERIF_FONT_URL}") format("woff2");font-weight:500 600;font-style:normal;font-display:swap;}`,
     ),
   );
   document.head.appendChild(style);

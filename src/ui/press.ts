@@ -6,6 +6,7 @@ type PressStyle = {
   backgroundColor?: string;
   transitionProperty?: string;
   transitionDuration?: string;
+  transitionTimingFunction?: string;
 };
 
 export type PressTokens = typeof theme.press;
@@ -14,13 +15,14 @@ export type PressTokens = typeof theme.press;
 const REST_OPACITY = 1;
 const REST_SCALE = 1;
 
-/** 0ms in, release duration from the theme. Reduced motion snaps both ways. */
+/** 50ms in, 160ms release from the theme (0ms when reduced motion is enabled). */
 export function pressTransition(pressed: boolean, reducedMotion: boolean, press: PressTokens, web: boolean): PressStyle {
-  const duration = reducedMotion || pressed ? press.inMs : press.releaseMs;
+  const duration = reducedMotion ? 0 : pressed ? press.inMs : press.releaseMs;
   if (!web) return {};
   return {
     transitionProperty: 'opacity, transform, background-color',
     transitionDuration: `${duration}ms`,
+    transitionTimingFunction: press.easing,
   };
 }
 
