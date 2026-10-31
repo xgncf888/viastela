@@ -98,9 +98,7 @@ export function SidebarFrame({
 
       <View style={styles.brandRow}>
         <View style={styles.brandLeft}>
-          <View style={[styles.brandSquircle, { backgroundColor: color.card, borderColor: color.line }]}>
-            <BrandMark size={16} />
-          </View>
+          <BrandMark size={26} />
           <Text variant="heading" style={styles.brandWordmark} numberOfLines={1}>
             {title}
           </Text>

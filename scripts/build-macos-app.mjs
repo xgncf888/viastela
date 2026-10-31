@@ -81,105 +81,207 @@ func drawAstrolabeIcon(size: Int) -> Data? {
     let box = CGRect(x: inset, y: inset, width: s - inset * 2, height: s - inset * 2)
     let radius = box.width * 0.225
     let squircle = CGPath(roundedRect: box, cornerWidth: radius, cornerHeight: radius, transform: nil)
+    let colorSpace = CGColorSpaceCreateDeviceRGB()
 
+    // 1. Deep Obsidian Black Squircle Base (#0A0B0E -> #14161D) + Glowing Molten Gold Rim (Charioteer Sister Series)
     ctx.saveGState()
-    ctx.setShadow(offset: CGSize(width: 0, height: -s * 0.018), blur: s * 0.04, color: NSColor(calibratedWhite: 0, alpha: 0.35).cgColor)
+    ctx.setShadow(offset: CGSize(width: 0, height: -s * 0.02), blur: s * 0.045, color: NSColor(calibratedWhite: 0, alpha: 0.72).cgColor)
     ctx.addPath(squircle)
-    ctx.setFillColor(NSColor(calibratedRed: 0.969, green: 0.957, blue: 0.925, alpha: 1.0).cgColor)
+    ctx.setFillColor(NSColor(calibratedRed: 0.035, green: 0.038, blue: 0.048, alpha: 1.0).cgColor)
     ctx.fillPath()
     ctx.restoreGState()
 
     ctx.saveGState()
     ctx.addPath(squircle)
     ctx.clip()
-    let colorSpace = CGColorSpaceCreateDeviceRGB()
-    let paperColors = [
-        NSColor(calibratedRed: 0.976, green: 0.965, blue: 0.937, alpha: 1.0).cgColor,
-        NSColor(calibratedRed: 0.918, green: 0.898, blue: 0.851, alpha: 1.0).cgColor
+    let bgColors = [
+        NSColor(calibratedRed: 0.082, green: 0.088, blue: 0.114, alpha: 1.0).cgColor,
+        NSColor(calibratedRed: 0.027, green: 0.030, blue: 0.038, alpha: 1.0).cgColor
     ] as CFArray
-    if let grad = CGGradient(colorsSpace: colorSpace, colors: paperColors, locations: [0.0, 1.0]) {
+    if let grad = CGGradient(colorsSpace: colorSpace, colors: bgColors, locations: [0.0, 1.0]) {
         ctx.drawLinearGradient(grad, start: CGPoint(x: s * 0.5, y: box.maxY), end: CGPoint(x: s * 0.5, y: box.minY), options: [])
     }
     ctx.addPath(squircle)
-    ctx.setStrokeColor(NSColor(calibratedRed: 0.85, green: 0.82, blue: 0.76, alpha: 0.9).cgColor)
-    ctx.setLineWidth(s * 0.008)
+    ctx.setStrokeColor(NSColor(calibratedRed: 0.92, green: 0.78, blue: 0.36, alpha: 0.92).cgColor)
+    ctx.setLineWidth(s * 0.011)
     ctx.strokePath()
     ctx.restoreGState()
 
     let center = CGPoint(x: s * 0.5, y: s * 0.5)
-    let medRadius = s * 0.345
-    let medRect = CGRect(x: center.x - medRadius, y: center.y - medRadius, width: medRadius * 2, height: medRadius * 2)
+    let outerRingR = s * 0.362
+    let midOuterR = s * 0.342
+    let innerRingR = s * 0.285
+    let innerDashR = s * 0.268
 
+    let goldChampagne = NSColor(calibratedRed: 1.0, green: 0.96, blue: 0.78, alpha: 1.0).cgColor
+    let goldBright = NSColor(calibratedRed: 0.99, green: 0.91, blue: 0.58, alpha: 1.0).cgColor
+    let goldMid = NSColor(calibratedRed: 0.85, green: 0.69, blue: 0.24, alpha: 1.0).cgColor
+    let goldDeep = NSColor(calibratedRed: 0.58, green: 0.42, blue: 0.10, alpha: 1.0).cgColor
+    let goldShadow = NSColor(calibratedRed: 0.42, green: 0.29, blue: 0.06, alpha: 1.0).cgColor
+
+    // 2. Celestial Astrolabe Concentric Rings + 144 Ticks + 12 Roman Numerals
     ctx.saveGState()
-    ctx.setShadow(offset: CGSize(width: 0, height: -s * 0.012), blur: s * 0.025, color: NSColor(calibratedWhite: 0, alpha: 0.42).cgColor)
-    ctx.fillEllipse(in: medRect)
-    ctx.restoreGState()
-
-    ctx.saveGState()
-    ctx.addEllipse(in: medRect)
-    ctx.clip()
-    let medColors = [
-        NSColor(calibratedRed: 0.13, green: 0.135, blue: 0.155, alpha: 1.0).cgColor,
-        NSColor(calibratedRed: 0.075, green: 0.078, blue: 0.09, alpha: 1.0).cgColor
-    ] as CFArray
-    if let medGrad = CGGradient(colorsSpace: colorSpace, colors: medColors, locations: [0.0, 1.0]) {
-        ctx.drawLinearGradient(medGrad, start: CGPoint(x: center.x, y: medRect.maxY), end: CGPoint(x: center.x, y: medRect.minY), options: [])
-    }
-    ctx.restoreGState()
-
-    let outerRingR = s * 0.295
-    let innerRingR = s * 0.265
-    let goldStroke = NSColor(calibratedRed: 0.86, green: 0.72, blue: 0.56, alpha: 0.55).cgColor
-    ctx.setStrokeColor(goldStroke)
-    ctx.setLineWidth(max(1.0, s * 0.003))
+    ctx.setShadow(offset: .zero, blur: s * 0.016, color: NSColor(calibratedRed: 0.92, green: 0.76, blue: 0.32, alpha: 0.45).cgColor)
+    ctx.setStrokeColor(goldBright)
+    ctx.setLineWidth(s * 0.0055)
     ctx.strokeEllipse(in: CGRect(x: center.x - outerRingR, y: center.y - outerRingR, width: outerRingR * 2, height: outerRingR * 2))
+    ctx.setStrokeColor(goldMid)
+    ctx.setLineWidth(s * 0.003)
+    ctx.strokeEllipse(in: CGRect(x: center.x - midOuterR, y: center.y - midOuterR, width: midOuterR * 2, height: midOuterR * 2))
+    ctx.setLineWidth(s * 0.0045)
     ctx.strokeEllipse(in: CGRect(x: center.x - innerRingR, y: center.y - innerRingR, width: innerRingR * 2, height: innerRingR * 2))
+    ctx.setLineWidth(s * 0.0025)
+    ctx.strokeEllipse(in: CGRect(x: center.x - innerDashR, y: center.y - innerDashR, width: innerDashR * 2, height: innerDashR * 2))
+    ctx.restoreGState()
 
-    for i in 0..<72 {
-        let angle = CGFloat(i) * (.pi * 2.0 / 72.0)
-        let isMajor = (i % 6 == 0)
-        let isCardinal = (i % 18 == 0)
-        let r1 = isCardinal ? (innerRingR - s * 0.012) : innerRingR
-        let r2 = isCardinal ? (outerRingR + s * 0.012) : (isMajor ? outerRingR : (innerRingR + (outerRingR - innerRingR) * 0.55))
-        ctx.setLineWidth(isCardinal ? max(1.5, s * 0.0045) : max(1.0, s * 0.0022))
-        ctx.setStrokeColor(NSColor(calibratedRed: 0.88, green: 0.74, blue: 0.58, alpha: isCardinal ? 0.85 : (isMajor ? 0.55 : 0.32)).cgColor)
+    for i in 0..<144 {
+        let angle = CGFloat(i) * (.pi * 2.0 / 144.0)
+        let isHour = (i % 12 == 0)
+        let r1 = midOuterR
+        let r2 = outerRingR
+        ctx.setLineWidth(isHour ? s * 0.0045 : s * 0.0018)
+        ctx.setStrokeColor(isHour ? goldBright : goldMid)
         ctx.move(to: CGPoint(x: center.x + cos(angle) * r1, y: center.y + sin(angle) * r1))
         ctx.addLine(to: CGPoint(x: center.x + cos(angle) * r2, y: center.y + sin(angle) * r2))
         ctx.strokePath()
     }
 
-    let vPath = CGMutablePath()
-    vPath.move(to: CGPoint(x: s * 0.355, y: s * 0.595))
-    vPath.addLine(to: CGPoint(x: s * 0.500, y: s * 0.335))
-    vPath.addLine(to: CGPoint(x: s * 0.645, y: s * 0.595))
+    let numerals = ["XII", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI"]
+    let numRadius = (midOuterR + innerRingR) * 0.5
+    let font = NSFont(name: "TimesNewRomanPS-BoldMT", size: s * 0.036) ?? NSFont.boldSystemFont(ofSize: s * 0.036)
+    let attrs: [NSAttributedString.Key: Any] = [
+        .font: font,
+        .foregroundColor: NSColor(calibratedRed: 0.95, green: 0.82, blue: 0.42, alpha: 0.95)
+    ]
+    for (idx, roman) in numerals.enumerated() {
+        let clockAngle = (.pi / 2.0) - CGFloat(idx) * (.pi / 6.0)
+        let pos = CGPoint(x: center.x + cos(clockAngle) * numRadius, y: center.y + sin(clockAngle) * numRadius)
+        let str = NSAttributedString(string: roman, attributes: attrs)
+        let strSize = str.size()
+        ctx.saveGState()
+        ctx.translateBy(x: pos.x, y: pos.y)
+        ctx.rotate(by: clockAngle - (.pi / 2.0))
+        str.draw(at: CGPoint(x: -strSize.width * 0.5, y: -strSize.height * 0.5))
+        ctx.restoreGState()
+    }
+
+    // 3. Dense Parallel Golden Constellation / Trajectory Traces & Nodes
+    let traceRows: [(CGFloat, CGFloat, CGFloat)] = [
+        (0.11, 0.22, 0.03),
+        (0.07, 0.24, 0.025),
+        (0.03, 0.25, 0.02),
+        (-0.01, 0.25, -0.015),
+        (-0.05, 0.24, -0.025),
+        (-0.09, 0.22, -0.03),
+        (-0.13, 0.19, -0.035)
+    ]
     ctx.saveGState()
-    ctx.setShadow(offset: CGSize(width: 0, height: -s * 0.006), blur: s * 0.015, color: NSColor(calibratedWhite: 0, alpha: 0.5).cgColor)
-    ctx.addPath(vPath)
-    ctx.setStrokeColor(NSColor(calibratedRed: 0.969, green: 0.957, blue: 0.925, alpha: 1.0).cgColor)
-    ctx.setLineWidth(s * 0.044)
+    ctx.setLineWidth(s * 0.0032)
+    ctx.setStrokeColor(NSColor(calibratedRed: 0.92, green: 0.76, blue: 0.32, alpha: 0.78).cgColor)
+    for (dy, spanX, bendY) in traceRows {
+        let y = center.y + s * dy
+        let lx0 = center.x - s * spanX
+        let lx1 = center.x - s * (spanX - 0.055)
+        let lx2 = center.x - s * (spanX - 0.09)
+        let ly2 = y - s * bendY
+        ctx.move(to: CGPoint(x: lx0, y: y))
+        ctx.addLine(to: CGPoint(x: lx1, y: y))
+        ctx.addLine(to: CGPoint(x: lx2, y: ly2))
+        ctx.addLine(to: CGPoint(x: center.x - s * 0.07, y: ly2))
+        ctx.strokePath()
+        ctx.setFillColor(goldBright)
+        ctx.fillEllipse(in: CGRect(x: lx0 - s * 0.006, y: y - s * 0.006, width: s * 0.012, height: s * 0.012))
+
+        let rx0 = center.x + s * spanX
+        let rx1 = center.x + s * (spanX - 0.055)
+        let rx2 = center.x + s * (spanX - 0.09)
+        ctx.move(to: CGPoint(x: rx0, y: y))
+        ctx.addLine(to: CGPoint(x: rx1, y: y))
+        ctx.addLine(to: CGPoint(x: rx2, y: ly2))
+        ctx.addLine(to: CGPoint(x: center.x + s * 0.07, y: ly2))
+        ctx.strokePath()
+        ctx.fillEllipse(in: CGRect(x: rx0 - s * 0.006, y: y - s * 0.006, width: s * 0.012, height: s * 0.012))
+    }
+    ctx.restoreGState()
+
+    func fillFacet(_ pts: [CGPoint], color: CGColor) {
+        guard let first = pts.first else { return }
+        let p = CGMutablePath()
+        p.move(to: first)
+        for pt in pts.dropFirst() { p.addLine(to: pt) }
+        p.closeSubpath()
+        ctx.addPath(p)
+        ctx.setFillColor(color)
+        ctx.fillPath()
+        ctx.addPath(p)
+        ctx.setStrokeColor(NSColor(calibratedWhite: 0, alpha: 0.58).cgColor)
+        ctx.setLineWidth(s * 0.0024)
+        ctx.strokePath()
+    }
+
+    func svgPt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+        return CGPoint(x: (x / 128.0) * s, y: ((128.0 - y) / 128.0) * s)
+    }
+
+    // 4. Crossed Golden Astrolabe Sextant Axes & Cardinal Spearheads
+    ctx.saveGState()
+    ctx.setShadow(offset: CGSize(width: 0, height: -s * 0.008), blur: s * 0.016, color: NSColor(calibratedWhite: 0, alpha: 0.75).cgColor)
+    ctx.setStrokeColor(goldMid)
+    ctx.setLineWidth(s * 0.011)
     ctx.setLineCap(.round)
-    ctx.setLineJoin(.round)
+    ctx.move(to: CGPoint(x: center.x - s * 0.19, y: center.y - s * 0.01))
+    ctx.addLine(to: CGPoint(x: center.x + s * 0.16, y: center.y - s * 0.21))
+    ctx.move(to: CGPoint(x: center.x + s * 0.19, y: center.y - s * 0.01))
+    ctx.addLine(to: CGPoint(x: center.x - s * 0.16, y: center.y - s * 0.21))
     ctx.strokePath()
     ctx.restoreGState()
 
-    let starCenter = CGPoint(x: s * 0.500, y: s * 0.635)
-    let outerS = s * 0.068
-    let innerS = s * 0.021
-    let starPath = CGMutablePath()
-    for i in 0..<8 {
-        let angle = CGFloat(i) * (.pi / 4.0) + (.pi / 2.0)
-        let r = (i % 2 == 0) ? outerS : innerS
-        let pt = CGPoint(x: starCenter.x + cos(angle) * r, y: starCenter.y + sin(angle) * r)
-        if i == 0 { starPath.move(to: pt) } else { starPath.addLine(to: pt) }
-    }
-    starPath.closeSubpath()
+    fillFacet([svgPt(24, 57), svgPt(35, 59), svgPt(31, 65)], color: goldBright)
+    fillFacet([svgPt(104, 57), svgPt(93, 59), svgPt(97, 65)], color: goldBright)
 
-    ctx.saveGState()
-    ctx.setShadow(offset: .zero, blur: s * 0.032, color: NSColor(calibratedRed: 0.80, green: 0.47, blue: 0.36, alpha: 0.85).cgColor)
-    ctx.addPath(starPath)
-    ctx.setFillColor(NSColor(calibratedRed: 0.80, green: 0.47, blue: 0.36, alpha: 1.0).cgColor)
-    ctx.fillPath()
-    ctx.restoreGState()
+    // 5. Sculpted Low-Poly 3D Ascendant "V" Celestial Wings (星途双翼)
+    fillFacet([svgPt(31, 33), svgPt(44, 35), svgPt(53, 53), svgPt(41, 51)], color: goldChampagne)
+    fillFacet([svgPt(41, 51), svgPt(53, 53), svgPt(64, 72), svgPt(50, 68)], color: goldBright)
+    fillFacet([svgPt(44, 35), svgPt(52, 41), svgPt(59, 58), svgPt(53, 53)], color: goldMid)
+    fillFacet([svgPt(53, 53), svgPt(59, 58), svgPt(64, 72)], color: goldDeep)
+    fillFacet([svgPt(34, 43), svgPt(41, 51), svgPt(48, 63), svgPt(38, 57)], color: goldMid)
+    fillFacet([svgPt(38, 57), svgPt(48, 63), svgPt(46, 70), svgPt(36, 65)], color: goldShadow)
+
+    fillFacet([svgPt(97, 33), svgPt(84, 35), svgPt(75, 53), svgPt(87, 51)], color: goldBright)
+    fillFacet([svgPt(87, 51), svgPt(75, 53), svgPt(64, 72), svgPt(78, 68)], color: goldMid)
+    fillFacet([svgPt(84, 35), svgPt(76, 41), svgPt(69, 58), svgPt(75, 53)], color: goldDeep)
+    fillFacet([svgPt(75, 53), svgPt(69, 58), svgPt(64, 72)], color: goldShadow)
+    fillFacet([svgPt(94, 43), svgPt(87, 51), svgPt(80, 63), svgPt(90, 57)], color: goldDeep)
+    fillFacet([svgPt(90, 57), svgPt(80, 63), svgPt(82, 70), svgPt(92, 65)], color: goldShadow)
+
+    // 6. Sculpted 8-Point Faceted Polaris North Star (北极星冠) at Upper Center (64, 38)
+    fillFacet([svgPt(64, 38), svgPt(55, 29), svgPt(60, 34)], color: goldBright)
+    fillFacet([svgPt(64, 38), svgPt(55, 29), svgPt(59, 38)], color: goldMid)
+    fillFacet([svgPt(64, 38), svgPt(73, 29), svgPt(68, 34)], color: goldMid)
+    fillFacet([svgPt(64, 38), svgPt(73, 29), svgPt(69, 38)], color: goldDeep)
+    fillFacet([svgPt(64, 38), svgPt(55, 47), svgPt(59, 38)], color: goldMid)
+    fillFacet([svgPt(64, 38), svgPt(55, 47), svgPt(60, 42)], color: goldDeep)
+    fillFacet([svgPt(64, 38), svgPt(73, 47), svgPt(69, 38)], color: goldDeep)
+    fillFacet([svgPt(64, 38), svgPt(73, 47), svgPt(68, 42)], color: goldShadow)
+
+    fillFacet([svgPt(64, 20), svgPt(60, 34), svgPt(64, 38)], color: goldChampagne)
+    fillFacet([svgPt(64, 20), svgPt(68, 34), svgPt(64, 38)], color: goldMid)
+    fillFacet([svgPt(64, 56), svgPt(60, 42), svgPt(64, 38)], color: goldBright)
+    fillFacet([svgPt(64, 56), svgPt(68, 42), svgPt(64, 38)], color: goldShadow)
+    fillFacet([svgPt(46, 38), svgPt(60, 34), svgPt(64, 38)], color: goldChampagne)
+    fillFacet([svgPt(46, 38), svgPt(60, 42), svgPt(64, 38)], color: goldMid)
+    fillFacet([svgPt(82, 38), svgPt(68, 34), svgPt(64, 38)], color: goldBright)
+    fillFacet([svgPt(82, 38), svgPt(68, 42), svgPt(64, 38)], color: goldDeep)
+
+    // 7. Faceted Royal Shield with Outer Rim & Central Diamond Boss (Lower Center — Sister Series Crest)
+    fillFacet([svgPt(46, 63), svgPt(64, 67), svgPt(64, 100), svgPt(49, 88), svgPt(46, 77)], color: goldBright)
+    fillFacet([svgPt(82, 63), svgPt(64, 67), svgPt(64, 100), svgPt(79, 88), svgPt(82, 77)], color: goldShadow)
+    fillFacet([svgPt(49.5, 66.2), svgPt(64, 69.5), svgPt(64, 96.5), svgPt(52, 86), svgPt(49.5, 77.5)], color: goldMid)
+    fillFacet([svgPt(78.5, 66.2), svgPt(64, 69.5), svgPt(64, 96.5), svgPt(76, 86), svgPt(78.5, 77.5)], color: goldDeep)
+    fillFacet([svgPt(64, 71), svgPt(73, 79), svgPt(64, 79)], color: goldChampagne)
+    fillFacet([svgPt(64, 71), svgPt(55, 79), svgPt(64, 79)], color: goldBright)
+    fillFacet([svgPt(64, 79), svgPt(55, 79), svgPt(64, 90)], color: goldMid)
+    fillFacet([svgPt(64, 79), svgPt(73, 79), svgPt(64, 90)], color: goldShadow)
 
     NSGraphicsContext.restoreGraphicsState()
     return rep.representation(using: .png, properties: [:])
@@ -698,10 +800,60 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         NSApp.windowsMenu = windowMenu
     }
 
+    func drawMenuBarCrestImage() -> NSImage {
+        let size = NSSize(width: 18, height: 18)
+        let img = NSImage(size: size, flipped: true) { rect in
+            guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
+            let w = rect.width
+            let h = rect.height
+            let pt = { (_ x: CGFloat, _ y: CGFloat) -> CGPoint in
+                CGPoint(x: (x / 32.0) * w, y: (y / 32.0) * h)
+            }
+
+            let badgeBox = CGRect(x: 1.2, y: 1.2, width: w - 2.4, height: h - 2.4)
+            let badgePath = CGPath(roundedRect: badgeBox, cornerWidth: 4.5, cornerHeight: 4.5, transform: nil)
+            ctx.addPath(badgePath)
+            ctx.setFillColor(NSColor(calibratedRed: 0.055, green: 0.06, blue: 0.08, alpha: 1.0).cgColor)
+            ctx.fillPath()
+            ctx.addPath(badgePath)
+            ctx.setStrokeColor(NSColor(calibratedRed: 0.90, green: 0.76, blue: 0.35, alpha: 0.95).cgColor)
+            ctx.setLineWidth(1.1)
+            ctx.strokePath()
+
+            let goldBright = NSColor(calibratedRed: 0.99, green: 0.92, blue: 0.62, alpha: 1.0).cgColor
+            let goldMid = NSColor(calibratedRed: 0.86, green: 0.70, blue: 0.25, alpha: 1.0).cgColor
+            let goldDeep = NSColor(calibratedRed: 0.62, green: 0.45, blue: 0.12, alpha: 1.0).cgColor
+
+            func fillPoly(_ points: [CGPoint], _ color: CGColor) {
+                guard let f = points.first else { return }
+                let p = CGMutablePath()
+                p.move(to: f)
+                for point in points.dropFirst() { p.addLine(to: point) }
+                p.closeSubpath()
+                ctx.addPath(p)
+                ctx.setFillColor(color)
+                ctx.fillPath()
+            }
+
+            // Faceted Golden V-Wings
+            fillPoly([pt(6.0, 9.0), pt(11.0, 10.0), pt(16.0, 19.5), pt(16.0, 26.8)], goldBright)
+            fillPoly([pt(26.0, 9.0), pt(21.0, 10.0), pt(16.0, 19.5), pt(16.0, 26.8)], goldMid)
+            fillPoly([pt(11.0, 10.0), pt(16.0, 16.5), pt(16.0, 22.0), pt(9.2, 13.0)], goldDeep)
+            // Faceted Golden Polaris Star
+            fillPoly([pt(16.0, 4.2), pt(17.5, 7.6), pt(21.0, 9.0), pt(17.5, 10.4), pt(16.0, 13.8), pt(14.5, 10.4), pt(11.0, 9.0), pt(14.5, 7.6)], goldBright)
+
+            return true
+        }
+        img.isTemplate = false
+        return img
+    }
+
     func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
-            button.title = "✦"
+            button.image = drawMenuBarCrestImage()
+            button.imagePosition = .imageLeading
+            button.title = ""
             button.toolTip = "${APP_TITLE} — 点击打开或快速记录"
         }
         let menu = NSMenu()
@@ -819,6 +971,19 @@ function main() {
   try {
     writeFileSync(iconSwiftFile, ICON_SWIFT, 'utf8');
     execFileSync('swift', [iconSwiftFile, iconOutPath], { stdio: 'inherit' });
+    const assetTargets = [
+      path.join(ROOT, 'assets', 'icon.png'),
+      path.join(ROOT, 'assets', 'splash-icon.png'),
+      path.join(ROOT, 'assets', 'android-icon-foreground.png'),
+      path.resolve(ROOT, '..', 'viastela-icon-astrolabe-1024.png'),
+    ];
+    for (const target of assetTargets) {
+      try {
+        execFileSync('cp', [iconOutPath, target]);
+      } catch {
+        // Ignore if parent target is not writable in CI.
+      }
+    }
     writeFileSync(swiftFile, SWIFT_SOURCE, 'utf8');
     execFileSync('swiftc', ['-O', swiftFile, '-framework', 'Cocoa', '-framework', 'WebKit', '-o', binPath], {
       stdio: 'inherit',
