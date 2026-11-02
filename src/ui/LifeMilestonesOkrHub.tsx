@@ -67,13 +67,16 @@ const AUTO_LINK_OPTIONS: { id: OkrAutoLink; label: string }[] = [
 
 /**
  * 2.5D Isometric Miniature Emblem SVG for Milestone Cards
+ * Seamlessly adapts between Obsidian Gold (dark) and Sunlit Warm Parchment (light).
  */
 function Milestone25DEmblemSvg({
   category,
   accent,
+  isDark,
 }: {
   category: MilestoneCategory;
   accent: string;
+  isDark: boolean;
 }) {
   if (Platform.OS !== 'web') {
     return (
@@ -84,11 +87,18 @@ function Milestone25DEmblemSvg({
           borderRadius: 12,
           borderWidth: 1,
           borderColor: accent,
-          backgroundColor: '#1d1916',
+          backgroundColor: isDark ? '#1d1916' : '#f4eedf',
         }}
       />
     );
   }
+
+  const pedestalTop = isDark ? '#2b241d' : '#f3ebdc';
+  const pedestalLeft = isDark ? '#1a1511' : '#e4d9c5';
+  const pedestalRight = isDark ? '#120f0c' : '#d5c6ac';
+  const goldHighlight = isDark ? '#fde68a' : '#b88228';
+  const goldMid = isDark ? '#f5b942' : '#d99b38';
+  const hourglassFill = isDark ? '#42321b' : '#f8f0df';
 
   return createElement(
     'svg',
@@ -98,29 +108,29 @@ function Milestone25DEmblemSvg({
       viewBox: '0 0 64 64',
       fill: 'none',
       style: {
-        filter: `drop-shadow(0 6px 12px rgba(0,0,0,0.55)) drop-shadow(0 0 8px ${accent}33)`,
+        filter: isDark
+          ? `drop-shadow(0 6px 12px rgba(0,0,0,0.55)) drop-shadow(0 0 8px ${accent}33)`
+          : `drop-shadow(0 4px 10px rgba(38, 36, 31, 0.12))`,
       },
     },
-    // Isometric 2.5D Pedestal Tile
     createElement('polygon', {
       points: '32,56 58,44 32,32 6,44',
-      fill: '#2b241d',
+      fill: pedestalTop,
       stroke: accent,
       strokeWidth: 1.3,
     }),
     createElement('polygon', {
       points: '6,44 32,56 32,61 6,49',
-      fill: '#1a1511',
+      fill: pedestalLeft,
     }),
     createElement('polygon', {
       points: '58,44 32,56 32,61 58,49',
-      fill: '#120f0c',
+      fill: pedestalRight,
     }),
     category === 'love'
       ? createElement(
           'g',
           null,
-          // 2.5D Intertwined Golden Rings & Faceted Ruby Gem
           createElement('ellipse', {
             cx: 27,
             cy: 34,
@@ -128,7 +138,7 @@ function Milestone25DEmblemSvg({
             ry: 5.5,
             transform: 'rotate(-18 27 34)',
             fill: 'none',
-            stroke: '#fde68a',
+            stroke: goldHighlight,
             strokeWidth: 2.2,
           }),
           createElement('ellipse', {
@@ -138,13 +148,13 @@ function Milestone25DEmblemSvg({
             ry: 5.5,
             transform: 'rotate(18 37 34)',
             fill: 'none',
-            stroke: '#f5b942',
+            stroke: goldMid,
             strokeWidth: 2.2,
           }),
           createElement('polygon', {
             points: '32,12 40,20 32,30 24,20',
             fill: '#e8924a',
-            stroke: '#fef08a',
+            stroke: goldHighlight,
             strokeWidth: 1,
           }),
         )
@@ -152,21 +162,35 @@ function Milestone25DEmblemSvg({
         ? createElement(
             'g',
             null,
-            // 2.5D Golden Hourglass & Time Pillars
-            createElement('ellipse', { cx: 32, cy: 14, rx: 11, ry: 4.5, fill: '#42321b', stroke: '#f5b942', strokeWidth: 1.5 }),
-            createElement('ellipse', { cx: 32, cy: 40, rx: 11, ry: 4.5, fill: '#42321b', stroke: '#f5b942', strokeWidth: 1.5 }),
+            createElement('ellipse', {
+              cx: 32,
+              cy: 14,
+              rx: 11,
+              ry: 4.5,
+              fill: hourglassFill,
+              stroke: goldMid,
+              strokeWidth: 1.5,
+            }),
+            createElement('ellipse', {
+              cx: 32,
+              cy: 40,
+              rx: 11,
+              ry: 4.5,
+              fill: hourglassFill,
+              stroke: goldMid,
+              strokeWidth: 1.5,
+            }),
             createElement('path', {
               d: 'M23 15 L32 27 L41 15 M23 39 L32 27 L41 39',
-              stroke: '#fde68a',
+              stroke: goldHighlight,
               strokeWidth: 1.6,
               fill: 'rgba(245, 185, 66, 0.22)',
             }),
-            createElement('circle', { cx: 32, cy: 27, r: 2.5, fill: '#fef08a' }),
+            createElement('circle', { cx: 32, cy: 27, r: 2.5, fill: goldMid }),
           )
         : createElement(
             'g',
             null,
-            // 2.5D Celestial Polaris Star & Astrolabe Ring
             createElement('circle', {
               cx: 32,
               cy: 26,
@@ -178,7 +202,7 @@ function Milestone25DEmblemSvg({
             }),
             createElement('path', {
               d: 'M32 10 L35 22 L47 26 L35 30 L32 42 L29 30 L17 26 L29 22 Z',
-              fill: '#fde68a',
+              fill: goldMid,
             }),
           ),
   );
@@ -191,11 +215,18 @@ function OkrRadialRingSvg({
   pct,
   confidence,
   accent,
+  isDark,
 }: {
   pct: number;
   confidence: number;
   accent: string;
+  isDark: boolean;
 }) {
+  const textFill = isDark ? '#f5f5f4' : '#26241f';
+  const discFill = isDark ? '#141210' : '#f7f3ea';
+  const outerStroke = isDark ? 'rgba(255,248,235,0.10)' : 'rgba(38, 36, 31, 0.12)';
+  const trackStroke = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(38, 36, 31, 0.10)';
+
   if (Platform.OS !== 'web') {
     return (
       <View
@@ -209,7 +240,7 @@ function OkrRadialRingSvg({
           justifyContent: 'center',
         }}
       >
-        <Text variant="label" style={{ color: '#f5f5f4' }}>{`${pct}%`}</Text>
+        <Text variant="label" style={{ color: textFill }}>{`${pct}%`}</Text>
       </View>
     );
   }
@@ -227,29 +258,28 @@ function OkrRadialRingSvg({
       viewBox: '0 0 78 78',
       fill: 'none',
       style: {
-        filter: `drop-shadow(0 0 10px ${accent}44)`,
+        filter: isDark
+          ? `drop-shadow(0 0 10px ${accent}44)`
+          : `drop-shadow(0 3px 8px rgba(38, 36, 31, 0.08))`,
       },
     },
-    // Outer decorative compass ticks
     createElement('circle', {
       cx: 39,
       cy: 39,
       r: 35,
-      fill: '#141210',
-      stroke: 'rgba(255,248,235,0.10)',
+      fill: discFill,
+      stroke: outerStroke,
       strokeWidth: 1,
       strokeDasharray: '2 4',
     }),
-    // Track ring
     createElement('circle', {
       cx: 39,
       cy: 39,
       r: radius,
       fill: 'none',
-      stroke: 'rgba(255,255,255,0.08)',
+      stroke: trackStroke,
       strokeWidth: 5.5,
     }),
-    // Glowing Progress Arc
     createElement('circle', {
       cx: 39,
       cy: 39,
@@ -268,7 +298,7 @@ function OkrRadialRingSvg({
         x: 39,
         y: 38,
         textAnchor: 'middle',
-        fill: '#f5f5f4',
+        fill: textFill,
         fontSize: '14',
         fontWeight: '700',
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
@@ -302,7 +332,74 @@ export function LifeMilestonesOkrHub({
   totalWorkoutSets?: number | null;
   totalStudyHours?: number | null;
 }) {
-  const { color } = useTheme();
+  const { color, scheme } = useTheme();
+  const isDark = scheme === 'dark';
+
+  // Unified Adaptive Palette: Warm Parchment in light mode, Obsidian & Molten Gold in dark mode
+  const pal = isDark
+    ? {
+        containerBg: '#121110',
+        containerBorder: 'rgba(245, 185, 66, 0.28)',
+        headerBg: '#171513',
+        headerBorder: 'rgba(255, 248, 235, 0.08)',
+        titleText: '#fafaf9',
+        subText: '#a8a29e',
+        mutedText: '#78716c',
+        cardBg: '#191714',
+        cardBorder: 'rgba(255, 248, 235, 0.10)',
+        cardRecessedBg: '#13110f',
+        cardRecessedBorder: 'rgba(255, 248, 235, 0.07)',
+        pillBg: 'rgba(245, 185, 66, 0.12)',
+        pillBorder: 'rgba(245, 185, 66, 0.35)',
+        pillText: '#fde68a',
+        actionBtnBg: '#211e1a',
+        actionBtnBorder: 'rgba(255, 248, 235, 0.14)',
+        actionBtnText: '#e7e5e4',
+        goldPrimary: '#f5b942',
+        goldLight: '#fde68a',
+        emeraldPrimary: '#34d399',
+        amberPrimary: '#e8924a',
+        segmentOffBg: 'rgba(255, 255, 255, 0.06)',
+        keycapOffTop: '#24201c',
+        keycapOffLip: '#15120f',
+        keycapOffBorder: 'rgba(255, 248, 235, 0.10)',
+        keycapOnTop: '#16382b',
+        keycapOnLip: '#0c231b',
+        keycapOnBorder: '#34d399',
+        keycapOnText: '#a7f3d0',
+      }
+    : {
+        containerBg: '#FFFFFF',
+        containerBorder: '#E7E2D6',
+        headerBg: '#F9F6EE',
+        headerBorder: '#E7E2D6',
+        titleText: '#26241F',
+        subText: '#5F5B52',
+        mutedText: '#8C867A',
+        cardBg: '#FBFAF6',
+        cardBorder: '#E7E2D6',
+        cardRecessedBg: '#F3EFE4',
+        cardRecessedBorder: '#E3DEC9',
+        pillBg: '#F6EBD8',
+        pillBorder: '#DFC496',
+        pillText: '#8E6116',
+        actionBtnBg: '#FFFFFF',
+        actionBtnBorder: '#DCD5C6',
+        actionBtnText: '#26241F',
+        goldPrimary: '#B88228',
+        goldLight: '#9A6B1E',
+        emeraldPrimary: '#1F5E4B',
+        amberPrimary: '#CC785C',
+        segmentOffBg: 'rgba(38, 36, 31, 0.09)',
+        keycapOffTop: '#FFFFFF',
+        keycapOffLip: '#DFD8C8',
+        keycapOffBorder: '#DCD5C6',
+        keycapOnTop: '#E2F2EC',
+        keycapOnLip: '#B7D9CD',
+        keycapOnBorder: '#1F5E4B',
+        keycapOnText: '#144435',
+      };
+
   const [milestones, setMilestones] = useState<LifeMilestone[]>(readLifeMilestones);
   const [objectives, setObjectives] = useState<OkrObjective[]>(readOkrObjectives);
   const [habits, setHabits] = useState<HabitItem[]>(readDailyHabits);
@@ -444,16 +541,37 @@ export function LifeMilestonesOkrHub({
   }
 
   return (
-    <View style={styles.obsidianContainer}>
+    <View
+      style={[
+        styles.obsidianContainer,
+        {
+          backgroundColor: pal.containerBg,
+          borderColor: pal.containerBorder,
+        },
+      ]}
+    >
       {/* Top Command Bar */}
-      <View style={styles.topHeaderBar}>
+      <View
+        style={[
+          styles.topHeaderBar,
+          {
+            backgroundColor: pal.headerBg,
+            borderBottomColor: pal.headerBorder,
+          },
+        ]}
+      >
         <View style={styles.topHeaderLeft}>
-          <View style={styles.goldPulseDot} />
-          <Text variant="label" style={styles.mainHeaderTitle}>
+          <View style={[styles.goldPulseDot, { backgroundColor: pal.goldPrimary }]} />
+          <Text variant="label" style={[styles.mainHeaderTitle, { color: pal.titleText }]}>
             星轨纪念日 · OKR 双环指挥台 · 每日微习惯 3D 键帽舱
           </Text>
-          <View style={styles.summaryPill}>
-            <Text variant="caption" style={styles.summaryPillText}>
+          <View
+            style={[
+              styles.summaryPill,
+              { backgroundColor: pal.pillBg, borderColor: pal.pillBorder },
+            ]}
+          >
+            <Text variant="caption" style={[styles.summaryPillText, { color: pal.pillText }]}>
               {`OKR 总进度 ${avgOkrProgress}% · 今日习惯 ${habitsCompletedToday}/${habits.length}`}
             </Text>
           </View>
@@ -464,9 +582,12 @@ export function LifeMilestonesOkrHub({
             accessibilityRole="button"
             accessibilityLabel="新增纪念日或重要倒数日"
             onPress={() => setMilestoneFormOpen((prev) => !prev)}
-            style={styles.actionDarkPill}
+            style={[
+              styles.actionDarkPill,
+              { backgroundColor: pal.actionBtnBg, borderColor: pal.actionBtnBorder },
+            ]}
           >
-            <Text variant="caption" style={styles.actionDarkPillText}>
+            <Text variant="caption" style={[styles.actionDarkPillText, { color: pal.actionBtnText }]}>
               ＋ 纪念日/倒数日
             </Text>
           </Pressable>
@@ -474,9 +595,12 @@ export function LifeMilestonesOkrHub({
             accessibilityRole="button"
             accessibilityLabel="新增季度或年度 OKR 目标"
             onPress={() => setOkrFormOpen((prev) => !prev)}
-            style={styles.actionDarkPill}
+            style={[
+              styles.actionDarkPill,
+              { backgroundColor: pal.actionBtnBg, borderColor: pal.actionBtnBorder },
+            ]}
           >
-            <Text variant="caption" style={styles.actionDarkPillText}>
+            <Text variant="caption" style={[styles.actionDarkPillText, { color: pal.actionBtnText }]}>
               ＋ 新增 OKR
             </Text>
           </Pressable>
@@ -484,9 +608,12 @@ export function LifeMilestonesOkrHub({
             accessibilityRole="button"
             accessibilityLabel="新增每日微习惯打卡项"
             onPress={() => setHabitFormOpen((prev) => !prev)}
-            style={styles.actionGoldPill}
+            style={[
+              styles.actionGoldPill,
+              { backgroundColor: pal.pillBg, borderColor: pal.pillBorder },
+            ]}
           >
-            <Text variant="caption" style={styles.actionGoldPillText}>
+            <Text variant="caption" style={[styles.actionGoldPillText, { color: pal.pillText }]}>
               ＋ 打卡习惯
             </Text>
           </Pressable>
@@ -698,10 +825,10 @@ export function LifeMilestonesOkrHub({
         {/* ================= SECTION 1: 2.5D 星轨纪念日与里程碑画廊 ================= */}
         <View style={styles.sectionBlock}>
           <View style={styles.secHeaderRow}>
-            <Text variant="label" style={styles.secTitleText}>
+            <Text variant="label" style={[styles.secTitleText, { color: pal.titleText }]}>
               2.5D 星轨纪念日与重要节点画廊
             </Text>
-            <Text variant="caption" style={styles.secSubText}>
+            <Text variant="caption" style={[styles.secSubText, { color: pal.mutedText }]}>
               自动推算周年倒数与 100 / 520 / 1000 天整数里程碑
             </Text>
           </View>
@@ -711,12 +838,12 @@ export function LifeMilestonesOkrHub({
               const meta = MILESTONE_CATEGORY_META[ms.item.category];
               const accent =
                 ms.item.category === 'love'
-                  ? '#e8924a'
+                  ? pal.amberPrimary
                   : ms.item.category === 'countdown'
-                    ? '#f5b942'
+                    ? pal.goldPrimary
                     : idx % 2 === 0
-                      ? '#34d399'
-                      : '#fde68a';
+                      ? pal.emeraldPrimary
+                      : pal.goldLight;
               const dayCountNumber =
                 ms.daysUntilNext >= 0 ? ms.daysUntilNext : Math.abs(ms.elapsedDays);
               const dayCountCaption =
@@ -731,15 +858,31 @@ export function LifeMilestonesOkrHub({
                   key={ms.item.id}
                   style={[
                     styles.milestone3DCard,
-                    { borderTopColor: accent },
+                    {
+                      backgroundColor: pal.cardBg,
+                      borderColor: pal.cardBorder,
+                      borderTopColor: accent,
+                    },
                   ]}
                 >
                   <View style={styles.msCardTop}>
-                    <Milestone25DEmblemSvg category={ms.item.category} accent={accent} />
+                    <Milestone25DEmblemSvg
+                      category={ms.item.category}
+                      accent={accent}
+                      isDark={isDark}
+                    />
 
                     <View style={styles.msCardCenter}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <View style={[styles.catBadge, { borderColor: `${accent}66` }]}>
+                        <View
+                          style={[
+                            styles.catBadge,
+                            {
+                              backgroundColor: pal.cardRecessedBg,
+                              borderColor: `${accent}66`,
+                            },
+                          ]}
+                        >
                           <Text variant="caption" style={[styles.catBadgeText, { color: accent }]}>
                             {meta.label}
                           </Text>
@@ -750,37 +893,65 @@ export function LifeMilestonesOkrHub({
                             accessibilityLabel={`删除纪念日 ${ms.item.title}`}
                             onPress={() => removeLifeMilestone(ms.item.id)}
                           >
-                            <Text variant="caption" style={{ color: '#78716c', fontSize: 12 }}>
+                            <Text variant="caption" style={{ color: pal.mutedText, fontSize: 12 }}>
                               ×
                             </Text>
                           </Pressable>
                         ) : null}
                       </View>
-                      <Text variant="label" style={styles.msTitleText} numberOfLines={1}>
+                      <Text
+                        variant="label"
+                        style={[styles.msTitleText, { color: pal.titleText }]}
+                        numberOfLines={1}
+                      >
                         {ms.item.title}
                       </Text>
-                      <Text variant="caption" style={styles.msSubtitleText} numberOfLines={1}>
+                      <Text
+                        variant="caption"
+                        style={[styles.msSubtitleText, { color: pal.subText }]}
+                        numberOfLines={1}
+                      >
                         {ms.subtitleText}
                       </Text>
                     </View>
 
                     {/* Sculpted Flip-Counter Number Box */}
-                    <View style={[styles.flipCounterBox, { borderColor: `${accent}55` }]}>
+                    <View
+                      style={[
+                        styles.flipCounterBox,
+                        {
+                          backgroundColor: pal.cardRecessedBg,
+                          borderColor: `${accent}55`,
+                        },
+                      ]}
+                    >
                       <Text variant="heading" style={[styles.flipNumberText, { color: accent }]}>
                         {dayCountNumber}
                       </Text>
-                      <Text variant="caption" style={styles.flipUnitText}>
+                      <Text variant="caption" style={[styles.flipUnitText, { color: pal.mutedText }]}>
                         {dayCountCaption}
                       </Text>
                     </View>
                   </View>
 
                   {ms.item.prepNote ? (
-                    <View style={styles.msPrepCapsule}>
-                      <Text variant="caption" style={styles.msPrepIcon}>
+                    <View
+                      style={[
+                        styles.msPrepCapsule,
+                        {
+                          backgroundColor: pal.cardRecessedBg,
+                          borderColor: pal.cardRecessedBorder,
+                        },
+                      ]}
+                    >
+                      <Text variant="caption" style={[styles.msPrepIcon, { color: pal.goldPrimary }]}>
                         ✦
                       </Text>
-                      <Text variant="caption" style={styles.msPrepText} numberOfLines={1}>
+                      <Text
+                        variant="caption"
+                        style={[styles.msPrepText, { color: pal.subText }]}
+                        numberOfLines={1}
+                      >
                         {ms.item.prepNote}
                       </Text>
                     </View>
@@ -794,10 +965,10 @@ export function LifeMilestonesOkrHub({
         {/* ================= SECTION 2: OKR 双舱星环指挥台 (2.5D Radial Ring + Segmented LED Energy Bars) ================= */}
         <View style={styles.sectionBlock}>
           <View style={styles.secHeaderRow}>
-            <Text variant="label" style={styles.secTitleText}>
+            <Text variant="label" style={[styles.secTitleText, { color: pal.titleText }]}>
               OKR 目标与关键结果星环指挥台
             </Text>
-            <Text variant="caption" style={styles.secSubText}>
+            <Text variant="caption" style={[styles.secSubText, { color: pal.mutedText }]}>
               支持晨重 / 训练 / 学习时长实时联动 + 16 段能量槽打卡推进
             </Text>
           </View>
@@ -806,14 +977,17 @@ export function LifeMilestonesOkrHub({
             {liveObjectives.map((obj, objIdx) => {
               const objPct = computeObjectiveProgressPct(obj);
               const catMeta = OKR_CATEGORY_META[obj.category];
-              const ringAccent = objIdx % 2 === 0 ? '#f5b942' : '#34d399';
+              const ringAccent = objIdx % 2 === 0 ? pal.goldPrimary : pal.emeraldPrimary;
 
               return (
                 <View
                   key={obj.id}
                   style={[
                     styles.okrCommandPod,
-                    { borderColor: objPct >= 100 ? '#34d399' : 'rgba(245, 185, 66, 0.22)' },
+                    {
+                      backgroundColor: pal.cardBg,
+                      borderColor: objPct >= 100 ? pal.emeraldPrimary : pal.cardBorder,
+                    },
                   ]}
                 >
                   {/* Pod Top Header with 2.5D Radial Ring Gauge */}
@@ -822,16 +996,30 @@ export function LifeMilestonesOkrHub({
                       pct={objPct}
                       confidence={obj.confidence}
                       accent={ringAccent}
+                      isDark={isDark}
                     />
 
                     <View style={styles.okrPodTitleWrap}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        <View style={styles.periodBadge}>
-                          <Text variant="caption" style={styles.periodBadgeText}>
+                        <View
+                          style={[
+                            styles.periodBadge,
+                            { backgroundColor: pal.pillBg, borderColor: pal.pillBorder },
+                          ]}
+                        >
+                          <Text variant="caption" style={[styles.periodBadgeText, { color: pal.pillText }]}>
                             {obj.period}
                           </Text>
                         </View>
-                        <View style={[styles.catBadge, { borderColor: `${ringAccent}66` }]}>
+                        <View
+                          style={[
+                            styles.catBadge,
+                            {
+                              backgroundColor: pal.cardRecessedBg,
+                              borderColor: `${ringAccent}66`,
+                            },
+                          ]}
+                        >
                           <Text variant="caption" style={[styles.catBadgeText, { color: ringAccent }]}>
                             {catMeta.label}
                           </Text>
@@ -842,9 +1030,18 @@ export function LifeMilestonesOkrHub({
                           onPress={() =>
                             setAddingKrForObjId((cur) => (cur === obj.id ? null : obj.id))
                           }
-                          style={styles.addKrMiniBtn}
+                          style={[
+                            styles.addKrMiniBtn,
+                            {
+                              backgroundColor: pal.actionBtnBg,
+                              borderColor: pal.actionBtnBorder,
+                            },
+                          ]}
                         >
-                          <Text variant="caption" style={styles.addKrMiniBtnText}>
+                          <Text
+                            variant="caption"
+                            style={[styles.addKrMiniBtnText, { color: pal.subText }]}
+                          >
                             ＋ 追加 KR
                           </Text>
                         </Pressable>
@@ -854,14 +1051,14 @@ export function LifeMilestonesOkrHub({
                             accessibilityLabel={`删除目标 ${obj.title}`}
                             onPress={() => removeOkrObjective(obj.id)}
                           >
-                            <Text variant="caption" style={{ color: '#78716c', fontSize: 12 }}>
+                            <Text variant="caption" style={{ color: pal.mutedText, fontSize: 12 }}>
                               ×
                             </Text>
                           </Pressable>
                         ) : null}
                       </View>
 
-                      <Text variant="label" style={styles.okrPodTitleText}>
+                      <Text variant="label" style={[styles.okrPodTitleText, { color: pal.titleText }]}>
                         {obj.title}
                       </Text>
                     </View>
@@ -923,81 +1120,134 @@ export function LifeMilestonesOkrHub({
                     </View>
                   ) : null}
 
-                  {/* Key Results with 16-Segment Glowing LED Energy Bars */}
-                  <View style={{ gap: 8 }}>
+                  {/* Key Results with 16-Segment LED Energy Bars */}
+                  <View style={styles.krListStack}>
                     {obj.keyResults.map((kr, krIdx) => {
                       const krPct = computeKrProgressPct(kr);
-                      const stepSign = kr.stepDelta >= 0 ? `+${kr.stepDelta}` : `${kr.stepDelta}`;
-                      const segAccent = krIdx % 2 === 0 ? ringAccent : '#e8924a';
-                      const filledSegments = Math.round((krPct / 100) * 16);
+                      const isAuto = kr.autoLink && kr.autoLink !== 'none';
+                      const totalSegments = 16;
+                      const litSegments = Math.round((krPct / 100) * totalSegments);
+                      const segColor =
+                        krPct >= 100
+                          ? pal.emeraldPrimary
+                          : krIdx % 2 === 0
+                            ? pal.goldPrimary
+                            : pal.emeraldPrimary;
 
                       return (
-                        <View key={kr.id} style={styles.krTelemetrySlot}>
-                          <View style={styles.krTopRow}>
-                            <View style={{ flex: 1, gap: 2 }}>
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                <Text variant="label" style={styles.krTitleText}>
-                                  {kr.title}
+                        <View
+                          key={kr.id}
+                          style={[
+                            styles.krDarkRowCard,
+                            {
+                              backgroundColor: pal.cardRecessedBg,
+                              borderColor: pal.cardRecessedBorder,
+                            },
+                          ]}
+                        >
+                          <View style={styles.krRowTop}>
+                            <View style={styles.krTitleLeft}>
+                              <View style={[styles.krIndexBadge, { borderColor: `${segColor}66` }]}>
+                                <Text
+                                  variant="caption"
+                                  style={[styles.krIndexBadgeText, { color: segColor }]}
+                                >
+                                  {`KR${krIdx + 1}`}
                                 </Text>
-                                {kr.autoLink !== 'none' ? (
-                                  <View style={styles.liveLinkBadge}>
-                                    <Text variant="caption" style={styles.liveLinkBadgeText}>
-                                      ⚡ 实时数据联动
-                                    </Text>
-                                  </View>
-                                ) : null}
                               </View>
-                              <Text variant="caption" style={styles.krTrajectoryText}>
-                                {`起点 ${kr.startValue}${kr.unit} ──▸ 当前 ${kr.currentValue}${kr.unit} ──▸ 目标 ${kr.targetValue}${kr.unit} (${krPct}%)`}
+                              <Text
+                                variant="body"
+                                style={[styles.krTitleText, { color: pal.titleText }]}
+                                numberOfLines={1}
+                              >
+                                {kr.title}
                               </Text>
+                              {isAuto ? (
+                                <View
+                                  style={[
+                                    styles.autoSyncTag,
+                                    {
+                                      backgroundColor: isDark
+                                        ? 'rgba(52, 211, 153, 0.14)'
+                                        : '#E2F2EC',
+                                      borderColor: pal.emeraldPrimary,
+                                    },
+                                  ]}
+                                >
+                                  <Text
+                                    variant="caption"
+                                    style={[
+                                      styles.autoSyncTagText,
+                                      { color: pal.emeraldPrimary },
+                                    ]}
+                                  >
+                                    ⚡ 实时联动
+                                  </Text>
+                                </View>
+                              ) : null}
                             </View>
 
-                            <Pressable
-                              accessibilityRole="button"
-                              accessibilityLabel={`推进关键结果 ${kr.title}`}
-                              onPress={() => {
-                                checkInKeyResult(obj.id, kr.id, kr.stepDelta, localDay);
-                                const v = recordPledgeReward(`OKR 推进奖励：${kr.title}`, localDay);
-                                showToast({
-                                  text: `OKR 已推进：${kr.title} (${stepSign} ${kr.unit}) · 心愿金库 +¥${v.config.checkInRewardCny}`,
-                                });
-                              }}
-                              style={({ pressed }) => [
-                                styles.krAdvanceBtn,
-                                {
-                                  borderColor: segAccent,
-                                  opacity: pressed ? 0.85 : 1,
-                                },
-                              ]}
-                            >
+                            <View style={styles.krRightControls}>
                               <Text
                                 variant="caption"
-                                style={[styles.krAdvanceBtnText, { color: segAccent }]}
+                                style={[styles.krNumbersText, { color: pal.subText }]}
                               >
-                                {`打卡 ${stepSign}${kr.unit}`}
+                                {`${kr.currentValue} / ${kr.targetValue} ${kr.unit}`}
                               </Text>
-                            </Pressable>
+                              <Text
+                                variant="caption"
+                                style={[styles.krPctHighlight, { color: segColor }]}
+                              >
+                                {`${krPct}%`}
+                              </Text>
+                              {!isAuto ? (
+                                <Pressable
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`打卡推进 ${kr.title}`}
+                                  onPress={() => {
+                                    checkInKeyResult(obj.id, kr.id, kr.stepDelta, localDay);
+                                    recordPledgeReward(`KR 打卡推进：${kr.title}`, localDay);
+                                    showToast({
+                                      text: `KR 打卡推进：${kr.title} (${kr.stepDelta > 0 ? '+' : ''}${kr.stepDelta}${kr.unit}) · 已入账心愿金`,
+                                    });
+                                  }}
+                                  style={[
+                                    styles.krStep3DBtn,
+                                    {
+                                      backgroundColor: pal.pillBg,
+                                      borderColor: pal.pillBorder,
+                                    },
+                                  ]}
+                                >
+                                  <Text
+                                    variant="caption"
+                                    style={[styles.krStep3DBtnText, { color: pal.pillText }]}
+                                  >
+                                    {`打卡 ${kr.stepDelta > 0 ? '+' : ''}${kr.stepDelta}${kr.unit}`}
+                                  </Text>
+                                </Pressable>
+                              ) : null}
+                            </View>
                           </View>
 
-                          {/* 16-Segment Glowing LED Energy Bar */}
+                          {/* 16-Segment Illuminated Energy Bar */}
                           <View style={styles.segmentedBarRow}>
-                            {Array.from({ length: 16 }, (_, sIdx) => {
-                              const lit = sIdx < filledSegments;
+                            {Array.from({ length: totalSegments }, (_, segIdx) => {
+                              const lit = segIdx < litSegments;
                               return (
                                 <View
-                                  key={`${kr.id}-seg-${sIdx}`}
+                                  key={segIdx}
                                   style={[
-                                    styles.energySegment,
-                                    {
-                                      backgroundColor: lit
-                                        ? segAccent
-                                        : 'rgba(255, 255, 255, 0.06)',
-                                    },
-                                    lit && Platform.OS === 'web'
-                                      ? ({
-                                          boxShadow: `0 0 8px ${segAccent}88`,
-                                        } as unknown as ViewStyle)
-                                      : null,
+                                    styles.energySegmentCell,
+                                    lit
+                                      ? {
+                                          backgroundColor: segColor,
+                                          borderColor: segColor,
+                                        }
+                                      : {
+                                          backgroundColor: pal.segmentOffBg,
+                                          borderColor: 'transparent',
+                                        },
                                   ]}
                                 />
                               );
@@ -1013,158 +1263,161 @@ export function LifeMilestonesOkrHub({
           </View>
         </View>
 
-        {/* ================= SECTION 3: 每日微习惯 3D 键帽打卡舱 (2x2 Bento + 3D Keycap Tiles) ================= */}
+        {/* ================= SECTION 3: 每日微习惯 3D 机械键帽打卡矩阵 ================= */}
         <View style={styles.sectionBlock}>
           <View style={styles.secHeaderRow}>
-            <Text variant="label" style={styles.secTitleText}>
-              每日微习惯 3D 键帽打卡舱
+            <Text variant="label" style={[styles.secTitleText, { color: pal.titleText }]}>
+              每日微习惯 3D 机械键帽矩阵（近 7 日连击 Streak）
             </Text>
-            <Text variant="caption" style={styles.secSubText}>
-              点击任意 3D 日期键帽或右侧按钮点亮今日连击（每次打卡自动注入 +¥50 心愿奖励）
+            <Text variant="caption" style={[styles.secSubText, { color: pal.mutedText }]}>
+              点击任意键帽即可切换当日达成状态并赢取自律心愿金
             </Text>
           </View>
 
-          <View style={styles.habitBentoGrid}>
-            {habits.map((habit, hIdx) => {
-              const stat = computeHabitStreak(habit, localDay);
+          <View style={styles.habitKeycapGrid}>
+            {habits.map((habit, habitIdx) => {
+              const stats = computeHabitStreak(habit, localDay);
               const catMeta = OKR_CATEGORY_META[habit.category];
-              const accent =
-                hIdx % 3 === 0 ? '#34d399' : hIdx % 3 === 1 ? '#f5b942' : '#e8924a';
-              const weeklyPct = Math.min(
-                100,
-                Math.round((stat.last7DaysCount / Math.max(1, habit.weeklyTargetDays)) * 100),
-              );
+              const streakHot = stats.streakDays >= 3;
+              const habitAccent = habitIdx % 2 === 0 ? pal.emeraldPrimary : pal.goldPrimary;
 
               return (
                 <View
                   key={habit.id}
                   style={[
                     styles.habitPodCard,
-                    stat.completedToday ? { borderColor: `${accent}88` } : null,
+                    {
+                      backgroundColor: pal.cardBg,
+                      borderColor: pal.cardBorder,
+                    },
                   ]}
                 >
                   <View style={styles.habitPodTop}>
-                    <View style={{ flex: 1, gap: 3 }}>
+                    <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <View style={[styles.catBadge, { borderColor: `${accent}66` }]}>
-                          <Text variant="caption" style={[styles.catBadgeText, { color: accent }]}>
-                            {catMeta.label}
-                          </Text>
-                        </View>
-                        <View style={styles.streakFlamePill}>
-                          <Text variant="caption" style={styles.streakFlameText}>
-                            {`🔥 连击 ${stat.streakDays} 天 · 本周 ${stat.last7DaysCount}/${habit.weeklyTargetDays}`}
-                          </Text>
-                        </View>
-                      </View>
-                      <Text variant="label" style={styles.habitPodTitle}>
-                        {habit.title}
-                      </Text>
-                    </View>
-
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`切换今日打卡 ${habit.title}`}
-                      onPress={() => {
-                        toggleHabitDay(habit.id, localDay);
-                        if (!stat.completedToday) {
-                          const v = recordPledgeReward(`每日习惯打卡：${habit.title}`, localDay);
-                          showToast({
-                            text: `✓ 已点亮今日「${habit.title}」· 心愿金库 +¥${v.config.checkInRewardCny}！`,
-                          });
-                        }
-                      }}
-                      style={[
-                        styles.habitCheckBtn,
-                        stat.completedToday
-                          ? { backgroundColor: 'rgba(52, 211, 153, 0.20)', borderColor: '#34d399' }
-                          : { backgroundColor: '#29231d', borderColor: accent },
-                      ]}
-                    >
-                      <Text
-                        variant="caption"
-                        style={{
-                          color: stat.completedToday ? '#34d399' : '#fde68a',
-                          fontWeight: '700',
-                          fontSize: 11.5,
-                        }}
-                      >
-                        {stat.completedToday ? '✓ 今日已点亮' : '⚡ 今日打卡'}
-                      </Text>
-                    </Pressable>
-                  </View>
-
-                  {/* 7-Day 3D Keycap Tiles Row */}
-                  <View style={styles.keycapRow}>
-                    {stat.last7DaysFlags.map((dayFlag) => {
-                      const shortDay = dayFlag.localDay.slice(8);
-                      const isToday = dayFlag.localDay === localDay;
-                      return (
-                        <Pressable
-                          key={`${habit.id}-${dayFlag.localDay}`}
-                          accessibilityRole="button"
-                          accessibilityLabel={`${habit.title} ${dayFlag.localDay} ${dayFlag.completed ? '已打卡' : '未打卡'}`}
-                          onPress={() => {
-                            toggleHabitDay(habit.id, dayFlag.localDay);
-                          }}
+                        <View
                           style={[
-                            styles.dayKeycap,
-                            dayFlag.completed
-                              ? {
-                                  backgroundColor: accent,
-                                  borderColor: '#fef08a',
-                                  borderBottomWidth: 3,
-                                }
-                              : isToday
-                                ? {
-                                    backgroundColor: '#29241e',
-                                    borderColor: accent,
-                                    borderBottomWidth: 3,
-                                  }
-                                : {
-                                    backgroundColor: '#171513',
-                                    borderColor: 'rgba(255,255,255,0.10)',
-                                    borderBottomWidth: 3,
-                                  },
+                            styles.catBadge,
+                            {
+                              backgroundColor: pal.cardRecessedBg,
+                              borderColor: `${habitAccent}66`,
+                            },
                           ]}
                         >
                           <Text
                             variant="caption"
-                            style={{
-                              fontSize: 10.5,
-                              fontWeight: '700',
-                              fontFamily: theme.fontFamily.mono,
-                              color: dayFlag.completed
-                                ? '#0f1412'
-                                : isToday
-                                  ? '#fde68a'
-                                  : '#a8a29e',
-                            }}
+                            style={[styles.catBadgeText, { color: habitAccent }]}
                           >
-                            {dayFlag.completed ? '✓' : shortDay}
+                            {catMeta.label}
                           </Text>
-                          <Text
-                            variant="caption"
-                            style={{
-                              fontSize: 8.5,
-                              color: dayFlag.completed ? '#18181b' : '#78716c',
-                            }}
+                        </View>
+                        <Text
+                          variant="label"
+                          style={[styles.habitTitleText, { color: pal.titleText }]}
+                          numberOfLines={1}
+                        >
+                          {habit.title}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View
+                      style={[
+                        styles.streak3DBadge,
+                        {
+                          backgroundColor: pal.cardRecessedBg,
+                          borderColor: pal.cardBorder,
+                        },
+                        streakHot && {
+                          backgroundColor: pal.pillBg,
+                          borderColor: pal.pillBorder,
+                        },
+                      ]}
+                    >
+                      <Text
+                        variant="caption"
+                        style={[
+                          styles.streak3DBadgeText,
+                          { color: streakHot ? pal.pillText : pal.subText },
+                        ]}
+                      >
+                        {`🔥 ${stats.streakDays}连击 · 本周 ${stats.last7DaysCount}/${habit.weeklyTargetDays}`}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* 7-Day 3D Mechanical Keycaps */}
+                  <View style={styles.keycapRow}>
+                    {stats.last7DaysFlags.map((cell) => {
+                      const isToday = cell.localDay === localDay;
+                      const shortLabel = isToday ? '今日' : cell.localDay.slice(8);
+                      return (
+                        <Pressable
+                          key={cell.localDay}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${habit.title} ${cell.localDay} ${cell.completed ? '已打卡' : '未打卡'}`}
+                          onPress={() => {
+                            toggleHabitDay(habit.id, cell.localDay);
+                            if (!cell.completed) {
+                              recordPledgeReward(`完成微习惯打卡：${habit.title}`, cell.localDay);
+                            }
+                          }}
+                          style={styles.keycapOuterWrap}
+                        >
+                          {/* 3D Keycap Bottom Lip */}
+                          <View
+                            style={[
+                              styles.keycap3DBaseLip,
+                              {
+                                backgroundColor: cell.completed ? pal.keycapOnLip : pal.keycapOffLip,
+                              },
+                            ]}
                           >
-                            {isToday ? '今日' : `${dayFlag.localDay.slice(5, 7)}/${shortDay}`}
-                          </Text>
+                            {/* 3D Keycap Top Cap */}
+                            <View
+                              style={[
+                                styles.keycap3DTopSurface,
+                                {
+                                  backgroundColor: cell.completed ? pal.keycapOnTop : pal.keycapOffTop,
+                                  borderColor: cell.completed
+                                    ? pal.keycapOnBorder
+                                    : isToday
+                                      ? pal.goldPrimary
+                                      : pal.keycapOffBorder,
+                                },
+                              ]}
+                            >
+                              <Text
+                                variant="caption"
+                                style={[
+                                  styles.keycapDayLabel,
+                                  {
+                                    color: cell.completed
+                                      ? pal.keycapOnText
+                                      : isToday
+                                        ? pal.goldPrimary
+                                        : pal.subText,
+                                  },
+                                ]}
+                              >
+                                {shortLabel}
+                              </Text>
+                              <Text
+                                variant="caption"
+                                style={[
+                                  styles.keycapCheckGlyph,
+                                  {
+                                    color: cell.completed ? pal.emeraldPrimary : pal.mutedText,
+                                  },
+                                ]}
+                              >
+                                {cell.completed ? '✓' : '·'}
+                              </Text>
+                            </View>
+                          </View>
                         </Pressable>
                       );
                     })}
-                  </View>
-
-                  {/* Mini Weekly Completion Bar */}
-                  <View style={styles.habitMiniTrack}>
-                    <View
-                      style={[
-                        styles.habitMiniFill,
-                        { width: `${Math.max(6, weeklyPct)}%`, backgroundColor: accent },
-                      ]}
-                    />
                   </View>
                 </View>
               );
@@ -1178,10 +1431,8 @@ export function LifeMilestonesOkrHub({
 
 const styles = StyleSheet.create({
   obsidianContainer: {
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(245, 185, 66, 0.24)',
-    backgroundColor: '#121110',
     overflow: 'hidden',
   },
   topHeaderBar: {
@@ -1190,82 +1441,70 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     flexWrap: 'wrap',
     gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#1a1613',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 248, 235, 0.08)',
   },
   topHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
     gap: 10,
+    flexWrap: 'wrap',
   },
   goldPulseDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#f5b942',
+    width: 9,
+    height: 9,
+    borderRadius: 5,
   },
   mainHeaderTitle: {
-    color: '#f5f5f4',
-    fontSize: 14,
     fontWeight: '700',
+    fontSize: 15,
+    letterSpacing: 0.3,
   },
   summaryPill: {
-    paddingHorizontal: 9,
+    paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 999,
-    backgroundColor: 'rgba(245, 185, 66, 0.14)',
     borderWidth: 1,
-    borderColor: 'rgba(245, 185, 66, 0.38)',
   },
   summaryPillText: {
-    color: '#fde68a',
-    fontSize: 10.5,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
     fontFamily: theme.fontFamily.mono,
   },
   topHeaderActions: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
     flexWrap: 'wrap',
-    gap: 6,
   },
   actionDarkPill: {
     paddingHorizontal: 11,
-    paddingVertical: 5,
-    borderRadius: 7,
-    backgroundColor: '#26221e',
+    paddingVertical: 6,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'rgba(255, 248, 235, 0.14)',
   },
   actionDarkPillText: {
-    color: '#e7e5e4',
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '600',
   },
   actionGoldPill: {
-    paddingHorizontal: 11,
-    paddingVertical: 5,
-    borderRadius: 7,
-    backgroundColor: '#362919',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#f5b942',
   },
   actionGoldPillText: {
-    color: '#fde68a',
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '700',
   },
   bodyPadding: {
-    padding: 14,
-    gap: 16,
+    padding: 18,
+    gap: 20,
   },
   formPanel: {
-    padding: theme.space.sm,
-    borderRadius: 10,
+    padding: 14,
+    borderRadius: 12,
     borderWidth: 1,
   },
   sectionBlock: {
@@ -1279,15 +1518,13 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   secTitleText: {
-    color: '#f5f5f4',
-    fontSize: 13.5,
     fontWeight: '700',
+    fontSize: 13.5,
+    letterSpacing: 0.3,
   },
   secSubText: {
-    color: '#a8a29e',
     fontSize: 11,
   },
-  // Section 1: 2.5D Milestone Gallery
   milestoneGalleryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1295,19 +1532,17 @@ const styles = StyleSheet.create({
   },
   milestone3DCard: {
     flex: 1,
-    minWidth: 275,
-    borderRadius: 13,
+    minWidth: 265,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 248, 235, 0.10)',
-    borderTopWidth: 2.5,
-    backgroundColor: '#181614',
-    padding: 12,
+    borderTopWidth: 3,
+    padding: 13,
     gap: 10,
-  },
+  } as ViewStyle,
   msCardTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
   msCardCenter: {
     flex: 1,
@@ -1316,8 +1551,7 @@ const styles = StyleSheet.create({
   catBadge: {
     paddingHorizontal: 7,
     paddingVertical: 1.5,
-    borderRadius: 5,
-    backgroundColor: 'rgba(255, 248, 235, 0.05)',
+    borderRadius: 999,
     borderWidth: 1,
   },
   catBadgeText: {
@@ -1325,36 +1559,33 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   msTitleText: {
-    color: '#f5f5f4',
-    fontSize: 13.5,
     fontWeight: '700',
+    fontSize: 14,
   },
   msSubtitleText: {
-    color: '#a8a29e',
-    fontSize: 10.5,
+    fontSize: 11,
+    fontFamily: theme.fontFamily.mono,
   },
   flipCounterBox: {
     minWidth: 68,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 10,
-    backgroundColor: '#100e0c',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 11,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   flipNumberText: {
-    fontSize: 19,
-    lineHeight: 22,
+    fontSize: 22,
+    lineHeight: 25,
     fontWeight: '700',
     fontFamily: theme.fontFamily.mono,
   },
   flipUnitText: {
-    color: '#78716c',
     fontSize: 8.5,
     fontWeight: '700',
+    letterSpacing: 0.6,
     fontFamily: theme.fontFamily.mono,
-    letterSpacing: 0.4,
   },
   msPrepCapsule: {
     flexDirection: 'row',
@@ -1363,179 +1594,182 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: '#211d19',
     borderWidth: 1,
-    borderColor: 'rgba(245, 185, 66, 0.18)',
   },
   msPrepIcon: {
-    color: '#f5b942',
-    fontSize: 11,
+    fontSize: 10,
   },
   msPrepText: {
-    color: '#d6d3d1',
-    fontSize: 11,
     flex: 1,
+    fontSize: 11,
   },
-  // Section 2: OKR Dual-Pod Command Deck
   okrBentoGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 14,
   },
   okrCommandPod: {
     flex: 1,
     minWidth: 330,
-    borderRadius: 14,
+    borderRadius: 15,
     borderWidth: 1,
-    backgroundColor: '#181614',
-    padding: 14,
-    gap: 12,
-  },
+    padding: 15,
+    gap: 14,
+  } as ViewStyle,
   okrPodHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 248, 235, 0.07)',
+    gap: 14,
   },
   okrPodTitleWrap: {
     flex: 1,
     gap: 6,
   },
   periodBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 1.5,
-    borderRadius: 5,
-    backgroundColor: '#27231f',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
   },
   periodBadgeText: {
-    color: '#d6d3d1',
     fontSize: 10,
+    fontWeight: '700',
     fontFamily: theme.fontFamily.mono,
-    fontWeight: '600',
   },
   addKrMiniBtn: {
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 5,
-    backgroundColor: '#27231f',
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'rgba(255, 248, 235, 0.14)',
   },
   addKrMiniBtnText: {
-    color: '#fde68a',
     fontSize: 10,
     fontWeight: '600',
   },
   okrPodTitleText: {
-    color: '#f5f5f4',
-    fontSize: 14,
     fontWeight: '700',
-    lineHeight: 19,
+    fontSize: 14.5,
+    lineHeight: 20,
   },
-  krTelemetrySlot: {
-    padding: 11,
-    borderRadius: 10,
-    backgroundColor: '#11100e',
+  krListStack: {
+    gap: 10,
+  },
+  krDarkRowCard: {
+    borderRadius: 11,
     borderWidth: 1,
-    borderColor: 'rgba(255, 248, 235, 0.08)',
+    padding: 11,
     gap: 8,
   },
-  krTopRow: {
+  krRowTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 10,
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  krTitleText: {
-    color: '#f5f5f4',
-    fontSize: 12.5,
-    fontWeight: '600',
+  krTitleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+    minWidth: 170,
   },
-  liveLinkBadge: {
+  krIndexBadge: {
     paddingHorizontal: 6,
     paddingVertical: 1,
-    borderRadius: 4,
-    backgroundColor: 'rgba(52, 211, 153, 0.14)',
+    borderRadius: 5,
     borderWidth: 1,
-    borderColor: 'rgba(52, 211, 153, 0.38)',
   },
-  liveLinkBadgeText: {
-    color: '#34d399',
+  krIndexBadgeText: {
     fontSize: 9.5,
-    fontWeight: '600',
-  },
-  krTrajectoryText: {
-    color: '#a8a29e',
-    fontSize: 10.5,
-    fontFamily: theme.fontFamily.mono,
-  },
-  krAdvanceBtn: {
-    paddingHorizontal: 11,
-    paddingVertical: 6,
-    borderRadius: 7,
-    backgroundColor: '#231e19',
-    borderWidth: 1,
-  },
-  krAdvanceBtnText: {
-    fontSize: 11,
     fontWeight: '700',
     fontFamily: theme.fontFamily.mono,
+  },
+  krTitleText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  autoSyncTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  autoSyncTagText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+  },
+  krRightControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  krNumbersText: {
+    fontSize: 11,
+    fontFamily: theme.fontFamily.mono,
+  },
+  krPctHighlight: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    fontFamily: theme.fontFamily.mono,
+  },
+  krStep3DBtn: {
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderBottomWidth: 2,
+  },
+  krStep3DBtnText: {
+    fontSize: 10.5,
+    fontWeight: '700',
   },
   segmentedBarRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    height: 8,
   },
-  energySegment: {
+  energySegmentCell: {
     flex: 1,
-    height: 6,
-    borderRadius: 2,
+    height: 7,
+    borderRadius: 2.5,
+    borderWidth: 0.5,
   },
-  // Section 3: 3D Keycap Habit Matrix
-  habitBentoGrid: {
+  habitKeycapGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
   },
   habitPodCard: {
     flex: 1,
-    minWidth: 310,
-    borderRadius: 13,
+    minWidth: 285,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 248, 235, 0.10)',
-    backgroundColor: '#181614',
-    padding: 12,
-    gap: 10,
-  },
+    padding: 13,
+    gap: 11,
+  } as ViewStyle,
   habitPodTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 10,
+    gap: 8,
   },
-  streakFlamePill: {
-    paddingHorizontal: 7,
-    paddingVertical: 1.5,
-    borderRadius: 5,
-    backgroundColor: 'rgba(245, 185, 66, 0.12)',
-  },
-  streakFlameText: {
-    color: '#fde68a',
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  habitPodTitle: {
-    color: '#f5f5f4',
-    fontSize: 13.5,
+  habitTitleText: {
     fontWeight: '700',
+    fontSize: 13,
   },
-  habitCheckBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
+  streak3DBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
     borderWidth: 1,
+  },
+  streak3DBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    fontFamily: theme.fontFamily.mono,
   },
   keycapRow: {
     flexDirection: 'row',
@@ -1543,24 +1777,27 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 6,
   },
-  dayKeycap: {
+  keycapOuterWrap: {
     flex: 1,
-    minWidth: 36,
-    height: 40,
+  },
+  keycap3DBaseLip: {
+    borderRadius: 9,
+    paddingBottom: 3,
+  },
+  keycap3DTopSurface: {
     borderRadius: 8,
     borderWidth: 1,
+    paddingVertical: 5,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 1,
   },
-  habitMiniTrack: {
-    height: 3,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    overflow: 'hidden',
+  keycapDayLabel: {
+    fontSize: 9.5,
+    fontFamily: theme.fontFamily.mono,
   },
-  habitMiniFill: {
-    height: '100%',
-    borderRadius: 999,
+  keycapCheckGlyph: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

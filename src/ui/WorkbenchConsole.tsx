@@ -137,7 +137,7 @@ export function CockpitHeaderBar({
   onOpenScope?: () => void;
   extra?: ReactNode;
 }) {
-  const { color } = useTheme();
+  const { color, scheme, toggleTheme } = useTheme();
   return (
     <View style={styles.headerBar}>
       <View style={[styles.scopeBar, { backgroundColor: color.paperDeep, borderColor: color.line }]}>
@@ -160,21 +160,19 @@ export function CockpitHeaderBar({
             {mode === 'charioteer-host' ? 'Charioteer Host' : 'Local Mac'}
           </Text>
         </Pressable>
-        {onOpenPalette ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="工作台指令面板"
-            onPress={onOpenPalette}
-            style={({ pressed }) => [
-              styles.scopePill,
-              { backgroundColor: pressed ? color.pressed : 'transparent' },
-            ]}
-          >
-            <Text variant="caption" tone="muted" style={styles.scopePillText}>
-              Plugin v1.0
-            </Text>
-          </Pressable>
-        ) : null}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="切换暖色调与黑金风主题 (⌘T)"
+          onPress={toggleTheme}
+          style={({ pressed }) => [
+            styles.scopePill,
+            { backgroundColor: pressed ? color.pressed : 'transparent' },
+          ]}
+        >
+          <Text variant="caption" tone="muted" style={styles.scopePillText}>
+            {scheme === 'dark' ? '✦ 黑金风 ⇄ 暖色' : '☀ 暖色调 ⇄ 黑金'}
+          </Text>
+        </Pressable>
       </View>
 
       <Pressable
@@ -230,7 +228,7 @@ export function WorkbenchSidebarPanel({
   onOpenPalette: () => void;
   onOpenScope?: () => void;
 }) {
-  const { color } = useTheme();
+  const { color, scheme, toggleTheme } = useTheme();
   const loggedCount = (weightLogged ? 1 : 0) + (trainingLogged ? 1 : 0) + (studyLogged ? 1 : 0);
 
   return (
@@ -350,18 +348,18 @@ export function WorkbenchSidebarPanel({
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="打开工作区作用域导览"
-          onPress={onOpenScope ?? onOpenPalette}
+          accessibilityLabel="切换暖色调与黑金风主题"
+          onPress={toggleTheme}
           style={({ pressed }) => [
             styles.sideFootBtn,
             { backgroundColor: pressed ? color.pressed : 'transparent' },
           ]}
         >
           <Text variant="caption" tone="muted" style={styles.footBtnText}>
-            Scope
+            {scheme === 'dark' ? '黑金' : '暖色'}
           </Text>
           <Text variant="caption" tone="muted" style={styles.footBtnKbd}>
-            ⌘B
+            ⌘T
           </Text>
         </Pressable>
       </View>

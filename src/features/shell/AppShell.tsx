@@ -37,6 +37,7 @@ import {
   useShellInset,
 } from '@/ui/chrome';
 import { DeletedRecordNotice } from '@/ui/deleted-record';
+import { useTheme } from '@/ui/ThemeProvider';
 import { showToast, ToastHost } from '@/ui/toast';
 import {
   WorkbenchCommandPalette,
@@ -84,6 +85,7 @@ type CharioteerPluginRuntimeBridge = {
 };
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const { toggleTheme } = useTheme();
   const layout = useLayoutClass();
   const side = layout !== 'compact';
   const routeTab = currentTab(usePathname());
@@ -282,6 +284,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           setScopeOpen((open) => !open);
           return;
         }
+        if (!event.shiftKey && lower === 't') {
+          event.preventDefault();
+          toggleTheme();
+          return;
+        }
         if (event.shiftKey && lower === 't') {
           event.preventDefault();
           openRecordSheet(undefined, 'training');
@@ -318,7 +325,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       delete hostWindow.__viastelaDesktop;
       delete hostWindow.__charioteerPlugin;
     };
-  }, [executeCommandById, manifest, paletteOpen, runtimeMode, scopeOpen]);
+  }, [executeCommandById, manifest, paletteOpen, runtimeMode, scopeOpen, toggleTheme]);
 
   function badgeForTab(tabId: TabId): { text: string; tone: NavBadgeTone } {
     if (tabId === 'today') {
