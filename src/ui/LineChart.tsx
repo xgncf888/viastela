@@ -1,5 +1,5 @@
 import { createElement, useState, type ReactNode } from 'react';
-import { Platform, StyleSheet, Text as AxisText, View, type TextStyle } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text as AxisText, View, type TextStyle } from 'react-native';
 import Svg, { Circle, Line, Polyline } from 'react-native-svg';
 
 import {
@@ -91,8 +91,17 @@ export function chartMarkerDot(
   count: number,
   fill: string,
   card: string,
+  highlighted = false,
 ): { r: number; fill: string; stroke?: string; strokeWidth?: number } {
   const last = count > 0 && index === count - 1;
+  if (highlighted) {
+    return {
+      r: (theme.layout.dotLast + 3) / 2,
+      fill,
+      stroke: card,
+      strokeWidth: theme.border.width * 2,
+    };
+  }
   if (!last) return { r: theme.layout.dot / 2, fill };
   return {
     r: theme.layout.dotLast / 2,
@@ -131,13 +140,18 @@ function WebPlot({
   color,
   grid,
   axis,
+  activePointId,
+  onSelectPointId,
 }: {
   plot: Plot;
   color: AppTheme['color'];
   grid: readonly ChartGridLine[];
   axis: ChartAxisLine | null;
+  activePointId?: string | null;
+  onSelectPointId?: (id: string) => void;
 }) {
   const trend = plot.placed.map((point) => `${point.x.toFixed(1)},${point.trendY.toFixed(1)}`).join(' ');
+  const activePlaced = activePointId ? plot.placed.find((p) => p.id === activePointId) : null;
   return svg(
     'svg',
     {
@@ -158,6 +172,19 @@ function WebPlot({
       }),
     ),
     axisLines(axis, plot.width),
+    activePlaced
+      ? svg('line', {
+          key: 'active-crosshair',
+          x1: activePlaced.x,
+          x2: activePlaced.x,
+          y1: 0,
+          y2: plot.height,
+          stroke: color.accent,
+          strokeWidth: 1,
+          strokeDasharray: '3 3',
+          opacity: 0.65,
+        })
+      : null,
     svg('polyline', {
       points: trend,
       fill: 'none',
@@ -172,7 +199,16 @@ function WebPlot({
         key: point.id,
         cx: point.x,
         cy: point.rawY,
-        ...chartMarkerDot(index, plot.placed.length, color.accent, color.card),
+        style: onSelectPointId ? { cursor: 'pointer' } : undefined,
+        onClick: onSelectPointId ? () => onSelectPointId(point.id) : undefined,
+        onMouseEnter: onSelectPointId ? () => onSelectPointId(point.id) : undefined,
+        ...chartMarkerDot(
+          index,
+          plot.placed.length,
+          color.accent,
+          color.card,
+          point.id === activePointId,
+        ),
       }),
     ),
   );
@@ -183,13 +219,16 @@ function NativePlot({
   color,
   grid,
   axis,
+  activePointId,
 }: {
   plot: Plot;
   color: AppTheme['color'];
   grid: readonly ChartGridLine[];
   axis: ChartAxisLine | null;
+  activePointId?: string | null;
 }) {
   const trend = plot.placed.map((point) => `${point.x.toFixed(1)},${point.trendY.toFixed(1)}`).join(' ');
+  const activePlaced = activePointId ? plot.placed.find((p) => p.id === activePointId) : null;
   return (
     <Svg width={plot.width} height={plot.height}>
       {grid.map((line) => (
@@ -216,6 +255,17 @@ function NativePlot({
           />
         </>
       ) : null}
+      {activePlaced ? (
+        <Line
+          x1={activePlaced.x}
+          x2={activePlaced.x}
+          y1={0}
+          y2={plot.height}
+          stroke={color.accent}
+          strokeWidth={1}
+          strokeDasharray="3 3"
+        />
+      ) : null}
       <Polyline
         points={trend}
         fill="none"
@@ -226,7 +276,13 @@ function NativePlot({
         strokeLinecap="round"
       />
       {plot.placed.map((point, index) => {
-        const mark = chartMarkerDot(index, plot.placed.length, color.accent, color.card);
+        const mark = chartMarkerDot(
+          index,
+          plot.placed.length,
+          color.accent,
+          color.card,
+          point.id === activePointId,
+        );
         return (
           <Circle
             key={point.id}
@@ -317,12 +373,20 @@ function SeriesWeb({
   color,
   grid,
   axis,
+  activePointId,
+  onSelectPointId,
 }: {
   plot: SeriesPlot;
   color: AppTheme['color'];
   grid: readonly ChartGridLine[];
   axis: ChartAxisLine | null;
+  activePointId?: string | null;
+  onSelectPointId?: (id: string) => void;
 }) {
+  const activeX =
+    activePointId != null
+      ? plot.series.flatMap((s) => s.points).find((p) => p.id === activePointId)?.x
+      : undefined;
   return svg(
     'svg',
     { width: '100%', height: plot.height, viewBox: `0 0 ${plot.width} ${plot.height}`, role: 'presentation' },
@@ -338,6 +402,19 @@ function SeriesWeb({
       }),
     ),
     axisLines(axis, plot.width),
+    activeX !== undefined
+      ? svg('line', {
+          key: 'series-crosshair',
+          x1: activeX,
+          x2: activeX,
+          y1: 0,
+          y2: plot.height,
+          stroke: color.accent,
+          strokeWidth: 1,
+          strokeDasharray: '3 3',
+          opacity: 0.65,
+        })
+      : null,
     plot.series.map((series) =>
       svg('polyline', {
         key: series.id,
@@ -351,18 +428,37 @@ function SeriesWeb({
       }),
     ),
     plot.series.flatMap((series) =>
-      series.markers
-        ? series.points.map((point, index) =>
-            svg('circle', {
+      series.markers || pointMatchesActive(series.points, activePointId)
+        ? series.points.map((point, index) => {
+            const isHighlighted = point.id === activePointId;
+            if (!series.markers && !isHighlighted) return null;
+            return svg('circle', {
               key: `${series.id}-${point.id}`,
               cx: point.x,
               cy: point.y,
-              ...chartMarkerDot(index, series.points.length, toneColor(series.tone, color), color.card),
-            }),
-          )
+              style: onSelectPointId ? { cursor: 'pointer' } : undefined,
+              onClick: onSelectPointId ? () => onSelectPointId(point.id) : undefined,
+              onMouseEnter: onSelectPointId ? () => onSelectPointId(point.id) : undefined,
+              ...chartMarkerDot(
+                index,
+                series.points.length,
+                toneColor(series.tone, color),
+                color.card,
+                isHighlighted,
+              ),
+            });
+          })
         : [],
     ),
   );
+}
+
+function pointMatchesActive(
+  points: readonly { id: string }[],
+  activePointId?: string | null,
+): boolean {
+  if (!activePointId) return false;
+  return points.some((p) => p.id === activePointId);
 }
 
 function SeriesNative({
@@ -370,12 +466,18 @@ function SeriesNative({
   color,
   grid,
   axis,
+  activePointId,
 }: {
   plot: SeriesPlot;
   color: AppTheme['color'];
   grid: readonly ChartGridLine[];
   axis: ChartAxisLine | null;
+  activePointId?: string | null;
 }) {
+  const activeX =
+    activePointId != null
+      ? plot.series.flatMap((s) => s.points).find((p) => p.id === activePointId)?.x
+      : undefined;
   return (
     <Svg width={plot.width} height={plot.height}>
       {grid.map((line) => (
@@ -402,6 +504,17 @@ function SeriesNative({
           />
         </>
       ) : null}
+      {activeX !== undefined ? (
+        <Line
+          x1={activeX}
+          x2={activeX}
+          y1={0}
+          y2={plot.height}
+          stroke={color.accent}
+          strokeWidth={1}
+          strokeDasharray="3 3"
+        />
+      ) : null}
       {plot.series.map((series) => (
         <Polyline
           key={series.id}
@@ -417,7 +530,13 @@ function SeriesNative({
       {plot.series.flatMap((series) =>
         series.markers
           ? series.points.map((point, index) => {
-              const mark = chartMarkerDot(index, series.points.length, toneColor(series.tone, color), color.card);
+              const mark = chartMarkerDot(
+                index,
+                series.points.length,
+                toneColor(series.tone, color),
+                color.card,
+                point.id === activePointId,
+              );
               return (
                 <Circle
                   key={`${series.id}-${point.id}`}
@@ -445,8 +564,10 @@ type ScaleProps = {
   xTicks?: readonly ChartXTick[];
   /** Plot height. Defaults to `layout.chart`. Callers pass `chartPhone`, `chartShort`, or `chartWide`. */
   height?: number;
-  /** @deprecated Kept for call-site compatibility; charts are non-interactive (§6). */
+  /** Optional interactive crosshair / point selection. */
   interactive?: boolean;
+  activePointId?: string | null;
+  onSelectPointId?: (id: string) => void;
 };
 
 export function LineChart(
@@ -481,6 +602,8 @@ function SeriesLineChart({
   unit,
   xTicks,
   height = theme.layout.chart,
+  activePointId,
+  onSelectPointId,
 }: {
   series: readonly ChartSeries[];
   startLabel: string;
@@ -488,6 +611,14 @@ function SeriesLineChart({
   accessibilityLabel: string;
 } & ScaleProps) {
   const { color } = useTheme();
+  const [internalActiveId, setInternalActiveId] = useState<string | null>(null);
+  const currentActiveId = activePointId !== undefined ? activePointId : internalActiveId;
+  const handleSelect = (id: string) => {
+    setInternalActiveId(id);
+    onSelectPointId?.(id);
+  };
+  const primaryPoints = series[0]?.points ?? [];
+
   return (
     <View accessibilityRole="image" accessibilityLabel={accessibilityLabel}>
       <ChartCanvas
@@ -498,10 +629,45 @@ function SeriesLineChart({
         renderPlot={(width, grid, axis) => {
           const plot = buildSeriesPlot(series, width, height);
           if (!plot) return null;
-          return Platform.OS === 'web' ? (
-            <SeriesWeb plot={plot} color={color} grid={grid} axis={axis} />
-          ) : (
-            <SeriesNative plot={plot} color={color} grid={grid} axis={axis} />
+          return (
+            <View style={styles.interactivePlotWrap}>
+              {Platform.OS === 'web' ? (
+                <SeriesWeb
+                  plot={plot}
+                  color={color}
+                  grid={grid}
+                  axis={axis}
+                  activePointId={currentActiveId}
+                  onSelectPointId={handleSelect}
+                />
+              ) : (
+                <SeriesNative
+                  plot={plot}
+                  color={color}
+                  grid={grid}
+                  axis={axis}
+                  activePointId={currentActiveId}
+                />
+              )}
+              {primaryPoints.length > 1 ? (
+                <View
+                  accessible={false}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  style={styles.scrubRow}
+                >
+                  {primaryPoints.map((pt) => (
+                    <Pressable
+                      key={`scrub-${pt.id}`}
+                      accessible={false}
+                      onHoverIn={() => handleSelect(pt.id)}
+                      onPress={() => handleSelect(pt.id)}
+                      style={styles.scrubHitCol}
+                    />
+                  ))}
+                </View>
+              ) : null}
+            </View>
           );
         }}
       />
@@ -545,6 +711,8 @@ function LegacyLineChart({
   unit,
   xTicks,
   height = theme.layout.chart,
+  activePointId,
+  onSelectPointId,
 }: {
   points: readonly LinePoint[];
   startLabel: string;
@@ -554,6 +722,12 @@ function LegacyLineChart({
   accessibilityLabel: string;
 } & ScaleProps) {
   const { color } = useTheme();
+  const [internalActiveId, setInternalActiveId] = useState<string | null>(null);
+  const currentActiveId = activePointId !== undefined ? activePointId : internalActiveId;
+  const handleSelect = (id: string) => {
+    setInternalActiveId(id);
+    onSelectPointId?.(id);
+  };
 
   return (
     <View accessibilityRole="image" accessibilityLabel={accessibilityLabel}>
@@ -565,10 +739,45 @@ function LegacyLineChart({
         renderPlot={(width, grid, axis) => {
           const plot = buildPlot(points, width, height, ticks);
           if (!plot) return null;
-          return Platform.OS === 'web' ? (
-            <WebPlot plot={plot} color={color} grid={grid} axis={axis} />
-          ) : (
-            <NativePlot plot={plot} color={color} grid={grid} axis={axis} />
+          return (
+            <View style={styles.interactivePlotWrap}>
+              {Platform.OS === 'web' ? (
+                <WebPlot
+                  plot={plot}
+                  color={color}
+                  grid={grid}
+                  axis={axis}
+                  activePointId={currentActiveId}
+                  onSelectPointId={handleSelect}
+                />
+              ) : (
+                <NativePlot
+                  plot={plot}
+                  color={color}
+                  grid={grid}
+                  axis={axis}
+                  activePointId={currentActiveId}
+                />
+              )}
+              {points.length > 1 ? (
+                <View
+                  accessible={false}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  style={styles.scrubRow}
+                >
+                  {points.map((pt) => (
+                    <Pressable
+                      key={`scrub-${pt.id}`}
+                      accessible={false}
+                      onHoverIn={() => handleSelect(pt.id)}
+                      onPress={() => handleSelect(pt.id)}
+                      style={styles.scrubHitCol}
+                    />
+                  ))}
+                </View>
+              ) : null}
+            </View>
           );
         }}
       />
@@ -781,6 +990,19 @@ const styles = StyleSheet.create({
   legend: { marginTop: theme.space.sm },
   frame: { width: '100%' },
   plot: { flex: 1 },
+  interactivePlotWrap: { width: '100%', height: '100%', position: 'relative' },
+  scrubRow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+  },
+  scrubHitCol: {
+    flex: 1,
+    height: '100%',
+  },
   axisRow: { flexDirection: 'row', width: '100%' },
   gutter: { width: theme.layout.axisGutter },
   unit: { width: theme.layout.axisGutter, textAlign: 'right' },

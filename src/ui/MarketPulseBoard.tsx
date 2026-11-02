@@ -99,6 +99,8 @@ export function MarketPulseBoard({
   const [quotes, setQuotes] = useState<MarketQuoteItem[]>(() =>
     loadInitialMarketQuotes(holdingSymbols, readCustomWatchlist()),
   );
+  const [selectedSymbol, setSelectedSymbol] = useState<string>('SPX');
+  const [hoverTickIdx, setHoverTickIdx] = useState<number | null>(null);
   const [colorConv, setColorConv] = useState<ColorConvention>(readColorConvention);
   const [intervalSec, setIntervalSec] = useState<RefreshIntervalSec>(readRefreshIntervalSec);
   const [refreshing, setRefreshing] = useState(false);
@@ -193,6 +195,8 @@ export function MarketPulseBoard({
     writeCustomWatchlist(nextList);
     setSymbolInput('');
     setAddingSymbol(false);
+    setSelectedSymbol(clean);
+    setHoverTickIdx(null);
     setQuotes(loadInitialMarketQuotes(holdingSymbols, nextList));
     void refreshMarketQuotes(holdingSymbols, nextList).then((updated) => {
       setQuotes(updated);
@@ -217,6 +221,11 @@ export function MarketPulseBoard({
 
   const visibleQuotes = quotes.filter((item) => (filter === 'all' ? true : item.category === filter));
   const liveCount = quotes.filter((item) => item.source === 'live' || item.source === 'finnhub').length;
+  const activeQuote =
+    visibleQuotes.find((item) => item.symbol === selectedSymbol) ??
+    visibleQuotes[0] ??
+    quotes[0] ??
+    null;
 
   function colorsForMove(positive: boolean) {
     const useGreen = (colorConv === 'intl' && positive) || (colorConv === 'cn' && !positive);
@@ -233,6 +242,21 @@ export function MarketPulseBoard({
       fill: 'rgba(154, 70, 62, 0.12)',
     };
   }
+
+  const inspectorColors = activeQuote
+    ? colorsForMove(isPositiveMove(activeQuote.changePct))
+    : colorsForMove(true);
+  const inspectorSpark = activeQuote
+    ? buildSparklineSvgPath(activeQuote.sparkline, 560, 84)
+    : { linePath: '', areaPath: '' };
+  const scrubbedPrice =
+    activeQuote && hoverTickIdx !== null && activeQuote.sparkline[hoverTickIdx] !== undefined
+      ? activeQuote.sparkline[hoverTickIdx]!
+      : activeQuote?.price ?? 0;
+  const sparkMin =
+    activeQuote && activeQuote.sparkline.length > 0 ? Math.min(...activeQuote.sparkline) : 0;
+  const sparkMax =
+    activeQuote && activeQuote.sparkline.length > 0 ? Math.max(...activeQuote.sparkline) : 0;
 
   return (
     <Card>
@@ -336,6 +360,91 @@ export function MarketPulseBoard({
           </View>
         ) : null}
 
+        {activeQuote ? (
+          <View
+            style={[
+              styles.inspectorBox,
+              cardSurfaceStyle(color.surface, color.line),
+              { borderColor: color.line },
+            ]}
+          >
+            <Row justify="between" align="center" gap="sm" wrap>
+              <Row gap="sm" align="center" wrap>
+                <Text variant="label" style={styles.symbolText}>
+                  {`${activeQuote.symbol} · ${activeQuote.name}`}
+                </Text>
+                <TagChip label={activeQuote.sessionLabel} tone={activeQuote.isOpen ? 'exec' : 'pod'} />
+                <Text variant="heading" style={styles.priceText}>
+                  {formatQuotePrice(scrubbedPrice, activeQuote.decimals)}
+                </Text>
+                <View style={[styles.pctBadge, { backgroundColor: inspectorColors.bg }]}>
+                  <Text variant="caption" style={[styles.pctText, { color: inspectorColors.fg }]}>
+                    {formatChangePctText(activeQuote.changePct)}
+                  </Text>
+                </View>
+              </Row>
+              <Text variant="caption" tone="muted">
+                {hoverTickIdx !== null
+                  ? `分时采样点 #${hoverTickIdx + 1}/${activeQuote.sparkline.length} · 滑动/悬停检视`
+                  : `日内高 ${formatQuotePrice(sparkMax, activeQuote.decimals)} · 低 ${formatQuotePrice(sparkMin, activeQuote.decimals)}（点击下方任意卡片切换）`}
+              </Text>
+            </Row>
+
+            <View style={styles.inspectorChartWrap}>
+              {Platform.OS === 'web' && inspectorSpark.linePath
+                ? createElement(
+                    'svg',
+                    {
+                      width: '100%',
+                      height: 84,
+                      viewBox: '0 0 560 84',
+                      preserveAspectRatio: 'none',
+                      fill: 'none',
+                      'aria-hidden': true,
+                    },
+                    createElement('path', {
+                      d: inspectorSpark.areaPath,
+                      fill: inspectorColors.fill,
+                    }),
+                    createElement('path', {
+                      d: inspectorSpark.linePath,
+                      stroke: inspectorColors.fg,
+                      strokeWidth: 2,
+                      strokeLinecap: 'round',
+                      strokeLinejoin: 'round',
+                    }),
+                  )
+                : null}
+              <View
+                accessible={false}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+                style={styles.inspectorScrubOverlay}
+              >
+                {activeQuote.sparkline.map((_, idx) => (
+                  <Pressable
+                    key={`insp-pt-${idx}`}
+                    accessible={false}
+                    onHoverIn={() => setHoverTickIdx(idx)}
+                    onHoverOut={() => setHoverTickIdx(null)}
+                    onPress={() => setHoverTickIdx(idx === hoverTickIdx ? null : idx)}
+                    style={[
+                      styles.inspectorScrubCol,
+                      hoverTickIdx === idx
+                        ? {
+                            borderLeftWidth: 1.5,
+                            borderLeftColor: inspectorColors.fg,
+                            backgroundColor: inspectorColors.fill,
+                          }
+                        : null,
+                    ]}
+                  />
+                ))}
+              </View>
+            </View>
+          </View>
+        ) : null}
+
         <Divider />
 
         <View style={styles.grid}>
@@ -343,14 +452,24 @@ export function MarketPulseBoard({
             const positive = isPositiveMove(item.changePct);
             const moveColors = colorsForMove(positive);
             const isCustom = !presetSymbols.has(item.symbol) && watchlist.includes(item.symbol);
+            const isSelected = activeQuote?.symbol === item.symbol;
             const deltaSign = item.change > 0 ? '+' : '';
             return (
-              <View
+              <Pressable
                 key={item.symbol}
-                style={[
+                accessibilityRole="button"
+                accessibilityLabel={`检视 ${item.name} 分时走势`}
+                onPress={() => {
+                  setSelectedSymbol(item.symbol);
+                  setHoverTickIdx(null);
+                }}
+                style={({ pressed }) => [
                   styles.tickerCard,
-                  cardSurfaceStyle(color.surface, color.line),
-                  { borderColor: color.line },
+                  cardSurfaceStyle(pressed ? color.pressed : color.surface, color.line),
+                  {
+                    borderColor: isSelected ? color.accent : color.line,
+                    borderWidth: isSelected ? 1.5 : theme.border.width,
+                  },
                 ]}
               >
                 <View style={styles.cardTopRow}>
@@ -429,7 +548,7 @@ export function MarketPulseBoard({
                     fillColor={moveColors.fill}
                   />
                 </View>
-              </View>
+              </Pressable>
             );
           })}
         </View>
@@ -443,6 +562,31 @@ const styles = StyleSheet.create({
     padding: theme.space.ms,
     borderRadius: theme.radius.sm,
     borderWidth: theme.border.width,
+  },
+  inspectorBox: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: theme.border.width,
+    gap: 8,
+  },
+  inspectorChartWrap: {
+    height: 84,
+    width: '100%',
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  inspectorScrubOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+  },
+  inspectorScrubCol: {
+    flex: 1,
+    height: '100%',
   },
   grid: {
     flexDirection: 'row',

@@ -26,6 +26,7 @@ import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { TextField } from '@/ui/TextField';
 import { showToast } from '@/ui/toast';
+import { WearableSyncHub } from '@/ui/WearableSyncHub';
 
 function installHint(): string | null {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
@@ -212,6 +213,12 @@ export function MeScreen() {
             <Button label="导出 JSON 备份" variant="secondary" onPress={() => void onExportBackup()} />
           </Stack>
         </Card>
+        {Platform.OS === 'web' ? (
+          <WearableSyncHub
+            latestWeightKg={liveWeights[0]?.weightKg}
+            onSyncWeightKg={(kg) => weight.saveWeight(kg)}
+          />
+        ) : null}
         <Button label="隐私政策" variant="ghost" onPress={() => router.push('/privacy')} />
         <Stack gap="lg">
           <Button

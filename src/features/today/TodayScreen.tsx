@@ -44,6 +44,7 @@ import {
   TagChip,
   WorkbenchConsoleCard,
 } from '@/ui/WorkbenchConsole';
+import { WearableSyncHub } from '@/ui/WearableSyncHub';
 
 function shortWeekday(localDay: string): string {
   return weekdayLabel(localDay).replace('星期', '周');
@@ -69,6 +70,7 @@ export function TodayScreen() {
     dismiss,
     scheduleDelete,
     pendingDeleteIds,
+    saveWeight,
   } = useWeight();
   const training = useTraining();
   const study = useStudy();
@@ -402,6 +404,12 @@ export function TodayScreen() {
               );
             })
           : null}
+
+        <WearableSyncHub
+          latestWeightKg={last?.weightKg}
+          onSyncWorkoutSet={(input) => training.saveSet(input)}
+          onSyncWeightKg={(kg) => saveWeight(kg)}
+        />
       </Content>
     </Screen>
   );

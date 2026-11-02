@@ -197,6 +197,8 @@ export function TrendScreen() {
                         endLabel={endLabel}
                         rawLabel="每日晨重"
                         trendLabel="平滑趋势"
+                        activePointId={activePoint?.id ?? null}
+                        onSelectPointId={(id) => setSelectedDay(id)}
                         accessibilityLabel={`近 28 天走势，${startLabel}至${endLabel}。圆点是每天最早的体重，虚线是平滑趋势，不是均重。`}
                       />
                     </View>
