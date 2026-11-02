@@ -277,7 +277,7 @@ export function TodayScreen() {
           >
             <Row gap="sm" align="center" wrap>
               <Text variant="caption" style={{ fontWeight: theme.fontWeight.semibold }}>
-                {t('📋 传统明细账本（7日均重 · 今日记录 · 周节律）', '📋 Classic Ledger (7D EMA · Logs · Weekly Rhythm)')}
+                {t('传统明细账本（7日均重 · 今日记录 · 周节律）', 'Classic Ledger (7D EMA · Logs · Weekly Rhythm)')}
               </Text>
               <TagChip
                 label={

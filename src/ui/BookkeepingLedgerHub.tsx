@@ -48,6 +48,58 @@ import { useTheme } from './ThemeProvider';
 import { showToast } from './toast';
 import { useI18n } from './use-i18n';
 
+let sliderCssInjected = false;
+function ensureRangeSliderCss() {
+  if (Platform.OS !== 'web' || typeof document === 'undefined' || sliderCssInjected) return;
+  sliderCssInjected = true;
+  try {
+    const styleEl = document.createElement('style');
+    styleEl.setAttribute('data-vs-slider', 'true');
+    styleEl.textContent = `
+      input.vs-range-slider {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        height: 24px;
+        background: transparent;
+        outline: none;
+        margin: 0;
+        cursor: grab;
+      }
+      input.vs-range-slider:active {
+        cursor: grabbing;
+      }
+      input.vs-range-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #fde68a;
+        border: 2px solid #b45309;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+        cursor: grab;
+        transition: transform 120ms ease;
+      }
+      input.vs-range-slider::-webkit-slider-thumb:hover {
+        transform: scale(1.15);
+      }
+      input.vs-range-slider::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #fde68a;
+        border: 2px solid #b45309;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+        cursor: grab;
+      }
+    `;
+    document.head.appendChild(styleEl);
+  } catch {
+    // Ignore SSR/test environment
+  }
+}
+
 function playCashRegisterTick(kind: 'expense' | 'income' | 'undo' = 'expense') {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return;
   try {
@@ -90,11 +142,141 @@ function playCashRegisterTick(kind: 'expense' | 'income' | 'undo' = 'expense') {
 }
 
 /**
- * Interactive SVG Compound Wealth Trajectory Chart (Principal vs Compound Total vs Goal Line)
+ * High-Precision Continuous Draggable Range Slider with Visual Progress Fill & Fine Steppers.
+ */
+function InteractiveRangeSlider({
+  label,
+  valueText,
+  subText,
+  value,
+  min,
+  max,
+  step,
+  accentColor,
+  trackBg,
+  borderColor,
+  inkColor,
+  mutedColor,
+  onChange,
+}: {
+  label: string;
+  valueText: string;
+  subText?: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  accentColor: string;
+  trackBg: string;
+  borderColor: string;
+  inkColor: string;
+  mutedColor: string;
+  onChange: (nextVal: number) => void;
+}) {
+  const clamped = Math.max(min, Math.min(max, value));
+  const pct = Math.max(0, Math.min(100, ((clamped - min) / Math.max(1e-6, max - min)) * 100));
+
+  const nudge = (delta: number) => {
+    const next = Math.max(min, Math.min(max, Math.round((clamped + delta) * 100) / 100));
+    onChange(next);
+  };
+
+  return (
+    <View style={[styles.sliderCard, { borderColor }]}>
+      <View style={styles.sliderTopRow}>
+        <Text variant="caption" style={{ color: mutedColor, fontSize: 11, fontWeight: '600' }}>
+          {label}
+        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+          {subText ? (
+            <Text variant="caption" style={{ color: mutedColor, fontSize: 10 }}>
+              {subText}
+            </Text>
+          ) : null}
+          <Text
+            variant="label"
+            style={{
+              color: inkColor,
+              fontFamily: theme.fontFamily.mono,
+              fontSize: 13,
+              fontWeight: '700',
+            }}
+          >
+            {valueText}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.sliderControlRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`减小 ${label}`}
+          onPress={() => nudge(-step)}
+          style={[styles.sliderStepBtn, { borderColor, backgroundColor: trackBg }]}
+        >
+          <Text variant="caption" style={{ color: mutedColor, fontSize: 11, fontWeight: '700' }}>
+            −
+          </Text>
+        </Pressable>
+
+        <View style={styles.sliderTrackContainer}>
+          <View style={[styles.sliderVisualTrack, { backgroundColor: trackBg }]}>
+            <View
+              style={[
+                styles.sliderVisualFill,
+                { width: `${pct}%`, backgroundColor: accentColor },
+              ]}
+            />
+          </View>
+          {Platform.OS === 'web'
+            ? createElement('input', {
+                type: 'range',
+                className: 'vs-range-slider',
+                min: String(min),
+                max: String(max),
+                step: String(step),
+                value: String(clamped),
+                'aria-label': label,
+                onChange: (e: { target: { value: string } }) => {
+                  const num = Number.parseFloat(e.target.value);
+                  if (Number.isFinite(num)) onChange(num);
+                },
+                style: {
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  width: '100%',
+                  height: 24,
+                },
+              })
+            : null}
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`增加 ${label}`}
+          onPress={() => nudge(step)}
+          style={[styles.sliderStepBtn, { borderColor, backgroundColor: trackBg }]}
+        >
+          <Text variant="caption" style={{ color: mutedColor, fontSize: 11, fontWeight: '700' }}>
+            ＋
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Interactive SVG Compound Wealth Trajectory Chart with Active Point Crosshair Scrubber
  */
 function WealthTrajectorySvg({
   points,
   targetWealthCny,
+  activePointIdx,
+  onSelectPointIdx,
   isDark,
 }: {
   points: readonly {
@@ -103,8 +285,11 @@ function WealthTrajectorySvg({
     label: string;
     principalCny: number;
     compoundWealthCny: number;
+    gainCny: number;
   }[];
   targetWealthCny: number;
+  activePointIdx: number;
+  onSelectPointIdx: (idx: number) => void;
   isDark: boolean;
 }) {
   if (Platform.OS !== 'web' || points.length < 2) {
@@ -112,7 +297,7 @@ function WealthTrajectorySvg({
   }
 
   const width = 620;
-  const height = 172;
+  const height = 176;
   const padL = 48;
   const padR = 18;
   const padT = 18;
@@ -140,14 +325,18 @@ function WealthTrajectorySvg({
   const areaPath = `${compoundPath} L ${toX(points.length - 1).toFixed(1)} ${(padT + plotH).toFixed(1)} L ${padL} ${(padT + plotH).toFixed(1)} Z`;
 
   const targetY = Math.max(padT, Math.min(padT + plotH, toY(targetWealthCny)));
+  const clampedActiveIdx = Math.max(0, Math.min(points.length - 1, activePointIdx));
+  const activeX = toX(clampedActiveIdx);
+  const activePt = points[clampedActiveIdx]!;
+  const activeY = toY(activePt.compoundWealthCny);
 
   return createElement(
     'svg',
     {
       width: '100%',
-      height: 172,
+      height: 176,
       viewBox: `0 0 ${width} ${height}`,
-      style: { overflow: 'visible' },
+      style: { overflow: 'visible', cursor: 'ew-resize' },
     },
     createElement(
       'defs',
@@ -155,7 +344,7 @@ function WealthTrajectorySvg({
       createElement(
         'linearGradient',
         { id: 'wealthAreaGrad', x1: '0', y1: '0', x2: '0', y2: '1' },
-        createElement('stop', { offset: '0%', stopColor: '#f5b942', stopOpacity: isDark ? '0.38' : '0.28' }),
+        createElement('stop', { offset: '0%', stopColor: '#f5b942', stopOpacity: isDark ? '0.35' : '0.24' }),
         createElement('stop', { offset: '100%', stopColor: '#f5b942', stopOpacity: '0.0' }),
       ),
     ),
@@ -195,7 +384,7 @@ function WealthTrajectorySvg({
       x2: width - padR,
       y2: targetY,
       stroke: '#10b981',
-      strokeWidth: 1.5,
+      strokeWidth: 1.4,
       strokeDasharray: '5 4',
     }),
     createElement(
@@ -209,7 +398,7 @@ function WealthTrajectorySvg({
         fontWeight: '700',
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
       },
-      `🎯 ¥${(targetWealthCny / 10000).toFixed(0)}w`,
+      `TARGET ¥${(targetWealthCny / 10000).toFixed(0)}w`,
     ),
     // Area under Compound Curve
     createElement('path', {
@@ -221,7 +410,7 @@ function WealthTrajectorySvg({
       d: principalPath,
       fill: 'none',
       stroke: isDark ? '#64748b' : '#94a3b8',
-      strokeWidth: 1.8,
+      strokeWidth: 1.6,
       strokeDasharray: '4 4',
     }),
     // Compound Total Wealth Gold Curve
@@ -229,25 +418,47 @@ function WealthTrajectorySvg({
       d: compoundPath,
       fill: 'none',
       stroke: '#f5b942',
-      strokeWidth: 2.8,
+      strokeWidth: 2.5,
       strokeLinecap: 'round',
       strokeLinejoin: 'round',
     }),
-    // Sample Dots & X-Axis Labels
+    // Active Scrubber Vertical Crosshair Line
+    createElement('line', {
+      x1: activeX,
+      y1: padT,
+      x2: activeX,
+      y2: padT + plotH,
+      stroke: isDark ? 'rgba(253, 230, 138, 0.45)' : 'rgba(184, 130, 40, 0.45)',
+      strokeWidth: 1.2,
+      strokeDasharray: '3 3',
+    }),
+    // Sample Dots & Interactive Hit Columns
     points.map((p, idx) => {
       const cx = toX(idx);
       const cy = toY(p.compoundWealthCny);
+      const isSelected = idx === clampedActiveIdx;
       const showLabel = idx === 0 || idx === points.length - 1 || idx % 3 === 0;
       return createElement(
         'g',
-        { key: `pt-${p.monthOffset}` },
+        {
+          key: `pt-${p.monthOffset}`,
+          onMouseEnter: () => onSelectPointIdx(idx),
+          onClick: () => onSelectPointIdx(idx),
+        },
+        createElement('rect', {
+          x: cx - plotW / (points.length * 2),
+          y: padT,
+          width: plotW / points.length,
+          height: plotH,
+          fill: 'transparent',
+        }),
         createElement('circle', {
           cx,
           cy,
-          r: idx === points.length - 1 ? 4.2 : 2.6,
-          fill: idx === points.length - 1 ? '#10b981' : '#fde68a',
-          stroke: '#92400e',
-          strokeWidth: 1,
+          r: isSelected ? 5 : 2.6,
+          fill: isSelected ? '#10b981' : '#fde68a',
+          stroke: isSelected ? '#ffffff' : '#92400e',
+          strokeWidth: isSelected ? 1.6 : 1,
         }),
         showLabel
           ? createElement(
@@ -256,8 +467,9 @@ function WealthTrajectorySvg({
                 x: cx,
                 y: height - 8,
                 textAnchor: 'middle',
-                fill: isDark ? '#94a3b8' : '#7a756c',
+                fill: isSelected ? '#f5b942' : isDark ? '#94a3b8' : '#7a756c',
                 fontSize: '9',
+                fontWeight: isSelected ? '700' : '400',
                 fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
               },
               p.label,
@@ -265,6 +477,34 @@ function WealthTrajectorySvg({
           : null,
       );
     }),
+    // Active Point Readout Badge on Chart
+    createElement(
+      'g',
+      null,
+      createElement('rect', {
+        x: Math.max(padL, Math.min(width - padR - 148, activeX - 74)),
+        y: Math.max(4, activeY - 26),
+        width: 148,
+        height: 19,
+        rx: 5,
+        fill: isDark ? 'rgba(24, 24, 27, 0.92)' : 'rgba(255, 255, 255, 0.94)',
+        stroke: '#f5b942',
+        strokeWidth: 1,
+      }),
+      createElement(
+        'text',
+        {
+          x: Math.max(padL + 74, Math.min(width - padR - 74, activeX)),
+          y: Math.max(17, activeY - 13),
+          textAnchor: 'middle',
+          fill: isDark ? '#fde68a' : '#92560c',
+          fontSize: '9.5',
+          fontWeight: '700',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+        },
+        `${activePt.yearMonth} · ¥${(activePt.compoundWealthCny / 10000).toFixed(1)}w (+${(activePt.gainCny / 10000).toFixed(1)}w)`,
+      ),
+    ),
   );
 }
 
@@ -298,7 +538,8 @@ export function BookkeepingLedgerHub({
   const [editingBudget, setEditingBudget] = useState(false);
   const [budgetDraft, setBudgetDraft] = useState(String(state.monthlyBudgetCny));
 
-  // New interactive panels: Shortcuts Wizard, Recurring Rules Adder, Wealth Plan Editor, Partner Sync
+  // Interactive panels & Scrubber index
+  const [scrubPointIdx, setScrubPointIdx] = useState<number>(15);
   const [showShortcutsGuide, setShowShortcutsGuide] = useState(false);
   const [showAddRecurring, setShowAddRecurring] = useState(false);
   const [newRecTitle, setNewRecTitle] = useState('');
@@ -307,10 +548,6 @@ export function BookkeepingLedgerHub({
   const [newRecKind, setNewRecKind] = useState<LedgerEntryKind>('expense');
   const [newRecOwner, setNewRecOwner] = useState<LedgerOwnerId>('shared');
 
-  const [editingWealthStart, setEditingWealthStart] = useState(false);
-  const [wealthStartDraft, setWealthStartDraft] = useState(String(state.wealthPlan.currentSavedCny));
-  const [wealthGoalDraft, setWealthGoalDraft] = useState(String(state.wealthPlan.targetWealthCny));
-
   const [showPartnerMergeBox, setShowPartnerMergeBox] = useState(false);
   const [partnerJsonDraft, setPartnerJsonDraft] = useState('');
   const [editingPartnerNames, setEditingPartnerNames] = useState(false);
@@ -318,12 +555,11 @@ export function BookkeepingLedgerHub({
   const [partnerNameDraft, setPartnerNameDraft] = useState(state.coupleProfile.partnerName);
 
   useEffect(() => {
+    ensureRangeSliderCss();
     const unsub = subscribeBookkeepingStore(() => {
       setState(readBookkeepingState());
     });
-    // 1. Auto-materialize due monthly recurring rules (salary, mortgage, subscriptions)
     ensureRecurringRulesApplied(localDay);
-    // 2. Check iOS Shortcuts URL autoLog query parameter (?autoLog=... or ?amount=...&merchant=...)
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.search) {
       const parsedUrlTx = parseAutoLogUrlParams(window.location.search);
       if (parsedUrlTx) {
@@ -333,7 +569,7 @@ export function BookkeepingLedgerHub({
         });
         playCashRegisterTick(parsedUrlTx.kind);
         showToast({
-          text: `⚡ iOS 快捷指令已自动入账：${parsedUrlTx.note} ${parsedUrlTx.kind === 'expense' ? '-' : '+'}¥${parsedUrlTx.amountCny.toFixed(2)}`,
+          text: `iOS 快捷指令已自动入账：${parsedUrlTx.note} ${parsedUrlTx.kind === 'expense' ? '-' : '+'}¥${parsedUrlTx.amountCny.toFixed(2)}`,
         });
         try {
           const cleanUrl = window.location.pathname + window.location.hash;
@@ -352,8 +588,8 @@ export function BookkeepingLedgerHub({
         cardBg: '#18181b',
         cardElevated: '#1f1e22',
         border: 'rgba(255, 255, 255, 0.10)',
-        goldBorder: 'rgba(245, 185, 66, 0.35)',
-        pinkBorder: 'rgba(244, 114, 182, 0.38)',
+        goldBorder: 'rgba(245, 185, 66, 0.32)',
+        pinkBorder: 'rgba(244, 114, 182, 0.30)',
         ink: '#f8fafc',
         sub: '#cbd5e1',
         muted: '#94a3b8',
@@ -364,7 +600,7 @@ export function BookkeepingLedgerHub({
         pink: '#f472b6',
         danger: '#f87171',
         pillBg: 'rgba(255, 255, 255, 0.06)',
-        pillActiveBg: 'rgba(245, 185, 66, 0.18)',
+        pillActiveBg: 'rgba(245, 185, 66, 0.16)',
         inputBg: 'rgba(12, 10, 9, 0.72)',
       }
     : {
@@ -372,8 +608,8 @@ export function BookkeepingLedgerHub({
         cardBg: '#ffffff',
         cardElevated: '#faf8f3',
         border: 'rgba(38, 36, 31, 0.11)',
-        goldBorder: 'rgba(184, 130, 40, 0.36)',
-        pinkBorder: 'rgba(219, 39, 119, 0.32)',
+        goldBorder: 'rgba(184, 130, 40, 0.32)',
+        pinkBorder: 'rgba(219, 39, 119, 0.25)',
         ink: '#26241f',
         sub: '#524e46',
         muted: '#7a756c',
@@ -384,7 +620,7 @@ export function BookkeepingLedgerHub({
         pink: '#db2777',
         danger: '#dc2626',
         pillBg: 'rgba(38, 36, 31, 0.05)',
-        pillActiveBg: 'rgba(204, 120, 92, 0.15)',
+        pillActiveBg: 'rgba(204, 120, 92, 0.14)',
         inputBg: '#f4f1ea',
       };
 
@@ -429,7 +665,6 @@ export function BookkeepingLedgerHub({
     [entryKind],
   );
 
-  // Filtered transactions grouped by localDay
   const groupedDays = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     const filtered = ownerFilteredTransactions.filter((tx) => {
@@ -495,8 +730,8 @@ export function BookkeepingLedgerHub({
     const ownerMeta = getOwnerBadgeMeta(parsed.owner, state.coupleProfile);
     showToast({
       text: t(
-        `✓ 已智能入账 (${ownerMeta.icon}${ownerMeta.zh})：${cat.icon} ${parsed.note} ${parsed.kind === 'expense' ? '-' : '+'}¥${parsed.amountCny.toFixed(2)}`,
-        `✓ Logged (${ownerMeta.en}): ${cat.icon} ${parsed.note} ${parsed.kind === 'expense' ? '-' : '+'}¥${parsed.amountCny.toFixed(2)}`,
+        `已入账 [${ownerMeta.zh}]：${cat.zh} · ${parsed.note} ${parsed.kind === 'expense' ? '-' : '+'}¥${parsed.amountCny.toFixed(2)}`,
+        `Logged [${ownerMeta.en}]: ${parsed.note} ${parsed.kind === 'expense' ? '-' : '+'}¥${parsed.amountCny.toFixed(2)}`,
       ),
     });
   }
@@ -519,8 +754,8 @@ export function BookkeepingLedgerHub({
     const ownerMeta = getOwnerBadgeMeta(owner, state.coupleProfile);
     showToast({
       text: t(
-        `⚡ 一键记账 (${ownerMeta.icon}${ownerMeta.zh})：${preset.icon} ${preset.zh} -¥${preset.amountCny}`,
-        `⚡ 1-Tap Logged (${ownerMeta.en}): ${preset.icon} ${preset.en} -¥${preset.amountCny}`,
+        `已闪记 [${ownerMeta.zh}]：${preset.zh} -¥${preset.amountCny}`,
+        `1-Tap Logged [${ownerMeta.en}]: ${preset.en} -¥${preset.amountCny}`,
       ),
     });
   }
@@ -554,8 +789,8 @@ export function BookkeepingLedgerHub({
     const ownerMeta = getOwnerBadgeMeta(selectedOwner, state.coupleProfile);
     showToast({
       text: t(
-        `✓ 已记入账本 (${ownerMeta.icon}${ownerMeta.zh})：${cat.icon} ${cleanNote} ${entryKind === 'expense' ? '-' : '+'}¥${amountCny.toFixed(2)}`,
-        `✓ Saved (${ownerMeta.en}): ${cat.icon} ${cleanNote} ${entryKind === 'expense' ? '-' : '+'}¥${amountCny.toFixed(2)}`,
+        `已记入账本 [${ownerMeta.zh}]：${cleanNote} ${entryKind === 'expense' ? '-' : '+'}¥${amountCny.toFixed(2)}`,
+        `Saved [${ownerMeta.en}]: ${cleanNote} ${entryKind === 'expense' ? '-' : '+'}¥${amountCny.toFixed(2)}`,
       ),
     });
   }
@@ -566,7 +801,7 @@ export function BookkeepingLedgerHub({
     setState(next);
     setLastAddedTxId(null);
     playCashRegisterTick('undo');
-    showToast({ text: t('↺ 已撤回刚才记下的那一笔账单', '↺ Undid last transaction') });
+    showToast({ text: t('已撤回上一笔账单', 'Undid last transaction') });
   }
 
   function handleSaveBudget() {
@@ -577,26 +812,12 @@ export function BookkeepingLedgerHub({
       setBudgetDraft(String(next.monthlyBudgetCny));
       showToast({
         text: t(
-          `✓ 本月预算已更新为 ¥${next.monthlyBudgetCny.toLocaleString('en-US')}`,
-          `✓ Monthly budget set to ¥${next.monthlyBudgetCny.toLocaleString('en-US')}`,
+          `本月预算已更新为 ¥${next.monthlyBudgetCny.toLocaleString('en-US')}`,
+          `Monthly budget set to ¥${next.monthlyBudgetCny.toLocaleString('en-US')}`,
         ),
       });
     }
     setEditingBudget(false);
-  }
-
-  function handleSaveWealthStartAndGoal() {
-    const startNum = Number.parseInt(wealthStartDraft, 10);
-    const goalNum = Number.parseInt(wealthGoalDraft, 10);
-    const next = updateWealthPlanConfig({
-      currentSavedCny: Number.isFinite(startNum) && startNum >= 0 ? startNum : state.wealthPlan.currentSavedCny,
-      targetWealthCny: Number.isFinite(goalNum) && goalNum >= 50000 ? goalNum : state.wealthPlan.targetWealthCny,
-    });
-    setState(next);
-    setEditingWealthStart(false);
-    showToast({
-      text: t('✓ 已更新起始净资产与财富目标，复利曲线已重算', '✓ Updated starting net worth & goal target'),
-    });
   }
 
   function handleAddNewRecurringRule() {
@@ -624,8 +845,8 @@ export function BookkeepingLedgerHub({
     setShowAddRecurring(false);
     showToast({
       text: t(
-        `✓ 已新增周期自动入账规则：每月 ${dayNum} 日「${title}」`,
-        `✓ Added recurring rule on day ${dayNum}: "${title}"`,
+        `已新增周期自动入账规则：每月 ${dayNum} 日「${title}」`,
+        `Added recurring rule on day ${dayNum}: "${title}"`,
       ),
     });
   }
@@ -636,8 +857,8 @@ export function BookkeepingLedgerHub({
       await navigator.clipboard.writeText(json);
       showToast({
         text: t(
-          `💌 已复制双人家庭账本同步码！发微信给${state.coupleProfile.partnerName}粘贴即可无损合并双方账单`,
-          '💌 Copied Couple Co-Op sync JSON! Send to your partner to merge.',
+          `已复制双人家庭账本同步码，发送给${state.coupleProfile.partnerName}粘贴即可无损合并双方账单`,
+          'Copied Couple Co-Op sync JSON! Send to your partner to merge.',
         ),
       });
       return;
@@ -658,8 +879,8 @@ export function BookkeepingLedgerHub({
       playCashRegisterTick('income');
       showToast({
         text: t(
-          `👩‍❤️‍👨 双人账本合并成功！新增同步了 ${addedTxCount} 笔来自${merged.coupleProfile.partnerName}的账单`,
-          `👩‍❤️‍👨 Merged ${addedTxCount} new transactions from partner!`,
+          `双人账本合并完成，新增同步了 ${addedTxCount} 笔来自${merged.coupleProfile.partnerName}的账单`,
+          `Merged ${addedTxCount} new transactions from partner`,
         ),
       });
     } catch {
@@ -680,8 +901,8 @@ export function BookkeepingLedgerHub({
       await navigator.clipboard.writeText(template);
       showToast({
         text: t(
-          '✓ 已复制 iOS 快捷指令唤起 URL 模板到剪贴板！',
-          '✓ Copied iOS Shortcuts auto-log URL template!',
+          '已复制 iOS 快捷指令唤起 URL 模板到剪贴板',
+          'Copied iOS Shortcuts auto-log URL template',
         ),
       });
     }
@@ -701,7 +922,7 @@ export function BookkeepingLedgerHub({
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        showToast({ text: t(`✓ 已导出账单明细 ${filename}`, `✓ Exported ${filename}`) });
+        showToast({ text: t(`已导出账单明细 ${filename}`, `Exported ${filename}`) });
         return;
       } catch {
         // Fallback below
@@ -715,20 +936,23 @@ export function BookkeepingLedgerHub({
   }
 
   const evaluatedPreview = useMemo(() => evaluateAmountExpression(amountInput), [amountInput]);
+  const activeScrubPoint =
+    wealthTrajectory.points[Math.max(0, Math.min(wealthTrajectory.points.length - 1, scrubPointIdx))] ??
+    wealthTrajectory.points[wealthTrajectory.points.length - 1]!;
 
   return (
     <View style={[styles.container, { backgroundColor: pal.bg, borderColor: pal.goldBorder }]}>
-      {/* 0. Couple Co-Op Team Bar (👩‍❤️‍👨 我 & 老婆 双人组队共创栏 + iOS 快捷指令自动记账入口) */}
+      {/* 0. Couple Co-Op Team Bar (Clean Editorial Style, No Emojis) */}
       <View
         style={[
           styles.coupleBanner,
-          { backgroundColor: isDark ? '#1c161c' : '#fdf2f8', borderBottomColor: pal.pinkBorder },
+          { backgroundColor: pal.cardElevated, borderBottomColor: pal.border },
         ]}
       >
         <View style={styles.coupleLeftCluster}>
-          <View style={[styles.coupleAvatarPill, { backgroundColor: `${pal.pink}22`, borderColor: pal.pink }]}>
-            <Text variant="caption" style={{ color: pal.ink, fontWeight: '700', fontSize: 11.5 }}>
-              {`👩‍❤️‍👨 ${state.coupleProfile.myName} & ${state.coupleProfile.partnerName} · ${t('双人组队共管', 'Couple Co-Op')}`}
+          <View style={[styles.coupleAvatarPill, { backgroundColor: pal.pillActiveBg, borderColor: pal.goldBorder }]}>
+            <Text variant="caption" style={{ color: pal.goldText, fontWeight: '700', fontSize: 11 }}>
+              {`${state.coupleProfile.myName} & ${state.coupleProfile.partnerName} · ${t('双人共管账本', 'Couple Co-Op')}`}
             </Text>
           </View>
           {editingPartnerNames ? (
@@ -757,7 +981,7 @@ export function BookkeepingLedgerHub({
                 }}
                 style={[styles.microBtn, { backgroundColor: pal.pillActiveBg, borderColor: pal.gold }]}
               >
-                <Text variant="caption" style={{ color: pal.goldText, fontSize: 10, fontWeight: '700' }}>✓</Text>
+                <Text variant="caption" style={{ color: pal.goldText, fontSize: 10, fontWeight: '700' }}>保存</Text>
               </Pressable>
             </View>
           ) : (
@@ -768,10 +992,10 @@ export function BookkeepingLedgerHub({
                 setEditingPartnerNames(true);
               }}
             >
-              <Text variant="caption" style={{ color: pal.sub, fontSize: 10.5 }}>
+              <Text variant="caption" style={{ color: pal.sub, fontSize: 10.5, fontFamily: theme.fontFamily.mono }}>
                 {t(
-                  `🔥 组队连击 ${state.coupleProfile.teamStreakDays} 天 · 👨${state.coupleProfile.myName}支 ¥${summary.byOwner.meExpenseCny.toFixed(0)} · 👩${state.coupleProfile.partnerName}支 ¥${summary.byOwner.partnerExpenseCny.toFixed(0)} · 👩‍❤️‍👨共同 ¥${summary.byOwner.sharedExpenseCny.toFixed(0)} ✎`,
-                  `🔥 ${state.coupleProfile.teamStreakDays}d streak · Me ¥${summary.byOwner.meExpenseCny.toFixed(0)} · Partner ¥${summary.byOwner.partnerExpenseCny.toFixed(0)} · Joint ¥${summary.byOwner.sharedExpenseCny.toFixed(0)} ✎`,
+                  `协同 ${state.coupleProfile.teamStreakDays}d · ${state.coupleProfile.myName}支 ¥${summary.byOwner.meExpenseCny.toFixed(0)} · ${state.coupleProfile.partnerName}支 ¥${summary.byOwner.partnerExpenseCny.toFixed(0)} · 共同 ¥${summary.byOwner.sharedExpenseCny.toFixed(0)} [编辑]`,
+                  `Streak ${state.coupleProfile.teamStreakDays}d · Me ¥${summary.byOwner.meExpenseCny.toFixed(0)} · Partner ¥${summary.byOwner.partnerExpenseCny.toFixed(0)} · Joint ¥${summary.byOwner.sharedExpenseCny.toFixed(0)} [Edit]`,
                 )}
               </Text>
             </Pressable>
@@ -779,13 +1003,12 @@ export function BookkeepingLedgerHub({
         </View>
 
         <View style={styles.coupleRightActions}>
-          {/* Owner View Filter Pills */}
           {(
             [
               { id: 'all', label: t('全部', 'All') },
-              { id: 'me', label: `👨 ${state.coupleProfile.myName}` },
-              { id: 'partner', label: `👩 ${state.coupleProfile.partnerName}` },
-              { id: 'shared', label: t('👩‍❤️‍👨 共同', '👩‍❤️‍👨 Joint') },
+              { id: 'me', label: state.coupleProfile.myName },
+              { id: 'partner', label: state.coupleProfile.partnerName },
+              { id: 'shared', label: t('共同', 'Joint') },
             ] as const
           ).map((item) => {
             const active = filterOwner === item.id;
@@ -796,8 +1019,8 @@ export function BookkeepingLedgerHub({
                 style={[
                   styles.microBtn,
                   {
-                    backgroundColor: active ? `${pal.pink}26` : pal.pillBg,
-                    borderColor: active ? pal.pink : pal.border,
+                    backgroundColor: active ? pal.pillActiveBg : pal.pillBg,
+                    borderColor: active ? pal.gold : pal.border,
                   },
                 ]}
               >
@@ -806,7 +1029,7 @@ export function BookkeepingLedgerHub({
                   style={{
                     fontSize: 10.5,
                     fontWeight: active ? '700' : '500',
-                    color: active ? pal.ink : pal.sub,
+                    color: active ? pal.goldText : pal.sub,
                   }}
                 >
                   {item.label}
@@ -818,20 +1041,20 @@ export function BookkeepingLedgerHub({
             accessibilityRole="button"
             accessibilityLabel="复制双人账本同步码发给老婆"
             onPress={() => void handleCopyPartnerSyncCode()}
-            style={[styles.microBtn, { backgroundColor: pal.pillActiveBg, borderColor: pal.gold }]}
+            style={[styles.microBtn, { backgroundColor: pal.pillBg, borderColor: pal.border }]}
           >
-            <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700' }}>
-              {t(`💌 发给${state.coupleProfile.partnerName}`, '💌 Share Sync')}
+            <Text variant="caption" style={{ color: pal.ink, fontSize: 10.5, fontWeight: '600' }}>
+              {t(`导出给${state.coupleProfile.partnerName}`, 'Share Sync')}
             </Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="合并老婆发来的账本同步码"
             onPress={() => setShowPartnerMergeBox((prev) => !prev)}
-            style={[styles.microBtn, { backgroundColor: pal.pillBg, borderColor: pal.pink }]}
+            style={[styles.microBtn, { backgroundColor: pal.pillBg, borderColor: pal.border }]}
           >
-            <Text variant="caption" style={{ color: pal.pink, fontSize: 10.5, fontWeight: '700' }}>
-              {t(`📥 合并${state.coupleProfile.partnerName}账单`, '📥 Merge Partner')}
+            <Text variant="caption" style={{ color: pal.ink, fontSize: 10.5, fontWeight: '600' }}>
+              {t(`合并${state.coupleProfile.partnerName}账单`, 'Merge Partner')}
             </Text>
           </Pressable>
           <Pressable
@@ -841,7 +1064,7 @@ export function BookkeepingLedgerHub({
             style={[styles.microBtn, { backgroundColor: pal.pillBg, borderColor: pal.emerald }]}
           >
             <Text variant="caption" style={{ color: pal.emerald, fontSize: 10.5, fontWeight: '700' }}>
-              {t('📱 iOS自动记账', '📱 iOS Auto-Log')}
+              {t('iOS 自动记账', 'iOS Auto-Log')}
             </Text>
           </Pressable>
         </View>
@@ -852,8 +1075,8 @@ export function BookkeepingLedgerHub({
         <View style={[styles.drawerPanel, { backgroundColor: pal.cardElevated, borderBottomColor: pal.border }]}>
           <Text variant="caption" style={{ color: pal.ink, fontWeight: '700', fontSize: 11.5 }}>
             {t(
-              `👩‍❤️‍👨 粘贴${state.coupleProfile.partnerName}发来的同步码（会自动按账单 ID 无损合并，绝不覆盖你已有的记录）：`,
-              '👩‍❤️‍👨 Paste your partner’s sync JSON below to non-destructively merge transactions:',
+              `粘贴${state.coupleProfile.partnerName}发来的同步码（按账单 ID 无损去重合并，不覆盖已有记录）：`,
+              'Paste partner sync JSON below to non-destructively merge transactions:',
             )}
           </Text>
           <TextInput
@@ -864,7 +1087,7 @@ export function BookkeepingLedgerHub({
             multiline
             style={[
               styles.mergeTextarea,
-              { backgroundColor: pal.inputBg, borderColor: pal.pink, color: pal.ink },
+              { backgroundColor: pal.inputBg, borderColor: pal.border, color: pal.ink },
             ]}
           />
           <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>
@@ -876,10 +1099,10 @@ export function BookkeepingLedgerHub({
             </Pressable>
             <Pressable
               onPress={handleMergePartnerJson}
-              style={[styles.microBtn, { backgroundColor: `${pal.pink}28`, borderColor: pal.pink }]}
+              style={[styles.microBtn, { backgroundColor: pal.pillActiveBg, borderColor: pal.gold }]}
             >
-              <Text variant="caption" style={{ color: pal.ink, fontSize: 10.5, fontWeight: '700' }}>
-                {t('✓ 立即无损合并双人账单', '✓ Merge Partner Ledger')}
+              <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700' }}>
+                {t('确认无损合并', 'Merge Ledger')}
               </Text>
             </Pressable>
           </View>
@@ -891,7 +1114,7 @@ export function BookkeepingLedgerHub({
         <View style={[styles.drawerPanel, { backgroundColor: pal.cardElevated, borderBottomColor: pal.border }]}>
           <View style={styles.sectionTitleRow}>
             <Text variant="label" style={{ color: pal.goldText, fontWeight: '700', fontSize: 12.5 }}>
-              {t('📱 iOS「快捷指令 + 轻点背面两下」全自动记账配置（1 分钟配好）', '📱 iOS Shortcuts Back-Tap Auto-Bookkeeping Setup')}
+              {t('iOS 快捷指令「轻点背面两下」自动记账配置', 'iOS Shortcuts Back-Tap Auto-Bookkeeping Setup')}
             </Text>
             <View style={{ flexDirection: 'row', gap: 6 }}>
               <Pressable
@@ -899,7 +1122,7 @@ export function BookkeepingLedgerHub({
                 style={[styles.microBtn, { backgroundColor: pal.pillActiveBg, borderColor: pal.gold }]}
               >
                 <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700' }}>
-                  {t('📋 复制唤起 URL 模板', '📋 Copy Shortcut URL')}
+                  {t('复制唤起 URL 模板', 'Copy Shortcut URL')}
                 </Text>
               </Pressable>
               <Pressable
@@ -910,21 +1133,21 @@ export function BookkeepingLedgerHub({
                     setState(next);
                     setLastAddedTxId(added.id);
                     playCashRegisterTick('expense');
-                    showToast({ text: t('⚡ 已模拟 iOS 快捷指令自动入账：瑞幸生椰拿铁 -¥18', '⚡ Simulated iOS Shortcut Auto-Log: -¥18') });
+                    showToast({ text: t('已模拟 iOS 快捷指令自动入账：瑞幸生椰拿铁 -¥18', 'Simulated iOS Shortcut Auto-Log: -¥18') });
                   }
                 }}
-                style={[styles.microBtn, { backgroundColor: `${pal.emerald}24`, borderColor: pal.emerald }]}
+                style={[styles.microBtn, { backgroundColor: `${pal.emerald}20`, borderColor: pal.emerald }]}
               >
                 <Text variant="caption" style={{ color: pal.emerald, fontSize: 10.5, fontWeight: '700' }}>
-                  {t('⚡ 测试自动入账效果', '⚡ Test Auto-Log')}
+                  {t('测试自动入账', 'Test Auto-Log')}
                 </Text>
               </Pressable>
             </View>
           </View>
           <Text variant="caption" style={{ color: pal.sub, fontSize: 11, lineHeight: 17 }}>
             {t(
-              '① 打开 iPhone「快捷指令」App → 新建指令，添加动作「截屏」→「从图像中提取文本」；\n② 添加动作「打开 URL」，填入 `/ledger?autoLog=[提取的文本]`；\n③ 在 iPhone「设置 → 辅助功能 → 触控 → 轻点背面 → 轻点两下」勾选该快捷指令。以后微信/支付宝付完款，手指敲两下手机背面即可自动识别金额与商户并秒记入账！',
-              '1. In iOS Shortcuts, add "Take Screenshot" -> "Extract Text from Image"; 2. Add "Open URLs" with `/ledger?autoLog=[Extracted Text]`; 3. Bind to Settings -> Accessibility -> Touch -> Back Tap (Double Tap).',
+              '1. 打开 iPhone「快捷指令」新建指令，添加动作「截屏」→「从图像中提取文本」；\n2. 添加动作「打开 URL」，填入 `/ledger?autoLog=[提取的文本]`；\n3. 在 iPhone「设置 → 辅助功能 → 触控 → 轻点背面 → 轻点两下」绑定该指令，付款后轻敲两下手机背面即可自动记账。',
+              '1. In iOS Shortcuts, add "Take Screenshot" -> "Extract Text from Image"; 2. Add "Open URLs" with `/ledger?autoLog=[Extracted Text]`; 3. Bind to Settings -> Accessibility -> Touch -> Back Tap.',
             )}
           </Text>
         </View>
@@ -933,11 +1156,10 @@ export function BookkeepingLedgerHub({
       {/* 1. Top Monthly Budget & Safe-to-Spend Cockpit Header */}
       <View style={[styles.topCockpit, { backgroundColor: pal.cardElevated, borderBottomColor: pal.border }]}>
         <View style={styles.topMetricsRow}>
-          {/* Metric 1: Monthly Expense & Budget Progress */}
           <View style={[styles.metricCard, { backgroundColor: pal.cardBg, borderColor: pal.border }]}>
             <View style={styles.metricHeaderRow}>
               <Text variant="caption" style={{ color: pal.muted, fontSize: 11 }}>
-                {t(`${summary.yearMonth} 家庭本月支出`, `${summary.yearMonth} Monthly Spend`)}
+                {t(`${summary.yearMonth} 本月累计支出`, `${summary.yearMonth} Monthly Spend`)}
               </Text>
               <Pressable
                 accessibilityRole="button"
@@ -948,7 +1170,7 @@ export function BookkeepingLedgerHub({
                 }}
               >
                 <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700' }}>
-                  {t(`预算 ¥${summary.monthlyBudgetCny.toLocaleString('en-US')} ✎`, `Budget ¥${summary.monthlyBudgetCny.toLocaleString('en-US')} ✎`)}
+                  {t(`月预算 ¥${summary.monthlyBudgetCny.toLocaleString('en-US')} [改]`, `Budget ¥${summary.monthlyBudgetCny.toLocaleString('en-US')}`)}
                 </Text>
               </Pressable>
             </View>
@@ -992,7 +1214,7 @@ export function BookkeepingLedgerHub({
             </View>
             <Text variant="caption" style={{ color: pal.sub, fontSize: 10.5 }}>
               {summary.isOverBudget
-                ? t(`⚠️ 已超支 ¥${Math.abs(summary.remainingBudgetCny).toLocaleString('en-US')}`, `⚠️ Over budget by ¥${Math.abs(summary.remainingBudgetCny).toLocaleString('en-US')}`)
+                ? t(`已超支 ¥${Math.abs(summary.remainingBudgetCny).toLocaleString('en-US')}`, `Over budget by ¥${Math.abs(summary.remainingBudgetCny).toLocaleString('en-US')}`)
                 : t(
                     `已用 ${summary.budgetUsedPct}% · 剩余预算 ¥${summary.remainingBudgetCny.toLocaleString('en-US')}`,
                     `${summary.budgetUsedPct}% used · ¥${summary.remainingBudgetCny.toLocaleString('en-US')} left`,
@@ -1000,14 +1222,13 @@ export function BookkeepingLedgerHub({
             </Text>
           </View>
 
-          {/* Metric 2: Daily Safe-to-Spend Quota (今日可花额度) */}
           <View style={[styles.metricCard, { backgroundColor: pal.cardBg, borderColor: pal.goldBorder }]}>
             <View style={styles.metricHeaderRow}>
               <Text variant="caption" style={{ color: pal.goldText, fontSize: 11, fontWeight: '700' }}>
-                {t('✦ 今日安全可花额度', '✦ Safe-to-Spend Today')}
+                {t('今日安全可花额度', 'Safe-to-Spend Today')}
               </Text>
               <Text variant="caption" style={{ color: pal.muted, fontSize: 10.5 }}>
-                {t(`余 ${summary.daysLeftInMonth} 天`, `${summary.daysLeftInMonth}d left`)}
+                {t(`本月余 ${summary.daysLeftInMonth} 天`, `${summary.daysLeftInMonth}d left`)}
               </Text>
             </View>
             <Text variant="title" style={[styles.bigAmountText, { color: pal.goldText }]}>
@@ -1015,25 +1236,24 @@ export function BookkeepingLedgerHub({
             </Text>
             <Text variant="caption" style={{ color: pal.sub, fontSize: 10.5 }}>
               {t(
-                `今日已花 ¥${summary.todayExpenseCny.toFixed(2)} · ${
+                `今日已支 ¥${summary.todayExpenseCny.toFixed(2)} · ${
                   summary.todayExpenseCny <= summary.dailySafeToSpendCny
-                    ? '节奏稳健 ✓'
-                    : '今日略超额'
+                    ? '预算节奏正常'
+                    : '超出日均预算'
                 }`,
                 `Today spent ¥${summary.todayExpenseCny.toFixed(2)}`,
               )}
             </Text>
           </View>
 
-          {/* Metric 3: Monthly Income & Net Savings */}
           <View style={[styles.metricCard, { backgroundColor: pal.cardBg, borderColor: pal.border }]}>
             <View style={styles.metricHeaderRow}>
               <Text variant="caption" style={{ color: pal.muted, fontSize: 11 }}>
-                {t('双人本月总收入与净结余', 'Combined Income & Net Savings')}
+                {t('本月总收入与净结余', 'Monthly Income & Net')}
               </Text>
               <Pressable onPress={() => void handleExportCsv()}>
                 <Text variant="caption" style={{ color: pal.emerald, fontSize: 10.5, fontWeight: '700' }}>
-                  {t('📥 导出 CSV', '📥 Export CSV')}
+                  {t('导出 CSV', 'Export CSV')}
                 </Text>
               </Pressable>
             </View>
@@ -1042,7 +1262,7 @@ export function BookkeepingLedgerHub({
             </Text>
             <Text variant="caption" style={{ color: pal.sub, fontSize: 10.5 }}>
               {t(
-                `本月净结余 ${summary.netCashflowCny >= 0 ? '+' : ''}¥${summary.netCashflowCny.toLocaleString('en-US')}（👨¥${summary.byOwner.meIncomeCny.toLocaleString('en-US')} + 👩¥${summary.byOwner.partnerIncomeCny.toLocaleString('en-US')}）`,
+                `净结余 ${summary.netCashflowCny >= 0 ? '+' : ''}¥${summary.netCashflowCny.toLocaleString('en-US')}（${state.coupleProfile.myName} ¥${summary.byOwner.meIncomeCny.toLocaleString('en-US')} / ${state.coupleProfile.partnerName} ¥${summary.byOwner.partnerIncomeCny.toLocaleString('en-US')}）`,
                 `Net ${summary.netCashflowCny >= 0 ? '+' : ''}¥${summary.netCashflowCny.toLocaleString('en-US')}`,
               )}
             </Text>
@@ -1057,8 +1277,8 @@ export function BookkeepingLedgerHub({
               onChangeText={setSmartInput}
               onSubmitEditing={handleSmartNaturalSubmit}
               placeholder={t(
-                '⚡ 一句话秒记（如：瑞幸拿铁 18 微信 / 老婆买奶茶 22 / 双人盒马买菜 128 支付宝）…',
-                '⚡ Smart Log (e.g. Latte 18 WeChat / Wife Tea 22 / Couple Groceries 128)…',
+                '输入自然语言快速记账（如：瑞幸拿铁 18 微信 / 老婆买茶饮 22 / 盒马买菜 128 支付宝）…',
+                'Quick Log (e.g. Latte 18 WeChat / Partner Tea 22 / Groceries 128 Alipay)…',
               )}
               placeholderTextColor={pal.muted}
               style={[
@@ -1076,12 +1296,12 @@ export function BookkeepingLedgerHub({
                 {
                   backgroundColor: pal.pillActiveBg,
                   borderColor: pal.gold,
-                  transform: [{ scale: pressed ? 0.95 : 1 }],
+                  transform: [{ scale: pressed ? 0.96 : 1 }],
                 },
               ]}
             >
               <Text variant="caption" style={{ color: pal.goldText, fontWeight: '700', fontSize: 11.5 }}>
-                {t('⚡ 秒记入账', '⚡ Instant Log')}
+                {t('快速入账', 'Quick Log')}
               </Text>
             </Pressable>
             {lastAddedTxId ? (
@@ -1094,7 +1314,7 @@ export function BookkeepingLedgerHub({
                   {
                     backgroundColor: pal.pillBg,
                     borderColor: pal.border,
-                    transform: [{ scale: pressed ? 0.94 : 1 }],
+                    transform: [{ scale: pressed ? 0.95 : 1 }],
                   },
                 ]}
               >
@@ -1105,10 +1325,9 @@ export function BookkeepingLedgerHub({
             ) : null}
           </View>
 
-          {/* 1-Tap High-Frequency Expense Capsules */}
           <View style={styles.presetRow}>
             <Text variant="caption" style={{ color: pal.muted, fontSize: 10.5 }}>
-              {t('一键闪记：', '1-Tap:')}
+              {t('常用快记：', 'Presets:')}
             </Text>
             {QUICK_LEDGER_PRESETS.map((preset) => (
               <Pressable
@@ -1121,12 +1340,12 @@ export function BookkeepingLedgerHub({
                   {
                     backgroundColor: pal.pillBg,
                     borderColor: pal.border,
-                    transform: [{ scale: pressed ? 0.92 : 1 }],
+                    transform: [{ scale: pressed ? 0.94 : 1 }],
                   },
                 ]}
               >
                 <Text variant="caption" style={{ color: pal.ink, fontSize: 11, fontWeight: '600' }}>
-                  {`${preset.icon} ${t(preset.zh, preset.en)} `}
+                  {`${t(preset.zh, preset.en)} `}
                   <Text variant="caption" style={{ color: pal.goldText, fontWeight: '700', fontSize: 11 }}>
                     {`¥${preset.amountCny}`}
                   </Text>
@@ -1137,183 +1356,134 @@ export function BookkeepingLedgerHub({
         </View>
       </View>
 
-      {/* 1.5. Interactive Salary × Investment Ratio -> Target Wealth Trajectory Curve Card */}
+      {/* 1.5. Continuous Slidable Salary × Investment Ratio -> Target Wealth Trajectory Curve Card */}
       {!compact ? (
         <View style={[styles.wealthCardWrap, { backgroundColor: pal.cardBg, borderColor: pal.goldBorder }]}>
           <View style={styles.sectionTitleRow}>
-            <View style={{ gap: 2 }}>
-              <Text variant="label" style={{ color: pal.goldText, fontSize: 14, fontWeight: '700' }}>
-                {t(
-                  '📈 薪资 × 定投比例 → 目标财富达成曲线（双人合力复利模拟）',
-                  '📈 Salary × Invest Ratio → Target Wealth Compound Trajectory',
-                )}
-              </Text>
+            <View style={{ gap: 3, flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                <View style={[styles.statusDot, { backgroundColor: pal.gold }]} />
+                <Text variant="label" style={{ color: pal.goldText, fontSize: 13.5, fontWeight: '700' }}>
+                  {t(
+                    '薪资与定投比例 → 目标财富达成曲线（双人复利模型）',
+                    'Salary × Investment Ratio → Target Wealth Compound Trajectory',
+                  )}
+                </Text>
+              </View>
               <Text variant="caption" style={{ color: pal.ink, fontSize: 12, fontWeight: '600' }}>
                 {wealthTrajectory.alreadyReached
                   ? t(
-                      `🎉 当前净资产 ¥${wealthTrajectory.currentSavedCny.toLocaleString('en-US')} 已达成 ¥${wealthTrajectory.targetWealthCny.toLocaleString('en-US')} 目标！可点右侧切换更高目标`,
-                      `🎉 Already reached ¥${wealthTrajectory.targetWealthCny.toLocaleString('en-US')}! Select a higher target.`,
+                      `当前本金 ¥${wealthTrajectory.currentSavedCny.toLocaleString('en-US')} 已达成 ¥${wealthTrajectory.targetWealthCny.toLocaleString('en-US')} 目标，可向右拖动目标滑块设定下一阶段目标。`,
+                      `Current capital already exceeds target. Slide the target bar right to set your next milestone.`,
                     )
                   : t(
-                      `按双人月入 ¥${wealthTrajectory.monthlyIncomeCny.toLocaleString('en-US')} × 定投 ${wealthTrajectory.investRatePct}%（每月攒 ¥${wealthTrajectory.monthlyInvestCny.toLocaleString('en-US')} · 年化 ${wealthTrajectory.annualReturnPct}%），预计 ${wealthTrajectory.yearsPart > 0 ? `${wealthTrajectory.yearsPart} 年 ` : ''}${wealthTrajectory.monthsPart} 个月（${wealthTrajectory.estimatedGoalYearMonth}）达成 ¥${(wealthTrajectory.targetWealthCny / 10000).toFixed(0)} 万目标！`,
-                      `Investing ${wealthTrajectory.investRatePct}% (¥${wealthTrajectory.monthlyInvestCny.toLocaleString('en-US')}/mo @ ${wealthTrajectory.annualReturnPct}% APY) reaches ¥${(wealthTrajectory.targetWealthCny / 10000).toFixed(0)}w in ${wealthTrajectory.yearsPart}y ${wealthTrajectory.monthsPart}m (${wealthTrajectory.estimatedGoalYearMonth})!`,
+                      `按双人月收入 ¥${wealthTrajectory.monthlyIncomeCny.toLocaleString('en-US')} × 定投 ${wealthTrajectory.investRatePct}%（月投 ¥${wealthTrajectory.monthlyInvestCny.toLocaleString('en-US')} · 年化 ${wealthTrajectory.annualReturnPct.toFixed(1)}%），预计 ${wealthTrajectory.yearsPart > 0 ? `${wealthTrajectory.yearsPart} 年 ` : ''}${wealthTrajectory.monthsPart} 个月（${wealthTrajectory.estimatedGoalYearMonth}）达成 ¥${(wealthTrajectory.targetWealthCny / 10000).toFixed(0)} 万目标`,
+                      `At ${wealthTrajectory.investRatePct}% invest rate (¥${wealthTrajectory.monthlyInvestCny.toLocaleString('en-US')}/mo @ ${wealthTrajectory.annualReturnPct.toFixed(1)}% APY), reaches ¥${(wealthTrajectory.targetWealthCny / 10000).toFixed(0)}w in ${wealthTrajectory.yearsPart}y ${wealthTrajectory.monthsPart}m (${wealthTrajectory.estimatedGoalYearMonth})`,
                     )}
               </Text>
             </View>
-
-            {/* Quick Edit Starting Net Worth & Goal */}
-            {editingWealthStart ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>{t('当前存款:', 'Saved:')}</Text>
-                <TextInput
-                  value={wealthStartDraft}
-                  onChangeText={setWealthStartDraft}
-                  style={[styles.miniNameInput, { width: 78, backgroundColor: pal.inputBg, borderColor: pal.gold, color: pal.ink }]}
-                />
-                <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>{t('目标:', 'Goal:')}</Text>
-                <TextInput
-                  value={wealthGoalDraft}
-                  onChangeText={setWealthGoalDraft}
-                  onSubmitEditing={handleSaveWealthStartAndGoal}
-                  style={[styles.miniNameInput, { width: 82, backgroundColor: pal.inputBg, borderColor: pal.emerald, color: pal.ink }]}
-                />
-                <Pressable
-                  onPress={handleSaveWealthStartAndGoal}
-                  style={[styles.microBtn, { backgroundColor: pal.pillActiveBg, borderColor: pal.gold }]}
-                >
-                  <Text variant="caption" style={{ color: pal.goldText, fontSize: 10, fontWeight: '700' }}>✓</Text>
-                </Pressable>
-              </View>
-            ) : (
-              <Pressable
-                onPress={() => {
-                  setWealthStartDraft(String(state.wealthPlan.currentSavedCny));
-                  setWealthGoalDraft(String(state.wealthPlan.targetWealthCny));
-                  setEditingWealthStart(true);
-                }}
-                style={[styles.microBtn, { backgroundColor: pal.pillBg, borderColor: pal.border }]}
-              >
-                <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700' }}>
-                  {t(
-                    `当前已攒 ¥${(wealthTrajectory.currentSavedCny / 10000).toFixed(1)}w · 目标 ¥${(wealthTrajectory.targetWealthCny / 10000).toFixed(0)}w ✎`,
-                    `Saved ¥${(wealthTrajectory.currentSavedCny / 10000).toFixed(1)}w · Goal ¥${(wealthTrajectory.targetWealthCny / 10000).toFixed(0)}w ✎`,
-                  )}
-                </Text>
-              </Pressable>
-            )}
           </View>
 
-          {/* Interactive Sliders / Pill Controls for Invest Ratio, Annual Return & Target Goal */}
-          <View style={styles.wealthControlsBar}>
-            <View style={styles.wealthControlGroup}>
-              <Text variant="caption" style={{ color: pal.muted, fontSize: 10.5 }}>
-                {t('定投比例：', 'Invest Ratio:')}
-              </Text>
-              {[25, 35, 45, 55, 65, 75].map((pct) => {
-                const active = state.wealthPlan.investRatePct === pct;
-                return (
-                  <Pressable
-                    key={`ir-${pct}`}
-                    onPress={() => setState(updateWealthPlanConfig({ investRatePct: pct }))}
-                    style={[
-                      styles.microBtn,
-                      {
-                        backgroundColor: active ? pal.pillActiveBg : pal.pillBg,
-                        borderColor: active ? pal.gold : pal.border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      variant="caption"
-                      style={{
-                        fontSize: 10,
-                        fontWeight: active ? '700' : '500',
-                        color: active ? pal.goldText : pal.sub,
-                      }}
-                    >
-                      {`${pct}%`}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+          {/* 4 Continuous Draggable Sliders Grid */}
+          <View style={styles.slidersGrid}>
+            <InteractiveRangeSlider
+              label={t('月薪定投比例', 'Invest Ratio')}
+              valueText={`${state.wealthPlan.investRatePct}%`}
+              subText={`¥${wealthTrajectory.monthlyInvestCny.toLocaleString('en-US')}/${t('月', 'mo')}`}
+              value={state.wealthPlan.investRatePct}
+              min={5}
+              max={85}
+              step={1}
+              accentColor={pal.gold}
+              trackBg={pal.pillBg}
+              borderColor={pal.border}
+              inkColor={pal.goldText}
+              mutedColor={pal.muted}
+              onChange={(val) => setState(updateWealthPlanConfig({ investRatePct: val }))}
+            />
 
-            <View style={styles.wealthControlGroup}>
-              <Text variant="caption" style={{ color: pal.muted, fontSize: 10.5 }}>
-                {t('预期年化：', 'Return APY:')}
-              </Text>
-              {[
-                { rate: 4, label: t('4% 稳健债基', '4% Bond') },
-                { rate: 8, label: t('8% 宽基定投', '8% Index') },
-                { rate: 12, label: t('12% 进取成长', '12% Growth') },
-              ].map((item) => {
-                const active = state.wealthPlan.annualReturnPct === item.rate;
-                return (
-                  <Pressable
-                    key={`apy-${item.rate}`}
-                    onPress={() => setState(updateWealthPlanConfig({ annualReturnPct: item.rate }))}
-                    style={[
-                      styles.microBtn,
-                      {
-                        backgroundColor: active ? `${pal.emerald}24` : pal.pillBg,
-                        borderColor: active ? pal.emerald : pal.border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      variant="caption"
-                      style={{
-                        fontSize: 10,
-                        fontWeight: active ? '700' : '500',
-                        color: active ? pal.emerald : pal.sub,
-                      }}
-                    >
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <InteractiveRangeSlider
+              label={t('预期年化收益率', 'Expected APY')}
+              valueText={`${state.wealthPlan.annualReturnPct.toFixed(1)}%`}
+              subText={
+                state.wealthPlan.annualReturnPct <= 4.5
+                  ? t('稳健固收', 'Conservative')
+                  : state.wealthPlan.annualReturnPct <= 9.5
+                    ? t('宽基指数', 'Index Core')
+                    : t('进取权益', 'Growth')
+              }
+              value={state.wealthPlan.annualReturnPct}
+              min={0}
+              max={20}
+              step={0.5}
+              accentColor={pal.emerald}
+              trackBg={pal.pillBg}
+              borderColor={pal.border}
+              inkColor={pal.emerald}
+              mutedColor={pal.muted}
+              onChange={(val) => setState(updateWealthPlanConfig({ annualReturnPct: val }))}
+            />
 
-            <View style={styles.wealthControlGroup}>
-              <Text variant="caption" style={{ color: pal.muted, fontSize: 10.5 }}>
-                {t('阶段目标：', 'Target:')}
-              </Text>
-              {[1000000, 1500000, 3000000, 5000000].map((goal) => {
-                const active = state.wealthPlan.targetWealthCny === goal;
-                return (
-                  <Pressable
-                    key={`goal-${goal}`}
-                    onPress={() => setState(updateWealthPlanConfig({ targetWealthCny: goal }))}
-                    style={[
-                      styles.microBtn,
-                      {
-                        backgroundColor: active ? pal.pillActiveBg : pal.pillBg,
-                        borderColor: active ? pal.gold : pal.border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      variant="caption"
-                      style={{
-                        fontSize: 10,
-                        fontWeight: active ? '700' : '500',
-                        color: active ? pal.goldText : pal.sub,
-                      }}
-                    >
-                      {`¥${goal / 10000}w`}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <InteractiveRangeSlider
+              label={t('当前起始本金', 'Starting Capital')}
+              valueText={`¥${(state.wealthPlan.currentSavedCny / 10000).toFixed(0)}w`}
+              subText={`¥${state.wealthPlan.currentSavedCny.toLocaleString('en-US')}`}
+              value={state.wealthPlan.currentSavedCny}
+              min={0}
+              max={5000000}
+              step={10000}
+              accentColor="#38bdf8"
+              trackBg={pal.pillBg}
+              borderColor={pal.border}
+              inkColor={pal.ink}
+              mutedColor={pal.muted}
+              onChange={(val) => setState(updateWealthPlanConfig({ currentSavedCny: val }))}
+            />
+
+            <InteractiveRangeSlider
+              label={t('阶段财富目标', 'Wealth Target')}
+              valueText={`¥${(state.wealthPlan.targetWealthCny / 10000).toFixed(0)}w`}
+              subText={`¥${state.wealthPlan.targetWealthCny.toLocaleString('en-US')}`}
+              value={state.wealthPlan.targetWealthCny}
+              min={100000}
+              max={10000000}
+              step={50000}
+              accentColor={pal.gold}
+              trackBg={pal.pillBg}
+              borderColor={pal.border}
+              inkColor={pal.goldText}
+              mutedColor={pal.muted}
+              onChange={(val) => setState(updateWealthPlanConfig({ targetWealthCny: val }))}
+            />
           </View>
 
-          {/* SVG Compound Wealth Curve */}
+          {/* SVG Compound Wealth Curve with Interactive Scrubber */}
           <WealthTrajectorySvg
             points={wealthTrajectory.points}
             targetWealthCny={wealthTrajectory.targetWealthCny}
+            activePointIdx={scrubPointIdx}
+            onSelectPointIdx={setScrubPointIdx}
             isDark={isDark}
+          />
+
+          {/* Timeline Scrubber Slider Bar for Inspecting Any Point on the Curve */}
+          <InteractiveRangeSlider
+            label={t('滑动检视曲线时间节点', 'Scrub Timeline Node')}
+            valueText={`${activeScrubPoint.yearMonth} (${activeScrubPoint.label})`}
+            subText={t(
+              `总资产 ¥${(activeScrubPoint.compoundWealthCny / 10000).toFixed(1)}w = 本金 ¥${(activeScrubPoint.principalCny / 10000).toFixed(1)}w + 复利 ¥${(activeScrubPoint.gainCny / 10000).toFixed(1)}w`,
+              `Total ¥${(activeScrubPoint.compoundWealthCny / 10000).toFixed(1)}w (Prin ¥${(activeScrubPoint.principalCny / 10000).toFixed(1)}w + Gain ¥${(activeScrubPoint.gainCny / 10000).toFixed(1)}w)`,
+            )}
+            value={Math.max(0, Math.min(wealthTrajectory.points.length - 1, scrubPointIdx))}
+            min={0}
+            max={Math.max(1, wealthTrajectory.points.length - 1)}
+            step={1}
+            accentColor={pal.emerald}
+            trackBg={pal.pillBg}
+            borderColor={pal.border}
+            inkColor={pal.goldText}
+            mutedColor={pal.muted}
+            onChange={(idx) => setScrubPointIdx(Math.round(idx))}
           />
 
           {/* 4 Horizon Milestone Cards (1Y / 3Y / 5Y / 10Y) */}
@@ -1337,7 +1507,7 @@ export function BookkeepingLedgerHub({
                 >
                   {`¥${(ms.compoundWealthCny / 10000).toFixed(1)}w`}
                 </Text>
-                <Text variant="caption" style={{ color: pal.emerald, fontSize: 9.5 }}>
+                <Text variant="caption" style={{ color: pal.emerald, fontSize: 9.5, fontFamily: theme.fontFamily.mono }}>
                   {t(
                     `本金 ${(ms.principalCny / 10000).toFixed(1)}w + 复利 ${(ms.gainCny / 10000).toFixed(1)}w`,
                     `Prin ${(ms.principalCny / 10000).toFixed(1)}w + Gain ${(ms.gainCny / 10000).toFixed(1)}w`,
@@ -1356,7 +1526,7 @@ export function BookkeepingLedgerHub({
           <View style={[styles.leftPanelCard, { backgroundColor: pal.cardBg, borderColor: pal.border }]}>
             <View style={styles.sectionTitleRow}>
               <Text variant="label" style={{ color: pal.ink, fontSize: 13.5, fontWeight: '700' }}>
-                {t('分类记账键盘', 'Category & Calculator Pad')}
+                {t('分类记账与算式键盘', 'Category & Calculator Pad')}
               </Text>
               <View style={[styles.kindSwitchPill, { backgroundColor: pal.pillBg }]}>
                 <Pressable
@@ -1404,13 +1574,13 @@ export function BookkeepingLedgerHub({
               </View>
             </View>
 
-            {/* Member Attribution Selector (👨 我 | 👩 老婆 | 👩‍❤️‍👨 共同) */}
+            {/* Member Attribution Selector */}
             <View style={styles.accountSelectorRow}>
               {(
                 [
-                  { id: 'me', icon: '👨', label: state.coupleProfile.myName, color: '#38bdf8' },
-                  { id: 'partner', icon: '👩', label: state.coupleProfile.partnerName, color: '#f472b6' },
-                  { id: 'shared', icon: '👩‍❤️‍👨', label: t('共同开销', 'Joint'), color: '#f5b942' },
+                  { id: 'me', label: state.coupleProfile.myName, color: '#38bdf8' },
+                  { id: 'partner', label: state.coupleProfile.partnerName, color: '#f472b6' },
+                  { id: 'shared', label: t('共同开销', 'Joint'), color: '#f5b942' },
                 ] as const
               ).map((ow) => {
                 const active = selectedOwner === ow.id;
@@ -1421,7 +1591,7 @@ export function BookkeepingLedgerHub({
                     style={[
                       styles.accountChip,
                       {
-                        backgroundColor: active ? `${ow.color}22` : pal.pillBg,
+                        backgroundColor: active ? `${ow.color}20` : pal.pillBg,
                         borderColor: active ? ow.color : pal.border,
                       },
                     ]}
@@ -1434,14 +1604,14 @@ export function BookkeepingLedgerHub({
                         color: active ? pal.ink : pal.sub,
                       }}
                     >
-                      {`${ow.icon} ${ow.label}`}
+                      {ow.label}
                     </Text>
                   </Pressable>
                 );
               })}
             </View>
 
-            {/* Category Icon Matrix */}
+            {/* Category Monogram Matrix */}
             <View style={styles.categoryGrid}>
               {visibleCategories.map((cat) => {
                 const active = selectedCategory === cat.id;
@@ -1454,15 +1624,22 @@ export function BookkeepingLedgerHub({
                     style={({ pressed }) => [
                       styles.categoryCell,
                       {
-                        backgroundColor: active ? `${cat.color}22` : pal.pillBg,
+                        backgroundColor: active ? `${cat.color}20` : pal.pillBg,
                         borderColor: active ? cat.color : pal.border,
-                        transform: [{ scale: pressed ? 0.94 : 1 }],
+                        transform: [{ scale: pressed ? 0.95 : 1 }],
                       },
                     ]}
                   >
-                    <Text variant="body" style={{ fontSize: 16 }}>
-                      {cat.icon}
-                    </Text>
+                    <View
+                      style={[
+                        styles.monogramCircle,
+                        { backgroundColor: `${cat.color}24`, borderColor: `${cat.color}66` },
+                      ]}
+                    >
+                      <Text variant="caption" style={{ fontSize: 11, fontWeight: '700', color: cat.color }}>
+                        {cat.icon}
+                      </Text>
+                    </View>
                     <Text
                       variant="caption"
                       style={{
@@ -1489,9 +1666,9 @@ export function BookkeepingLedgerHub({
                     style={({ pressed }) => [
                       styles.accountChip,
                       {
-                        backgroundColor: active ? `${acc.color}22` : pal.pillBg,
+                        backgroundColor: active ? `${acc.color}20` : pal.pillBg,
                         borderColor: active ? acc.color : pal.border,
-                        transform: [{ scale: pressed ? 0.94 : 1 }],
+                        transform: [{ scale: pressed ? 0.95 : 1 }],
                       },
                     ]}
                   >
@@ -1503,7 +1680,7 @@ export function BookkeepingLedgerHub({
                         color: active ? pal.ink : pal.sub,
                       }}
                     >
-                      {`${acc.icon} ${t(acc.zh, acc.en)}`}
+                      {t(acc.zh, acc.en)}
                     </Text>
                   </Pressable>
                 );
@@ -1555,17 +1732,16 @@ export function BookkeepingLedgerHub({
                     styles.saveLedgerBtn,
                     {
                       backgroundColor: entryKind === 'expense' ? pal.terracotta : pal.emerald,
-                      transform: [{ scale: pressed ? 0.95 : 1 }],
+                      transform: [{ scale: pressed ? 0.96 : 1 }],
                     },
                   ]}
                 >
                   <Text variant="caption" style={{ color: '#ffffff', fontWeight: '700', fontSize: 12 }}>
-                    {t('✓ 记一笔', '✓ Save')}
+                    {t('确认记账', 'Save')}
                   </Text>
                 </Pressable>
               </View>
 
-              {/* Quick Calculator Number Pad Pills */}
               <View style={styles.quickCalcRow}>
                 {['15', '25', '38', '68', '100', '+10', '+50', 'C'].map((tok) => (
                   <Pressable
@@ -1583,7 +1759,7 @@ export function BookkeepingLedgerHub({
                       {
                         backgroundColor: pal.pillBg,
                         borderColor: pal.border,
-                        transform: [{ scale: pressed ? 0.92 : 1 }],
+                        transform: [{ scale: pressed ? 0.93 : 1 }],
                       },
                     ]}
                   >
@@ -1595,11 +1771,11 @@ export function BookkeepingLedgerHub({
               </View>
             </View>
 
-            {/* Recurring Rules Section (🔁 周期性自动入账规则) */}
+            {/* Recurring Rules Section */}
             <View style={styles.walletSection}>
               <View style={styles.metricHeaderRow}>
                 <Text variant="caption" style={{ color: pal.goldText, fontSize: 11, fontWeight: '700' }}>
-                  {t('🔁 周期性固定收支自动入账（月薪/房贷/订阅）', '🔁 Auto-Recurring Monthly Rules')}
+                  {t('周期性固定收支自动入账（月薪 / 房贷 / 订阅）', 'Auto-Recurring Monthly Rules')}
                 </Text>
                 <Pressable
                   onPress={() => setShowAddRecurring((prev) => !prev)}
@@ -1619,7 +1795,7 @@ export function BookkeepingLedgerHub({
                       style={[styles.microBtn, { backgroundColor: pal.pillBg, borderColor: pal.border }]}
                     >
                       <Text variant="caption" style={{ color: newRecKind === 'income' ? pal.emerald : pal.terracotta, fontSize: 10, fontWeight: '700' }}>
-                        {newRecKind === 'income' ? t('💰 固定收入', '💰 Income') : t('🏠 固定支出', '🏠 Expense')}
+                        {newRecKind === 'income' ? t('固定收入', 'Income') : t('固定支出', 'Expense')}
                       </Text>
                     </Pressable>
                     <Pressable
@@ -1629,7 +1805,6 @@ export function BookkeepingLedgerHub({
                       style={[styles.microBtn, { backgroundColor: pal.pillBg, borderColor: pal.border }]}
                     >
                       <Text variant="caption" style={{ color: pal.ink, fontSize: 10 }}>
-                        {getOwnerBadgeMeta(newRecOwner, state.coupleProfile).icon}{' '}
                         {getOwnerBadgeMeta(newRecOwner, state.coupleProfile).zh}
                       </Text>
                     </Pressable>
@@ -1697,7 +1872,7 @@ export function BookkeepingLedgerHub({
                             {rule.title}
                           </Text>
                           <Text variant="caption" style={{ color: pal.muted, fontSize: 9.5 }}>
-                            {`${t(`每月 ${rule.dayOfMonth} 日`, `Day ${rule.dayOfMonth}`)} · ${ownerMeta.icon}${ownerMeta.zh}`}
+                            {`${t(`每月 ${rule.dayOfMonth} 日`, `Day ${rule.dayOfMonth}`)} · ${ownerMeta.zh}`}
                           </Text>
                         </View>
                       </Pressable>
@@ -1727,7 +1902,7 @@ export function BookkeepingLedgerHub({
             {/* Account Wallet Balances */}
             <View style={styles.walletSection}>
               <Text variant="caption" style={{ color: pal.muted, fontSize: 11, fontWeight: '600' }}>
-                {t('💳 账户资金结余（点击按账户筛选）', '💳 Account Wallets (Tap to filter)')}
+                {t('账户资金结余（点击按账户筛选）', 'Account Wallets (Tap to filter)')}
               </Text>
               <View style={styles.walletGrid}>
                 {accountBalances.map(({ account, balanceCny, monthExpenseCny }) => {
@@ -1746,9 +1921,9 @@ export function BookkeepingLedgerHub({
                     >
                       <View style={styles.metricHeaderRow}>
                         <Text variant="caption" style={{ color: pal.ink, fontWeight: '700', fontSize: 11 }}>
-                          {`${account.icon} ${t(account.zh, account.en)}`}
+                          {t(account.zh, account.en)}
                         </Text>
-                        <Text variant="caption" style={{ color: pal.muted, fontSize: 9.5 }}>
+                        <Text variant="caption" style={{ color: pal.muted, fontSize: 9.5, fontFamily: theme.fontFamily.mono }}>
                           {`-¥${monthExpenseCny.toFixed(0)}`}
                         </Text>
                       </View>
@@ -1772,11 +1947,10 @@ export function BookkeepingLedgerHub({
 
           {/* Right Column: 14-Day Spend Bars + Category Breakdown + Daily Transaction Stream */}
           <View style={styles.rightPanelStack}>
-            {/* Top-Right Card: Category Breakdown + 14-Day Trend */}
             <View style={[styles.rightCard, { backgroundColor: pal.cardBg, borderColor: pal.border }]}>
               <View style={styles.sectionTitleRow}>
                 <Text variant="label" style={{ color: pal.ink, fontSize: 13.5, fontWeight: '700' }}>
-                  {t('📊 本月支出结构与近 14 日消费脉搏', '📊 Category Breakdown & 14-Day Spend Pulse')}
+                  {t('本月支出结构与近 14 日消费趋势', 'Category Breakdown & 14-Day Spend Trend')}
                 </Text>
                 {filterCat !== 'all' || filterAcc !== 'all' || filterOwner !== 'all' || filterDay ? (
                   <Pressable
@@ -1789,13 +1963,12 @@ export function BookkeepingLedgerHub({
                     style={[styles.microBtn, { backgroundColor: pal.pillActiveBg, borderColor: pal.gold }]}
                   >
                     <Text variant="caption" style={{ color: pal.goldText, fontSize: 10 }}>
-                      {t('✕ 清除筛选', '✕ Clear Filter')}
+                      {t('清除筛选', 'Clear Filter')}
                     </Text>
                   </Pressable>
                 ) : null}
               </View>
 
-              {/* Category Proportional Progress Bars */}
               <View style={styles.catBreakdownList}>
                 {categoryBreakdown.slice(0, 5).map((item) => {
                   const isSelected = filterCat === item.category.id;
@@ -1812,7 +1985,7 @@ export function BookkeepingLedgerHub({
                     >
                       <View style={styles.catBreakdownLeft}>
                         <Text variant="caption" style={{ color: pal.ink, fontSize: 11.5, fontWeight: '600' }}>
-                          {`${item.category.icon} ${t(item.category.zh, item.category.en)}`}
+                          {t(item.category.zh, item.category.en)}
                         </Text>
                         <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>
                           {`${item.count} ${t('笔', 'tx')} · ${item.sharePct}%`}
@@ -1844,7 +2017,6 @@ export function BookkeepingLedgerHub({
                 })}
               </View>
 
-              {/* 14-Day Interactive Spend Spark-Bars */}
               <View style={styles.dailyBarsWrap}>
                 {dailyBars.map((bar) => {
                   const isSelected = filterDay === bar.localDay;
@@ -1894,12 +2066,12 @@ export function BookkeepingLedgerHub({
             <View style={[styles.rightCard, { backgroundColor: pal.cardBg, borderColor: pal.border }]}>
               <View style={styles.sectionTitleRow}>
                 <Text variant="label" style={{ color: pal.ink, fontSize: 13.5, fontWeight: '700' }}>
-                  {t('🧾 双人收支流水明细', '🧾 Couple Transaction Ledger')}
+                  {t('收支流水明细', 'Transaction Ledger')}
                 </Text>
                 <TextInput
                   value={searchQuery}
                   onChangeText={setSearchQuery}
-                  placeholder={t('🔍 搜索账单备注或分类…', '🔍 Search transactions…')}
+                  placeholder={t('搜索备注或分类…', 'Search transactions…')}
                   placeholderTextColor={pal.muted}
                   style={[
                     styles.searchField,
@@ -1912,7 +2084,7 @@ export function BookkeepingLedgerHub({
               {groupedDays.length === 0 ? (
                 <View style={styles.emptyBox}>
                   <Text variant="caption" style={{ color: pal.muted }}>
-                    {t('暂无匹配的收支记录，可在上方一句话秒记或点击分类入账。', 'No matching transactions yet.')}
+                    {t('暂无匹配的收支记录，可在上方输入自然语言或点击分类入账。', 'No matching transactions yet.')}
                   </Text>
                 </View>
               ) : (
@@ -1949,10 +2121,10 @@ export function BookkeepingLedgerHub({
                               <View
                                 style={[
                                   styles.txIconBadge,
-                                  { backgroundColor: `${cat.color}20`, borderColor: `${cat.color}55` },
+                                  { backgroundColor: `${cat.color}18`, borderColor: `${cat.color}55` },
                                 ]}
                               >
-                                <Text variant="caption" style={{ fontSize: 13 }}>
+                                <Text variant="caption" style={{ fontSize: 11, fontWeight: '700', color: cat.color }}>
                                   {cat.icon}
                                 </Text>
                               </View>
@@ -1964,16 +2136,16 @@ export function BookkeepingLedgerHub({
                                   <View
                                     style={[
                                       styles.ownerMiniTag,
-                                      { backgroundColor: `${ownerMeta.color}20`, borderColor: `${ownerMeta.color}66` },
+                                      { backgroundColor: `${ownerMeta.color}18`, borderColor: `${ownerMeta.color}55` },
                                     ]}
                                   >
                                     <Text variant="caption" style={{ color: ownerMeta.color, fontSize: 9, fontWeight: '700' }}>
-                                      {`${ownerMeta.icon}${ownerMeta.zh}`}
+                                      {ownerMeta.zh}
                                     </Text>
                                   </View>
                                 </View>
                                 <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>
-                                  {`${t(cat.zh, cat.en)} · ${acc.icon} ${t(acc.zh, acc.en)}`}
+                                  {`${t(cat.zh, cat.en)} · ${t(acc.zh, acc.en)}`}
                                 </Text>
                               </View>
                             </View>
@@ -2025,6 +2197,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
   },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
   coupleBanner: {
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -2043,8 +2220,8 @@ const styles = StyleSheet.create({
   },
   coupleAvatarPill: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
+    paddingVertical: 3.5,
+    borderRadius: 6,
     borderWidth: 1,
   },
   coupleRightActions: {
@@ -2164,29 +2341,64 @@ const styles = StyleSheet.create({
   presetChip: {
     paddingHorizontal: 9,
     paddingVertical: 4.5,
-    borderRadius: 999,
+    borderRadius: 6,
     borderWidth: 1,
   },
   wealthCardWrap: {
     marginHorizontal: 14,
     marginTop: 12,
-    padding: 13,
+    padding: 14,
     borderRadius: 12,
     borderWidth: 1,
-    gap: 10,
+    gap: 11,
   },
-  wealthControlsBar: {
+  slidersGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 9,
+  },
+  sliderCard: {
+    flex: 1,
+    minWidth: 220,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 9,
+    borderWidth: 1,
+    gap: 5,
+  },
+  sliderTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
   },
-  wealthControlGroup: {
+  sliderControlRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 4,
+    gap: 8,
+  },
+  sliderStepBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sliderTrackContainer: {
+    flex: 1,
+    height: 24,
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  sliderVisualTrack: {
+    height: 6,
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  sliderVisualFill: {
+    height: '100%',
+    borderRadius: 999,
   },
   milestoneHorizonsRow: {
     flexDirection: 'row',
@@ -2260,7 +2472,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
+    gap: 4,
+  },
+  monogramCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   accountSelectorRow: {
     flexDirection: 'row',
@@ -2441,9 +2661,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   txIconBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 7,
+    width: 26,
+    height: 26,
+    borderRadius: 6,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2468,7 +2688,7 @@ const styles = StyleSheet.create({
   },
   microBtn: {
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 3.5,
     borderRadius: 6,
     borderWidth: 1,
   },

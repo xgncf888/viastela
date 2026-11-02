@@ -337,7 +337,7 @@ function renderArticulatedAthleteSvg({
           fontWeight: '700',
           fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
         },
-        `🏋️x${reps}`,
+        `SQ×${reps}`,
       ),
     );
   }
@@ -412,7 +412,7 @@ function renderArticulatedAthleteSvg({
           fontWeight: '700',
           fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
         },
-        `💪x${reps}`,
+        `PU×${reps}`,
       ),
     );
   }
@@ -493,7 +493,7 @@ function renderArticulatedAthleteSvg({
           fontWeight: '700',
           fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
         },
-        `🔔x${reps}`,
+        `PR×${reps}`,
       ),
     );
   }
@@ -560,7 +560,7 @@ function renderArticulatedAthleteSvg({
         fontWeight: '700',
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
       },
-      `🔥x${reps}`,
+      `JJ×${reps}`,
     ),
   );
 }
@@ -1827,20 +1827,20 @@ export function IsometricStudioStage({
       setVault(v);
       triggerStageBurst(
         'focus',
-        t(`📖 P.${nextState.bookPage} · 连读 +¥${v.config.checkInRewardCny} ✦`, `📖 P.${nextState.bookPage} · +¥${v.config.checkInRewardCny} ✦`),
+        t(`P.${nextState.bookPage} · 连读 +¥${v.config.checkInRewardCny} ✦`, `P.${nextState.bookPage} · +¥${v.config.checkInRewardCny} ✦`),
         pal.goldAccent,
         'reward',
       );
       showToast({
         text: t(
-          `📖 ${bookTitle} 已读至 P.${nextState.bookPage} · +${deltaMinutes}m · 心愿金库 +¥${v.config.checkInRewardCny}`,
-          `📖 ${bookTitle} P.${nextState.bookPage} · +${deltaMinutes}m · Wish Vault +¥${v.config.checkInRewardCny}`,
+          `✓ ${bookTitle} 已读至 P.${nextState.bookPage} · +${deltaMinutes}m · 心愿金库 +¥${v.config.checkInRewardCny}`,
+          `✓ ${bookTitle} P.${nextState.bookPage} · +${deltaMinutes}m · Wish Vault +¥${v.config.checkInRewardCny}`,
         ),
       });
     } else {
       triggerStageBurst(
         'focus',
-        t(`📖 翻页 P.${nextState.bookPage} · +${deltaMinutes}m ✦`, `📖 Page P.${nextState.bookPage} · +${deltaMinutes}m ✦`),
+        t(`翻页 P.${nextState.bookPage} · +${deltaMinutes}m ✦`, `Page P.${nextState.bookPage} · +${deltaMinutes}m ✦`),
         pal.terracottaAccent,
         'page',
       );
@@ -1851,10 +1851,10 @@ export function IsometricStudioStage({
     WorkoutPoseId,
     { zh: string; en: string; icon: string; weightKg: number | null }
   > = {
-    squat: { zh: '深蹲', en: 'Squat', icon: '🏋️', weightKg: 60 },
-    pushup: { zh: '俯卧撑', en: 'Push-Up', icon: '💪', weightKg: null },
-    press: { zh: '推举', en: 'DB Press', icon: '🔔', weightKg: 20 },
-    jump: { zh: '开合跳', en: 'Jump Jack', icon: '🔥', weightKg: null },
+    squat: { zh: '深蹲', en: 'Squat', icon: '·', weightKg: 60 },
+    pushup: { zh: '俯卧撑', en: 'Push-Up', icon: '·', weightKg: null },
+    press: { zh: '推举', en: 'DB Press', icon: '·', weightKg: 20 },
+    jump: { zh: '开合跳', en: 'Jump Jack', icon: '·', weightKg: null },
   };
 
   // Interactive Fitness Character on Island 2: Tap to animate full 60fps rep cycle & increment/undo rep
@@ -1882,7 +1882,7 @@ export function IsometricStudioStage({
         localDay,
         deltaMinutes: 1,
         category: 'fitness',
-        title: `${meta.icon} ${exerciseName}`,
+        title: exerciseName,
         goalId: null,
       }),
     );
@@ -1896,20 +1896,20 @@ export function IsometricStudioStage({
       setVault(v);
       triggerStageBurst(
         'vitality',
-        `${meta.icon} ${exerciseName} x${nextReps} · +¥${v.config.checkInRewardCny} 🔥`,
+        `${exerciseName} x${nextReps} · +¥${v.config.checkInRewardCny} ✦`,
         pal.emeraldAccent,
         'reward',
       );
       showToast({
         text: t(
-          `🏆 ${exerciseName}累计 ${nextReps} 次（已自动记入 1 组）· 心愿金库 +¥${v.config.checkInRewardCny}`,
-          `🏆 ${exerciseName} x${nextReps} (1 set logged) · Wish Vault +¥${v.config.checkInRewardCny}`,
+          `✓ ${exerciseName}累计 ${nextReps} 次（已自动记入 1 组）· 心愿金库 +¥${v.config.checkInRewardCny}`,
+          `✓ ${exerciseName} x${nextReps} (1 set logged) · Wish Vault +¥${v.config.checkInRewardCny}`,
         ),
       });
     } else {
       triggerStageBurst(
         'vitality',
-        `${meta.icon} ${exerciseName} x${nextReps} · +${repDelta}次 ⚡`,
+        `${exerciseName} x${nextReps} · +${repDelta}次`,
         pal.emeraldAccent,
         'rep',
       );
@@ -1937,7 +1937,7 @@ export function IsometricStudioStage({
     setStageState(nextState);
     setBookDraft(clean);
     setEditingBook(false);
-    triggerStageBurst('focus', `📖 ${clean.slice(0, 8)}`, pal.goldAccent, 'tick');
+    triggerStageBurst('focus', `✦ ${clean.slice(0, 8)}`, pal.goldAccent, 'tick');
   }
 
   function handleSaveCustomWish() {
@@ -1952,7 +1952,7 @@ export function IsometricStudioStage({
     setWishDraft(cleanTitle);
     setWishTargetDraft(String(cleanTarget));
     setEditingWish(false);
-    triggerStageBurst('wishes', `🎁 ${cleanTitle.slice(0, 6)} ¥${cleanTarget}`, pal.goldAccent, 'tick');
+    triggerStageBurst('wishes', `✦ ${cleanTitle.slice(0, 6)} ¥${cleanTarget}`, pal.goldAccent, 'tick');
   }
 
   function handleRedeemStageWish() {
@@ -1961,14 +1961,14 @@ export function IsometricStudioStage({
     setVault(v);
     triggerStageBurst(
       'wishes',
-      `🎉 兑换「${stageState.wishTitle.slice(0, 5)}」-¥${stageState.wishTargetCny}`,
+      `✦ 兑换「${stageState.wishTitle.slice(0, 5)}」-¥${stageState.wishTargetCny}`,
       pal.emeraldAccent,
       'reward',
     );
     showToast({
       text: t(
-        `🎉 恭喜解锁并兑换心愿「${stageState.wishTitle}」（¥${stageState.wishTargetCny}）！`,
-        `🎉 Redeemed wish "${stageState.wishTitle}" (¥${stageState.wishTargetCny})!`,
+        `✓ 已解锁并兑换心愿「${stageState.wishTitle}」（¥${stageState.wishTargetCny}）`,
+        `✓ Redeemed wish "${stageState.wishTitle}" (¥${stageState.wishTargetCny})`,
       ),
     });
   }
@@ -2032,8 +2032,8 @@ export function IsometricStudioStage({
         setQuickInput('');
         showToast({
           text: t(
-            `💰 已记入账本：${parsed.note} ${parsed.kind === 'expense' ? '-' : '+'}¥${parsed.amountCny.toFixed(2)}`,
-            `💰 Logged to Ledger: ${parsed.note} ${parsed.kind === 'expense' ? '-' : '+'}¥${parsed.amountCny.toFixed(2)}`,
+            `✓ 已记入账本：${parsed.note} ${parsed.kind === 'expense' ? '-' : '+'}¥${parsed.amountCny.toFixed(2)}`,
+            `✓ Logged to Ledger: ${parsed.note} ${parsed.kind === 'expense' ? '-' : '+'}¥${parsed.amountCny.toFixed(2)}`,
           ),
         });
         return;
@@ -2346,7 +2346,7 @@ export function IsometricStudioStage({
             {(
               [
                 { id: 'diorama', label: t('全景', 'Stage') },
-                { id: 'ledger', label: t('💰 记账', '💰 Ledger') },
+                { id: 'ledger', label: t('¥ 记账', '¥ Ledger') },
                 { id: 'daycycle', label: t('24H 节律', '24H Cycle') },
                 { id: 'summary', label: t('五维精要', 'Summary') },
               ] as const
@@ -2532,7 +2532,7 @@ export function IsometricStudioStage({
                         : `· ${trackedMinsToday}m (${displayMasteryHours}h)`}
                     </Text>
                     <Text variant="caption" style={[styles.hudSubText, { color: pal.muted }]}>
-                      {`· 📖 P.${stageState.bookPage} · ¥${vault.wishBalanceCny.toLocaleString('en-US')}`}
+                      {`· P.${stageState.bookPage} · ¥${vault.wishBalanceCny.toLocaleString('en-US')}`}
                     </Text>
                   </View>
                 </View>
@@ -2698,8 +2698,8 @@ export function IsometricStudioStage({
                         accessibilityLabel="打卡今日微习惯并累积心愿金"
                         onPress={handleQuickHabitCheckIn}
                       >
-                        <Text variant="caption" style={{ color: pal.goldAccent, fontSize: 11 }}>
-                          🎁
+                        <Text variant="caption" style={{ color: pal.goldAccent, fontSize: 11, fontWeight: '700' }}>
+                          ✦
                         </Text>
                       </Pressable>
                     </View>
@@ -2774,7 +2774,7 @@ export function IsometricStudioStage({
                   style={styles.playDeckLabelCluster}
                 >
                   <Text variant="caption" style={{ color: pal.goldText, fontWeight: '700', fontSize: 10.5 }}>
-                    {`📖 ${stageState.bookTitle.slice(0, 9)} P.${stageState.bookPage} ✎`}
+                    {`${stageState.bookTitle.slice(0, 9)} P.${stageState.bookPage} ✎`}
                   </Text>
                   <View style={[styles.comboMiniTrack, { backgroundColor: pal.inputBg }]}>
                     <View
@@ -2807,7 +2807,7 @@ export function IsometricStudioStage({
                   ]}
                 >
                   <Text variant="caption" style={{ fontSize: 10, fontWeight: '700', color: pal.goldText }}>
-                    {t('📖 翻页 +1m', '📖 Flip +1m')}
+                    {t('翻页 +1m', 'Flip +1m')}
                   </Text>
                 </Pressable>
                 {stageState.bookPage > 1 ? (
@@ -2848,7 +2848,7 @@ export function IsometricStudioStage({
                       color: autoReading ? pal.emeraldAccent : pal.sub,
                     }}
                   >
-                    {autoReading ? t('⏸ 连读中', '⏸ Auto') : t('✨ 连读', '✨ Auto')}
+                    {autoReading ? t('⏸ 连读中', '⏸ Auto') : t('▶ 连读', '▶ Auto')}
                   </Text>
                 </Pressable>
                 <Pressable
@@ -2911,7 +2911,7 @@ export function IsometricStudioStage({
                           color: isCur ? pal.emeraldAccent : pal.sub,
                         }}
                       >
-                        {`${m.icon}${t(m.zh, m.en)}`}
+                        {t(m.zh, m.en)}
                       </Text>
                     </Pressable>
                   );
@@ -2932,7 +2932,7 @@ export function IsometricStudioStage({
                   ]}
                 >
                   <Text variant="caption" style={{ fontSize: 10, fontWeight: '700', color: pal.emeraldAccent }}>
-                    {t(`⚡ 动一下 +1 (${workoutReps % 5}/5)`, `⚡ Rep +1 (${workoutReps % 5}/5)`)}
+                    {t(`训练 +1 (${workoutReps % 5}/5)`, `Rep +1 (${workoutReps % 5}/5)`)}
                   </Text>
                 </Pressable>
                 {workoutReps > 0 ? (
@@ -2981,7 +2981,7 @@ export function IsometricStudioStage({
                     }}
                   >
                     {autoWorkoutLeft > 0
-                      ? t(`🔥 连做(${autoWorkoutLeft})`, `🔥 (${autoWorkoutLeft})`)
+                      ? t(`连做(${autoWorkoutLeft})`, `(${autoWorkoutLeft})`)
                       : t('▶ 连做5次', '▶ 5x Set')}
                   </Text>
                 </Pressable>
@@ -3080,7 +3080,7 @@ export function IsometricStudioStage({
                   style={styles.playDeckLabelCluster}
                 >
                   <Text variant="caption" style={{ color: pal.goldText, fontWeight: '700', fontSize: 10.5 }}>
-                    {`🎁 ${stageState.wishTitle.slice(0, 7)} · ¥${vault.wishBalanceCny}/${stageState.wishTargetCny} ✎`}
+                    {`✦ ${stageState.wishTitle.slice(0, 7)} · ¥${vault.wishBalanceCny}/${stageState.wishTargetCny} ✎`}
                   </Text>
                 </Pressable>
               )}
@@ -3104,13 +3104,13 @@ export function IsometricStudioStage({
                   accessibilityRole="button"
                   accessibilityLabel="老婆协同组队打卡加心愿金"
                   onPress={() => {
-                    const v = recordPledgeReward('👩‍❤️‍👨 老婆双人组队协同打卡', localDay, 25);
+                    const v = recordPledgeReward('双人组队协同打卡', localDay, 25);
                     setVault(v);
-                    triggerStageBurst('wishes', t('💗 老婆组队 +¥25 ✦', '💗 Co-Op +¥25 ✦'), '#f472b6', 'reward');
+                    triggerStageBurst('wishes', t('双人组队 +¥25 ✦', 'Co-Op +¥25 ✦'), '#f472b6', 'reward');
                     showToast({
                       text: t(
-                        '👩‍❤️‍👨 已记录「我 & 老婆」双人组队协同打卡 · 共同心愿池 +¥25',
-                        '👩‍❤️‍👨 Logged Couple Co-Op Check-In · Joint Wish Pool +¥25',
+                        '✓ 已记录「我 & 老婆」双人组队协同打卡 · 共同心愿池 +¥25',
+                        '✓ Logged Couple Co-Op Check-In · Joint Wish Pool +¥25',
                       ),
                     });
                   }}
@@ -3124,7 +3124,7 @@ export function IsometricStudioStage({
                   ]}
                 >
                   <Text variant="caption" style={{ fontSize: 10, fontWeight: '700', color: '#f472b6' }}>
-                    {t('💗 老婆组队', '💗 Co-Op')}
+                    {t('双人组队', 'Co-Op')}
                   </Text>
                 </Pressable>
                 {vault.wishBalanceCny >= stageState.wishTargetCny ? (
@@ -3142,7 +3142,7 @@ export function IsometricStudioStage({
                     ]}
                   >
                     <Text variant="caption" style={{ fontSize: 10, fontWeight: '700', color: pal.emeraldAccent }}>
-                      {t('🎉 兑换心愿', '🎉 Redeem')}
+                      {t('✓ 兑换心愿', '✓ Redeem')}
                     </Text>
                   </Pressable>
                 ) : null}
@@ -3158,7 +3158,7 @@ export function IsometricStudioStage({
                   ]}
                 >
                   <Text variant="caption" style={{ fontSize: 10, color: pal.sub }}>
-                    {t('📈 财富曲线', '📈 Wealth')}
+                    {t('财富曲线', 'Wealth')}
                   </Text>
                 </Pressable>
               </View>

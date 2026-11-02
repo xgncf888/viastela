@@ -1,7 +1,7 @@
 /**
  * Core domain model, natural-language parser, iOS Shortcuts URL auto-logger,
  * recurring rules engine, Salary × Investment Ratio -> Target Wealth Compounding
- * Trajectory calculator, and Couple Co-Op (老公 & 老婆) non-destructive sync engine.
+ * Trajectory calculator, and Couple Co-Op non-destructive sync engine.
  */
 
 import { addDaysToLocalDay } from './life-milestones-okr';
@@ -29,6 +29,7 @@ export type LedgerAccountId = 'alipay' | 'wechat' | 'bank' | 'applepay';
 export type LedgerCategoryMeta = {
   id: LedgerCategoryId;
   kind: LedgerEntryKind;
+  /** Clean 1-char typographic monogram instead of cartoon emoji */
   icon: string;
   zh: string;
   en: string;
@@ -38,6 +39,7 @@ export type LedgerCategoryMeta = {
 
 export type LedgerAccountMeta = {
   id: LedgerAccountId;
+  /** Clean 1-char typographic monogram */
   icon: string;
   zh: string;
   en: string;
@@ -76,11 +78,11 @@ export type RecurringLedgerRule = {
 export type WealthPlanConfig = {
   /** Starting liquid net worth / savings pool (CNY) */
   currentSavedCny: number;
-  /** Target wealth milestone (CNY), e.g. 1,000,000 */
+  /** Target wealth milestone (CNY), e.g. 1,500,000 */
   targetWealthCny: number;
-  /** Percentage of monthly income invested each month (10..85) */
+  /** Percentage of monthly income invested each month (5..90) */
   investRatePct: number;
-  /** Expected annualized compound return percentage (0..20) */
+  /** Expected annualized compound return percentage (0..20, supports 0.5 steps) */
   annualReturnPct: number;
 };
 
@@ -184,7 +186,7 @@ export const LEDGER_CATEGORIES: readonly LedgerCategoryMeta[] = [
   {
     id: 'dining',
     kind: 'expense',
-    icon: '🍜',
+    icon: '餐',
     zh: '餐饮美食',
     en: 'Dining',
     color: '#f59e0b',
@@ -193,7 +195,7 @@ export const LEDGER_CATEGORIES: readonly LedgerCategoryMeta[] = [
   {
     id: 'coffee',
     kind: 'expense',
-    icon: '☕',
+    icon: '饮',
     zh: '咖啡茶饮',
     en: 'Coffee & Tea',
     color: '#d97706',
@@ -202,7 +204,7 @@ export const LEDGER_CATEGORIES: readonly LedgerCategoryMeta[] = [
   {
     id: 'transit',
     kind: 'expense',
-    icon: '🚇',
+    icon: '行',
     zh: '交通出行',
     en: 'Transit',
     color: '#38bdf8',
@@ -211,7 +213,7 @@ export const LEDGER_CATEGORIES: readonly LedgerCategoryMeta[] = [
   {
     id: 'shopping',
     kind: 'expense',
-    icon: '🛒',
+    icon: '购',
     zh: '日用百货',
     en: 'Shopping',
     color: '#ec4899',
@@ -220,7 +222,7 @@ export const LEDGER_CATEGORIES: readonly LedgerCategoryMeta[] = [
   {
     id: 'housing',
     kind: 'expense',
-    icon: '🏠',
+    icon: '居',
     zh: '居住房贷',
     en: 'Housing & Bills',
     color: '#8b5cf6',
@@ -229,7 +231,7 @@ export const LEDGER_CATEGORIES: readonly LedgerCategoryMeta[] = [
   {
     id: 'entertainment',
     kind: 'expense',
-    icon: '🎮',
+    icon: '娱',
     zh: '娱乐订阅',
     en: 'Fun & Subs',
     color: '#a855f7',
@@ -238,7 +240,7 @@ export const LEDGER_CATEGORIES: readonly LedgerCategoryMeta[] = [
   {
     id: 'fitness',
     kind: 'expense',
-    icon: '🏋️',
+    icon: '健',
     zh: '运动健康',
     en: 'Health & Gym',
     color: '#10b981',
@@ -247,7 +249,7 @@ export const LEDGER_CATEGORIES: readonly LedgerCategoryMeta[] = [
   {
     id: 'study',
     kind: 'expense',
-    icon: '📚',
+    icon: '学',
     zh: '书籍课程',
     en: 'Books & Study',
     color: '#eab308',
@@ -256,7 +258,7 @@ export const LEDGER_CATEGORIES: readonly LedgerCategoryMeta[] = [
   {
     id: 'digital',
     kind: 'expense',
-    icon: '💻',
+    icon: '数',
     zh: '数码装备',
     en: 'Tech & Gear',
     color: '#06b6d4',
@@ -265,7 +267,7 @@ export const LEDGER_CATEGORIES: readonly LedgerCategoryMeta[] = [
   {
     id: 'salary',
     kind: 'income',
-    icon: '💰',
+    icon: '薪',
     zh: '薪资收入',
     en: 'Salary',
     color: '#34d399',
@@ -274,7 +276,7 @@ export const LEDGER_CATEGORIES: readonly LedgerCategoryMeta[] = [
   {
     id: 'investment',
     kind: 'income',
-    icon: '📈',
+    icon: '理',
     zh: '理财分红',
     en: 'Investment',
     color: '#10b981',
@@ -283,7 +285,7 @@ export const LEDGER_CATEGORIES: readonly LedgerCategoryMeta[] = [
   {
     id: 'bonus',
     kind: 'income',
-    icon: '🎁',
+    icon: '奖',
     zh: '奖金副业',
     en: 'Bonus & Side',
     color: '#f5b942',
@@ -294,7 +296,7 @@ export const LEDGER_CATEGORIES: readonly LedgerCategoryMeta[] = [
 export const LEDGER_ACCOUNTS: readonly LedgerAccountMeta[] = [
   {
     id: 'alipay',
-    icon: '💙',
+    icon: '支',
     zh: '支付宝',
     en: 'Alipay',
     color: '#38bdf8',
@@ -303,7 +305,7 @@ export const LEDGER_ACCOUNTS: readonly LedgerAccountMeta[] = [
   },
   {
     id: 'wechat',
-    icon: '💚',
+    icon: '微',
     zh: '微信支付',
     en: 'WeChat Pay',
     color: '#34d399',
@@ -312,7 +314,7 @@ export const LEDGER_ACCOUNTS: readonly LedgerAccountMeta[] = [
   },
   {
     id: 'bank',
-    icon: '🏦',
+    icon: '招',
     zh: '招商银行卡',
     en: 'Bank Card',
     color: '#f5b942',
@@ -321,7 +323,7 @@ export const LEDGER_ACCOUNTS: readonly LedgerAccountMeta[] = [
   },
   {
     id: 'applepay',
-    icon: '🍎',
+    icon: '卡',
     zh: 'Apple Pay',
     en: 'Apple Pay',
     color: '#f472b6',
@@ -333,7 +335,7 @@ export const LEDGER_ACCOUNTS: readonly LedgerAccountMeta[] = [
 export const QUICK_LEDGER_PRESETS: readonly QuickLedgerPreset[] = [
   {
     id: 'preset-coffee',
-    icon: '☕',
+    icon: '饮',
     zh: '冰美式/拿铁',
     en: 'Iced Latte',
     amountCny: 18,
@@ -343,8 +345,8 @@ export const QUICK_LEDGER_PRESETS: readonly QuickLedgerPreset[] = [
   },
   {
     id: 'preset-boba',
-    icon: '🧋',
-    zh: '老婆奶茶甜品',
+    icon: '饮',
+    zh: '伴侣茶饮甜品',
     en: 'Partner Tea',
     amountCny: 22,
     categoryId: 'coffee',
@@ -353,7 +355,7 @@ export const QUICK_LEDGER_PRESETS: readonly QuickLedgerPreset[] = [
   },
   {
     id: 'preset-lunch',
-    icon: '🍜',
+    icon: '餐',
     zh: '工作午餐',
     en: 'Work Lunch',
     amountCny: 36,
@@ -363,7 +365,7 @@ export const QUICK_LEDGER_PRESETS: readonly QuickLedgerPreset[] = [
   },
   {
     id: 'preset-transit',
-    icon: '🚇',
+    icon: '行',
     zh: '地铁通勤',
     en: 'Subway',
     amountCny: 6,
@@ -373,9 +375,9 @@ export const QUICK_LEDGER_PRESETS: readonly QuickLedgerPreset[] = [
   },
   {
     id: 'preset-grocery',
-    icon: '🛒',
-    zh: '双人超市采购',
-    en: 'Couple Groceries',
+    icon: '购',
+    zh: '家庭生鲜采购',
+    en: 'Groceries',
     amountCny: 128,
     categoryId: 'shopping',
     accountId: 'alipay',
@@ -383,9 +385,9 @@ export const QUICK_LEDGER_PRESETS: readonly QuickLedgerPreset[] = [
   },
   {
     id: 'preset-date',
-    icon: '🕯️',
-    zh: '周末双人约会餐',
-    en: 'Date Dinner',
+    icon: '餐',
+    zh: '周末双人晚餐',
+    en: 'Couple Dinner',
     amountCny: 268,
     categoryId: 'dining',
     accountId: 'bank',
@@ -396,7 +398,7 @@ export const QUICK_LEDGER_PRESETS: readonly QuickLedgerPreset[] = [
 export const DEFAULT_RECURRING_RULES: readonly RecurringLedgerRule[] = [
   {
     id: 'rec-my-salary',
-    title: '👨 我的固定月薪入账',
+    title: '本人固定月薪入账',
     kind: 'income',
     amountCny: 26800,
     categoryId: 'salary',
@@ -408,7 +410,7 @@ export const DEFAULT_RECURRING_RULES: readonly RecurringLedgerRule[] = [
   },
   {
     id: 'rec-partner-salary',
-    title: '👩 老婆固定月薪入账',
+    title: '老婆固定月薪入账',
     kind: 'income',
     amountCny: 22000,
     categoryId: 'salary',
@@ -420,7 +422,7 @@ export const DEFAULT_RECURRING_RULES: readonly RecurringLedgerRule[] = [
   },
   {
     id: 'rec-housing-mortgage',
-    title: '🏠 家庭房贷/房租固定扣款',
+    title: '家庭房贷/房租固定扣款',
     kind: 'expense',
     amountCny: 5500,
     categoryId: 'housing',
@@ -432,7 +434,7 @@ export const DEFAULT_RECURRING_RULES: readonly RecurringLedgerRule[] = [
   },
   {
     id: 'rec-cloud-subs',
-    title: '🎮 家庭会员与云存储订阅',
+    title: '家庭云存储与数字订阅',
     kind: 'expense',
     amountCny: 88,
     categoryId: 'entertainment',
@@ -455,7 +457,7 @@ export const DEFAULT_COUPLE_PROFILE: CoupleTeamProfile = {
   coupleMode: true,
   myName: '我',
   partnerName: '老婆',
-  jointWishTitle: '双人北海道雪季旅行基金',
+  jointWishTitle: '家庭共同旅行基金',
   teamStreakDays: 12,
 };
 
@@ -518,7 +520,7 @@ export const DEFAULT_BOOKKEEPING_STATE: BookkeepingState = {
       amountCny: 45,
       categoryId: 'dining',
       accountId: 'wechat',
-      note: '老婆午餐轻食波奇饭',
+      note: '午餐轻食波奇饭',
       localDay: '2026-11-02',
       createdAt: '2026-11-02T12:40:00.000Z',
       owner: 'partner',
@@ -561,12 +563,12 @@ export function getOwnerBadgeMeta(
   profile: CoupleTeamProfile = DEFAULT_COUPLE_PROFILE,
 ): { icon: string; zh: string; en: string; color: string } {
   if (owner === 'partner') {
-    return { icon: '👩', zh: profile.partnerName || '老婆', en: 'Wife', color: '#f472b6' };
+    return { icon: '伴', zh: profile.partnerName || '老婆', en: 'Partner', color: '#f472b6' };
   }
   if (owner === 'shared') {
-    return { icon: '👩‍❤️‍👨', zh: '共同家庭', en: 'Joint', color: '#f5b942' };
+    return { icon: '共', zh: '共同', en: 'Joint', color: '#f5b942' };
   }
-  return { icon: '👨', zh: profile.myName || '我', en: 'Me', color: '#38bdf8' };
+  return { icon: '我', zh: profile.myName || '我', en: 'Me', color: '#38bdf8' };
 }
 
 /**
@@ -589,12 +591,6 @@ export function evaluateAmountExpression(raw: string): number | null {
   return Number.isFinite(absTotal) && absTotal > 0 ? absTotal : null;
 }
 
-/**
- * Parses natural language quick input such as:
- * - `"瑞幸生椰拿铁 18 微信"` -> `{ kind: 'expense', categoryId: 'coffee', amountCny: 18, note: '瑞幸生椰拿铁', owner: 'me' }`
- * - `"老婆买奶茶 22 微信"` -> `{ kind: 'expense', categoryId: 'coffee', amountCny: 22, owner: 'partner' }`
- * - `"双人超市买菜 128 支付宝"` -> `{ kind: 'expense', categoryId: 'shopping', amountCny: 128, owner: 'shared' }`
- */
 export function parseQuickBookkeepingInput(
   rawText: string,
   fallbackCategoryId: LedgerCategoryId = 'dining',
@@ -621,7 +617,6 @@ export function parseQuickBookkeepingInput(
   const lower = trimmed.toLowerCase();
   const hasPlusPrefix = rawNumberToken.trim().startsWith('+') || trimmed.includes('收入') || trimmed.includes('入账');
 
-  // Detect owner if mentioned
   let detectedOwner: LedgerOwnerId = fallbackOwner;
   if (/老婆|媳妇|太太|她|wife|partner/i.test(trimmed)) {
     detectedOwner = 'partner';
@@ -629,7 +624,6 @@ export function parseQuickBookkeepingInput(
     detectedOwner = 'shared';
   }
 
-  // Detect account if mentioned
   let detectedAccount: LedgerAccountId = fallbackAccountId;
   for (const acc of LEDGER_ACCOUNTS) {
     if (acc.keywords.some((kw) => lower.includes(kw))) {
@@ -638,7 +632,6 @@ export function parseQuickBookkeepingInput(
     }
   }
 
-  // Detect category by keywords
   let detectedCategory: LedgerCategoryMeta | null = null;
   for (const cat of LEDGER_CATEGORIES) {
     if (cat.keywords.some((kw) => lower.includes(kw))) {
@@ -681,11 +674,6 @@ export function parseQuickBookkeepingInput(
   };
 }
 
-/**
- * Parses iOS Shortcuts URL query parameters such as:
- * - `?autoLog=瑞幸拿铁+18+微信`
- * - `?amount=36&merchant=美团外卖&account=wechat&owner=partner`
- */
 export function parseAutoLogUrlParams(search: string): {
   kind: LedgerEntryKind;
   amountCny: number;
@@ -724,11 +712,6 @@ export function parseAutoLogUrlParams(search: string): {
   }
 }
 
-/**
- * Checks enabled recurring rules against `todayLocalDay` (`YYYY-MM-DD`).
- * Any rule whose `dayOfMonth <= currentDayOfMonth` and hasn't been materialized
- * in `currentYearMonth` is automatically added to `transactions`.
- */
 export function materializeDueRecurringRules(
   state: BookkeepingState,
   todayLocalDay: string,
@@ -763,7 +746,7 @@ export function materializeDueRecurringRules(
       amountCny: rule.amountCny,
       categoryId: rule.categoryId,
       accountId: rule.accountId,
-      note: `🔁 ${rule.title}`,
+      note: `[周期] ${rule.title}`,
       localDay: ruleLocalDay,
       createdAt: `${ruleLocalDay}T09:00:00.000Z`,
       owner: rule.owner,
@@ -789,11 +772,6 @@ export function materializeDueRecurringRules(
   };
 }
 
-/**
- * Computes the Salary × Investment Ratio -> Target Wealth Compounding Trajectory.
- * Uses monthly compound interest:
- *   W_{m+1} = W_m * (1 + r_month) + monthlyInvestCny
- */
 export function computeWealthGoalTrajectory(input: {
   wealthPlan: WealthPlanConfig;
   recurringRules: readonly RecurringLedgerRule[];
@@ -820,7 +798,7 @@ export function computeWealthGoalTrajectory(input: {
   const currentSavedCny = Math.max(0, Math.round(input.wealthPlan.currentSavedCny));
   const targetWealthCny = Math.max(50000, Math.round(input.wealthPlan.targetWealthCny));
   const investRatePct = Math.max(5, Math.min(90, Math.round(input.wealthPlan.investRatePct)));
-  const annualReturnPct = Math.max(0, Math.min(25, input.wealthPlan.annualReturnPct));
+  const annualReturnPct = Math.max(0, Math.min(25, Math.round(input.wealthPlan.annualReturnPct * 10) / 10));
 
   const monthlyInvestCny = Math.round(monthlyIncomeCny * (investRatePct / 100));
   const monthlyRate = annualReturnPct / 100 / 12;
@@ -860,7 +838,6 @@ export function computeWealthGoalTrajectory(input: {
   const monthsPart = monthsToGoal % 12;
   const estimatedGoalYearMonth = formatFutureYm(monthsToGoal);
 
-  // Build 16 curve sample points up to max(36, min(240, Math.ceil(monthsToGoal * 1.15)))
   const chartHorizonMonths = Math.max(24, Math.min(240, Math.ceil(Math.max(monthsToGoal, 36) * 1.1)));
   const stepCount = 15;
   const points: WealthCurvePoint[] = [];
@@ -906,10 +883,6 @@ export function computeWealthGoalTrajectory(input: {
   };
 }
 
-/**
- * Non-destructively merges a partner's exported BookkeepingState into the local state
- * (deduplicating transactions & recurring rules by `id`).
- */
 export function mergePartnerBookkeepingState(
   local: BookkeepingState,
   incoming: Partial<BookkeepingState>,
