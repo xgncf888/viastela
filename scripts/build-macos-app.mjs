@@ -742,6 +742,29 @@ class BundleSchemeHandler: NSObject, WKURLSchemeHandler {
             relPath.removeFirst()
         }
 
+        if relPath == "__menubar__/update" {
+            let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            let title = comps?.queryItems?.first(where: { $0.name == "title" })?.value ?? ""
+            DispatchQueue.main.async {
+                if let appDel = NSApp.delegate as? AppDelegate {
+                    appDel.updateMenuBarTitle(title)
+                }
+                let payload = Data("{\\"ok\\":true}".utf8)
+                let headers: [String: String] = [
+                    "Content-Type": "application/json; charset=utf-8",
+                    "Content-Length": "\\(payload.count)",
+                    "Access-Control-Allow-Origin": "*",
+                    "Cache-Control": "no-cache"
+                ]
+                if let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers) {
+                    urlSchemeTask.didReceive(response)
+                }
+                urlSchemeTask.didReceive(payload)
+                urlSchemeTask.didFinish()
+            }
+            return
+        }
+
         if relPath.hasPrefix("__ble__/") {
             let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
             let action = comps?.queryItems?.first(where: { $0.name == "action" })?.value ?? "status"
@@ -1073,6 +1096,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         menu.addItem(NSMenuItem.separator())
         menu.addItem(withTitle: "退出", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         statusItem.menu = menu
+    }
+
+    func updateMenuBarTitle(_ text: String) {
+        if let button = statusItem?.button {
+            let clean = text
+                .replacingOccurrences(of: "✦ ${APP_TITLE} · ", with: "")
+                .replacingOccurrences(of: "✦ ${APP_TITLE}", with: "")
+                .replacingOccurrences(of: "✦ 星途 · ", with: "")
+                .replacingOccurrences(of: "✦ 星途", with: "")
+            button.title = clean.isEmpty ? "" : " " + clean
+        }
     }
 
     @objc func showMainWindow() {

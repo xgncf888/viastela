@@ -45,6 +45,7 @@ import {
   WorkbenchConsoleCard,
 } from '@/ui/WorkbenchConsole';
 import { LifeMilestonesOkrHub } from '@/ui/LifeMilestonesOkrHub';
+import { LifeSynergyPlaygroundHub } from '@/ui/LifeSynergyPlaygroundHub';
 import { TimeBlockMasteryHub } from '@/ui/TimeBlockMasteryHub';
 import { WearableSyncHub } from '@/ui/WearableSyncHub';
 
@@ -427,6 +428,13 @@ export function TodayScreen() {
           localDay={accounting}
           onSyncWorkoutSet={(input) => training.saveSet(input)}
           onSyncWeightKg={(kg) => saveWeight(kg)}
+        />
+
+        <LifeSynergyPlaygroundHub
+          localDay={accounting}
+          weightRecords={counted}
+          trainingSets={countedTraining}
+          studyRecords={countedStudy}
         />
       </Content>
     </Screen>

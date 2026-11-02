@@ -30,6 +30,7 @@ import {
   subscribeLifeOkrStore,
   toggleHabitDay,
 } from '@/data/life-milestones-okr';
+import { recordPledgeReward } from '@/data/life-gamification';
 
 import { Button } from './Button';
 import { Card, cardSurfaceStyle } from './Card';
@@ -703,8 +704,9 @@ export function LifeMilestonesOkrHub({
                                 accessibilityLabel={`推进关键结果 ${kr.title}`}
                                 onPress={() => {
                                   checkInKeyResult(obj.id, kr.id, kr.stepDelta, localDay);
+                                  const v = recordPledgeReward(`OKR 推进奖励：${kr.title}`, localDay);
                                   showToast({
-                                    text: `OKR 已推进：${kr.title} (${stepSign} ${kr.unit})`,
+                                    text: `OKR 已推进：${kr.title} (${stepSign} ${kr.unit}) · 心愿金库 +¥${v.config.checkInRewardCny}`,
                                   });
                                 }}
                               />
@@ -799,7 +801,8 @@ export function LifeMilestonesOkrHub({
                         onPress={() => {
                           toggleHabitDay(habit.id, localDay);
                           if (!stat.completedToday) {
-                            showToast({ text: `✓ 已完成今日「${habit.title}」打卡！` });
+                            const v = recordPledgeReward(`每日习惯打卡：${habit.title}`, localDay);
+                            showToast({ text: `✓ 已完成今日「${habit.title}」打卡 · 心愿金库 +¥${v.config.checkInRewardCny}！` });
                           }
                         }}
                       />
