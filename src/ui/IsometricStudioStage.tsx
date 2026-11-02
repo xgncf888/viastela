@@ -18,6 +18,8 @@ import {
   formatMinuteOfDay,
   formatTimerClock,
   type MasteryGoal,
+  nudgeMinuteRange,
+  type TimeBlockCategory,
   type TimeBlockItem,
 } from '@/core/time-block-tracker';
 import {
@@ -26,17 +28,21 @@ import {
   subscribeLifeGamificationStore,
 } from '@/data/life-gamification';
 import {
+  addKeyResultToObjective,
   checkInKeyResult,
   readDailyHabits,
   readLifeMilestones,
   readOkrObjectives,
   subscribeLifeOkrStore,
+  toggleHabitDay,
 } from '@/data/life-milestones-okr';
 import {
   addTimeBlock,
   readActiveTimer,
   readMasteryGoals,
   readTimeBlocks,
+  removeTimeBlock,
+  writeActiveTimer,
 } from '@/data/time-block-tracker';
 
 import { useI18n } from './use-i18n';
@@ -718,7 +724,6 @@ function Golden24HourRibbonBridgesSvg({
 }
 
 export function IsometricStudioStage({
-  mode,
   localDay,
   latestWeightKg,
   loggedCount,
@@ -733,9 +738,9 @@ export function IsometricStudioStage({
   onQuickTraining,
   onQuickStudy,
   onQuickJournal,
-  onOpenScope,
+  onInstantSaveWeight,
 }: {
-  mode: RuntimeHostMode;
+  mode?: RuntimeHostMode;
   localDay: string;
   latestWeightKg?: number | null;
   loggedCount: number;
@@ -751,6 +756,7 @@ export function IsometricStudioStage({
   onQuickStudy: () => void;
   onQuickJournal: () => void;
   onOpenScope?: () => void;
+  onInstantSaveWeight?: (kg: number) => void;
 }) {
   const { color, scheme } = useTheme();
   const { t } = useI18n();
@@ -760,8 +766,22 @@ export function IsometricStudioStage({
   const [internalZone, setInternalZone] = useState<LifeZoneKey>('focus');
   const [quickInput, setQuickInput] = useState('');
   const [selectedHeatmapCell, setSelectedHeatmapCell] = useState<HeatmapCell | null>(null);
+  const [heatmapFilter, setHeatmapFilter] = useState<'all' | 'focus' | 'workout'>('all');
   const [matrixMode, setMatrixMode] = useState<'on' | 'day'>('on');
+  const [selectedColIdx, setSelectedColIdx] = useState<number>(2);
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [okrPage, setOkrPage] = useState(0);
+  const [addingKrInline, setAddingKrInline] = useState(false);
+  const [newKrTitle, setNewKrTitle] = useState('');
+
+  // Inline 1-minute scrubber state for 'day' mode inside Left Bento Card
+  const [dayScrubRange, setDayScrubRange] = useState<{ startMinute: number; endMinute: number }>(() => {
+    const now = new Date();
+    const endMin = Math.max(15, Math.min(1440, now.getHours() * 60 + now.getMinutes()));
+    return { startMinute: Math.max(0, endMin - 45), endMinute: endMin };
+  });
+  const [dayScrubCat, setDayScrubCat] = useState<TimeBlockCategory>('deep-work');
+  const [dayScrubTitle, setDayScrubTitle] = useState('');
 
   const selectedZone: LifeZoneKey =
     activeModuleFilter && activeModuleFilter !== 'all' ? activeModuleFilter : internalZone;
@@ -793,7 +813,7 @@ export function IsometricStudioStage({
       setMasteryGoals(readMasteryGoals());
       setTimer(readActiveTimer());
       setNowMs(Date.now());
-    }, 1500);
+    }, 1000);
     return () => {
       u1();
       u2();
@@ -801,7 +821,6 @@ export function IsometricStudioStage({
     };
   }, []);
 
-  // Theme-adaptive surface tokens so Light (暖色调) and Dark (黑金风) are 100% unified across the entire window
   const pal = isDark
     ? {
         stageBg: '#121110',
@@ -809,7 +828,7 @@ export function IsometricStudioStage({
         barBg: '#1a1613',
         bentoBg: '#18181b',
         bentoBorder: 'rgba(255, 255, 255, 0.10)',
-        hudBg: 'rgba(42, 42, 46, 0.80)',
+        hudBg: 'rgba(42, 42, 46, 0.84)',
         hudBorder: 'rgba(255, 255, 255, 0.16)',
         ink: '#f5f5f4',
         sub: '#d6d3d1',
@@ -831,7 +850,7 @@ export function IsometricStudioStage({
         barBg: color.surface,
         bentoBg: color.surface,
         bentoBorder: color.line,
-        hudBg: 'rgba(255, 253, 248, 0.90)',
+        hudBg: 'rgba(255, 253, 248, 0.92)',
         hudBorder: color.line,
         ink: color.ink,
         sub: color.ink,
@@ -907,6 +926,12 @@ export function IsometricStudioStage({
   });
 
   function optionAHeatCellColor(cell: HeatmapCell, idx: number): string {
+    if (heatmapFilter === 'focus' && cell.studyMinutes === 0 && idx % 5 !== 0) {
+      return pal.emptyHeatCell;
+    }
+    if (heatmapFilter === 'workout' && cell.trainingCount === 0 && idx % 6 !== 0) {
+      return pal.emptyHeatCell;
+    }
     if (cell.level === 4) return isDark ? '#34d399' : '#1f5e4b';
     if (cell.level === 3) return isDark ? '#10b981' : '#3d8b6e';
     if (cell.level === 2) return isDark ? '#eab308' : '#d99b32';
@@ -920,6 +945,98 @@ export function IsometricStudioStage({
     return pal.emptyHeatCell;
   }
 
+  // Direct Island 1 Interactive Action: Start or Stop/Commit Live Focus Timer
+  function handleToggleFocusTimer(customTitle?: string) {
+    if (timer.isRunning) {
+      const mins = Math.max(1, Math.round(timerElapsedSeconds / 60));
+      const now = new Date();
+      const endMin = Math.max(mins, now.getHours() * 60 + now.getMinutes());
+      const startMin = Math.max(0, endMin - mins);
+      const finalTitle = timer.title || t('深度心流专注', 'Deep Flow Focus');
+      setTimeBlocks(
+        addTimeBlock({
+          localDay,
+          startMinute: startMin,
+          endMinute: endMin,
+          category: timer.category,
+          title: finalTitle,
+          goalId: timer.goalId,
+        }),
+      );
+      const stopped: ActiveTimerSession = {
+        isRunning: false,
+        startedAtMs: null,
+        accumulatedSeconds: 0,
+        category: 'deep-work',
+        title: t('深度心流专注', 'Deep Flow Focus'),
+        goalId: 'goal-ai-infra',
+      };
+      writeActiveTimer(stopped);
+      setTimer(stopped);
+      const v = recordPledgeReward(`完成专注计时：${finalTitle} (${mins}m)`, localDay);
+      setVault(v);
+      showToast({
+        text: t(
+          `✓ 已完成专注「${finalTitle}」(${mins}m) 并切入时间块 · +¥${v.config.checkInRewardCny}`,
+          `✓ Completed "${finalTitle}" (${mins}m) · +¥${v.config.checkInRewardCny}`,
+        ),
+      });
+    } else {
+      const nextTimer: ActiveTimerSession = {
+        isRunning: true,
+        startedAtMs: Date.now(),
+        accumulatedSeconds: 0,
+        category: 'deep-work',
+        title: customTitle || t('深度架构与论文精读', 'Deep Architecture & Reading'),
+        goalId: 'goal-ai-infra',
+      };
+      writeActiveTimer(nextTimer);
+      setTimer(nextTimer);
+      showToast({
+        text: t(
+          `▶ 已在「心流书房」启动专注计时：${nextTimer.title}`,
+          `▶ Focus Timer Started: ${nextTimer.title}`,
+        ),
+      });
+    }
+  }
+
+  // Direct Island 2 Interactive Action: 1-Click Weight Nudge / Confirm
+  function handleQuickWeightNudge(delta: number) {
+    const base = latestWeightKg && latestWeightKg > 0 ? Math.round(latestWeightKg * 10) / 10 : 72.4;
+    const target = Math.round((base + delta) * 10) / 10;
+    if (onInstantSaveWeight) {
+      onInstantSaveWeight(target);
+      const v = recordPledgeReward(`确认晨重：${target.toFixed(1)} kg`, localDay);
+      setVault(v);
+      showToast({
+        text: t(
+          `✓ 已记录今日体重 ${target.toFixed(1)} kg · +¥${v.config.checkInRewardCny}`,
+          `✓ Logged weight ${target.toFixed(1)} kg · +¥${v.config.checkInRewardCny}`,
+        ),
+      });
+    } else {
+      onQuickWeight();
+    }
+  }
+
+  // Direct Island 3 Interactive Action: 1-Click Habit & Wish Check-In
+  function handleQuickHabitCheckIn() {
+    const pending = habits.find((h) => !h.completedDays.includes(localDay)) ?? habits[0];
+    if (pending) {
+      const updated = toggleHabitDay(pending.id, localDay);
+      setHabits(updated);
+      const v = recordPledgeReward(`习惯打卡：${pending.title}`, localDay);
+      setVault(v);
+      showToast({
+        text: t(
+          `✓ 已完成「${pending.title}」打卡 · 心愿金库 +¥${v.config.checkInRewardCny}`,
+          `✓ Checked in "${pending.title}" · Wish Vault +¥${v.config.checkInRewardCny}`,
+        ),
+      });
+    }
+  }
+
   function onQuickAddTimeNote() {
     const raw = quickInput.trim();
     if (!raw) {
@@ -929,7 +1046,7 @@ export function IsometricStudioStage({
     const minMatch = raw.match(/(\d+)\s*(m|min|分钟)/i);
     const mins = minMatch ? Math.max(5, Math.min(360, Number.parseInt(minMatch[1]!, 10))) : 45;
     const now = new Date();
-    const endMin = now.getHours() * 60 + now.getMinutes();
+    const endMin = Math.max(mins, now.getHours() * 60 + now.getMinutes());
     const startMin = Math.max(0, endMin - mins);
     const cleanTitle =
       (minMatch ? raw.replace(minMatch[0], '') : raw).trim() || t('深度专注', 'Deep Focus');
@@ -947,17 +1064,89 @@ export function IsometricStudioStage({
     const v = recordPledgeReward(`记录时间块：${cleanTitle} (${mins}分钟)`, localDay);
     setVault(v);
     setQuickInput('');
-    selectIslandAndSync('focus');
     showToast({
       text: t(
-        `已切入 24H 时间块矩阵：${cleanTitle} (${mins} 分钟) · 心愿金库 +¥${v.config.checkInRewardCny}`,
-        `Added to 24H Time Block Matrix: ${cleanTitle} (${mins}m) · Wish Vault +¥${v.config.checkInRewardCny}`,
+        `✓ 已切入时间块：${cleanTitle} (${mins} 分钟) · +¥${v.config.checkInRewardCny}`,
+        `✓ Added Time Block: ${cleanTitle} (${mins}m) · +¥${v.config.checkInRewardCny}`,
       ),
     });
   }
 
+  function handleAddHourSlotBlock(hourStr: string) {
+    const hr = Number.parseInt(hourStr.slice(0, 2), 10) || 9;
+    const startMin = hr * 60;
+    const endMin = Math.min(1440, startMin + 45);
+    const targetDay = colDays[selectedColIdx] ?? localDay;
+    const defaultTitle = t(`专注时间块 (${hourStr})`, `Focus Block (${hourStr})`);
+    setTimeBlocks(
+      addTimeBlock({
+        localDay: targetDay,
+        startMinute: startMin,
+        endMinute: endMin,
+        category: 'deep-work',
+        title: defaultTitle,
+        goalId: 'goal-ai-infra',
+      }),
+    );
+    const v = recordPledgeReward(`切入时段：${hourStr}`, localDay);
+    setVault(v);
+    showToast({
+      text: t(
+        `✓ 已在 ${hourStr} 切入 45m 时间块 · +¥${v.config.checkInRewardCny}`,
+        `✓ Inserted 45m block at ${hourStr} · +¥${v.config.checkInRewardCny}`,
+      ),
+    });
+  }
+
+  function handleCommitDayScrubBlock() {
+    const title =
+      dayScrubTitle.trim() ||
+      (dayScrubCat === 'fitness'
+        ? t('力量与有氧训练', 'Strength & Cardio')
+        : t('深度心流创造', 'Deep Flow Creation'));
+    const dur = Math.max(1, dayScrubRange.endMinute - dayScrubRange.startMinute);
+    setTimeBlocks(
+      addTimeBlock({
+        localDay,
+        startMinute: dayScrubRange.startMinute,
+        endMinute: dayScrubRange.endMinute,
+        category: dayScrubCat,
+        title,
+        goalId: 'goal-ai-infra',
+      }),
+    );
+    const v = recordPledgeReward(`1m时间块：${title} (${dur}m)`, localDay);
+    setVault(v);
+    setDayScrubTitle('');
+    setMatrixMode('on');
+    showToast({
+      text: t(
+        `✓ 已写入 ${formatMinuteOfDay(dayScrubRange.startMinute)}–${formatMinuteOfDay(dayScrubRange.endMinute)} (${dur}m) · +¥${v.config.checkInRewardCny}`,
+        `✓ Saved ${formatMinuteOfDay(dayScrubRange.startMinute)}–${formatMinuteOfDay(dayScrubRange.endMinute)} (${dur}m) · +¥${v.config.checkInRewardCny}`,
+      ),
+    });
+  }
+
+  function handleAddQuickKr() {
+    const clean = newKrTitle.trim();
+    if (!clean) return;
+    const firstObj = objectives[0];
+    if (firstObj) {
+      addKeyResultToObjective(firstObj.id, {
+        title: clean,
+        targetValue: 10,
+        unit: t('次', 'x'),
+        stepDelta: 1,
+      });
+      setNewKrTitle('');
+      setAddingKrInline(false);
+      showToast({
+        text: t(`✓ 已新增关键结果：${clean}`, `✓ Added Key Result: ${clean}`),
+      });
+    }
+  }
+
   const colDays = [
-    addDaysToLocalDay(localDay, -3),
     addDaysToLocalDay(localDay, -2),
     addDaysToLocalDay(localDay, -1),
     localDay,
@@ -966,10 +1155,12 @@ export function IsometricStudioStage({
   const latestUserBlock = todayBlocks[todayBlocks.length - 1] ?? null;
 
   const matrixColumns: {
+    dayKey: string;
     headerLeft: string;
     headerRight: string;
     blocks: {
       id: string;
+      realBlockId?: string;
       title: string;
       timeRange: string;
       tone: 'terracotta' | 'emerald' | 'golden' | 'pill';
@@ -979,11 +1170,13 @@ export function IsometricStudioStage({
     }[];
   }[] = [
     {
+      dayKey: colDays[0]!,
       headerLeft: colDays[0]!.slice(8),
       headerRight: t('晨间/专注', 'AM Focus'),
       blocks: [
         {
           id: 'mc-1-a',
+          realBlockId: latestUserBlock?.id,
           title: latestUserBlock
             ? latestUserBlock.title
             : t('深度架构与论文精读', 'Deep Architecture & Paper Reading'),
@@ -1015,6 +1208,7 @@ export function IsometricStudioStage({
       ],
     },
     {
+      dayKey: colDays[1]!,
       headerLeft: colDays[1]!.slice(8),
       headerRight: t('一万小时', '10,000h'),
       blocks: [
@@ -1049,9 +1243,20 @@ export function IsometricStudioStage({
       ],
     },
     {
+      dayKey: colDays[2]!,
       headerLeft: colDays[2]!.slice(8),
       headerRight: t('今日主轴', 'Today'),
       blocks: [
+        ...todayBlocks.slice(-2).map((tb, idx) => ({
+          id: `real-${tb.id}`,
+          realBlockId: tb.id,
+          title: tb.title,
+          timeRange: `${formatMinuteOfDay(tb.startMinute)} – ${formatMinuteOfDay(tb.endMinute)}`,
+          tone: (tb.category === 'fitness' ? 'emerald' : 'golden') as 'emerald' | 'golden',
+          height: 54,
+          marginTop: idx === 0 ? 6 : 6,
+          sparkle: true,
+        })),
         {
           id: 'mc-3-a',
           title:
@@ -1060,7 +1265,7 @@ export function IsometricStudioStage({
               : t('10,000h 沉浸创造时间块', '10,000h Deep Creation Block'),
           timeRange: '08:00 – 13:30',
           tone: 'golden',
-          height: 112,
+          height: todayBlocks.length > 0 ? 68 : 112,
           marginTop: 6,
         },
         {
@@ -1068,14 +1273,21 @@ export function IsometricStudioStage({
           title: t('OKR 关键结果推进与归档', 'OKR Key Results & Review'),
           timeRange: '14:30 – 18:30',
           tone: 'golden',
-          height: 84,
+          height: 68,
           marginTop: 6,
         },
       ],
     },
   ];
 
+  const selectedBlockObj =
+    matrixColumns.flatMap((c) => c.blocks).find((b) => b.id === selectedBlockId) ?? null;
+
   const hourRuler = ['06:00', '08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'];
+  const currentHourSlotIdx = Math.max(
+    0,
+    Math.min(8, Math.floor((new Date(nowMs).getHours() - 6) / 2)),
+  );
 
   const glassBlurStyle =
     Platform.OS === 'web'
@@ -1088,6 +1300,8 @@ export function IsometricStudioStage({
         } as unknown as ViewStyle)
       : null;
 
+  const dayScrubSpanMins = Math.max(1, dayScrubRange.endMinute - dayScrubRange.startMinute);
+
   return (
     <View
       style={[
@@ -1098,7 +1312,7 @@ export function IsometricStudioStage({
         },
       ]}
     >
-      {/* Clean Low-Entropy Top Bar: Title + 3 Perspective Pills + Quick Time-Block Input */}
+      {/* Top Bar: Clean Product Header (No '2.5D' or Demo Jargon) */}
       <View
         style={[
           styles.studioTopbar,
@@ -1111,7 +1325,7 @@ export function IsometricStudioStage({
         <View style={styles.topbarLeft}>
           <View style={[styles.brandDot, { backgroundColor: pal.goldAccent }]} />
           <Text variant="label" style={[styles.studioTitle, { color: pal.ink }]}>
-            {t('2.5D 时间与心愿沙盘（点击岛屿切换工作区）', '2.5D Sanctuary (Click Island to Switch Workspace)')}
+            {t('今日主场', 'Sanctuary')}
           </Text>
           <View
             style={[
@@ -1124,7 +1338,7 @@ export function IsometricStudioStage({
           >
             {(
               [
-                { id: 'diorama', label: t('2.5D 沙盘', '2.5D Studio') },
+                { id: 'diorama', label: t('全景', 'Stage') },
                 { id: 'daycycle', label: t('24H 节律', '24H Cycle') },
                 { id: 'summary', label: t('五维精要', 'Summary') },
               ] as const
@@ -1197,31 +1411,34 @@ export function IsometricStudioStage({
         </View>
       </View>
 
-      {/* Perspective 1: Option-A 2.5D Isometric Diorama + Split Bento Workspace */}
+      {/* Perspective 1: Interactive Spatial Stage + Split Bento Workspace */}
       {perspective === 'diorama' ? (
         <View style={[styles.dioramaStageWrap, { backgroundColor: pal.stageBg }]}>
-          {/* Upper Stage: 3 Sculpted 2.5D Isometric Islands (Act as Clean Spatial Tabs) */}
+          {/* Upper Stage: 3 Directly Interactive Zones with Inline Micro-Controls */}
           <View style={[styles.stageGridBg, { backgroundColor: pal.stageBg }]}>
             <Golden24HourRibbonBridgesSvg timerRunning={timer.isRunning} isDark={isDark} />
 
             <View style={styles.isoCanvas}>
-              {/* Island 1: 心流书房 */}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="心流书房与一万小时精进"
-                onPress={() => selectIslandAndSync('focus')}
+              {/* Zone 1: 心流书房 (Directly Interactive Timer & Study) */}
+              <View
                 style={[
                   styles.isoIslandSlot,
                   selectedZone === 'focus' ? styles.isoNodeSelected : null,
                 ]}
               >
                 <View style={styles.islandArtWrap}>
-                  <IsometricLifeZoneSvg
-                    zone="focus"
-                    active={selectedZone === 'focus'}
-                    isDark={isDark}
-                    weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
-                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="心流书房与一万小时精进"
+                    onPress={() => selectIslandAndSync('focus')}
+                  >
+                    <IsometricLifeZoneSvg
+                      zone="focus"
+                      active={selectedZone === 'focus'}
+                      isDark={isDark}
+                      weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
+                    />
+                  </Pressable>
                   <View
                     style={[
                       styles.floatingHudCorner,
@@ -1234,12 +1451,30 @@ export function IsometricStudioStage({
                     ]}
                   >
                     <View style={styles.hudTitleRow}>
-                      <Text variant="label" style={[styles.hudTitleText, { color: pal.ink }]}>
-                        {t('① 心流书房', '① Flow Study')}
-                      </Text>
-                      <View style={[styles.hudProgressRing, { borderColor: pal.goldAccent }]}>
-                        <View style={[styles.hudProgressDot, { backgroundColor: pal.goldAccent }]} />
-                      </View>
+                      <Pressable onPress={() => selectIslandAndSync('focus')}>
+                        <Text variant="label" style={[styles.hudTitleText, { color: pal.ink }]}>
+                          {t('心流书房', 'Flow Study')}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="启动或结束专注计时"
+                        onPress={() => handleToggleFocusTimer()}
+                        style={[
+                          styles.hudProgressRing,
+                          {
+                            borderColor: timer.isRunning ? pal.emeraldAccent : pal.goldAccent,
+                            backgroundColor: timer.isRunning ? `${pal.emeraldAccent}22` : 'transparent',
+                          },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.hudProgressDot,
+                            { backgroundColor: timer.isRunning ? pal.emeraldAccent : pal.goldAccent },
+                          ]}
+                        />
+                      </Pressable>
                     </View>
                     <Text variant="caption" style={[styles.hudMetricText, { color: pal.sub }]}>
                       {timer.isRunning
@@ -1249,27 +1484,61 @@ export function IsometricStudioStage({
                     <Text variant="caption" style={[styles.hudSubText, { color: pal.muted }]}>
                       {timer.isRunning ? `  ${timer.title}` : `  10,000h (${trackedMinsToday}m)`}
                     </Text>
+                    <View style={styles.hudMicroActionRow}>
+                      <Pressable
+                        onPress={() => handleToggleFocusTimer()}
+                        style={[
+                          styles.hudMicroBtn,
+                          {
+                            backgroundColor: timer.isRunning ? `${pal.emeraldAccent}28` : pal.pillBg,
+                            borderColor: timer.isRunning ? pal.emeraldAccent : pal.bentoBorder,
+                          },
+                        ]}
+                      >
+                        <Text
+                          variant="caption"
+                          style={{
+                            fontSize: 10,
+                            fontWeight: '700',
+                            color: timer.isRunning ? pal.emeraldAccent : pal.goldText,
+                          }}
+                        >
+                          {timer.isRunning ? t('⏸ 完成入账', '⏸ Finish') : t('▶ 专注计时', '▶ Timer')}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={onQuickStudy}
+                        style={[styles.hudMicroBtn, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
+                      >
+                        <Text variant="caption" style={{ fontSize: 10, color: pal.sub }}>
+                          {t('＋ 记学习', '＋ Study')}
+                        </Text>
+                      </Pressable>
+                    </View>
                   </View>
                 </View>
-              </Pressable>
+              </View>
 
-              {/* Island 2: 活力体态 */}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="活力体态与蓝牙体脂秤"
-                onPress={() => selectIslandAndSync('vitality')}
+              {/* Zone 2: 活力体态 (Directly Interactive Weight & Workout) */}
+              <View
                 style={[
                   styles.isoIslandSlot,
                   selectedZone === 'vitality' ? styles.isoNodeSelected : null,
                 ]}
               >
                 <View style={styles.islandArtWrap}>
-                  <IsometricLifeZoneSvg
-                    zone="vitality"
-                    active={selectedZone === 'vitality'}
-                    isDark={isDark}
-                    weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
-                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="活力体态与蓝牙体脂秤"
+                    onPress={() => selectIslandAndSync('vitality')}
+                  >
+                    <IsometricLifeZoneSvg
+                      zone="vitality"
+                      active={selectedZone === 'vitality'}
+                      isDark={isDark}
+                      weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
+                    />
+                  </Pressable>
                   <View
                     style={[
                       styles.floatingHudCorner,
@@ -1282,12 +1551,20 @@ export function IsometricStudioStage({
                     ]}
                   >
                     <View style={styles.hudTitleRow}>
-                      <Text variant="label" style={[styles.hudTitleText, { color: pal.ink }]}>
-                        {t('② 活力体态', '② Vitality')}
-                      </Text>
-                      <Text variant="caption" style={{ color: pal.emeraldAccent, fontSize: 12 }}>
-                        ↻
-                      </Text>
+                      <Pressable onPress={() => selectIslandAndSync('vitality')}>
+                        <Text variant="label" style={[styles.hudTitleText, { color: pal.ink }]}>
+                          {t('活力体态', 'Vitality')}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="快速确认今日体重"
+                        onPress={() => handleQuickWeightNudge(0)}
+                      >
+                        <Text variant="caption" style={{ color: pal.emeraldAccent, fontSize: 12, fontWeight: '700' }}>
+                          ↻
+                        </Text>
+                      </Pressable>
                     </View>
                     <Text variant="caption" style={[styles.hudMetricText, { color: pal.sub }]}>
                       {`· ${latestWeightKg ? `${latestWeightKg.toFixed(1)} kg` : '72.4 kg'}`}
@@ -1297,27 +1574,59 @@ export function IsometricStudioStage({
                         ? t(`· 已训练 ${trainingSetsCount} 组`, `· ${trainingSetsCount} Sets Logged`)
                         : t('· 已同步', '· Synced')}
                     </Text>
+                    <View style={styles.hudMicroActionRow}>
+                      <Pressable
+                        onPress={() => handleQuickWeightNudge(-0.1)}
+                        style={[styles.hudMicroBtn, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
+                      >
+                        <Text variant="caption" style={{ fontSize: 10, color: pal.sub }}>
+                          -0.1
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => handleQuickWeightNudge(0)}
+                        style={[
+                          styles.hudMicroBtn,
+                          { backgroundColor: `${pal.emeraldAccent}22`, borderColor: pal.emeraldAccent },
+                        ]}
+                      >
+                        <Text variant="caption" style={{ fontSize: 10, fontWeight: '700', color: pal.emeraldAccent }}>
+                          {t('✓ 记体重', '✓ Log Kg')}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={onQuickTraining}
+                        style={[styles.hudMicroBtn, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
+                      >
+                        <Text variant="caption" style={{ fontSize: 10, color: pal.sub }}>
+                          {t('＋ 训练', '＋ Set')}
+                        </Text>
+                      </Pressable>
+                    </View>
                   </View>
                 </View>
-              </Pressable>
+              </View>
 
-              {/* Island 3: 星愿纪念台 */}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="星愿纪念台与心愿金库"
-                onPress={() => selectIslandAndSync('wishes')}
+              {/* Zone 3: 星愿纪念台 (Directly Interactive Habit Check-In & Milestones) */}
+              <View
                 style={[
                   styles.isoIslandSlot,
                   selectedZone === 'wishes' ? styles.isoNodeSelected : null,
                 ]}
               >
                 <View style={styles.islandArtWrap}>
-                  <IsometricLifeZoneSvg
-                    zone="wishes"
-                    active={selectedZone === 'wishes'}
-                    isDark={isDark}
-                    weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
-                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="星愿纪念台与心愿金库"
+                    onPress={() => selectIslandAndSync('wishes')}
+                  >
+                    <IsometricLifeZoneSvg
+                      zone="wishes"
+                      active={selectedZone === 'wishes'}
+                      isDark={isDark}
+                      weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
+                    />
+                  </Pressable>
                   <View
                     style={[
                       styles.floatingHudCorner,
@@ -1330,12 +1639,20 @@ export function IsometricStudioStage({
                     ]}
                   >
                     <View style={styles.hudTitleRow}>
-                      <Text variant="label" style={[styles.hudTitleText, { color: pal.ink }]}>
-                        {t('③ 星愿纪念台', '③ Wish Altar')}
-                      </Text>
-                      <Text variant="caption" style={{ color: pal.goldAccent, fontSize: 11 }}>
-                        🎁
-                      </Text>
+                      <Pressable onPress={() => selectIslandAndSync('wishes')}>
+                        <Text variant="label" style={[styles.hudTitleText, { color: pal.ink }]}>
+                          {t('星愿纪念台', 'Wish Altar')}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="打卡今日微习惯并累积心愿金"
+                        onPress={handleQuickHabitCheckIn}
+                      >
+                        <Text variant="caption" style={{ color: pal.goldAccent, fontSize: 11 }}>
+                          🎁
+                        </Text>
+                      </Pressable>
                     </View>
                     <Text variant="caption" style={[styles.hudMetricText, { color: pal.sub }]}>
                       {nearestMs
@@ -1345,13 +1662,34 @@ export function IsometricStudioStage({
                     <Text variant="caption" style={[styles.hudSubText, { color: pal.muted }]}>
                       {`· ¥${vault.wishBalanceCny.toLocaleString('en-US')}`}
                     </Text>
+                    <View style={styles.hudMicroActionRow}>
+                      <Pressable
+                        onPress={handleQuickHabitCheckIn}
+                        style={[
+                          styles.hudMicroBtn,
+                          { backgroundColor: pal.pillActiveBg, borderColor: pal.goldAccent },
+                        ]}
+                      >
+                        <Text variant="caption" style={{ fontSize: 10, fontWeight: '700', color: pal.goldText }}>
+                          {t('✓ 习惯 +¥25', '✓ Habit +¥25')}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => selectIslandAndSync('wishes')}
+                        style={[styles.hudMicroBtn, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
+                      >
+                        <Text variant="caption" style={{ fontSize: 10, color: pal.sub }}>
+                          {t('纪念日', 'Milestones')}
+                        </Text>
+                      </Pressable>
+                    </View>
                   </View>
                 </View>
-              </Pressable>
+              </View>
             </View>
           </View>
 
-          {/* Lower Stage: Option-A Split Bento Workspace */}
+          {/* Lower Stage: Option-A Split Bento Workspace (100% Interactive) */}
           <View style={styles.bentoSplitRow}>
             {/* Left Bento Card: 24H 时间块矩阵 */}
             <View
@@ -1402,149 +1740,363 @@ export function IsometricStudioStage({
                     </Pressable>
                   </View>
                   <Pressable
-                    onPress={onQuickJournal}
+                    onPress={() => setMatrixMode((m) => (m === 'day' ? 'on' : 'day'))}
                     style={[
                       styles.addBlockPill,
                       {
-                        backgroundColor: pal.pillBg,
-                        borderColor: pal.bentoBorder,
+                        backgroundColor: matrixMode === 'day' ? pal.pillActiveBg : pal.pillBg,
+                        borderColor: matrixMode === 'day' ? pal.goldAccent : pal.bentoBorder,
                       },
                     ]}
                   >
                     <Text variant="caption" style={[styles.addBlockPillText, { color: pal.ink }]}>
-                      ＋ Add Block
+                      {matrixMode === 'day' ? t('返回矩阵', 'Matrix') : '＋ Add Block'}
                     </Text>
                   </Pressable>
                 </View>
               </View>
 
+              {/* Interactive Column Headers */}
               <View style={[styles.calHeaderRow, { borderBottomColor: pal.hairline }]}>
-                <View style={[styles.nowTagBox, { backgroundColor: pal.pillBg }]}>
+                <Pressable
+                  onPress={() => {
+                    setSelectedColIdx(2);
+                    setMatrixMode('on');
+                  }}
+                  style={[
+                    styles.nowTagBox,
+                    {
+                      backgroundColor: selectedColIdx === 2 ? pal.pillActiveBg : pal.pillBg,
+                      borderWidth: 1,
+                      borderColor: selectedColIdx === 2 ? pal.goldAccent : 'transparent',
+                    },
+                  ]}
+                >
                   <Text variant="caption" style={[styles.nowTagText, { color: pal.ink }]}>
                     Now
                   </Text>
-                </View>
-                {matrixColumns.map((col, idx) => (
-                  <View key={`ch-${idx}`} style={styles.calColHeader}>
-                    <Text variant="caption" style={[styles.calColNum, { color: pal.muted }]}>
-                      {col.headerLeft}
-                    </Text>
-                    <Text variant="caption" style={[styles.calColSub, { color: pal.faint }]}>
-                      {col.headerRight}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-
-              <View style={styles.calBodyContainer}>
-                <View style={styles.calHairlinesLayer} pointerEvents="none">
-                  {hourRuler.map((hLabel, idx) => (
-                    <View key={hLabel} style={styles.calHairlineRow}>
+                </Pressable>
+                {matrixColumns.map((col, idx) => {
+                  const isColSelected = selectedColIdx === idx;
+                  return (
+                    <Pressable
+                      key={`ch-${idx}`}
+                      onPress={() => setSelectedColIdx(idx)}
+                      style={[
+                        styles.calColHeader,
+                        isColSelected
+                          ? {
+                              backgroundColor: isDark ? 'rgba(245, 185, 66, 0.10)' : color.accentSoft,
+                              borderRadius: 5,
+                            }
+                          : null,
+                      ]}
+                    >
                       <Text
                         variant="caption"
                         style={[
-                          styles.calHourText,
-                          { color: pal.faint },
-                          idx === 4 ? { color: '#ef4444', fontWeight: '700' } : null,
+                          styles.calColNum,
+                          { color: isColSelected ? pal.goldText : pal.muted, fontWeight: isColSelected ? '700' : '500' },
                         ]}
                       >
-                        {hLabel}
+                        {col.headerLeft}
                       </Text>
-                      <View
-                        style={[
-                          styles.calHairline,
-                          { backgroundColor: pal.hairline },
-                          idx === 4 ? { backgroundColor: 'rgba(239, 68, 68, 0.65)', height: 1.2 } : null,
-                        ]}
-                      />
-                    </View>
-                  ))}
-                </View>
+                      <Text variant="caption" style={[styles.calColSub, { color: isColSelected ? pal.sub : pal.faint }]}>
+                        {col.headerRight}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
 
-                <View style={styles.calColumnsOverlay}>
-                  <View style={{ width: 42 }} />
-                  {matrixColumns.map((col, cIdx) => (
-                    <View
-                      key={`col-${cIdx}`}
-                      style={[styles.calTrackCol, { borderLeftColor: pal.hairline }]}
+              {matrixMode === 'day' ? (
+                /* Interactive 1-Minute Precision Editor Inside Left Bento Card */
+                <View style={styles.inlineDayScrubberBox}>
+                  <View style={styles.bentoHeader}>
+                    <Text variant="caption" style={{ color: pal.goldText, fontWeight: '700' }}>
+                      {t(
+                        `1 分钟级精细排程：${formatMinuteOfDay(dayScrubRange.startMinute)} – ${formatMinuteOfDay(dayScrubRange.endMinute)} (${dayScrubSpanMins}m)`,
+                        `1-Min Precision Block: ${formatMinuteOfDay(dayScrubRange.startMinute)} – ${formatMinuteOfDay(dayScrubRange.endMinute)} (${dayScrubSpanMins}m)`,
+                      )}
+                    </Text>
+                  </View>
+
+                  <TextInput
+                    value={dayScrubTitle}
+                    onChangeText={setDayScrubTitle}
+                    placeholder={t('输入该时间块内容 (如: 核心架构研发)…', 'Block title (e.g., Core Architecture)…')}
+                    placeholderTextColor={pal.muted}
+                    style={[
+                      styles.studioTaskInput,
+                      {
+                        backgroundColor: pal.inputBg,
+                        borderColor: pal.bentoBorder,
+                        color: pal.ink,
+                      },
+                    ]}
+                  />
+
+                  <View style={styles.hudMicroActionRow}>
+                    {(
+                      [
+                        { id: 'deep-work', label: t('深度创造', 'Deep Work') },
+                        { id: 'study', label: t('学习精读', 'Study') },
+                        { id: 'fitness', label: t('运动训练', 'Workout') },
+                      ] as const
+                    ).map((cat) => (
+                      <Pressable
+                        key={cat.id}
+                        onPress={() => setDayScrubCat(cat.id)}
+                        style={[
+                          styles.addBlockPill,
+                          {
+                            backgroundColor: dayScrubCat === cat.id ? pal.pillActiveBg : pal.pillBg,
+                            borderColor: dayScrubCat === cat.id ? pal.goldAccent : pal.bentoBorder,
+                          },
+                        ]}
+                      >
+                        <Text variant="caption" style={{ color: pal.ink, fontSize: 11 }}>
+                          {cat.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <View style={styles.hudMicroActionRow}>
+                    <Text variant="caption" style={{ color: pal.muted, fontSize: 10.5 }}>
+                      {t('起点微调:', 'Start:')}
+                    </Text>
+                    {([-15, -5, -1, 1, 5, 15] as const).map((delta) => (
+                      <Pressable
+                        key={`st-${delta}`}
+                        onPress={() =>
+                          setDayScrubRange((r) =>
+                            nudgeMinuteRange(r.startMinute, r.endMinute, 'start', delta),
+                          )
+                        }
+                        style={[styles.hudMicroBtn, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
+                      >
+                        <Text variant="caption" style={{ color: pal.ink, fontSize: 10.5, fontFamily: theme.fontFamily.mono }}>
+                          {`${delta > 0 ? '+' : ''}${delta}m`}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <View style={styles.hudMicroActionRow}>
+                    <Text variant="caption" style={{ color: pal.muted, fontSize: 10.5 }}>
+                      {t('终点微调:', 'End:')}
+                    </Text>
+                    {([-15, -5, -1, 1, 5, 15] as const).map((delta) => (
+                      <Pressable
+                        key={`ed-${delta}`}
+                        onPress={() =>
+                          setDayScrubRange((r) =>
+                            nudgeMinuteRange(r.startMinute, r.endMinute, 'end', delta),
+                          )
+                        }
+                        style={[styles.hudMicroBtn, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
+                      >
+                        <Text variant="caption" style={{ color: pal.ink, fontSize: 10.5, fontFamily: theme.fontFamily.mono }}>
+                          {`${delta > 0 ? '+' : ''}${delta}m`}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, paddingTop: 4 }}>
+                    <Pressable
+                      onPress={handleCommitDayScrubBlock}
+                      style={[
+                        styles.dispatchBtn,
+                        { backgroundColor: pal.pillActiveBg, borderColor: pal.goldAccent },
+                      ]}
                     >
-                      {col.blocks.map((blk) => {
-                        const stylePalette =
-                          blk.tone === 'terracotta'
-                            ? {
-                                bg: isDark ? 'rgba(181, 96, 69, 0.42)' : 'rgba(204, 120, 92, 0.18)',
-                                border: '#cc785c',
-                                text: isDark ? '#fff1eb' : '#7c3923',
-                                sub: isDark ? '#f5c2b0' : '#944a34',
-                              }
-                            : blk.tone === 'emerald'
-                              ? {
-                                  bg: isDark ? 'rgba(30, 130, 92, 0.44)' : 'rgba(31, 94, 75, 0.16)',
-                                  border: isDark ? '#34d399' : '#1f5e4b',
-                                  text: isDark ? '#ecfdf5' : '#134234',
-                                  sub: isDark ? '#a7f3d0' : '#1f5e4b',
-                                }
-                              : blk.tone === 'golden'
-                                ? {
-                                    bg: isDark ? 'rgba(161, 120, 34, 0.42)' : 'rgba(217, 155, 50, 0.18)',
-                                    border: isDark ? '#eab308' : '#b88228',
-                                    text: isDark ? '#fefce8' : '#6b470c',
-                                    sub: isDark ? '#fde68a' : '#8a5a12',
-                                  }
-                                : {
-                                    bg: isDark ? 'rgba(92, 71, 38, 0.48)' : color.accentSoft,
-                                    border: isDark ? 'rgba(245, 185, 66, 0.5)' : color.accent,
-                                    text: isDark ? '#fde68a' : color.accentText,
-                                    sub: pal.muted,
-                                  };
-                        return (
-                          <Pressable
-                            key={blk.id}
-                            onPress={() => {
-                              if (blk.tone === 'emerald') onQuickTraining();
-                              else onQuickStudy();
-                            }}
+                      <Text variant="caption" style={{ color: pal.goldText, fontWeight: '700', fontSize: 11.5 }}>
+                        {t('✓ 写入 24H 时间块 (+¥25)', '✓ Save Time Block (+¥25)')}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.calBodyContainer}>
+                  <View style={styles.calHairlinesLayer}>
+                    {hourRuler.map((hLabel, idx) => {
+                      const isCurrentSlot = idx === currentHourSlotIdx;
+                      return (
+                        <Pressable
+                          key={hLabel}
+                          onPress={() => handleAddHourSlotBlock(hLabel)}
+                          style={styles.calHairlineRow}
+                        >
+                          <Text
+                            variant="caption"
                             style={[
-                              styles.calEventBlock,
-                              {
-                                height: blk.height,
-                                marginTop: blk.marginTop,
-                                backgroundColor: stylePalette.bg,
-                                borderColor: stylePalette.border,
-                              },
+                              styles.calHourText,
+                              { color: pal.faint },
+                              isCurrentSlot ? { color: '#ef4444', fontWeight: '700' } : null,
                             ]}
                           >
-                            <Text
-                              variant="caption"
-                              style={[styles.calEventTitle, { color: stylePalette.text }]}
-                              numberOfLines={1}
+                            {hLabel}
+                          </Text>
+                          <View
+                            style={[
+                              styles.calHairline,
+                              { backgroundColor: pal.hairline },
+                              isCurrentSlot ? { backgroundColor: 'rgba(239, 68, 68, 0.65)', height: 1.2 } : null,
+                            ]}
+                          />
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
+                  <View style={styles.calColumnsOverlay} pointerEvents="box-none">
+                    <View style={{ width: 42 }} pointerEvents="none" />
+                    {matrixColumns.map((col, cIdx) => (
+                      <View
+                        key={`col-${cIdx}`}
+                        style={[
+                          styles.calTrackCol,
+                          { borderLeftColor: pal.hairline },
+                          selectedColIdx === cIdx
+                            ? { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)' }
+                            : null,
+                        ]}
+                      >
+                        {col.blocks.map((blk) => {
+                          const isBlkSelected = selectedBlockId === blk.id;
+                          const stylePalette =
+                            blk.tone === 'terracotta'
+                              ? {
+                                  bg: isDark ? 'rgba(181, 96, 69, 0.42)' : 'rgba(204, 120, 92, 0.18)',
+                                  border: '#cc785c',
+                                  text: isDark ? '#fff1eb' : '#7c3923',
+                                  sub: isDark ? '#f5c2b0' : '#944a34',
+                                }
+                              : blk.tone === 'emerald'
+                                ? {
+                                    bg: isDark ? 'rgba(30, 130, 92, 0.44)' : 'rgba(31, 94, 75, 0.16)',
+                                    border: isDark ? '#34d399' : '#1f5e4b',
+                                    text: isDark ? '#ecfdf5' : '#134234',
+                                    sub: isDark ? '#a7f3d0' : '#1f5e4b',
+                                  }
+                                : blk.tone === 'golden'
+                                  ? {
+                                      bg: isDark ? 'rgba(161, 120, 34, 0.42)' : 'rgba(217, 155, 50, 0.18)',
+                                      border: isDark ? '#eab308' : '#b88228',
+                                      text: isDark ? '#fefce8' : '#6b470c',
+                                      sub: isDark ? '#fde68a' : '#8a5a12',
+                                    }
+                                  : {
+                                      bg: isDark ? 'rgba(92, 71, 38, 0.48)' : color.accentSoft,
+                                      border: isDark ? 'rgba(245, 185, 66, 0.5)' : color.accent,
+                                      text: isDark ? '#fde68a' : color.accentText,
+                                      sub: pal.muted,
+                                    };
+                          return (
+                            <Pressable
+                              key={blk.id}
+                              onPress={() => {
+                                setSelectedColIdx(cIdx);
+                                setSelectedBlockId((prev) => (prev === blk.id ? null : blk.id));
+                              }}
+                              style={[
+                                styles.calEventBlock,
+                                {
+                                  height: blk.height,
+                                  marginTop: blk.marginTop,
+                                  backgroundColor: stylePalette.bg,
+                                  borderColor: isBlkSelected ? pal.ink : stylePalette.border,
+                                  borderWidth: isBlkSelected ? 1.6 : 1,
+                                },
+                              ]}
                             >
-                              {blk.title}
-                            </Text>
-                            {blk.tone !== 'pill' ? (
                               <Text
                                 variant="caption"
-                                style={[styles.calEventTime, { color: stylePalette.sub }]}
+                                style={[styles.calEventTitle, { color: stylePalette.text }]}
                                 numberOfLines={1}
                               >
-                                {blk.timeRange}
+                                {blk.title}
                               </Text>
-                            ) : null}
-                            {blk.sparkle ? (
-                              <Text
-                                variant="caption"
-                                style={[styles.calSparkleIcon, { color: stylePalette.sub }]}
-                              >
-                                ☼
-                              </Text>
-                            ) : null}
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  ))}
+                              {blk.tone !== 'pill' ? (
+                                <Text
+                                  variant="caption"
+                                  style={[styles.calEventTime, { color: stylePalette.sub }]}
+                                  numberOfLines={1}
+                                >
+                                  {blk.timeRange}
+                                </Text>
+                              ) : null}
+                              {blk.sparkle ? (
+                                <Text
+                                  variant="caption"
+                                  style={[styles.calSparkleIcon, { color: stylePalette.sub }]}
+                                >
+                                  ☼
+                                </Text>
+                              ) : null}
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    ))}
+                  </View>
                 </View>
-              </View>
+              )}
+
+              {/* Inline Interactive Action Footer when any Time Block is clicked */}
+              {selectedBlockObj && matrixMode === 'on' ? (
+                <View
+                  style={[
+                    styles.selectedBlockToolbar,
+                    { backgroundColor: pal.inputBg, borderColor: pal.bentoBorder },
+                  ]}
+                >
+                  <Text variant="caption" style={{ color: pal.ink, fontWeight: '600', flex: 1 }} numberOfLines={1}>
+                    {`${selectedBlockObj.title} (${selectedBlockObj.timeRange})`}
+                  </Text>
+                  <View style={styles.hudMicroActionRow}>
+                    <Pressable
+                      onPress={() => {
+                        handleToggleFocusTimer(selectedBlockObj.title);
+                        setSelectedBlockId(null);
+                      }}
+                      style={[styles.hudMicroBtn, { backgroundColor: pal.pillActiveBg, borderColor: pal.goldAccent }]}
+                    >
+                      <Text variant="caption" style={{ fontSize: 10.5, fontWeight: '700', color: pal.goldText }}>
+                        {t('▶ 开启计时', '▶ Start Timer')}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        if (selectedBlockObj.tone === 'emerald') onQuickTraining();
+                        else onQuickStudy();
+                        setSelectedBlockId(null);
+                      }}
+                      style={[styles.hudMicroBtn, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
+                    >
+                      <Text variant="caption" style={{ fontSize: 10.5, color: pal.ink }}>
+                        {t('✓ 打卡记入', '✓ Log')}
+                      </Text>
+                    </Pressable>
+                    {selectedBlockObj.realBlockId ? (
+                      <Pressable
+                        onPress={() => {
+                          setTimeBlocks(removeTimeBlock(selectedBlockObj.realBlockId!));
+                          setSelectedBlockId(null);
+                          showToast({ text: t('已移除该时间块', 'Removed time block') });
+                        }}
+                        style={[styles.hudMicroBtn, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
+                      >
+                        <Text variant="caption" style={{ fontSize: 10.5, color: '#ef4444' }}>
+                          {t('× 删除', '× Delete')}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+              ) : null}
             </View>
 
             {/* Right Bento Stack: OKR 目标进度 + 365 天人生星图热力矩阵 */}
@@ -1563,6 +2115,22 @@ export function IsometricStudioStage({
                     {t('OKR 目标进度 🎯', 'OKR Objectives 🎯')}
                   </Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="快速新增关键结果"
+                      onPress={() => setAddingKrInline((prev) => !prev)}
+                      style={[
+                        styles.iconSquareBtn,
+                        {
+                          backgroundColor: addingKrInline ? pal.pillActiveBg : pal.pillBg,
+                          borderColor: addingKrInline ? pal.goldAccent : pal.bentoBorder,
+                        },
+                      ]}
+                    >
+                      <Text variant="caption" style={{ color: pal.goldText, fontSize: 12, fontWeight: '700' }}>
+                        ＋
+                      </Text>
+                    </Pressable>
                     <Pressable
                       onPress={() => setOkrPage((p) => Math.max(0, p - 1))}
                       style={[
@@ -1591,6 +2159,35 @@ export function IsometricStudioStage({
                     </Pressable>
                   </View>
                 </View>
+
+                {addingKrInline ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <TextInput
+                      value={newKrTitle}
+                      onChangeText={setNewKrTitle}
+                      onSubmitEditing={handleAddQuickKr}
+                      placeholder={t('输入新关键结果 (Enter 保存)…', 'New Key Result (Enter)…')}
+                      placeholderTextColor={pal.muted}
+                      style={[
+                        styles.studioTaskInput,
+                        {
+                          height: 28,
+                          backgroundColor: pal.inputBg,
+                          borderColor: pal.bentoBorder,
+                          color: pal.ink,
+                        },
+                      ]}
+                    />
+                    <Pressable
+                      onPress={handleAddQuickKr}
+                      style={[styles.addBlockPill, { backgroundColor: pal.pillActiveBg, borderColor: pal.goldAccent }]}
+                    >
+                      <Text variant="caption" style={{ color: pal.goldText, fontWeight: '700', fontSize: 11 }}>
+                        {t('添加', 'Add')}
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : null}
 
                 <View style={styles.okrMiniGrid}>
                   {visibleKrs.map((item, idx) => {
@@ -1694,16 +2291,32 @@ export function IsometricStudioStage({
                     {t('365 天人生星图热力矩阵', '365-Day Life Synergy Heatmap')}
                   </Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <View
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="切换热力图过滤维度"
+                      onPress={() =>
+                        setHeatmapFilter((prev) =>
+                          prev === 'all' ? 'focus' : prev === 'focus' ? 'workout' : 'all',
+                        )
+                      }
                       style={[
-                        styles.iconSquareBtn,
-                        { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder },
+                        styles.addBlockPill,
+                        {
+                          paddingHorizontal: 7,
+                          paddingVertical: 2,
+                          backgroundColor: heatmapFilter !== 'all' ? pal.pillActiveBg : pal.pillBg,
+                          borderColor: heatmapFilter !== 'all' ? pal.goldAccent : pal.bentoBorder,
+                        },
                       ]}
                     >
                       <Text variant="caption" style={{ color: pal.ink, fontSize: 10 }}>
-                        ▦
+                        {heatmapFilter === 'all'
+                          ? '▦ All'
+                          : heatmapFilter === 'focus'
+                            ? t('▦ 专注', '▦ Focus')
+                            : t('▦ 训练', '▦ Workout')}
                       </Text>
-                    </View>
+                    </Pressable>
                   </View>
                 </View>
 
@@ -1736,16 +2349,44 @@ export function IsometricStudioStage({
                         )
                       : '365 day heatmap'}
                   </Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    {[pal.emeraldAccent, '#10b981', '#eab308', '#d97706', '#cc785c', pal.emptyHeatCell].map(
-                      (c, i) => (
-                        <View
-                          key={`lg-${i}`}
-                          style={[styles.legendDot, { backgroundColor: c }]}
-                        />
-                      ),
-                    )}
-                  </View>
+                  {selectedHeatmapCell ? (
+                    <Pressable
+                      onPress={() => {
+                        setTimeBlocks(
+                          addTimeBlock({
+                            localDay: selectedHeatmapCell.localDay,
+                            startMinute: 9 * 60,
+                            endMinute: 9 * 60 + 45,
+                            category: 'study',
+                            title: t('补记专注 45m', 'Backfill Focus 45m'),
+                            goalId: 'goal-ai-infra',
+                          }),
+                        );
+                        showToast({
+                          text: t(
+                            `✓ 已为 ${selectedHeatmapCell.localDay} 补记 45m 专注`,
+                            `✓ Logged 45m focus for ${selectedHeatmapCell.localDay}`,
+                          ),
+                        });
+                      }}
+                      style={[styles.hudMicroBtn, { backgroundColor: pal.pillActiveBg, borderColor: pal.goldAccent }]}
+                    >
+                      <Text variant="caption" style={{ fontSize: 10, color: pal.goldText, fontWeight: '700' }}>
+                        {t('＋ 补记 45m', '＋ Log 45m')}
+                      </Text>
+                    </Pressable>
+                  ) : (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      {[pal.emeraldAccent, '#10b981', '#eab308', '#d97706', '#cc785c', pal.emptyHeatCell].map(
+                        (c, i) => (
+                          <View
+                            key={`lg-${i}`}
+                            style={[styles.legendDot, { backgroundColor: c }]}
+                          />
+                        ),
+                      )}
+                    </View>
+                  )}
                 </View>
               </View>
             </View>
@@ -1769,6 +2410,7 @@ export function IsometricStudioStage({
                   'Morning fasting weight best reflects your true body-fat trend and lights up your first daily milestone.',
                 ),
                 accent: pal.emeraldAccent,
+                onAct: () => handleQuickWeightNudge(0),
               },
               {
                 phase: t('09:00 – 18:00 · 日间心流', '09:00 – 18:00 · Daytime Deep Flow'),
@@ -1779,6 +2421,7 @@ export function IsometricStudioStage({
                   'Schedule demanding creation during peak energy windows—every minute compounds into your 10,000-hour mastery.',
                 ),
                 accent: pal.terracottaAccent,
+                onAct: () => handleToggleFocusTimer(),
               },
               {
                 phase: t('18:00 – 21:00 · 晚间活力', '18:00 – 21:00 · Evening Vitality'),
@@ -1795,6 +2438,7 @@ export function IsometricStudioStage({
                   'Strength and cardio training sharpen both physique and next-day cognitive endurance.',
                 ),
                 accent: '#38bdf8',
+                onAct: onQuickTraining,
               },
               {
                 phase: t('21:00 – 23:30 · 夜间复盘', '21:00 – 23:30 · Nightly Reflection'),
@@ -1813,10 +2457,12 @@ export function IsometricStudioStage({
                       'Spend 2 minutes before bed checking off daily habits and notes.',
                     ),
                 accent: pal.goldAccent,
+                onAct: handleQuickHabitCheckIn,
               },
             ].map((slot) => (
-              <View
+              <Pressable
                 key={slot.phase}
+                onPress={slot.onAct}
                 style={[
                   styles.dayCycleCard,
                   {
@@ -1845,7 +2491,7 @@ export function IsometricStudioStage({
                 <Text variant="caption" style={{ color: pal.muted, lineHeight: 16 }}>
                   {slot.detail}
                 </Text>
-              </View>
+              </Pressable>
             ))}
           </View>
         </View>
@@ -1854,7 +2500,7 @@ export function IsometricStudioStage({
       {/* Perspective 3: 今日五维精要 */}
       {perspective === 'summary' ? (
         <View style={[styles.ledgerGrid, { backgroundColor: pal.stageBg }]}>
-          <View style={[styles.ledgerCol, { borderRightColor: pal.hairline }]}>
+          <Pressable onPress={onQuickWeight} style={[styles.ledgerCol, { borderRightColor: pal.hairline }]}>
             <Text variant="caption" style={[styles.ledgerKey, { color: pal.muted }]}>
               {t('今日三件事', 'Daily Core 3')}
             </Text>
@@ -1864,8 +2510,8 @@ export function IsometricStudioStage({
             <Text variant="caption" style={[styles.ledgerSub, { color: pal.muted }]}>
               {t('晨重 · 训练 · 学习', 'Weight · Workout · Study')}
             </Text>
-          </View>
-          <View style={[styles.ledgerCol, { borderRightColor: pal.hairline }]}>
+          </Pressable>
+          <Pressable onPress={() => handleQuickWeightNudge(0)} style={[styles.ledgerCol, { borderRightColor: pal.hairline }]}>
             <Text variant="caption" style={[styles.ledgerKey, { color: pal.muted }]}>
               {t('近 7 日晨重', '7-Day Weigh-Ins')}
             </Text>
@@ -1875,8 +2521,8 @@ export function IsometricStudioStage({
             <Text variant="caption" style={[styles.ledgerSub, { color: pal.muted }]}>
               {t('稳定追踪均重趋势', 'Rolling EMA weight trend')}
             </Text>
-          </View>
-          <View style={[styles.ledgerCol, { borderRightColor: pal.hairline }]}>
+          </Pressable>
+          <Pressable onPress={onQuickTraining} style={[styles.ledgerCol, { borderRightColor: pal.hairline }]}>
             <Text variant="caption" style={[styles.ledgerKey, { color: pal.muted }]}>
               {t('今日训练负荷', 'Training Load')}
             </Text>
@@ -1886,8 +2532,8 @@ export function IsometricStudioStage({
             <Text variant="caption" style={[styles.ledgerSub, { color: pal.muted }]}>
               {t(`累计容量 ${Math.round(trainingVolumeKg)} kg`, `Volume ${Math.round(trainingVolumeKg)} kg`)}
             </Text>
-          </View>
-          <View style={[styles.ledgerCol, { borderRightColor: pal.hairline }]}>
+          </Pressable>
+          <Pressable onPress={onQuickStudy} style={[styles.ledgerCol, { borderRightColor: pal.hairline }]}>
             <Text variant="caption" style={[styles.ledgerKey, { color: pal.muted }]}>
               {t('今日专注时间块', 'Focus Time Blocks')}
             </Text>
@@ -1897,8 +2543,8 @@ export function IsometricStudioStage({
             <Text variant="caption" style={[styles.ledgerSub, { color: pal.muted }]}>
               {t(`已完成 ${studyCount} 项学习`, `${studyCount} study sessions`)}
             </Text>
-          </View>
-          <View style={styles.ledgerCol}>
+          </Pressable>
+          <Pressable onPress={handleQuickHabitCheckIn} style={styles.ledgerCol}>
             <Text variant="caption" style={[styles.ledgerKey, { color: pal.muted }]}>
               {t('心愿池 & OKR', 'Wish Vault & OKR')}
             </Text>
@@ -1910,10 +2556,9 @@ export function IsometricStudioStage({
                 ? `${nearestMs.item.title} ${nearestMs.badgeText}`
                 : t(`习惯 ${habitsDoneToday}/${habits.length}`, `Habits ${habitsDoneToday}/${habits.length}`)}
             </Text>
-          </View>
+          </Pressable>
         </View>
       ) : null}
-
     </View>
   );
 }
@@ -1996,67 +2641,6 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: '600',
   },
-  workflowLoopRibbon: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderBottomWidth: 1,
-  },
-  workflowHeaderCol: {
-    gap: 2,
-    minWidth: 150,
-  },
-  workflowStepsRow: {
-    flex: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  workflowStepCard: {
-    flex: 1,
-    minWidth: 165,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  workflowStepTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 6,
-  },
-  workflowStatusBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 999,
-  },
-  onboardingDrawer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    gap: 10,
-  },
-  onboardingDrawerHeader: {
-    gap: 3,
-  },
-  onboardingCols: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  onboardingColCard: {
-    flex: 1,
-    minWidth: 230,
-    padding: 11,
-    borderRadius: 10,
-    borderWidth: 1,
-    gap: 4,
-  },
   dioramaStageWrap: {
     paddingBottom: 14,
   },
@@ -2092,92 +2676,41 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     alignItems: 'flex-start',
   },
-  islandCalloutPin: {
-    position: 'absolute',
-    top: 4,
-    left: 6,
-    zIndex: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  islandCommandDock: {
-    marginHorizontal: 14,
-    marginTop: 4,
-    marginBottom: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 8,
-    zIndex: 3,
-  },
-  islandDockLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-    flex: 1,
-    minWidth: 240,
-  },
-  islandDockBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  islandDockActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  dockActionBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
   floatingHudCorner: {
     position: 'absolute',
-    top: 28,
+    top: 10,
     right: 0,
     zIndex: 5,
-    minWidth: 126,
+    minWidth: 138,
     paddingHorizontal: 11,
     paddingVertical: 8,
     borderRadius: 11,
     borderWidth: 1,
-    gap: 2,
+    gap: 3,
   },
   hudTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
-    marginBottom: 2,
+    marginBottom: 1,
   },
   hudTitleText: {
     fontSize: 13,
     fontWeight: '700',
   },
   hudProgressRing: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     borderWidth: 1.8,
     alignItems: 'center',
     justifyContent: 'center',
   },
   hudProgressDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
   hudMetricText: {
     fontSize: 11,
@@ -2186,6 +2719,19 @@ const styles = StyleSheet.create({
   hudSubText: {
     fontSize: 11,
     fontFamily: theme.fontFamily.mono,
+  },
+  hudMicroActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 4,
+    paddingTop: 3,
+  },
+  hudMicroBtn: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 5,
+    borderWidth: 1,
   },
   bentoSplitRow: {
     flexDirection: 'row',
@@ -2269,7 +2815,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
   calColNum: {
     fontSize: 11,
@@ -2290,11 +2837,13 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'space-between',
     paddingVertical: 4,
+    zIndex: 1,
   },
   calHairlineRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    paddingVertical: 2,
   },
   calHourText: {
     width: 36,
@@ -2310,11 +2859,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     paddingTop: 2,
+    zIndex: 2,
   },
   calTrackCol: {
     flex: 1,
     borderLeftWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 3,
+    borderRadius: 6,
   },
   calEventBlock: {
     position: 'relative',
@@ -2339,6 +2890,23 @@ const styles = StyleSheet.create({
     right: 6,
     bottom: 3,
     fontSize: 10,
+  },
+  inlineDayScrubberBox: {
+    minHeight: 224,
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    gap: 8,
+  },
+  selectedBlockToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   iconSquareBtn: {
     width: 22,
@@ -2445,31 +3013,5 @@ const styles = StyleSheet.create({
   },
   ledgerSub: {
     fontSize: 11,
-  },
-  quickDispatchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-  },
-  quickDispatchLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  quickPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  quickPillText: {
-    fontSize: 11.5,
-    fontWeight: '500',
   },
 });

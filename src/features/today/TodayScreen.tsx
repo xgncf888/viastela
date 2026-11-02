@@ -158,11 +158,7 @@ export function TodayScreen() {
 
   const hudSummary = `${last ? `${formatKg(last.weightKg)} kg · ` : ''}${t(`${loggedCount}/3 已记`, `${loggedCount}/3 Logged`)}`;
 
-  const deepDrawerTabs: { id: Exclude<SpatialModuleFilter, 'all'>; label: string }[] = [
-    { id: 'focus', label: t('① 24H 1m时间轴 & 1万小时', '① 24H 1m Timeline & 10,000h') },
-    { id: 'vitality', label: t('② 蓝牙体脂秤 & 手环同步', '② BLE Scale & Wearable Sync') },
-    { id: 'wishes', label: t('③ 纪念日、OKR & 心愿金库', '③ Milestones, OKR & Wish Vault') },
-  ];
+
 
   return (
     <Screen>
@@ -198,20 +194,7 @@ export function TodayScreen() {
         />
 
         <Stack gap="md">
-          {/* 0. Zero-Friction 1-Tap User Flow Card (Answers: '拿起手机第一个点哪里？一键即记') */}
-          <OneTapSmartFlowCard
-            localDay={accounting}
-            lastWeightKg={last?.weightKg ?? null}
-            hasWeightToday={visibleToday.length > 0}
-            hasFocusToday={studyToday.length > 0}
-            hasWorkoutToday={trainingToday.length > 0}
-            onOneTapSaveWeight={(kg) => void saveWeight(kg)}
-            onOneTapSaveStudy={(input) => study.saveRecord(input)}
-            onOneTapSaveWorkout={(input) => training.saveSet(input)}
-            onOpenCustomSheet={(kind) => openRecordSheet(last?.weightKg, kind)}
-          />
-
-          {/* 1. 2.5D Isometric Personal Time & Life Sanctuary (Front & Center on Desktop/Web) */}
+          {/* Front & Center Interactive Sanctuary on Desktop/Web; 1-Tap Bar on Compact Mobile */}
           {layout === 'expanded' || Platform.OS === 'web' ? (
             <WorkbenchConsoleCard
               mode={hostMode}
@@ -230,8 +213,21 @@ export function TodayScreen() {
               onQuickStudy={() => openRecordSheet(undefined, 'study')}
               onQuickJournal={() => openRecordSheet(undefined, 'block')}
               onOpenScope={() => openDesktopBridge('scope')}
+              onInstantSaveWeight={(kg) => void saveWeight(kg)}
             />
-          ) : null}
+          ) : (
+            <OneTapSmartFlowCard
+              localDay={accounting}
+              lastWeightKg={last?.weightKg ?? null}
+              hasWeightToday={visibleToday.length > 0}
+              hasFocusToday={studyToday.length > 0}
+              hasWorkoutToday={trainingToday.length > 0}
+              onOneTapSaveWeight={(kg) => void saveWeight(kg)}
+              onOneTapSaveStudy={(input) => study.saveRecord(input)}
+              onOneTapSaveWorkout={(input) => training.saveSet(input)}
+              onOpenCustomSheet={(kind) => openRecordSheet(last?.weightKg, kind)}
+            />
+          )}
 
           <MonthEndNotice timeZone={timeZone} />
 
@@ -520,42 +516,7 @@ export function TodayScreen() {
             })
           : null}
 
-        {/* Progressive Disclosure Bar: Heavy Workbenches Expand ONLY on Demand (or via 2.5D Island Click) */}
-        <Card>
-          <Row justify="between" align="center" gap="sm" wrap>
-            <Row gap="xs" align="center" wrap>
-              <TagChip
-                label={t('深度工作台 · 按需展开', 'Deep Workbenches · On Demand')}
-                tone={activeModuleFilter === 'all' ? 'neutral' : 'exec'}
-              />
-              <Text variant="caption" tone="muted">
-                {t(
-                  '默认折叠以保持首页清爽；点击上方 2.5D 岛屿或右侧按钮即可展开对应深度工具：',
-                  'Collapsed by default for low visual entropy—click a 2.5D island or pill to expand:',
-                )}
-              </Text>
-            </Row>
-            <Row gap="xs" align="center" wrap>
-              {deepDrawerTabs.map((tab) => (
-                <CockpitPillButton
-                  key={tab.id}
-                  label={tab.label}
-                  active={activeModuleFilter === tab.id}
-                  accessibilityLabel={tab.label}
-                  onPress={() =>
-                    setActiveModuleFilter((prev) => (prev === tab.id ? 'all' : tab.id))
-                  }
-                />
-              ))}
-              {activeModuleFilter !== 'all' ? (
-                <CockpitPillButton
-                  label={t('▲ 收起工作台', '▲ Collapse')}
-                  onPress={() => setActiveModuleFilter('all')}
-                />
-              ) : null}
-            </Row>
-          </Row>
-        </Card>
+
 
         {activeModuleFilter === 'focus' ? (
           <TimeBlockMasteryHub

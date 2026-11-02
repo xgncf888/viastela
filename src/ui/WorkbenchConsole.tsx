@@ -446,6 +446,7 @@ export function WorkbenchConsoleCard({
   onQuickStudy,
   onQuickJournal,
   onOpenScope,
+  onInstantSaveWeight,
 }: {
   mode: RuntimeHostMode;
   localDay?: string;
@@ -463,6 +464,7 @@ export function WorkbenchConsoleCard({
   onQuickStudy: () => void;
   onQuickJournal: () => void;
   onOpenScope?: () => void;
+  onInstantSaveWeight?: (kg: number) => void;
 }) {
   return (
     <View testID="today-workbench-console" style={styles.consoleStack}>
@@ -483,6 +485,7 @@ export function WorkbenchConsoleCard({
         onQuickStudy={onQuickStudy}
         onQuickJournal={onQuickJournal}
         onOpenScope={onOpenScope}
+        onInstantSaveWeight={onInstantSaveWeight}
       />
     </View>
   );
