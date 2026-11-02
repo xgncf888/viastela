@@ -56,17 +56,113 @@ export type SanctuaryPerspective = 'diorama' | 'daycycle' | 'summary';
 export type LifeZoneKey = 'focus' | 'vitality' | 'wishes';
 export type SpatialModuleFilter = 'all' | 'focus' | 'vitality' | 'wishes';
 
+interface StageBurstFx {
+  id: string;
+  target: string;
+  text: string;
+  color: string;
+}
+
+let stageFxKeyframesInjected = false;
+function ensureStageFxKeyframes() {
+  if (Platform.OS !== 'web' || typeof document === 'undefined' || stageFxKeyframesInjected) {
+    return;
+  }
+  stageFxKeyframesInjected = true;
+  try {
+    const styleEl = document.createElement('style');
+    styleEl.setAttribute('data-stage-fx', 'true');
+    styleEl.textContent = `
+      @keyframes vsFloatRewardUp {
+        0% { opacity: 0; transform: translateY(10px) scale(0.82); }
+        20% { opacity: 1; transform: translateY(-2px) scale(1.06); }
+        75% { opacity: 1; transform: translateY(-18px) scale(1); }
+        100% { opacity: 0; transform: translateY(-28px) scale(0.94); }
+      }
+      @keyframes vsIsoRippleWave {
+        0% { opacity: 0.95; transform: scale(0.86); }
+        100% { opacity: 0; transform: scale(1.22); }
+      }
+      @keyframes vsSparkleBurst {
+        0% { opacity: 1; transform: translateY(0px) scale(0.7); }
+        60% { opacity: 0.95; transform: translateY(-14px) scale(1.15); }
+        100% { opacity: 0; transform: translateY(-24px) scale(0.6); }
+      }
+    `;
+    document.head.appendChild(styleEl);
+  } catch {
+    // Ignore DOM injection errors in non-browser test runners
+  }
+}
+
+/**
+ * Synthesizes a subtle, zero-asset crystalline tactile click/chime via Web Audio API.
+ * Wrapped in try/catch so Jest/SSR environments remain completely unaffected.
+ */
+function playStageTactileTick(kind: 'tick' | 'reward' | 'chime' = 'tick') {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  try {
+    const AudioCtx =
+      (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext })
+        .AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = kind === 'tick' ? 'triangle' : 'sine';
+    if (kind === 'reward') {
+      osc.frequency.setValueAtTime(587.33, now); // D5
+      osc.frequency.exponentialRampToValueAtTime(880, now + 0.085); // A5
+      gain.gain.setValueAtTime(0.045, now);
+      gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.16);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.165);
+    } else if (kind === 'chime') {
+      osc.frequency.setValueAtTime(523.25, now); // C5
+      osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.07); // E5
+      gain.gain.setValueAtTime(0.035, now);
+      gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.12);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.125);
+    } else {
+      osc.frequency.setValueAtTime(420, now);
+      osc.frequency.exponentialRampToValueAtTime(620, now + 0.04);
+      gain.gain.setValueAtTime(0.028, now);
+      gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.055);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.06);
+    }
+    setTimeout(() => {
+      void ctx.close().catch(() => {});
+    }, 240);
+  } catch {
+    // Silent fallback when Web Audio API is unavailable or blocked
+  }
+}
+
 /**
  * Dual-Theme (黑金风 Dark Obsidian-Gold ⇄ 暖色调 Warm Sunlit Parchment) 2.5D Isometric Island Artwork
  */
 function IsometricLifeZoneSvg({
   zone,
   active,
+  hovered = false,
+  burstActive = false,
   isDark,
   weightText,
 }: {
   zone: LifeZoneKey;
   active: boolean;
+  hovered?: boolean;
+  burstActive?: boolean;
   isDark: boolean;
   weightText: string;
 }) {
@@ -143,12 +239,18 @@ function IsometricLifeZoneSvg({
       fill: 'none',
       style: {
         overflow: 'visible',
+        transition: 'transform 180ms cubic-bezier(0.22, 1, 0.36, 1), filter 200ms ease',
+        transform: burstActive
+          ? 'translateY(-6px) scale(1.035)'
+          : hovered
+            ? 'translateY(-4px) scale(1.018)'
+            : 'translateY(0px) scale(1)',
         filter: isDark
-          ? active
-            ? `drop-shadow(0 20px 30px rgba(0, 0, 0, 0.78)) drop-shadow(0 0 20px ${rimColor}40)`
+          ? active || hovered || burstActive
+            ? `drop-shadow(0 22px 32px rgba(0, 0, 0, 0.82)) drop-shadow(0 0 ${burstActive ? '28px' : '20px'} ${rimColor}${burstActive ? '88' : '48'})`
             : 'drop-shadow(0 16px 24px rgba(0, 0, 0, 0.62))'
-          : active
-            ? `drop-shadow(0 14px 24px rgba(38, 36, 31, 0.18)) drop-shadow(0 0 14px ${rimColor}33)`
+          : active || hovered || burstActive
+            ? `drop-shadow(0 16px 26px rgba(38, 36, 31, 0.22)) drop-shadow(0 0 ${burstActive ? '22px' : '14px'} ${rimColor}${burstActive ? '66' : '33'})`
             : 'drop-shadow(0 10px 18px rgba(38, 36, 31, 0.12))',
       },
     },
@@ -246,6 +348,45 @@ function IsometricLifeZoneSvg({
       stroke: isDark ? 'rgba(255,248,235,0.08)' : 'rgba(38,36,31,0.08)',
       strokeWidth: 0.9,
     }),
+
+    // 2b. Click Shockwave Diamond Ring & Starburst Sparks when clicked
+    burstActive
+      ? createElement(
+          'g',
+          null,
+          createElement('polygon', {
+            points: '136,174 262,118 136,62 10,118',
+            fill: 'none',
+            stroke: rimColor,
+            strokeWidth: 2.6,
+            style: {
+              transformOrigin: '136px 118px',
+              animation: 'vsIsoRippleWave 620ms cubic-bezier(0.16, 1, 0.3, 1) forwards',
+            },
+          }),
+          createElement('circle', {
+            cx: 74,
+            cy: 64,
+            r: 3,
+            fill: '#fef08a',
+            style: { animation: 'vsSparkleBurst 560ms ease-out forwards' },
+          }),
+          createElement('circle', {
+            cx: 194,
+            cy: 68,
+            r: 2.8,
+            fill: rimColor,
+            style: { animation: 'vsSparkleBurst 620ms ease-out forwards' },
+          }),
+          createElement('circle', {
+            cx: 136,
+            cy: 42,
+            r: 3.4,
+            fill: '#fef08a',
+            style: { animation: 'vsSparkleBurst 580ms ease-out forwards' },
+          }),
+        )
+      : null,
 
     // ================= ISLAND 1: 心流书房 =================
     zone === 'focus'
@@ -773,6 +914,9 @@ export function IsometricStudioStage({
   const [okrPage, setOkrPage] = useState(0);
   const [addingKrInline, setAddingKrInline] = useState(false);
   const [newKrTitle, setNewKrTitle] = useState('');
+  const [hoveredZone, setHoveredZone] = useState<LifeZoneKey | null>(null);
+  const [hoveredHeatIdx, setHoveredHeatIdx] = useState<number | null>(null);
+  const [bursts, setBursts] = useState<StageBurstFx[]>([]);
 
   // Inline 1-minute scrubber state for 'day' mode inside Left Bento Card
   const [dayScrubRange, setDayScrubRange] = useState<{ startMinute: number; endMinute: number }>(() => {
@@ -786,9 +930,50 @@ export function IsometricStudioStage({
   const selectedZone: LifeZoneKey =
     activeModuleFilter && activeModuleFilter !== 'all' ? activeModuleFilter : internalZone;
 
+  function triggerStageBurst(
+    target: string,
+    text: string,
+    accentColor: string,
+    sound: 'tick' | 'reward' | 'chime' = 'tick',
+  ) {
+    ensureStageFxKeyframes();
+    playStageTactileTick(sound);
+    const id = `${target}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    setBursts((prev) => [...prev.filter((b) => b.target !== target), { id, target, text, color: accentColor }]);
+    setTimeout(() => {
+      setBursts((prev) => prev.filter((b) => b.id !== id));
+    }, 720);
+  }
+
   function selectIslandAndSync(zone: LifeZoneKey) {
     setInternalZone(zone);
-    onSelectModuleFilter?.(activeModuleFilter === zone ? 'all' : zone);
+    const nextFilter = activeModuleFilter === zone ? 'all' : zone;
+    onSelectModuleFilter?.(nextFilter);
+    const label =
+      zone === 'focus'
+        ? nextFilter === 'all'
+          ? t('✦ 展示全部模块', '✦ All Modules')
+          : t('✦ 聚焦心流书房', '✦ Focus Study')
+        : zone === 'vitality'
+          ? nextFilter === 'all'
+            ? t('✦ 展示全部模块', '✦ All Modules')
+            : t('✦ 聚焦活力体态', '✦ Vitality Focus')
+          : nextFilter === 'all'
+            ? t('✦ 展示全部模块', '✦ All Modules')
+            : t('✦ 聚焦星愿纪念台', '✦ Wish Altar');
+    const accent =
+      zone === 'focus'
+        ? isDark
+          ? '#f59e0b'
+          : '#cc785c'
+        : zone === 'vitality'
+          ? isDark
+            ? '#34d399'
+            : '#1f5e4b'
+          : isDark
+            ? '#f5b942'
+            : '#b88228';
+    triggerStageBurst(zone, label, accent, 'chime');
   }
 
   // Live personal stores
@@ -802,6 +987,7 @@ export function IsometricStudioStage({
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
+    ensureStageFxKeyframes();
     const u1 = subscribeLifeGamificationStore(() => setVault(readPledgeVault()));
     const u2 = subscribeLifeOkrStore(() => {
       setMilestones(readLifeMilestones());
@@ -975,6 +1161,12 @@ export function IsometricStudioStage({
       setTimer(stopped);
       const v = recordPledgeReward(`完成专注计时：${finalTitle} (${mins}m)`, localDay);
       setVault(v);
+      triggerStageBurst(
+        'focus',
+        `✓ +${mins}m · +¥${v.config.checkInRewardCny}`,
+        pal.emeraldAccent,
+        'reward',
+      );
       showToast({
         text: t(
           `✓ 已完成专注「${finalTitle}」(${mins}m) 并切入时间块 · +¥${v.config.checkInRewardCny}`,
@@ -992,6 +1184,12 @@ export function IsometricStudioStage({
       };
       writeActiveTimer(nextTimer);
       setTimer(nextTimer);
+      triggerStageBurst(
+        'focus',
+        t('▶ 专注开启 ✦', '▶ Focus ON ✦'),
+        pal.terracottaAccent,
+        'chime',
+      );
       showToast({
         text: t(
           `▶ 已在「心流书房」启动专注计时：${nextTimer.title}`,
@@ -1009,6 +1207,12 @@ export function IsometricStudioStage({
       onInstantSaveWeight(target);
       const v = recordPledgeReward(`确认晨重：${target.toFixed(1)} kg`, localDay);
       setVault(v);
+      triggerStageBurst(
+        'vitality',
+        `✓ ${target.toFixed(1)}kg · +¥${v.config.checkInRewardCny}`,
+        pal.emeraldAccent,
+        'reward',
+      );
       showToast({
         text: t(
           `✓ 已记录今日体重 ${target.toFixed(1)} kg · +¥${v.config.checkInRewardCny}`,
@@ -1016,6 +1220,7 @@ export function IsometricStudioStage({
         ),
       });
     } else {
+      triggerStageBurst('vitality', t('⚖ 记录体重', '⚖ Log Weight'), pal.emeraldAccent, 'tick');
       onQuickWeight();
     }
   }
@@ -1028,6 +1233,12 @@ export function IsometricStudioStage({
       setHabits(updated);
       const v = recordPledgeReward(`习惯打卡：${pending.title}`, localDay);
       setVault(v);
+      triggerStageBurst(
+        'wishes',
+        `✦ ${pending.title.slice(0, 4)} +¥${v.config.checkInRewardCny}`,
+        pal.goldAccent,
+        'reward',
+      );
       showToast({
         text: t(
           `✓ 已完成「${pending.title}」打卡 · 心愿金库 +¥${v.config.checkInRewardCny}`,
@@ -1090,6 +1301,12 @@ export function IsometricStudioStage({
     );
     const v = recordPledgeReward(`切入时段：${hourStr}`, localDay);
     setVault(v);
+    triggerStageBurst(
+      'matrix',
+      `＋45m (${hourStr}) · +¥${v.config.checkInRewardCny}`,
+      pal.goldAccent,
+      'reward',
+    );
     showToast({
       text: t(
         `✓ 已在 ${hourStr} 切入 45m 时间块 · +¥${v.config.checkInRewardCny}`,
@@ -1119,6 +1336,12 @@ export function IsometricStudioStage({
     setVault(v);
     setDayScrubTitle('');
     setMatrixMode('on');
+    triggerStageBurst(
+      'matrix',
+      `✓ +${dur}m · +¥${v.config.checkInRewardCny}`,
+      pal.emeraldAccent,
+      'reward',
+    );
     showToast({
       text: t(
         `✓ 已写入 ${formatMinuteOfDay(dayScrubRange.startMinute)}–${formatMinuteOfDay(dayScrubRange.endMinute)} (${dur}m) · +¥${v.config.checkInRewardCny}`,
@@ -1427,14 +1650,40 @@ export function IsometricStudioStage({
                 ]}
               >
                 <View style={styles.islandArtWrap}>
+                  {bursts
+                    .filter((b) => b.target === 'focus')
+                    .map((b) => (
+                      <View
+                        key={b.id}
+                        pointerEvents="none"
+                        style={[
+                          styles.floatingBurstPill,
+                          { backgroundColor: pal.hudBg, borderColor: b.color },
+                          Platform.OS === 'web'
+                            ? ({ animation: 'vsFloatRewardUp 700ms cubic-bezier(0.16, 1, 0.3, 1) forwards' } as unknown as ViewStyle)
+                            : null,
+                        ]}
+                      >
+                        <Text variant="caption" style={[styles.floatingBurstText, { color: b.color }]}>
+                          {b.text}
+                        </Text>
+                      </View>
+                    ))}
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="心流书房与一万小时精进"
+                    onHoverIn={() => setHoveredZone('focus')}
+                    onHoverOut={() => setHoveredZone((prev) => (prev === 'focus' ? null : prev))}
                     onPress={() => selectIslandAndSync('focus')}
+                    style={({ pressed }) => [
+                      pressed ? { transform: [{ scale: 0.96 }] } : null,
+                    ]}
                   >
                     <IsometricLifeZoneSvg
                       zone="focus"
                       active={selectedZone === 'focus'}
+                      hovered={hoveredZone === 'focus'}
+                      burstActive={bursts.some((b) => b.target === 'focus')}
                       isDark={isDark}
                       weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
                     />
@@ -1445,7 +1694,9 @@ export function IsometricStudioStage({
                       {
                         backgroundColor: pal.hudBg,
                         borderColor:
-                          selectedZone === 'focus' ? pal.terracottaAccent : pal.hudBorder,
+                          selectedZone === 'focus' || hoveredZone === 'focus'
+                            ? pal.terracottaAccent
+                            : pal.hudBorder,
                       },
                       glassBlurStyle,
                     ]}
@@ -1460,11 +1711,12 @@ export function IsometricStudioStage({
                         accessibilityRole="button"
                         accessibilityLabel="启动或结束专注计时"
                         onPress={() => handleToggleFocusTimer()}
-                        style={[
+                        style={({ pressed }) => [
                           styles.hudProgressRing,
                           {
                             borderColor: timer.isRunning ? pal.emeraldAccent : pal.goldAccent,
                             backgroundColor: timer.isRunning ? `${pal.emeraldAccent}22` : 'transparent',
+                            transform: [{ scale: pressed ? 0.88 : 1 }],
                           },
                         ]}
                       >
@@ -1487,11 +1739,12 @@ export function IsometricStudioStage({
                     <View style={styles.hudMicroActionRow}>
                       <Pressable
                         onPress={() => handleToggleFocusTimer()}
-                        style={[
+                        style={({ pressed }) => [
                           styles.hudMicroBtn,
                           {
                             backgroundColor: timer.isRunning ? `${pal.emeraldAccent}28` : pal.pillBg,
                             borderColor: timer.isRunning ? pal.emeraldAccent : pal.bentoBorder,
+                            transform: [{ scale: pressed ? 0.93 : 1 }],
                           },
                         ]}
                       >
@@ -1507,8 +1760,18 @@ export function IsometricStudioStage({
                         </Text>
                       </Pressable>
                       <Pressable
-                        onPress={onQuickStudy}
-                        style={[styles.hudMicroBtn, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
+                        onPress={() => {
+                          triggerStageBurst('focus', t('📚 记学习 ✦', '📚 Log Study ✦'), pal.terracottaAccent, 'tick');
+                          onQuickStudy();
+                        }}
+                        style={({ pressed }) => [
+                          styles.hudMicroBtn,
+                          {
+                            backgroundColor: pal.pillBg,
+                            borderColor: pal.bentoBorder,
+                            transform: [{ scale: pressed ? 0.93 : 1 }],
+                          },
+                        ]}
                       >
                         <Text variant="caption" style={{ fontSize: 10, color: pal.sub }}>
                           {t('＋ 记学习', '＋ Study')}
@@ -1527,14 +1790,40 @@ export function IsometricStudioStage({
                 ]}
               >
                 <View style={styles.islandArtWrap}>
+                  {bursts
+                    .filter((b) => b.target === 'vitality')
+                    .map((b) => (
+                      <View
+                        key={b.id}
+                        pointerEvents="none"
+                        style={[
+                          styles.floatingBurstPill,
+                          { backgroundColor: pal.hudBg, borderColor: b.color },
+                          Platform.OS === 'web'
+                            ? ({ animation: 'vsFloatRewardUp 700ms cubic-bezier(0.16, 1, 0.3, 1) forwards' } as unknown as ViewStyle)
+                            : null,
+                        ]}
+                      >
+                        <Text variant="caption" style={[styles.floatingBurstText, { color: b.color }]}>
+                          {b.text}
+                        </Text>
+                      </View>
+                    ))}
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="活力体态与蓝牙体脂秤"
+                    onHoverIn={() => setHoveredZone('vitality')}
+                    onHoverOut={() => setHoveredZone((prev) => (prev === 'vitality' ? null : prev))}
                     onPress={() => selectIslandAndSync('vitality')}
+                    style={({ pressed }) => [
+                      pressed ? { transform: [{ scale: 0.96 }] } : null,
+                    ]}
                   >
                     <IsometricLifeZoneSvg
                       zone="vitality"
                       active={selectedZone === 'vitality'}
+                      hovered={hoveredZone === 'vitality'}
+                      burstActive={bursts.some((b) => b.target === 'vitality')}
                       isDark={isDark}
                       weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
                     />
@@ -1545,7 +1834,9 @@ export function IsometricStudioStage({
                       {
                         backgroundColor: pal.hudBg,
                         borderColor:
-                          selectedZone === 'vitality' ? pal.emeraldAccent : pal.hudBorder,
+                          selectedZone === 'vitality' || hoveredZone === 'vitality'
+                            ? pal.emeraldAccent
+                            : pal.hudBorder,
                       },
                       glassBlurStyle,
                     ]}
@@ -1577,7 +1868,14 @@ export function IsometricStudioStage({
                     <View style={styles.hudMicroActionRow}>
                       <Pressable
                         onPress={() => handleQuickWeightNudge(-0.1)}
-                        style={[styles.hudMicroBtn, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
+                        style={({ pressed }) => [
+                          styles.hudMicroBtn,
+                          {
+                            backgroundColor: pal.pillBg,
+                            borderColor: pal.bentoBorder,
+                            transform: [{ scale: pressed ? 0.92 : 1 }],
+                          },
+                        ]}
                       >
                         <Text variant="caption" style={{ fontSize: 10, color: pal.sub }}>
                           -0.1
@@ -1585,9 +1883,13 @@ export function IsometricStudioStage({
                       </Pressable>
                       <Pressable
                         onPress={() => handleQuickWeightNudge(0)}
-                        style={[
+                        style={({ pressed }) => [
                           styles.hudMicroBtn,
-                          { backgroundColor: `${pal.emeraldAccent}22`, borderColor: pal.emeraldAccent },
+                          {
+                            backgroundColor: `${pal.emeraldAccent}22`,
+                            borderColor: pal.emeraldAccent,
+                            transform: [{ scale: pressed ? 0.92 : 1 }],
+                          },
                         ]}
                       >
                         <Text variant="caption" style={{ fontSize: 10, fontWeight: '700', color: pal.emeraldAccent }}>
@@ -1595,8 +1897,18 @@ export function IsometricStudioStage({
                         </Text>
                       </Pressable>
                       <Pressable
-                        onPress={onQuickTraining}
-                        style={[styles.hudMicroBtn, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
+                        onPress={() => {
+                          triggerStageBurst('vitality', t('💪 记训练 ✦', '💪 Workout ✦'), pal.emeraldAccent, 'tick');
+                          onQuickTraining();
+                        }}
+                        style={({ pressed }) => [
+                          styles.hudMicroBtn,
+                          {
+                            backgroundColor: pal.pillBg,
+                            borderColor: pal.bentoBorder,
+                            transform: [{ scale: pressed ? 0.92 : 1 }],
+                          },
+                        ]}
                       >
                         <Text variant="caption" style={{ fontSize: 10, color: pal.sub }}>
                           {t('＋ 训练', '＋ Set')}
@@ -1615,14 +1927,40 @@ export function IsometricStudioStage({
                 ]}
               >
                 <View style={styles.islandArtWrap}>
+                  {bursts
+                    .filter((b) => b.target === 'wishes')
+                    .map((b) => (
+                      <View
+                        key={b.id}
+                        pointerEvents="none"
+                        style={[
+                          styles.floatingBurstPill,
+                          { backgroundColor: pal.hudBg, borderColor: b.color },
+                          Platform.OS === 'web'
+                            ? ({ animation: 'vsFloatRewardUp 700ms cubic-bezier(0.16, 1, 0.3, 1) forwards' } as unknown as ViewStyle)
+                            : null,
+                        ]}
+                      >
+                        <Text variant="caption" style={[styles.floatingBurstText, { color: b.color }]}>
+                          {b.text}
+                        </Text>
+                      </View>
+                    ))}
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="星愿纪念台与心愿金库"
+                    onHoverIn={() => setHoveredZone('wishes')}
+                    onHoverOut={() => setHoveredZone((prev) => (prev === 'wishes' ? null : prev))}
                     onPress={() => selectIslandAndSync('wishes')}
+                    style={({ pressed }) => [
+                      pressed ? { transform: [{ scale: 0.96 }] } : null,
+                    ]}
                   >
                     <IsometricLifeZoneSvg
                       zone="wishes"
                       active={selectedZone === 'wishes'}
+                      hovered={hoveredZone === 'wishes'}
+                      burstActive={bursts.some((b) => b.target === 'wishes')}
                       isDark={isDark}
                       weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
                     />
@@ -1633,7 +1971,9 @@ export function IsometricStudioStage({
                       {
                         backgroundColor: pal.hudBg,
                         borderColor:
-                          selectedZone === 'wishes' ? pal.goldAccent : pal.hudBorder,
+                          selectedZone === 'wishes' || hoveredZone === 'wishes'
+                            ? pal.goldAccent
+                            : pal.hudBorder,
                       },
                       glassBlurStyle,
                     ]}
@@ -1665,9 +2005,13 @@ export function IsometricStudioStage({
                     <View style={styles.hudMicroActionRow}>
                       <Pressable
                         onPress={handleQuickHabitCheckIn}
-                        style={[
+                        style={({ pressed }) => [
                           styles.hudMicroBtn,
-                          { backgroundColor: pal.pillActiveBg, borderColor: pal.goldAccent },
+                          {
+                            backgroundColor: pal.pillActiveBg,
+                            borderColor: pal.goldAccent,
+                            transform: [{ scale: pressed ? 0.92 : 1 }],
+                          },
                         ]}
                       >
                         <Text variant="caption" style={{ fontSize: 10, fontWeight: '700', color: pal.goldText }}>
@@ -1676,7 +2020,14 @@ export function IsometricStudioStage({
                       </Pressable>
                       <Pressable
                         onPress={() => selectIslandAndSync('wishes')}
-                        style={[styles.hudMicroBtn, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
+                        style={({ pressed }) => [
+                          styles.hudMicroBtn,
+                          {
+                            backgroundColor: pal.pillBg,
+                            borderColor: pal.bentoBorder,
+                            transform: [{ scale: pressed ? 0.92 : 1 }],
+                          },
+                        ]}
                       >
                         <Text variant="caption" style={{ fontSize: 10, color: pal.sub }}>
                           {t('纪念日', 'Milestones')}
@@ -1701,6 +2052,25 @@ export function IsometricStudioStage({
                 },
               ]}
             >
+              {bursts
+                .filter((b) => b.target === 'matrix')
+                .map((b) => (
+                  <View
+                    key={b.id}
+                    pointerEvents="none"
+                    style={[
+                      styles.floatingCardBurstPill,
+                      { backgroundColor: pal.hudBg, borderColor: b.color },
+                      Platform.OS === 'web'
+                        ? ({ animation: 'vsFloatRewardUp 700ms cubic-bezier(0.16, 1, 0.3, 1) forwards' } as unknown as ViewStyle)
+                        : null,
+                    ]}
+                  >
+                    <Text variant="caption" style={[styles.floatingBurstText, { color: b.color }]}>
+                      {b.text}
+                    </Text>
+                  </View>
+                ))}
               <View style={styles.bentoHeader}>
                 <Text variant="label" style={[styles.bentoTitle, { color: pal.ink }]}>
                   {t('24H 时间块矩阵', '24H Time-Block Matrix')}
@@ -1998,17 +2368,23 @@ export function IsometricStudioStage({
                             <Pressable
                               key={blk.id}
                               onPress={() => {
+                                playStageTactileTick('tick');
                                 setSelectedColIdx(cIdx);
                                 setSelectedBlockId((prev) => (prev === blk.id ? null : blk.id));
                               }}
-                              style={[
+                              style={({ pressed }) => [
                                 styles.calEventBlock,
                                 {
                                   height: blk.height,
                                   marginTop: blk.marginTop,
                                   backgroundColor: stylePalette.bg,
-                                  borderColor: isBlkSelected ? pal.ink : stylePalette.border,
-                                  borderWidth: isBlkSelected ? 1.6 : 1,
+                                  borderColor: isBlkSelected ? pal.goldAccent : stylePalette.border,
+                                  borderWidth: isBlkSelected ? 1.8 : 1,
+                                  transform: [
+                                    {
+                                      scale: pressed ? 0.96 : isBlkSelected ? 1.02 : 1,
+                                    },
+                                  ],
                                 },
                               ]}
                             >
@@ -2212,6 +2588,7 @@ export function IsometricStudioStage({
                           } as unknown as ViewStyle)
                         : null;
 
+                    const krBurst = bursts.find((b) => b.target === `okr-${item.kr.id}`);
                     return (
                       <Pressable
                         key={item.kr.id}
@@ -2226,6 +2603,12 @@ export function IsometricStudioStage({
                           );
                           const v = recordPledgeReward(`OKR 推进：${item.kr.title}`, localDay);
                           setVault(v);
+                          triggerStageBurst(
+                            `okr-${item.kr.id}`,
+                            `🎯 +${item.kr.stepDelta}${item.kr.unit} · +¥${v.config.checkInRewardCny}`,
+                            barColor,
+                            'reward',
+                          );
                           showToast({
                             text: t(
                               `已推进「${item.kr.title}」· 心愿金库 +¥${v.config.checkInRewardCny}`,
@@ -2233,11 +2616,31 @@ export function IsometricStudioStage({
                             ),
                           });
                         }}
-                        style={[
+                        style={({ pressed }) => [
                           styles.okrMiniCard,
-                          { backgroundColor: cardBg, borderColor: cardBorder },
+                          {
+                            backgroundColor: cardBg,
+                            borderColor: krBurst ? barColor : cardBorder,
+                            transform: [{ scale: pressed ? 0.95 : krBurst ? 1.03 : 1 }],
+                          },
                         ]}
                       >
+                        {krBurst ? (
+                          <View
+                            pointerEvents="none"
+                            style={[
+                              styles.floatingOkrBurstPill,
+                              { backgroundColor: pal.hudBg, borderColor: krBurst.color },
+                              Platform.OS === 'web'
+                                ? ({ animation: 'vsFloatRewardUp 680ms cubic-bezier(0.16, 1, 0.3, 1) forwards' } as unknown as ViewStyle)
+                                : null,
+                            ]}
+                          >
+                            <Text variant="caption" style={[styles.floatingBurstText, { color: krBurst.color }]}>
+                              {krBurst.text}
+                            </Text>
+                          </View>
+                        ) : null}
                         <View style={styles.okrMiniTop}>
                           <Text
                             variant="caption"
@@ -2320,19 +2723,46 @@ export function IsometricStudioStage({
                   </View>
                 </View>
 
+                {bursts
+                  .filter((b) => b.target === 'heatmap')
+                  .map((b) => (
+                    <View
+                      key={b.id}
+                      pointerEvents="none"
+                      style={[
+                        styles.floatingCardBurstPill,
+                        { backgroundColor: pal.hudBg, borderColor: b.color },
+                        Platform.OS === 'web'
+                          ? ({ animation: 'vsFloatRewardUp 700ms cubic-bezier(0.16, 1, 0.3, 1) forwards' } as unknown as ViewStyle)
+                          : null,
+                      ]}
+                    >
+                      <Text variant="caption" style={[styles.floatingBurstText, { color: b.color }]}>
+                        {b.text}
+                      </Text>
+                    </View>
+                  ))}
                 <View style={styles.miniHeatmapWrap}>
                   {heatmap.cells.map((cell, idx) => {
                     const isSelected = selectedHeatmapCell?.localDay === cell.localDay;
+                    const isHovered = hoveredHeatIdx === idx;
                     return (
                       <Pressable
                         key={cell.localDay}
-                        onPress={() => setSelectedHeatmapCell(cell)}
+                        onHoverIn={() => setHoveredHeatIdx(idx)}
+                        onHoverOut={() => setHoveredHeatIdx((prev) => (prev === idx ? null : prev))}
+                        onPress={() => {
+                          playStageTactileTick('tick');
+                          setSelectedHeatmapCell(cell);
+                        }}
                         style={[
                           styles.miniHeatCell,
                           {
                             backgroundColor: optionAHeatCellColor(cell, idx),
-                            borderColor: isSelected ? pal.ink : 'transparent',
-                            borderWidth: isSelected ? 1.2 : 0,
+                            borderColor: isSelected ? pal.goldAccent : isHovered ? pal.ink : 'transparent',
+                            borderWidth: isSelected ? 1.5 : isHovered ? 1 : 0,
+                            transform: [{ scale: isSelected ? 1.32 : isHovered ? 1.24 : 1 }],
+                            zIndex: isSelected || isHovered ? 5 : 1,
                           },
                         ]}
                       />
@@ -2362,6 +2792,12 @@ export function IsometricStudioStage({
                             goalId: 'goal-ai-infra',
                           }),
                         );
+                        triggerStageBurst(
+                          'heatmap',
+                          `✦ ${selectedHeatmapCell.localDay.slice(5)} +45m`,
+                          pal.emeraldAccent,
+                          'reward',
+                        );
                         showToast({
                           text: t(
                             `✓ 已为 ${selectedHeatmapCell.localDay} 补记 45m 专注`,
@@ -2369,7 +2805,14 @@ export function IsometricStudioStage({
                           ),
                         });
                       }}
-                      style={[styles.hudMicroBtn, { backgroundColor: pal.pillActiveBg, borderColor: pal.goldAccent }]}
+                      style={({ pressed }) => [
+                        styles.hudMicroBtn,
+                        {
+                          backgroundColor: pal.pillActiveBg,
+                          borderColor: pal.goldAccent,
+                          transform: [{ scale: pressed ? 0.92 : 1 }],
+                        },
+                      ]}
                     >
                       <Text variant="caption" style={{ fontSize: 10, color: pal.goldText, fontWeight: '700' }}>
                         {t('＋ 补记 45m', '＋ Log 45m')}
@@ -2974,6 +3417,41 @@ const styles = StyleSheet.create({
     width: 8.5,
     height: 8.5,
     borderRadius: 2,
+  },
+  floatingBurstPill: {
+    position: 'absolute',
+    top: 6,
+    left: 56,
+    zIndex: 30,
+    paddingHorizontal: 10,
+    paddingVertical: 3.5,
+    borderRadius: 999,
+    borderWidth: 1.2,
+  },
+  floatingCardBurstPill: {
+    position: 'absolute',
+    top: 8,
+    right: 16,
+    zIndex: 30,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1.2,
+  },
+  floatingOkrBurstPill: {
+    position: 'absolute',
+    top: -8,
+    right: 8,
+    zIndex: 30,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  floatingBurstText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   isoHudSubBox: {
     paddingHorizontal: 8,
