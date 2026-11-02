@@ -752,13 +752,12 @@ export function IsometricStudioStage({
   onQuickJournal: () => void;
   onOpenScope?: () => void;
 }) {
-  const { color, scheme, toggleTheme } = useTheme();
-  const { locale, toggleLocale, t } = useI18n();
+  const { color, scheme } = useTheme();
+  const { t } = useI18n();
   const isDark = scheme === 'dark';
 
   const [perspective, setPerspective] = useState<SanctuaryPerspective>('diorama');
   const [internalZone, setInternalZone] = useState<LifeZoneKey>('focus');
-  const [showOnboardingGuide, setShowOnboardingGuide] = useState(false);
   const [quickInput, setQuickInput] = useState('');
   const [selectedHeatmapCell, setSelectedHeatmapCell] = useState<HeatmapCell | null>(null);
   const [matrixMode, setMatrixMode] = useState<'on' | 'day'>('on');
@@ -769,7 +768,7 @@ export function IsometricStudioStage({
 
   function selectIslandAndSync(zone: LifeZoneKey) {
     setInternalZone(zone);
-    onSelectModuleFilter?.(zone);
+    onSelectModuleFilter?.(activeModuleFilter === zone ? 'all' : zone);
   }
 
   // Live personal stores
@@ -1089,129 +1088,6 @@ export function IsometricStudioStage({
         } as unknown as ViewStyle)
       : null;
 
-  const dailyWorkflowSteps = [
-    {
-      id: 'step-weight',
-      num: '①',
-      zone: 'vitality' as LifeZoneKey,
-      done: Boolean(latestWeightKg),
-      title: t('晨起记体重', 'Morning Weigh-In'),
-      status: latestWeightKg
-        ? t(`✓ 已记 ${latestWeightKg.toFixed(1)} kg`, `✓ ${latestWeightKg.toFixed(1)} kg`)
-        : t('点击记录 ⌘K', 'Log Weight ⌘K'),
-      accent: pal.emeraldAccent,
-      onPress: () => {
-        selectIslandAndSync('vitality');
-        onQuickWeight();
-      },
-    },
-    {
-      id: 'step-focus',
-      num: '②',
-      zone: 'focus' as LifeZoneKey,
-      done: trackedMinsToday > 0 || timer.isRunning,
-      title: t('专注与1m时间块', 'Focus & 1m Time Block'),
-      status:
-        trackedMinsToday > 0
-          ? t(`✓ 已专注 ${trackedMinsToday}m`, `✓ ${trackedMinsToday}m Tracked`)
-          : t('切入时间块 ⇧⌘J', 'Add 1m Block ⇧⌘J'),
-      accent: pal.terracottaAccent,
-      onPress: () => {
-        selectIslandAndSync('focus');
-        onQuickJournal();
-      },
-    },
-    {
-      id: 'step-workout',
-      num: '③',
-      zone: 'vitality' as LifeZoneKey,
-      done: trainingSetsCount > 0,
-      title: t('运动与穿戴同步', 'Workout & Wearable'),
-      status:
-        trainingSetsCount > 0
-          ? t(`✓ 已练 ${trainingSetsCount} 组`, `✓ ${trainingSetsCount} Sets Done`)
-          : t('记录训练 ⇧⌘T', 'Log Workout ⇧⌘T'),
-      accent: '#38bdf8',
-      onPress: () => {
-        selectIslandAndSync('vitality');
-        onQuickTraining();
-      },
-    },
-    {
-      id: 'step-wishes',
-      num: '④',
-      zone: 'wishes' as LifeZoneKey,
-      done: habitsDoneToday > 0,
-      title: t('OKR推进与心愿金', 'OKR & Wish Vault'),
-      status: t(
-        `OKR ${avgOkrPct}% · ¥${vault.wishBalanceCny}`,
-        `OKR ${avgOkrPct}% · ¥${vault.wishBalanceCny}`,
-      ),
-      accent: pal.goldAccent,
-      onPress: () => {
-        selectIslandAndSync('wishes');
-      },
-    },
-  ];
-
-  const activeIslandInfo =
-    selectedZone === 'focus'
-      ? {
-          badge: t('① 心流书房 · 已联动', '① Flow Study · Linked'),
-          title: t(
-            '管理 24H 时间块矩阵（支持 1 分钟拖拽框选）与 10,000 小时精进计时',
-            'Controls 24H Time-Block Matrix (1-min drag selection) & 10,000-Hour Mastery Timer',
-          ),
-          ctaLabel: t('＋ 切入 1m 时间块 (⇧⌘J)', '＋ Add 1m Time Block (⇧⌘J)'),
-          secondaryLabel: t('📚 记学习 (⇧⌘L)', '📚 Log Study (⇧⌘L)'),
-          accent: pal.terracottaAccent,
-          onPrimary: onQuickJournal,
-          onSecondary: onQuickStudy,
-        }
-      : selectedZone === 'vitality'
-        ? {
-            badge: t('② 活力体态站 · 已联动', '② Vitality Station · Linked'),
-            title: t(
-              '管理每日空腹晨重、7 日 EMA 均重趋势、力量训练组数与智能手环/体脂秤同步',
-              'Controls Morning Weigh-In, 7-Day EMA Weight Trend, Strength Sets & Wearable Sync',
-            ),
-            ctaLabel: t('⚖ 记录今日晨重 (⌘K)', '⚖ Log Morning Weight (⌘K)'),
-            secondaryLabel: t('🏋️ 记录训练组 (⇧⌘T)', '🏋️ Log Workout Set (⇧⌘T)'),
-            accent: pal.emeraldAccent,
-            onPrimary: onQuickWeight,
-            onSecondary: onQuickTraining,
-          }
-        : {
-            badge: t('③ 星愿纪念台 · 已联动', '③ Astral Wish Altar · Linked'),
-            title: t(
-              '管理重要纪念日倒数、季度 OKR 关键结果打卡，每次自律打卡自动注入 +¥25 心愿金',
-              'Controls Milestone Countdowns, Quarterly OKR Key Results & +¥25 Wish Vault Rewards',
-            ),
-            ctaLabel: t('🎯 聚焦下方 OKR 与心愿金库', '🎯 Focus OKR & Wish Vault Below'),
-            secondaryLabel: t('✦ 打卡习惯 +¥25', '✦ Check-In +¥25'),
-            accent: pal.goldAccent,
-            onPrimary: () => onSelectModuleFilter?.('wishes'),
-            onSecondary: () => {
-              const firstKr = allKrs[0];
-              if (firstKr) {
-                checkInKeyResult(
-                  firstKr.objectiveId,
-                  firstKr.kr.id,
-                  firstKr.kr.stepDelta,
-                  localDay,
-                );
-                const v = recordPledgeReward(`OKR 推进：${firstKr.kr.title}`, localDay);
-                setVault(v);
-                showToast({
-                  text: t(
-                    `已推进「${firstKr.kr.title}」· 心愿金库 +¥${v.config.checkInRewardCny}`,
-                    `Advanced "${firstKr.kr.title}" · Wish Vault +¥${v.config.checkInRewardCny}`,
-                  ),
-                });
-              }
-            },
-          };
-
   return (
     <View
       style={[
@@ -1222,7 +1098,7 @@ export function IsometricStudioStage({
         },
       ]}
     >
-      {/* Top Bar: Theme-Unified Header + 1-Click Warm/Black-Gold Toggle + Bilingual Toggle */}
+      {/* Clean Low-Entropy Top Bar: Title + 3 Perspective Pills + Quick Time-Block Input */}
       <View
         style={[
           styles.studioTopbar,
@@ -1235,7 +1111,7 @@ export function IsometricStudioStage({
         <View style={styles.topbarLeft}>
           <View style={[styles.brandDot, { backgroundColor: pal.goldAccent }]} />
           <Text variant="label" style={[styles.studioTitle, { color: pal.ink }]}>
-            {t('2.5D 个人时间与心愿沙盘', '2.5D Personal Time & Wish Sanctuary')}
+            {t('2.5D 时间与心愿沙盘（点击岛屿切换工作区）', '2.5D Sanctuary (Click Island to Switch Workspace)')}
           </Text>
           <View
             style={[
@@ -1248,9 +1124,9 @@ export function IsometricStudioStage({
           >
             {(
               [
-                { id: 'diorama', label: t('2.5D 沙盘全览', '2.5D Studio') },
-                { id: 'daycycle', label: t('24H 昼夜节律环', '24H Day Cycle') },
-                { id: 'summary', label: t('今日五维精要', '5-Dim Summary') },
+                { id: 'diorama', label: t('2.5D 沙盘', '2.5D Studio') },
+                { id: 'daycycle', label: t('24H 节律', '24H Cycle') },
+                { id: 'summary', label: t('五维精要', 'Summary') },
               ] as const
             ).map((tab) => {
               const active = perspective === tab.id;
@@ -1279,103 +1155,6 @@ export function IsometricStudioStage({
               );
             })}
           </View>
-
-          {/* Charioteer-style 1-Click Global Theme Toggle (暖色调 ⇄ 黑金风) */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="切换全局暖色调与黑金风主题"
-            onPress={() => {
-              toggleTheme();
-              showToast({
-                text: isDark
-                  ? t('已切换至「晨曦暖纸风」全局主题 (⌘T)', 'Switched to Warm Parchment Theme (⌘T)')
-                  : t('已切换至「黑金星盘风」全局主题 (⌘T)', 'Switched to Black-Gold Obsidian Theme (⌘T)'),
-              });
-            }}
-            style={[
-              styles.dispatchBtn,
-              {
-                height: 28,
-                backgroundColor: pal.pillBg,
-                borderColor: pal.goldAccent,
-              },
-            ]}
-          >
-            <Text
-              variant="caption"
-              style={{
-                color: pal.goldText,
-                fontSize: 11,
-                fontWeight: '700',
-              }}
-            >
-              {isDark
-                ? t('✦ 黑金风 ⇄ 暖色调 (⌘T)', '✦ Black-Gold ⇄ Warm (⌘T)')
-                : t('☀ 暖色调 ⇄ 黑金风 (⌘T)', '☀ Warm ⇄ Black-Gold (⌘T)')}
-            </Text>
-          </Pressable>
-
-          {/* Instant Bilingual Switcher (中 / EN) */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="切换中英文语言 Switch Language"
-            onPress={() => {
-              const next = toggleLocale();
-              showToast({
-                text:
-                  next === 'en'
-                    ? 'Switched to English (⌥L)'
-                    : '已切换为中文界面 (⌥L)',
-              });
-            }}
-            style={[
-              styles.dispatchBtn,
-              {
-                height: 28,
-                backgroundColor: pal.pillBg,
-                borderColor: pal.bentoBorder,
-              },
-            ]}
-          >
-            <Text
-              variant="caption"
-              style={{
-                color: pal.ink,
-                fontSize: 11,
-                fontWeight: '700',
-              }}
-            >
-              {locale === 'zh' ? '🌐 中 / EN' : '🌐 EN / 中文'}
-            </Text>
-          </Pressable>
-
-          {/* Expandable How-To-Use Guide Toggle */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="查看沙盘使用指南 How It Works"
-            onPress={() => setShowOnboardingGuide((prev) => !prev)}
-            style={[
-              styles.dispatchBtn,
-              {
-                height: 28,
-                backgroundColor: showOnboardingGuide ? pal.pillActiveBg : pal.pillBg,
-                borderColor: showOnboardingGuide ? pal.goldAccent : pal.bentoBorder,
-              },
-            ]}
-          >
-            <Text
-              variant="caption"
-              style={{
-                color: showOnboardingGuide ? pal.goldText : pal.sub,
-                fontSize: 11,
-                fontWeight: '700',
-              }}
-            >
-              {showOnboardingGuide
-                ? t('▲ 收起用法指南', '▲ Hide Guide')
-                : t('❓ 30秒看懂沙盘用法', '❓ How It Works')}
-            </Text>
-          </Pressable>
         </View>
 
         <View style={styles.studioTaskbar}>
@@ -1384,8 +1163,8 @@ export function IsometricStudioStage({
             onChangeText={setQuickInput}
             onSubmitEditing={onQuickAddTimeNote}
             placeholder={t(
-              '快速切入时间块 (如: 系统架构精读 60m / 肩背训练 45m)…',
-              'Quick add time block (e.g., System Design 60m / Back Workout 45m)…',
+              '输入事项与分钟数直接切入 (如: 架构精读 45m)…',
+              'Type task & mins (e.g., System Design 45m)…',
             )}
             placeholderTextColor={pal.muted}
             style={[
@@ -1418,178 +1197,10 @@ export function IsometricStudioStage({
         </View>
       </View>
 
-      {/* Interactive 4-Step Daily Workflow Loop Ribbon (Always Visible Onboarding & Quick Loop) */}
-      <View
-        style={[
-          styles.workflowLoopRibbon,
-          {
-            backgroundColor: isDark ? 'rgba(26, 22, 19, 0.92)' : color.paperDeep,
-            borderBottomColor: pal.hairline,
-          },
-        ]}
-      >
-        <View style={styles.workflowHeaderCol}>
-          <Text variant="caption" style={{ color: pal.goldText, fontWeight: '700', fontSize: 11 }}>
-            {t('🧭 今日 4 步闭环', '🧭 4-Step Daily Loop')}
-          </Text>
-          <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>
-            {t('点击任意步骤直接打卡或联动下方模块 →', 'Click any step to log or filter modules →')}
-          </Text>
-        </View>
-
-        <View style={styles.workflowStepsRow}>
-          {dailyWorkflowSteps.map((step) => {
-            const isSelectedZone = selectedZone === step.zone;
-            return (
-              <Pressable
-                key={step.id}
-                accessibilityRole="button"
-                accessibilityLabel={`${step.num} ${step.title}`}
-                onPress={step.onPress}
-                style={({ pressed }) => [
-                  styles.workflowStepCard,
-                  {
-                    backgroundColor: isSelectedZone ? pal.pillActiveBg : pal.bentoBg,
-                    borderColor: step.done
-                      ? step.accent
-                      : isSelectedZone
-                        ? pal.goldAccent
-                        : pal.bentoBorder,
-                    opacity: pressed ? 0.85 : 1,
-                  },
-                ]}
-              >
-                <View style={styles.workflowStepTop}>
-                  <Text
-                    variant="caption"
-                    style={{
-                      color: step.done ? step.accent : pal.ink,
-                      fontWeight: '700',
-                      fontSize: 11.5,
-                    }}
-                  >
-                    {`${step.num} ${step.title}`}
-                  </Text>
-                  <View
-                    style={[
-                      styles.workflowStatusBadge,
-                      {
-                        backgroundColor: step.done
-                          ? `${step.accent}22`
-                          : isDark
-                            ? 'rgba(255,255,255,0.06)'
-                            : color.pill,
-                      },
-                    ]}
-                  >
-                    <Text
-                      variant="caption"
-                      style={{
-                        color: step.done ? step.accent : pal.muted,
-                        fontSize: 10,
-                        fontWeight: '600',
-                        fontFamily: theme.fontFamily.mono,
-                      }}
-                    >
-                      {step.status}
-                    </Text>
-                  </View>
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-
-      {/* Expandable 30-Second Visual Guide: How the 3 2.5D Islands Connect to the Homepage */}
-      {showOnboardingGuide ? (
-        <View
-          style={[
-            styles.onboardingDrawer,
-            {
-              backgroundColor: isDark ? '#171411' : color.surface,
-              borderBottomColor: pal.stageBorder,
-            },
-          ]}
-        >
-          <View style={styles.onboardingDrawerHeader}>
-            <Text variant="label" style={{ color: pal.goldText, fontWeight: '700', fontSize: 12.5 }}>
-              {t(
-                '💡 为什么首页有这三座 2.5D 岛屿？它们如何与下方工作台联动？',
-                '💡 How the 3 Isometric Islands Connect to Your Daily Workspace',
-              )}
-            </Text>
-            <Text variant="caption" style={{ color: pal.muted, fontSize: 11 }}>
-              {t(
-                '三座岛屿不是静态插画，而是「空间化总控开关」——点击任意岛屿，即可直接操作或聚焦下方对应功能区：',
-                'Each island is an interactive spatial switch—click any island to act immediately or filter the workspace below:',
-              )}
-            </Text>
-          </View>
-
-          <View style={styles.onboardingCols}>
-            {[
-              {
-                num: t('岛屿 ① · 心流书房', 'Island ① · Flow Study'),
-                accent: pal.terracottaAccent,
-                mapTo: t('联动下方：24H 时间块 & 10,000h 精进工作台', 'Links to: 24H Time-Block & 10,000h Hub'),
-                desc: t(
-                  '上方可直接输入「架构精读 60m」切入时间块；下方工作台支持 1 分钟粒度拖拽框选、60 格放大镜微调与番茄钟倒计时。',
-                  'Type "System Design 60m" above or use the 1-minute drag-to-select timeline & 60-cell magnifier below.',
-                ),
-                zone: 'focus' as LifeZoneKey,
-              },
-              {
-                num: t('岛屿 ② · 活力体态站', 'Island ② · Vitality Station'),
-                accent: pal.emeraldAccent,
-                mapTo: t('联动下方：7日均重趋势、今日训练组 & 智能穿戴同步', 'Links to: 7-Day EMA Weight, Workouts & Wearables'),
-                desc: t(
-                  '微缩体脂秤实时映射你的最新体重；点击可快速记录晨重 (⌘K)、力量训练组 (⇧⌘T) 或一键同步 Apple Watch / 体脂秤。',
-                  'The miniature scale displays your live weight. Click to log morning weight (⌘K), training sets (⇧⌘T), or sync wearables.',
-                ),
-                zone: 'vitality' as LifeZoneKey,
-              },
-              {
-                num: t('岛屿 ③ · 星愿纪念台', 'Island ③ · Astral Wish Altar'),
-                accent: pal.goldAccent,
-                mapTo: t('联动下方：人生纪念日、OKR 目标 & 心愿金库', 'Links to: Milestones, Quarterly OKRs & Wish Vault'),
-                desc: t(
-                  '浑天仪追踪最近的重要纪念日倒数；每次完成晨重、时间块或 OKR 关键结果，系统自动向你的心愿金库注入 +¥25 奖励金。',
-                  'Tracks upcoming milestones & quarterly OKRs. Every completed check-in automatically deposits +¥25 into your Wish Vault.',
-                ),
-                zone: 'wishes' as LifeZoneKey,
-              },
-            ].map((guide) => (
-              <Pressable
-                key={guide.num}
-                onPress={() => selectIslandAndSync(guide.zone)}
-                style={[
-                  styles.onboardingColCard,
-                  {
-                    backgroundColor: pal.bentoBg,
-                    borderColor: selectedZone === guide.zone ? guide.accent : pal.bentoBorder,
-                  },
-                ]}
-              >
-                <Text variant="label" style={{ color: guide.accent, fontWeight: '700', fontSize: 12 }}>
-                  {guide.num}
-                </Text>
-                <Text variant="caption" style={{ color: pal.ink, fontWeight: '600', fontSize: 11 }}>
-                  {guide.mapTo}
-                </Text>
-                <Text variant="caption" style={{ color: pal.muted, fontSize: 11, lineHeight: 15 }}>
-                  {guide.desc}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-      ) : null}
-
       {/* Perspective 1: Option-A 2.5D Isometric Diorama + Split Bento Workspace */}
       {perspective === 'diorama' ? (
         <View style={[styles.dioramaStageWrap, { backgroundColor: pal.stageBg }]}>
-          {/* Upper Stage: 3 Sculpted 2.5D Isometric Islands */}
+          {/* Upper Stage: 3 Sculpted 2.5D Isometric Islands (Act as Clean Spatial Tabs) */}
           <View style={[styles.stageGridBg, { backgroundColor: pal.stageBg }]}>
             <Golden24HourRibbonBridgesSvg timerRunning={timer.isRunning} isDark={isDark} />
 
@@ -1605,28 +1216,6 @@ export function IsometricStudioStage({
                 ]}
               >
                 <View style={styles.islandArtWrap}>
-                  {/* Interactive Callout Pin */}
-                  <View
-                    style={[
-                      styles.islandCalloutPin,
-                      {
-                        backgroundColor:
-                          selectedZone === 'focus' ? pal.terracottaAccent : pal.pillBg,
-                        borderColor: pal.terracottaAccent,
-                      },
-                    ]}
-                  >
-                    <Text
-                      variant="caption"
-                      style={{
-                        color: selectedZone === 'focus' ? '#fffbeb' : pal.goldText,
-                        fontSize: 10,
-                        fontWeight: '700',
-                      }}
-                    >
-                      {t('① 点击联动：专注 & 24H时间轴', '① Click: Focus & 24H Timeline')}
-                    </Text>
-                  </View>
                   <IsometricLifeZoneSvg
                     zone="focus"
                     active={selectedZone === 'focus'}
@@ -1646,7 +1235,7 @@ export function IsometricStudioStage({
                   >
                     <View style={styles.hudTitleRow}>
                       <Text variant="label" style={[styles.hudTitleText, { color: pal.ink }]}>
-                        {t('心流书房', 'Flow Study')}
+                        {t('① 心流书房', '① Flow Study')}
                       </Text>
                       <View style={[styles.hudProgressRing, { borderColor: pal.goldAccent }]}>
                         <View style={[styles.hudProgressDot, { backgroundColor: pal.goldAccent }]} />
@@ -1675,28 +1264,6 @@ export function IsometricStudioStage({
                 ]}
               >
                 <View style={styles.islandArtWrap}>
-                  {/* Interactive Callout Pin */}
-                  <View
-                    style={[
-                      styles.islandCalloutPin,
-                      {
-                        backgroundColor:
-                          selectedZone === 'vitality' ? pal.emeraldAccent : pal.pillBg,
-                        borderColor: pal.emeraldAccent,
-                      },
-                    ]}
-                  >
-                    <Text
-                      variant="caption"
-                      style={{
-                        color: selectedZone === 'vitality' ? '#052e16' : pal.emeraldAccent,
-                        fontSize: 10,
-                        fontWeight: '700',
-                      }}
-                    >
-                      {t('② 点击联动：晨重 & 训练/手环', '② Click: Weight & Workout')}
-                    </Text>
-                  </View>
                   <IsometricLifeZoneSvg
                     zone="vitality"
                     active={selectedZone === 'vitality'}
@@ -1716,7 +1283,7 @@ export function IsometricStudioStage({
                   >
                     <View style={styles.hudTitleRow}>
                       <Text variant="label" style={[styles.hudTitleText, { color: pal.ink }]}>
-                        {t('活力体态', 'Vitality')}
+                        {t('② 活力体态', '② Vitality')}
                       </Text>
                       <Text variant="caption" style={{ color: pal.emeraldAccent, fontSize: 12 }}>
                         ↻
@@ -1745,28 +1312,6 @@ export function IsometricStudioStage({
                 ]}
               >
                 <View style={styles.islandArtWrap}>
-                  {/* Interactive Callout Pin */}
-                  <View
-                    style={[
-                      styles.islandCalloutPin,
-                      {
-                        backgroundColor:
-                          selectedZone === 'wishes' ? pal.goldAccent : pal.pillBg,
-                        borderColor: pal.goldAccent,
-                      },
-                    ]}
-                  >
-                    <Text
-                      variant="caption"
-                      style={{
-                        color: selectedZone === 'wishes' ? '#1c1917' : pal.goldText,
-                        fontSize: 10,
-                        fontWeight: '700',
-                      }}
-                    >
-                      {t('③ 点击联动：纪念日 & OKR/心愿', '③ Click: Milestones & OKR')}
-                    </Text>
-                  </View>
                   <IsometricLifeZoneSvg
                     zone="wishes"
                     active={selectedZone === 'wishes'}
@@ -1786,7 +1331,7 @@ export function IsometricStudioStage({
                   >
                     <View style={styles.hudTitleRow}>
                       <Text variant="label" style={[styles.hudTitleText, { color: pal.ink }]}>
-                        {t('星愿纪念台', 'Wish Altar')}
+                        {t('③ 星愿纪念台', '③ Wish Altar')}
                       </Text>
                       <Text variant="caption" style={{ color: pal.goldAccent, fontSize: 11 }}>
                         🎁
@@ -1803,111 +1348,6 @@ export function IsometricStudioStage({
                   </View>
                 </View>
               </Pressable>
-            </View>
-
-            {/* Active Island Command Dock: Bridges the 3 2.5D Islands with the Homepage Modules Below */}
-            <View
-              style={[
-                styles.islandCommandDock,
-                {
-                  backgroundColor: pal.barBg,
-                  borderColor: activeIslandInfo.accent,
-                },
-              ]}
-            >
-              <View style={styles.islandDockLeft}>
-                <View
-                  style={[
-                    styles.islandDockBadge,
-                    { backgroundColor: `${activeIslandInfo.accent}22`, borderColor: activeIslandInfo.accent },
-                  ]}
-                >
-                  <Text
-                    variant="caption"
-                    style={{ color: activeIslandInfo.accent, fontWeight: '700', fontSize: 11 }}
-                  >
-                    {activeIslandInfo.badge}
-                  </Text>
-                </View>
-                <Text
-                  variant="caption"
-                  style={{ color: pal.sub, fontSize: 11.5, flex: 1 }}
-                  numberOfLines={1}
-                >
-                  {activeIslandInfo.title}
-                </Text>
-              </View>
-
-              <View style={styles.islandDockActions}>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={activeIslandInfo.onPrimary}
-                  style={[
-                    styles.dockActionBtn,
-                    {
-                      backgroundColor: pal.pillActiveBg,
-                      borderColor: activeIslandInfo.accent,
-                    },
-                  ]}
-                >
-                  <Text
-                    variant="caption"
-                    style={{ color: pal.goldText, fontWeight: '700', fontSize: 11 }}
-                  >
-                    {activeIslandInfo.ctaLabel}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={activeIslandInfo.onSecondary}
-                  style={[
-                    styles.dockActionBtn,
-                    {
-                      backgroundColor: pal.pillBg,
-                      borderColor: pal.bentoBorder,
-                    },
-                  ]}
-                >
-                  <Text
-                    variant="caption"
-                    style={{ color: pal.ink, fontWeight: '600', fontSize: 11 }}
-                  >
-                    {activeIslandInfo.secondaryLabel}
-                  </Text>
-                </Pressable>
-                {onSelectModuleFilter ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() =>
-                      onSelectModuleFilter(
-                        activeModuleFilter === selectedZone ? 'all' : selectedZone,
-                      )
-                    }
-                    style={[
-                      styles.dockActionBtn,
-                      {
-                        backgroundColor:
-                          activeModuleFilter === selectedZone ? pal.pillActiveBg : pal.pillBg,
-                        borderColor:
-                          activeModuleFilter === selectedZone ? pal.goldAccent : pal.bentoBorder,
-                      },
-                    ]}
-                  >
-                    <Text
-                      variant="caption"
-                      style={{
-                        color: activeModuleFilter === selectedZone ? pal.goldText : pal.muted,
-                        fontWeight: '600',
-                        fontSize: 11,
-                      }}
-                    >
-                      {activeModuleFilter === selectedZone
-                        ? t('✦ 正在聚焦该模块 (点此看全部)', '✦ Filtering Module (Show All)')
-                        : t('🔍 仅看下方对应模块', '🔍 Filter Below to This Zone')}
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </View>
             </View>
           </View>
 
@@ -2474,66 +1914,6 @@ export function IsometricStudioStage({
         </View>
       ) : null}
 
-      {/* Bottom Quick Action Strip */}
-      <View
-        style={[
-          styles.quickDispatchBar,
-          {
-            backgroundColor: pal.barBg,
-            borderTopColor: pal.hairline,
-          },
-        ]}
-      >
-        <View style={styles.quickDispatchLeft}>
-          <Text variant="caption" style={{ color: pal.muted, fontWeight: '600' }}>
-            {t('快捷记录', 'Quick Log')}
-          </Text>
-          <Pressable
-            onPress={onQuickWeight}
-            style={[styles.quickPill, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
-          >
-            <Text variant="caption" style={[styles.quickPillText, { color: pal.ink }]}>
-              {t('＋ 晨重 ⌘K', '＋ Weight ⌘K')}
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={onQuickTraining}
-            style={[styles.quickPill, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
-          >
-            <Text variant="caption" style={[styles.quickPillText, { color: pal.ink }]}>
-              {t('＋ 训练 ⇧⌘T', '＋ Workout ⇧⌘T')}
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={onQuickStudy}
-            style={[styles.quickPill, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
-          >
-            <Text variant="caption" style={[styles.quickPillText, { color: pal.ink }]}>
-              {t('＋ 学习 ⇧⌘L', '＋ Study ⇧⌘L')}
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={onQuickJournal}
-            style={[styles.quickPill, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
-          >
-            <Text variant="caption" style={[styles.quickPillText, { color: pal.ink }]}>
-              {t('＋ 时间块 ⇧⌘J', '＋ Time Block ⇧⌘J')}
-            </Text>
-          </Pressable>
-        </View>
-        {onOpenScope ? (
-          <Pressable
-            onPress={onOpenScope}
-            style={[styles.quickPill, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
-          >
-            <Text variant="caption" style={[styles.quickPillText, { color: pal.ink }]}>
-              {mode === 'charioteer-host'
-                ? t('Charioteer 挂载态 (⌘B) →', 'Charioteer Host (⌘B) →')
-                : t('工作台导览 (⌘B) →', 'Workbench Guide (⌘B) →')}
-            </Text>
-          </Pressable>
-        ) : null}
-      </View>
     </View>
   );
 }

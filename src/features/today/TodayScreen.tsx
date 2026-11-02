@@ -158,15 +158,10 @@ export function TodayScreen() {
 
   const hudSummary = `${last ? `${formatKg(last.weightKg)} kg · ` : ''}${t(`${loggedCount}/3 已记`, `${loggedCount}/3 Logged`)}`;
 
-  const showVitalitySection = activeModuleFilter === 'all' || activeModuleFilter === 'vitality';
-  const showFocusSection = activeModuleFilter === 'all' || activeModuleFilter === 'focus';
-  const showWishesSection = activeModuleFilter === 'all' || activeModuleFilter === 'wishes';
-
-  const filterTabs: { id: SpatialModuleFilter; label: string }[] = [
-    { id: 'all', label: t('✦ 全部工作台模块', '✦ All Modules') },
-    { id: 'focus', label: t('① 心流书房 · 24H时间轴 & 1万小时', '① Flow Study · 24H & 10,000h') },
-    { id: 'vitality', label: t('② 活力体态 · 晨重、训练 & 手环', '② Vitality · Weight & Workout') },
-    { id: 'wishes', label: t('③ 星愿纪念台 · 纪念日、OKR & 心愿金', '③ Wish Altar · OKR & Vault') },
+  const deepDrawerTabs: { id: Exclude<SpatialModuleFilter, 'all'>; label: string }[] = [
+    { id: 'focus', label: t('① 24H 1m时间轴 & 1万小时', '① 24H 1m Timeline & 10,000h') },
+    { id: 'vitality', label: t('② 蓝牙体脂秤 & 手环同步', '② BLE Scale & Wearable Sync') },
+    { id: 'wishes', label: t('③ 纪念日、OKR & 心愿金库', '③ Milestones, OKR & Wish Vault') },
   ];
 
   return (
@@ -238,63 +233,20 @@ export function TodayScreen() {
             />
           ) : null}
 
-          {/* Synchronized Spatial Module Filter Bar (Connects 2.5D Islands <-> Below Modules) */}
-          {layout === 'expanded' || Platform.OS === 'web' ? (
-            <Card>
-              <Row justify="between" align="center" gap="sm" wrap>
-                <Row gap="xs" align="center" wrap>
-                  <TagChip
-                    label={t('2.5D 沙盘联动导航', '2.5D Spatial Filter')}
-                    tone="owner"
-                  />
-                  <Text variant="caption" tone="muted">
-                    {t(
-                      '点击上方 2.5D 沙盘三座岛屿或下方标签，可按区域聚焦工作台：',
-                      'Click any 2.5D island above or tab below to focus workspace modules:',
-                    )}
-                  </Text>
-                </Row>
-                <Row gap="xs" align="center" wrap>
-                  {filterTabs.map((tab) => (
-                    <CockpitPillButton
-                      key={tab.id}
-                      label={tab.label}
-                      active={activeModuleFilter === tab.id}
-                      accessibilityLabel={tab.label}
-                      onPress={() => setActiveModuleFilter(tab.id)}
-                    />
-                  ))}
-                </Row>
-              </Row>
-            </Card>
-          ) : null}
-
           <MonthEndNotice timeZone={timeZone} />
 
-          {/* When user clicks Island ① (Focus), bring TimeBlockMasteryHub right to the top */}
-          {activeModuleFilter === 'focus' ? (
-            <TimeBlockMasteryHub
-              localDay={accounting}
-              onSyncStudyRecord={(input) => study.saveRecord(input)}
-              onSyncTrainingSet={(input) => training.saveSet(input)}
-            />
-          ) : null}
-
           {/* 2. Sleek 7-Day Average & Today's Records Cockpit Card */}
-          {showVitalitySection ? (
-            <AverageBlock
-              records={counted}
-              endDay={accounting}
-              ready={ready}
-              failed={loadError !== null}
-              showSkeleton={weightGate.showSkeleton}
-              timedOut={weightGate.timedOut}
-              lastWeightKg={last?.weightKg}
-            />
-          ) : null}
+          <AverageBlock
+            records={counted}
+            endDay={accounting}
+            ready={ready}
+            failed={loadError !== null}
+            showSkeleton={weightGate.showSkeleton}
+            timedOut={weightGate.timedOut}
+            lastWeightKg={last?.weightKg}
+          />
 
-          {showVitalitySection ? (
-            <LoadingRegion
+          <LoadingRegion
               name="今日"
               loading={!ready}
               error={loadError !== null}
@@ -457,11 +409,9 @@ export function TodayScreen() {
                 ) : null}
               </Stack>
             </LoadingRegion>
-          ) : null}
         </Stack>
 
-        {showVitalitySection || showFocusSection ? (
-          <CardRow>
+        <CardRow>
             <WeightColumn
               ready={ready}
               failed={loadError !== null}
@@ -528,7 +478,6 @@ export function TodayScreen() {
               </LoadingRegion>
             </Stack>
           </CardRow>
-        ) : null}
 
         {trainingDetail
           ? trainingToday.map((set) => {
@@ -571,18 +520,44 @@ export function TodayScreen() {
             })
           : null}
 
-        {showWishesSection ? (
-          <LifeMilestonesOkrHub
-            localDay={accounting}
-            latestWeightKg={last?.weightKg ?? null}
-            totalWorkoutSets={countedTraining.length}
-            totalStudyHours={
-              countedStudy.reduce((sum, item) => sum + item.durationMinutes, 0) / 60
-            }
-          />
-        ) : null}
+        {/* Progressive Disclosure Bar: Heavy Workbenches Expand ONLY on Demand (or via 2.5D Island Click) */}
+        <Card>
+          <Row justify="between" align="center" gap="sm" wrap>
+            <Row gap="xs" align="center" wrap>
+              <TagChip
+                label={t('深度工作台 · 按需展开', 'Deep Workbenches · On Demand')}
+                tone={activeModuleFilter === 'all' ? 'neutral' : 'exec'}
+              />
+              <Text variant="caption" tone="muted">
+                {t(
+                  '默认折叠以保持首页清爽；点击上方 2.5D 岛屿或右侧按钮即可展开对应深度工具：',
+                  'Collapsed by default for low visual entropy—click a 2.5D island or pill to expand:',
+                )}
+              </Text>
+            </Row>
+            <Row gap="xs" align="center" wrap>
+              {deepDrawerTabs.map((tab) => (
+                <CockpitPillButton
+                  key={tab.id}
+                  label={tab.label}
+                  active={activeModuleFilter === tab.id}
+                  accessibilityLabel={tab.label}
+                  onPress={() =>
+                    setActiveModuleFilter((prev) => (prev === tab.id ? 'all' : tab.id))
+                  }
+                />
+              ))}
+              {activeModuleFilter !== 'all' ? (
+                <CockpitPillButton
+                  label={t('▲ 收起工作台', '▲ Collapse')}
+                  onPress={() => setActiveModuleFilter('all')}
+                />
+              ) : null}
+            </Row>
+          </Row>
+        </Card>
 
-        {activeModuleFilter === 'all' ? (
+        {activeModuleFilter === 'focus' ? (
           <TimeBlockMasteryHub
             localDay={accounting}
             onSyncStudyRecord={(input) => study.saveRecord(input)}
@@ -590,7 +565,7 @@ export function TodayScreen() {
           />
         ) : null}
 
-        {showVitalitySection ? (
+        {activeModuleFilter === 'vitality' ? (
           <WearableSyncHub
             latestWeightKg={last?.weightKg}
             localDay={accounting}
@@ -599,13 +574,23 @@ export function TodayScreen() {
           />
         ) : null}
 
-        {showWishesSection ? (
-          <LifeSynergyPlaygroundHub
-            localDay={accounting}
-            weightRecords={counted}
-            trainingSets={countedTraining}
-            studyRecords={countedStudy}
-          />
+        {activeModuleFilter === 'wishes' ? (
+          <Stack gap="md">
+            <LifeMilestonesOkrHub
+              localDay={accounting}
+              latestWeightKg={last?.weightKg ?? null}
+              totalWorkoutSets={countedTraining.length}
+              totalStudyHours={
+                countedStudy.reduce((sum, item) => sum + item.durationMinutes, 0) / 60
+              }
+            />
+            <LifeSynergyPlaygroundHub
+              localDay={accounting}
+              weightRecords={counted}
+              trainingSets={countedTraining}
+              studyRecords={countedStudy}
+            />
+          </Stack>
         ) : null}
       </Content>
     </Screen>

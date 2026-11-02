@@ -27,6 +27,10 @@ import { showToast } from './toast';
 import { useI18n } from './use-i18n';
 import { CockpitPillButton, TagChip } from './WorkbenchConsole';
 
+/**
+ * Low-Entropy Single-Line "Next Best Action" Bar.
+ * Shows only the single most relevant next action right now with 1-tap zero-typing pills.
+ */
 export function OneTapSmartFlowCard({
   localDay,
   lastWeightKg,
@@ -80,42 +84,32 @@ export function OneTapSmartFlowCard({
   });
 
   const activeStage: OneTapStageId = manualStageOverride ?? plan.recommendedStage;
-  const weightPresets = buildOneTapWeightPresets(lastWeightKg);
+  const weightPresets = buildOneTapWeightPresets(lastWeightKg).slice(0, 3); // Keep only top 3 low-entropy choices: Same, -0.2, -0.1 / +0.1
 
   const pal = isDark
     ? {
         cardBg: '#161412',
-        cardBorder: 'rgba(245, 185, 66, 0.38)',
-        innerBg: '#1d1a16',
-        innerBorder: 'rgba(255, 248, 235, 0.10)',
-        primaryBtnBg: 'rgba(245, 185, 66, 0.20)',
+        cardBorder: 'rgba(245, 185, 66, 0.32)',
+        primaryBtnBg: 'rgba(245, 185, 66, 0.18)',
         primaryBtnBorder: '#f5b942',
         primaryBtnText: '#fef08a',
-        secondaryBtnBg: '#25211d',
-        secondaryBtnBorder: 'rgba(255, 248, 235, 0.14)',
+        secondaryBtnBg: '#221f1b',
+        secondaryBtnBorder: 'rgba(255, 248, 235, 0.12)',
         ink: '#fafaf9',
-        sub: '#d6d3d1',
         muted: '#a8a29e',
         emerald: '#34d399',
-        gold: '#f5b942',
-        terracotta: '#e8924a',
       }
     : {
         cardBg: color.card,
-        cardBorder: color.accent,
-        innerBg: color.surface,
-        innerBorder: color.line,
+        cardBorder: color.line,
         primaryBtnBg: color.accentSoft,
         primaryBtnBorder: color.accent,
         primaryBtnText: color.accent,
-        secondaryBtnBg: color.card,
+        secondaryBtnBg: color.surface,
         secondaryBtnBorder: color.line,
         ink: color.ink,
-        sub: color.ink,
         muted: color.muted,
         emerald: color.green,
-        gold: '#b88228',
-        terracotta: color.accent,
       };
 
   function handleInstantWeightTap(weightKg: number) {
@@ -124,8 +118,8 @@ export function OneTapSmartFlowCard({
     setManualStageOverride(null);
     showToast({
       text: t(
-        `✓ 已一键记入晨重 ${weightKg.toFixed(1)} kg · 心愿金库 +¥${v.config.checkInRewardCny}`,
-        `✓ Logged ${weightKg.toFixed(1)} kg in 1 tap · Wish Vault +¥${v.config.checkInRewardCny}`,
+        `✓ 已记晨重 ${weightKg.toFixed(1)} kg · 心愿金 +¥${v.config.checkInRewardCny}`,
+        `✓ Logged ${weightKg.toFixed(1)} kg · Wish Vault +¥${v.config.checkInRewardCny}`,
       ),
     });
   }
@@ -154,8 +148,8 @@ export function OneTapSmartFlowCard({
     setManualStageOverride(null);
     showToast({
       text: t(
-        `✓ 已一键记入「${title}」${preset.durationMinutes} 分钟 & 24H时间轴 · 心愿金 +¥${v.config.checkInRewardCny}`,
-        `✓ Logged "${title}" (${preset.durationMinutes}m) & 24H Timeline · Wish Vault +¥${v.config.checkInRewardCny}`,
+        `✓ 已记专注「${title}」${preset.durationMinutes}m · 心愿金 +¥${v.config.checkInRewardCny}`,
+        `✓ Logged "${title}" (${preset.durationMinutes}m) · Wish Vault +¥${v.config.checkInRewardCny}`,
       ),
     });
   }
@@ -172,8 +166,8 @@ export function OneTapSmartFlowCard({
     setManualStageOverride(null);
     showToast({
       text: t(
-        `✓ 已一键记入训练「${exerciseName} × ${preset.reps}次」· 心愿金 +¥${v.config.checkInRewardCny}`,
-        `✓ Logged "${exerciseName} × ${preset.reps}" in 1 tap · Wish Vault +¥${v.config.checkInRewardCny}`,
+        `✓ 已记训练「${exerciseName} × ${preset.reps}」· 心愿金 +¥${v.config.checkInRewardCny}`,
+        `✓ Logged "${exerciseName} × ${preset.reps}" · Wish Vault +¥${v.config.checkInRewardCny}`,
       ),
     });
   }
@@ -192,140 +186,65 @@ export function OneTapSmartFlowCard({
     setManualStageOverride(null);
     showToast({
       text: t(
-        `✓ 已一键完成今日微习惯与 OKR 关键结果推进 · 心愿金库 +¥${v.config.checkInRewardCny}`,
-        `✓ Completed Daily Habit & OKR Check-In in 1 tap · Wish Vault +¥${v.config.checkInRewardCny}`,
+        `✓ 已完成今日习惯与 OKR 推进 · 心愿金 +¥${v.config.checkInRewardCny}`,
+        `✓ Completed Daily Habit & OKR · Wish Vault +¥${v.config.checkInRewardCny}`,
       ),
     });
   }
 
-  async function handleSmartSweepAllRemaining() {
-    const baseKg = lastWeightKg && lastWeightKg > 0 ? Math.round(lastWeightKg * 10) / 10 : 70.0;
-    if (!hasWeightToday) {
-      onOneTapSaveWeight(baseKg);
-    }
-    if (!hasFocusToday) {
-      const p = ONE_TAP_FOCUS_PRESETS[0]!;
-      onOneTapSaveStudy({
-        topic: t(p.topicZh, p.topicEn),
-        durationMinutes: p.durationMinutes,
-        note: t('一键智能补齐', '1-Tap Smart Sweep'),
-      });
-    }
-    if (!hasWorkoutToday) {
-      const w = ONE_TAP_WORKOUT_PRESETS[0]!;
-      await onOneTapSaveWorkout({
-        exercise: t(w.exerciseZh, w.exerciseEn),
-        reps: w.reps,
-        weightKg: w.weightKg,
-        bandLevel: w.bandLevel,
-      });
-    }
-    handleInstantEveningTap();
-  }
-
-  const stageTabs: {
-    id: OneTapStageId;
-    num: string;
-    label: string;
-    done: boolean;
-  }[] = [
-    {
-      id: 'weight',
-      num: '①',
-      label: t('晨起记体重', 'Weigh-In'),
-      done: hasWeightToday,
-    },
-    {
-      id: 'focus',
-      num: '②',
-      label: t('专注/时间块', 'Focus Block'),
-      done: hasFocusToday,
-    },
-    {
-      id: 'training',
-      num: '③',
-      label: t('记训练组', 'Workout'),
-      done: hasWorkoutToday,
-    },
-    {
-      id: 'evening',
-      num: '④',
-      label: t('习惯 & OKR', 'Habit & OKR'),
-      done: hasEveningCheckInToday,
-    },
+  const stages: { id: OneTapStageId; label: string; done: boolean }[] = [
+    { id: 'weight', label: t('① 晨重', '① Weight'), done: hasWeightToday },
+    { id: 'focus', label: t('② 专注', '② Focus'), done: hasFocusToday },
+    { id: 'training', label: t('③ 训练', '③ Workout'), done: hasWorkoutToday },
+    { id: 'evening', label: t('④ 心愿', '④ OKR'), done: hasEveningCheckInToday },
   ];
 
   return (
     <View
       testID="today-onetap-smart-flow"
       style={[
-        styles.container,
+        styles.bar,
         {
           backgroundColor: pal.cardBg,
           borderColor: pal.cardBorder,
         },
       ]}
     >
-      {/* Top Row: User-Perspective "What Do I Tap First?" Guidance + 4-Step Switcher */}
-      <View style={styles.headerRow}>
-        <View style={styles.headerLeft}>
-          <View style={styles.badgeRow}>
-            <TagChip
-              label={t(plan.promptBadgeZh, plan.promptBadgeEn)}
-              tone={plan.completedSteps === 4 ? 'exec' : 'owner'}
-            />
-            <Text variant="caption" style={{ color: pal.muted }}>
-              {t(
-                `零输入免打字 · 点按 1 次即完成记录 (${plan.completedSteps}/4)`,
-                `Zero typing · 1-Tap Instant Log (${plan.completedSteps}/4)`,
-              )}
-            </Text>
-          </View>
-          <Text variant="label" style={[styles.headline, { color: pal.ink }]}>
-            {t(plan.headlineZh, plan.headlineEn)}
-          </Text>
-          <Text variant="caption" style={{ color: pal.muted }}>
-            {t(plan.sublineZh, plan.sublineEn)}
-          </Text>
-        </View>
-
-        {/* 4-Step Instant Mode Switcher */}
-        <View style={styles.stagePillsWrap}>
-          {stageTabs.map((st) => {
-            const isActive = activeStage === st.id;
+      {/* Left: Concise Next Step Indicator + Mini Step Dots */}
+      <View style={styles.leftCluster}>
+        <TagChip
+          label={t(plan.promptBadgeZh, plan.promptBadgeEn)}
+          tone={plan.completedSteps === 4 ? 'exec' : 'owner'}
+        />
+        <Text variant="label" style={[styles.headline, { color: pal.ink }]} numberOfLines={1}>
+          {t(plan.headlineZh, plan.headlineEn)}
+        </Text>
+        <View style={styles.stepDotsRow}>
+          {stages.map((st) => {
+            const active = activeStage === st.id;
             return (
               <Pressable
                 key={st.id}
                 accessibilityRole="button"
-                accessibilityLabel={`切换一键动作 ${st.label}`}
-                onPress={() =>
-                  setManualStageOverride((prev) => (prev === st.id ? null : st.id))
-                }
+                accessibilityLabel={`切换步骤 ${st.label}`}
+                onPress={() => setManualStageOverride((p) => (p === st.id ? null : st.id))}
                 style={[
-                  styles.stageTabBtn,
+                  styles.miniStepPill,
                   {
-                    backgroundColor: isActive ? pal.primaryBtnBg : pal.innerBg,
-                    borderColor: isActive
-                      ? pal.primaryBtnBorder
-                      : st.done
-                        ? pal.emerald
-                        : pal.innerBorder,
+                    backgroundColor: active ? pal.primaryBtnBg : 'transparent',
+                    borderColor: active ? pal.primaryBtnBorder : st.done ? pal.emerald : pal.secondaryBtnBorder,
                   },
                 ]}
               >
                 <Text
                   variant="caption"
                   style={{
-                    color: st.done
-                      ? pal.emerald
-                      : isActive
-                        ? pal.primaryBtnText
-                        : pal.sub,
-                    fontWeight: isActive || st.done ? '700' : '500',
-                    fontSize: 11.5,
+                    fontSize: 10.5,
+                    fontWeight: active || st.done ? '700' : '500',
+                    color: st.done ? pal.emerald : active ? pal.primaryBtnText : pal.muted,
                   }}
                 >
-                  {`${st.done ? '✓' : st.num} ${st.label}`}
+                  {st.done ? `✓ ${st.label.slice(2)}` : st.label}
                 </Text>
               </Pressable>
             );
@@ -333,18 +252,10 @@ export function OneTapSmartFlowCard({
         </View>
       </View>
 
-      {/* Bottom Row: Big Thumb-Friendly 1-Tap Action Strip for the Active Stage */}
-      <View
-        style={[
-          styles.actionStripBox,
-          {
-            backgroundColor: pal.innerBg,
-            borderColor: pal.innerBorder,
-          },
-        ]}
-      >
+      {/* Right: 1-Tap Zero-Typing Action Pills */}
+      <View style={styles.rightActions}>
         {activeStage === 'weight' ? (
-          <View style={styles.presetButtonsRow}>
+          <>
             {weightPresets.map((preset) => (
               <Pressable
                 key={preset.id}
@@ -352,15 +263,11 @@ export function OneTapSmartFlowCard({
                 accessibilityLabel={t(preset.labelZh, preset.labelEn)}
                 onPress={() => handleInstantWeightTap(preset.weightKg)}
                 style={({ pressed }) => [
-                  styles.oneTapActionChip,
+                  styles.actionPill,
                   {
-                    backgroundColor: preset.isPrimary
-                      ? pal.primaryBtnBg
-                      : pal.secondaryBtnBg,
-                    borderColor: preset.isPrimary
-                      ? pal.primaryBtnBorder
-                      : pal.secondaryBtnBorder,
-                    opacity: pressed ? 0.82 : 1,
+                    backgroundColor: preset.isPrimary ? pal.primaryBtnBg : pal.secondaryBtnBg,
+                    borderColor: preset.isPrimary ? pal.primaryBtnBorder : pal.secondaryBtnBorder,
+                    opacity: pressed ? 0.8 : 1,
                   },
                 ]}
               >
@@ -370,7 +277,7 @@ export function OneTapSmartFlowCard({
                     color: preset.isPrimary ? pal.primaryBtnText : pal.ink,
                     fontWeight: preset.isPrimary ? '700' : '600',
                     fontFamily: theme.fontFamily.mono,
-                    fontSize: 12,
+                    fontSize: 11.5,
                   }}
                 >
                   {t(preset.labelZh, preset.labelEn)}
@@ -378,30 +285,26 @@ export function OneTapSmartFlowCard({
               </Pressable>
             ))}
             <CockpitPillButton
-              label={t('✎ 手动输入体重…', '✎ Custom Weight…')}
+              label={t('自定义…', 'Custom…')}
               onPress={() => onOpenCustomSheet('weight')}
             />
-          </View>
+          </>
         ) : null}
 
         {activeStage === 'focus' ? (
-          <View style={styles.presetButtonsRow}>
-            {ONE_TAP_FOCUS_PRESETS.map((preset) => (
+          <>
+            {ONE_TAP_FOCUS_PRESETS.slice(0, 3).map((preset) => (
               <Pressable
                 key={preset.id}
                 accessibilityRole="button"
                 accessibilityLabel={`${t(preset.topicZh, preset.topicEn)} ${preset.durationMinutes}m`}
                 onPress={() => handleInstantFocusTap(preset)}
                 style={({ pressed }) => [
-                  styles.oneTapActionChip,
+                  styles.actionPill,
                   {
-                    backgroundColor: preset.isPrimary
-                      ? pal.primaryBtnBg
-                      : pal.secondaryBtnBg,
-                    borderColor: preset.isPrimary
-                      ? pal.primaryBtnBorder
-                      : pal.secondaryBtnBorder,
-                    opacity: pressed ? 0.82 : 1,
+                    backgroundColor: preset.isPrimary ? pal.primaryBtnBg : pal.secondaryBtnBg,
+                    borderColor: preset.isPrimary ? pal.primaryBtnBorder : pal.secondaryBtnBorder,
+                    opacity: pressed ? 0.8 : 1,
                   },
                 ]}
               >
@@ -410,38 +313,34 @@ export function OneTapSmartFlowCard({
                   style={{
                     color: preset.isPrimary ? pal.primaryBtnText : pal.ink,
                     fontWeight: preset.isPrimary ? '700' : '600',
-                    fontSize: 12,
+                    fontSize: 11.5,
                   }}
                 >
-                  {`${preset.isPrimary ? '⚡ ' : '📚 '}${t(preset.topicZh, preset.topicEn)} · ${preset.durationMinutes}m`}
+                  {`${preset.isPrimary ? '⚡ ' : ''}${t(preset.topicZh, preset.topicEn)} ${preset.durationMinutes}m`}
                 </Text>
               </Pressable>
             ))}
             <CockpitPillButton
-              label={t('✎ 自定义学习/1m时间块…', '✎ Custom Study / 1m Block…')}
+              label={t('自定义…', 'Custom…')}
               onPress={() => onOpenCustomSheet('study')}
             />
-          </View>
+          </>
         ) : null}
 
         {activeStage === 'training' ? (
-          <View style={styles.presetButtonsRow}>
-            {ONE_TAP_WORKOUT_PRESETS.map((preset) => (
+          <>
+            {ONE_TAP_WORKOUT_PRESETS.slice(0, 3).map((preset) => (
               <Pressable
                 key={preset.id}
                 accessibilityRole="button"
                 accessibilityLabel={t(preset.labelZh, preset.labelEn)}
                 onPress={() => void handleInstantWorkoutTap(preset)}
                 style={({ pressed }) => [
-                  styles.oneTapActionChip,
+                  styles.actionPill,
                   {
-                    backgroundColor: preset.isPrimary
-                      ? pal.primaryBtnBg
-                      : pal.secondaryBtnBg,
-                    borderColor: preset.isPrimary
-                      ? pal.primaryBtnBorder
-                      : pal.secondaryBtnBorder,
-                    opacity: pressed ? 0.82 : 1,
+                    backgroundColor: preset.isPrimary ? pal.primaryBtnBg : pal.secondaryBtnBg,
+                    borderColor: preset.isPrimary ? pal.primaryBtnBorder : pal.secondaryBtnBorder,
+                    opacity: pressed ? 0.8 : 1,
                   },
                 ]}
               >
@@ -450,7 +349,7 @@ export function OneTapSmartFlowCard({
                   style={{
                     color: preset.isPrimary ? pal.primaryBtnText : pal.ink,
                     fontWeight: preset.isPrimary ? '700' : '600',
-                    fontSize: 12,
+                    fontSize: 11.5,
                   }}
                 >
                   {t(preset.labelZh, preset.labelEn)}
@@ -458,72 +357,37 @@ export function OneTapSmartFlowCard({
               </Pressable>
             ))}
             <CockpitPillButton
-              label={t('✎ 更多动作/负重…', '✎ Custom Exercise…')}
+              label={t('自定义…', 'Custom…')}
               onPress={() => onOpenCustomSheet('training')}
             />
-          </View>
+          </>
         ) : null}
 
         {activeStage === 'evening' ? (
-          <View style={styles.presetButtonsRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('一键完成今日习惯与 OKR 推进', '1-Tap Complete Daily Habit & OKR')}
-              onPress={handleInstantEveningTap}
-              style={({ pressed }) => [
-                styles.oneTapActionChip,
-                {
-                  backgroundColor: pal.primaryBtnBg,
-                  borderColor: pal.primaryBtnBorder,
-                  opacity: pressed ? 0.82 : 1,
-                },
-              ]}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('一键完成今日习惯与 OKR 推进', '1-Tap Complete Daily Habit & OKR')}
+            onPress={handleInstantEveningTap}
+            style={({ pressed }) => [
+              styles.actionPill,
+              {
+                backgroundColor: pal.primaryBtnBg,
+                borderColor: pal.primaryBtnBorder,
+                opacity: pressed ? 0.8 : 1,
+              },
+            ]}
+          >
+            <Text
+              variant="caption"
+              style={{
+                color: pal.primaryBtnText,
+                fontWeight: '700',
+                fontSize: 11.5,
+              }}
             >
-              <Text
-                variant="caption"
-                style={{
-                  color: pal.primaryBtnText,
-                  fontWeight: '700',
-                  fontSize: 12,
-                }}
-              >
-                {t(
-                  '⚡ 一键完成今日微习惯打卡 & OKR 推进 (+¥25 心愿金)',
-                  '⚡ 1-Tap Habit & OKR Check-In (+¥25 Wish Vault)',
-                )}
-              </Text>
-            </Pressable>
-
-            {plan.completedSteps < 4 ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('一键智能补齐今日全部未完项', '1-Tap Smart Sweep All Remaining')}
-                onPress={() => void handleSmartSweepAllRemaining()}
-                style={({ pressed }) => [
-                  styles.oneTapActionChip,
-                  {
-                    backgroundColor: pal.secondaryBtnBg,
-                    borderColor: pal.emerald,
-                    opacity: pressed ? 0.82 : 1,
-                  },
-                ]}
-              >
-                <Text
-                  variant="caption"
-                  style={{
-                    color: pal.emerald,
-                    fontWeight: '700',
-                    fontSize: 12,
-                  }}
-                >
-                  {t(
-                    '✦ 懒人模式：一键补齐今日全部未完打卡',
-                    '✦ Smart Sweep: Complete All Remaining Today in 1 Tap',
-                  )}
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
+              {t('⚡ 一键打卡习惯 & OKR (+¥25)', '⚡ 1-Tap Habit & OKR (+¥25)')}
+            </Text>
+          </Pressable>
         ) : null}
       </View>
     </View>
@@ -531,63 +395,49 @@ export function OneTapSmartFlowCard({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    borderRadius: 14,
-    borderWidth: 1.5,
+  bar: {
+    borderRadius: 12,
+    borderWidth: 1,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 10,
-  },
-  headerRow: {
+    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     flexWrap: 'wrap',
     gap: 10,
   },
-  headerLeft: {
-    flex: 1,
-    minWidth: 240,
-    gap: 3,
-  },
-  badgeRow: {
+  leftCluster: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: 8,
+    flex: 1,
+    minWidth: 240,
   },
   headline: {
-    fontSize: 15,
+    fontSize: 13.5,
     fontWeight: '700',
   },
-  stagePillsWrap: {
+  stepDotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  miniStepPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  rightActions: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: 6,
   },
-  stageTabBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  actionStripBox: {
+  actionPill: {
+    height: 30,
     paddingHorizontal: 11,
-    paddingVertical: 9,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  presetButtonsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  oneTapActionChip: {
-    minHeight: 34,
-    paddingHorizontal: 13,
-    paddingVertical: 7,
     borderRadius: 999,
     borderWidth: 1,
     alignItems: 'center',
