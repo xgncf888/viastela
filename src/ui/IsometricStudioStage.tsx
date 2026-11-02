@@ -177,6 +177,373 @@ function playStageTactileTick(kind: 'tick' | 'reward' | 'chime' | 'page' | 'rep'
 /**
  * Dual-Theme (黑金风 Dark Obsidian-Gold ⇄ 暖色调 Warm Sunlit Parchment) 2.5D Isometric Island Artwork
  */
+/**
+ * High-FPS Articulated Multi-Joint Athlete SVG Renderer.
+ * Uses continuous biomechanical phase `p ∈ [0, 1]` (`depth = Math.sin(p * Math.PI)`)
+ * so every rep smoothly interpolates joints, equipment, ground shockwaves, and sweat sparks.
+ */
+function renderArticulatedAthleteSvg({
+  pose,
+  phase,
+  reps,
+  isDark,
+  goldMetalId,
+}: {
+  pose: WorkoutPoseId;
+  phase: number;
+  reps: number;
+  isDark: boolean;
+  goldMetalId: string;
+}) {
+  // Smooth biomechanical contraction depth in [0, 1]
+  const depth = Math.sin(Math.max(0, Math.min(1, phase)) * Math.PI);
+  const isMoving = phase > 0.02 && phase < 0.98;
+
+  const skinColor = '#fde68a';
+  const headbandColor = '#ef4444';
+  const jerseyColor = isDark ? '#10b981' : '#059669';
+  const shortsColor = isDark ? '#1e293b' : '#334155';
+  const limbColor = '#fcd34d';
+  const shoeColor = '#f59e0b';
+
+  if (pose === 'squat') {
+    const hipY = 72 + depth * 12;
+    const shoulderY = 53 + depth * 11;
+    const headY = 44 + depth * 11;
+    const kneeSpread = depth * 8;
+    const kneeY = 83 + depth * 4;
+    const barY = shoulderY + 2;
+    const barBend = depth * 2.5;
+
+    return createElement(
+      'g',
+      null,
+      // Dynamic floor shadow & bottom-of-squat power shockwave
+      createElement('ellipse', {
+        cx: 108,
+        cy: 96,
+        rx: 14 + depth * 5,
+        ry: 5.5 + depth * 1.5,
+        fill: 'rgba(0,0,0,0.38)',
+      }),
+      depth > 0.45
+        ? createElement('ellipse', {
+            cx: 108,
+            cy: 96,
+            rx: 16 + depth * 12,
+            ry: 6 + depth * 4.5,
+            fill: 'none',
+            stroke: '#34d399',
+            strokeWidth: 1.5,
+            strokeOpacity: String(Math.max(0, (depth - 0.4) * 1.3)),
+          })
+        : null,
+      // Left & Right Calves + Shoes
+      createElement('line', { x1: 100, y1: 94, x2: 100 - kneeSpread, y2: kneeY, stroke: limbColor, strokeWidth: 3.2, strokeLinecap: 'round' }),
+      createElement('line', { x1: 116, y1: 94, x2: 116 + kneeSpread, y2: kneeY, stroke: limbColor, strokeWidth: 3.2, strokeLinecap: 'round' }),
+      createElement('ellipse', { cx: 99, cy: 95, rx: 4.2, ry: 2, fill: shoeColor }),
+      createElement('ellipse', { cx: 117, cy: 95, rx: 4.2, ry: 2, fill: shoeColor }),
+      // Left & Right Thighs
+      createElement('line', { x1: 100 - kneeSpread, y1: kneeY, x2: 104, y2: hipY, stroke: shortsColor, strokeWidth: 4.2, strokeLinecap: 'round' }),
+      createElement('line', { x1: 116 + kneeSpread, y1: kneeY, x2: 112, y2: hipY, stroke: shortsColor, strokeWidth: 4.2, strokeLinecap: 'round' }),
+      // Athletic Torso
+      createElement('polygon', {
+        points: `${101},${shoulderY} ${115},${shoulderY} ${113},${hipY + 1} ${103},${hipY + 1}`,
+        fill: jerseyColor,
+        stroke: '#6ee7b7',
+        strokeWidth: 0.9,
+      }),
+      // Arms gripping the barbell
+      createElement('polyline', {
+        points: `${101},${shoulderY + 2} ${93},${shoulderY + 7} ${91},${barY}`,
+        fill: 'none',
+        stroke: limbColor,
+        strokeWidth: 2.8,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round',
+      }),
+      createElement('polyline', {
+        points: `${115},${shoulderY + 2} ${123},${shoulderY + 7} ${125},${barY}`,
+        fill: 'none',
+        stroke: limbColor,
+        strokeWidth: 2.8,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round',
+      }),
+      // Head + Athletic Headband
+      createElement('circle', { cx: 108, cy: headY, r: 6, fill: skinColor, stroke: '#b45309', strokeWidth: 1.1 }),
+      createElement('line', { x1: 102, y1: headY - 2, x2: 114, y2: headY - 2, stroke: headbandColor, strokeWidth: 2.2, strokeLinecap: 'round' }),
+      // Olympic Barbell with dynamic whip/flex & twin bumper plates
+      createElement('path', {
+        d: `M 80 ${barY + barBend} Q 108 ${barY - barBend * 0.6} 136 ${barY + barBend}`,
+        fill: 'none',
+        stroke: `url(#${goldMetalId})`,
+        strokeWidth: 2.8,
+        strokeLinecap: 'round',
+      }),
+      createElement('ellipse', { cx: 83, cy: barY + barBend, rx: 3.2, ry: 6.5, fill: '#b45309', stroke: '#fde68a', strokeWidth: 1.2 }),
+      createElement('ellipse', { cx: 87, cy: barY + barBend * 0.8, rx: 2.5, ry: 5.2, fill: '#059669', stroke: '#6ee7b7', strokeWidth: 1 }),
+      createElement('ellipse', { cx: 133, cy: barY + barBend, rx: 3.2, ry: 6.5, fill: '#b45309', stroke: '#fde68a', strokeWidth: 1.2 }),
+      createElement('ellipse', { cx: 129, cy: barY + barBend * 0.8, rx: 2.5, ry: 5.2, fill: '#059669', stroke: '#6ee7b7', strokeWidth: 1 }),
+      // Sweat & Effort Sparks during rep
+      isMoving
+        ? createElement(
+            'g',
+            null,
+            createElement('circle', { cx: 94 - depth * 6, cy: headY - 6 - depth * 5, r: 1.8, fill: '#38bdf8' }),
+            createElement('circle', { cx: 122 + depth * 6, cy: headY - 5 - depth * 6, r: 2.1, fill: '#fef08a' }),
+          )
+        : null,
+      // Live Rep Counter Pill
+      createElement('rect', {
+        x: 86,
+        y: 18,
+        width: 44,
+        height: 13,
+        rx: 6.5,
+        fill: isDark ? 'rgba(12,28,22,0.94)' : 'rgba(236,253,245,0.96)',
+        stroke: '#34d399',
+        strokeWidth: 1.1,
+      }),
+      createElement(
+        'text',
+        {
+          x: 108,
+          y: 27,
+          textAnchor: 'middle',
+          fill: isDark ? '#6ee7b7' : '#065f46',
+          fontSize: '7.5',
+          fontWeight: '700',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+        },
+        `🏋️x${reps}`,
+      ),
+    );
+  }
+
+  if (pose === 'pushup') {
+    const chestY = 74 + depth * 11;
+    const hipY = 82 + depth * 6;
+    const headY = 70 + depth * 12;
+    const elbowX = 114 - depth * 5;
+    const elbowY = 83 + depth * 4;
+
+    return createElement(
+      'g',
+      null,
+      createElement('ellipse', {
+        cx: 108,
+        cy: 96,
+        rx: 20 + depth * 3,
+        ry: 6,
+        fill: 'rgba(0,0,0,0.38)',
+      }),
+      depth > 0.45
+        ? createElement('ellipse', {
+            cx: 120,
+            cy: 95,
+            rx: 8 + depth * 9,
+            ry: 3.5 + depth * 3,
+            fill: 'none',
+            stroke: '#f5b942',
+            strokeWidth: 1.4,
+            strokeOpacity: String(Math.max(0, (depth - 0.4) * 1.3)),
+          })
+        : null,
+      // Feet & Legs anchored on mat
+      createElement('ellipse', { cx: 86, cy: 94, rx: 3.5, ry: 2.2, fill: shoeColor }),
+      createElement('line', { x1: 87, y1: 93, x2: 102, y2: hipY, stroke: shortsColor, strokeWidth: 4, strokeLinecap: 'round' }),
+      // Torso plank
+      createElement('line', { x1: 102, y1: hipY, x2: 120, y2: chestY, stroke: jerseyColor, strokeWidth: 5.2, strokeLinecap: 'round' }),
+      // Articulated Upper Arm + Forearm planted on mat
+      createElement('polyline', {
+        points: `${118},${chestY + 1} ${elbowX},${elbowY} 120,95`,
+        fill: 'none',
+        stroke: limbColor,
+        strokeWidth: 3.2,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round',
+      }),
+      // Head + Headband
+      createElement('circle', { cx: 126, cy: headY, r: 5.5, fill: skinColor, stroke: '#b45309', strokeWidth: 1.1 }),
+      createElement('line', { x1: 121, y1: headY - 2, x2: 131, y2: headY - 1, stroke: headbandColor, strokeWidth: 2 }),
+      isMoving
+        ? createElement('circle', { cx: 112, cy: chestY - 10 - depth * 4, r: 2, fill: '#34d399' })
+        : null,
+      createElement('rect', {
+        x: 86,
+        y: 18,
+        width: 44,
+        height: 13,
+        rx: 6.5,
+        fill: isDark ? 'rgba(12,28,22,0.94)' : 'rgba(236,253,245,0.96)',
+        stroke: '#34d399',
+        strokeWidth: 1.1,
+      }),
+      createElement(
+        'text',
+        {
+          x: 108,
+          y: 27,
+          textAnchor: 'middle',
+          fill: isDark ? '#6ee7b7' : '#065f46',
+          fontSize: '7.5',
+          fontWeight: '700',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+        },
+        `💪x${reps}`,
+      ),
+    );
+  }
+
+  if (pose === 'press') {
+    const handY = 53 - depth * 22;
+    const elbowY = 62 - depth * 12;
+    const kneeDip = depth * 2.5;
+
+    return createElement(
+      'g',
+      null,
+      createElement('ellipse', { cx: 108, cy: 96, rx: 14, ry: 5.5, fill: 'rgba(0,0,0,0.36)' }),
+      depth > 0.5
+        ? createElement('circle', {
+            cx: 108,
+            cy: 34,
+            r: 14 + depth * 8,
+            fill: 'none',
+            stroke: '#fde68a',
+            strokeWidth: 1.3,
+            strokeOpacity: String((depth - 0.45) * 1.2),
+          })
+        : null,
+      // Legs with slight athletic drive
+      createElement('line', { x1: 103, y1: 94, x2: 104, y2: 73 + kneeDip, stroke: shortsColor, strokeWidth: 3.8, strokeLinecap: 'round' }),
+      createElement('line', { x1: 113, y1: 94, x2: 112, y2: 73 + kneeDip, stroke: shortsColor, strokeWidth: 3.8, strokeLinecap: 'round' }),
+      createElement('ellipse', { cx: 102, cy: 95, rx: 4, ry: 2, fill: shoeColor }),
+      createElement('ellipse', { cx: 114, cy: 95, rx: 4, ry: 2, fill: shoeColor }),
+      // Torso
+      createElement('polygon', {
+        points: `101,${54 + kneeDip} 115,${54 + kneeDip} 113,${73 + kneeDip} 103,${73 + kneeDip}`,
+        fill: jerseyColor,
+        stroke: '#6ee7b7',
+        strokeWidth: 0.9,
+      }),
+      // Articulated Arms pressing dumbbells overhead
+      createElement('polyline', {
+        points: `101,${56 + kneeDip} 93,${elbowY} 95,${handY}`,
+        fill: 'none',
+        stroke: limbColor,
+        strokeWidth: 3,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round',
+      }),
+      createElement('polyline', {
+        points: `115,${56 + kneeDip} 123,${elbowY} 121,${handY}`,
+        fill: 'none',
+        stroke: limbColor,
+        strokeWidth: 3,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round',
+      }),
+      // Twin Hex Dumbbells
+      createElement('rect', { x: 89, y: handY - 2.5, width: 12, height: 4.5, rx: 1.8, fill: '#f5b942', stroke: '#92400e', strokeWidth: 0.8 }),
+      createElement('rect', { x: 115, y: handY - 2.5, width: 12, height: 4.5, rx: 1.8, fill: '#f5b942', stroke: '#92400e', strokeWidth: 0.8 }),
+      // Head
+      createElement('circle', { cx: 108, cy: 46 + kneeDip, r: 5.8, fill: skinColor, stroke: '#b45309', strokeWidth: 1.1 }),
+      createElement('line', { x1: 102, y1: 44 + kneeDip, x2: 114, y2: 44 + kneeDip, stroke: headbandColor, strokeWidth: 2 }),
+      createElement('rect', {
+        x: 86,
+        y: 16,
+        width: 44,
+        height: 13,
+        rx: 6.5,
+        fill: isDark ? 'rgba(12,28,22,0.94)' : 'rgba(236,253,245,0.96)',
+        stroke: '#34d399',
+        strokeWidth: 1.1,
+      }),
+      createElement(
+        'text',
+        {
+          x: 108,
+          y: 25,
+          textAnchor: 'middle',
+          fill: isDark ? '#6ee7b7' : '#065f46',
+          fontSize: '7.5',
+          fontWeight: '700',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+        },
+        `🔔x${reps}`,
+      ),
+    );
+  }
+
+  // Pose 4: Jumping Jack ('jump') — full airborne star jump with sweeping arms & scissoring legs
+  const airLift = depth * 11;
+  const footSpread = depth * 11;
+  const armSpreadX = 8 + depth * 10;
+  const handY = 72 - depth * 38;
+
+  return createElement(
+    'g',
+    null,
+    createElement('ellipse', {
+      cx: 108,
+      cy: 96,
+      rx: Math.max(7, 14 - depth * 5),
+      ry: Math.max(3, 5.5 - depth * 2),
+      fill: 'rgba(0,0,0,0.35)',
+    }),
+    depth > 0.35
+      ? createElement('path', {
+          d: `M ${90 - depth * 4} ${58 - airLift} A 22 22 0 0 1 ${126 + depth * 4} ${58 - airLift}`,
+          fill: 'none',
+          stroke: '#34d399',
+          strokeWidth: 1.4,
+          strokeDasharray: '3 3',
+        })
+      : null,
+    // Scissoring Legs
+    createElement('line', { x1: 106, y1: 73 - airLift, x2: 104 - footSpread, y2: 94 - airLift * 0.7, stroke: limbColor, strokeWidth: 3.4, strokeLinecap: 'round' }),
+    createElement('line', { x1: 110, y1: 73 - airLift, x2: 112 + footSpread, y2: 94 - airLift * 0.7, stroke: limbColor, strokeWidth: 3.4, strokeLinecap: 'round' }),
+    // Torso
+    createElement('polygon', {
+      points: `102,${54 - airLift} 114,${54 - airLift} 112,${73 - airLift} 104,${73 - airLift}`,
+      fill: jerseyColor,
+      stroke: '#6ee7b7',
+      strokeWidth: 0.9,
+    }),
+    // Sweeping Arms
+    createElement('line', { x1: 102, y1: 56 - airLift, x2: 108 - armSpreadX, y2: handY, stroke: limbColor, strokeWidth: 3, strokeLinecap: 'round' }),
+    createElement('line', { x1: 114, y1: 56 - airLift, x2: 108 + armSpreadX, y2: handY, stroke: limbColor, strokeWidth: 3, strokeLinecap: 'round' }),
+    // Head
+    createElement('circle', { cx: 108, cy: 46 - airLift, r: 5.8, fill: skinColor, stroke: '#b45309', strokeWidth: 1.1 }),
+    createElement('line', { x1: 102, y1: 44 - airLift, x2: 114, y2: 44 - airLift, stroke: headbandColor, strokeWidth: 2 }),
+    createElement('rect', {
+      x: 86,
+      y: 16,
+      width: 44,
+      height: 13,
+      rx: 6.5,
+      fill: isDark ? 'rgba(12,28,22,0.94)' : 'rgba(236,253,245,0.96)',
+      stroke: '#34d399',
+      strokeWidth: 1.1,
+    }),
+    createElement(
+      'text',
+      {
+        x: 108,
+        y: 25,
+        textAnchor: 'middle',
+        fill: isDark ? '#6ee7b7' : '#065f46',
+        fontSize: '7.5',
+        fontWeight: '700',
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+      },
+      `🔥x${reps}`,
+    ),
+  );
+}
+
 function IsometricLifeZoneSvg({
   zone,
   active,
@@ -185,8 +552,9 @@ function IsometricLifeZoneSvg({
   isDark,
   weightText,
   bookPageCount = 0,
+  bookAnimPhase = 0,
   workoutPose = 'squat',
-  workoutFrame = 0,
+  workoutAnimPhase = 0,
   workoutReps = 0,
 }: {
   zone: LifeZoneKey;
@@ -196,8 +564,9 @@ function IsometricLifeZoneSvg({
   isDark: boolean;
   weightText: string;
   bookPageCount?: number;
+  bookAnimPhase?: number;
   workoutPose?: WorkoutPoseId;
-  workoutFrame?: number;
+  workoutAnimPhase?: number;
   workoutReps?: number;
 }) {
   const rimColor =
@@ -475,47 +844,89 @@ function IsometricLifeZoneSvg({
             ry: 16,
             fill: `url(#${lampConeId})`,
           }),
-          // Interactive Open Book on Desk (Flips page & glows on click)
+          // Interactive 3D Open Tome on Desk with 60fps Curved Page-Turn Sweep
           createElement('polygon', {
-            points: '92,94 118,83 106,76 80,87',
+            points: '88,95 118,83 106,75 76,87',
             fill: '#fffbeb',
             stroke: '#d97706',
-            strokeWidth: 1.1,
+            strokeWidth: 1.2,
           }),
           createElement('polygon', {
-            points: '118,83 144,72 132,65 106,76',
+            points: '118,83 148,71 136,63 106,75',
             fill: '#fef3c7',
             stroke: '#d97706',
-            strokeWidth: 1.1,
+            strokeWidth: 1.2,
           }),
-          // Dynamic Flipping Page Leaf (alternates angle with bookPageCount)
-          createElement('polygon', {
-            points:
-              bookPageCount % 2 === 1
-                ? '118,83 136,62 122,56 106,76'
-                : '118,83 102,65 90,72 106,76',
-            fill: '#ffffff',
-            stroke: '#f59e0b',
-            strokeWidth: 1.1,
-          }),
-          createElement('line', { x1: 93, y1: 86, x2: 109, y2: 79, stroke: '#92400e', strokeWidth: 0.8 }),
-          createElement('line', { x1: 116, y1: 77, x2: 132, y2: 70, stroke: '#92400e', strokeWidth: 0.8 }),
+          // Spine & Bookmark Ribbon
+          createElement('line', { x1: 106, y1: 75, x2: 118, y2: 83, stroke: '#92400e', strokeWidth: 1.6 }),
+          createElement('path', { d: 'M 118 83 Q 121 91 116 96', fill: 'none', stroke: '#ef4444', strokeWidth: 1.6 }),
+          // Animated Ink Lines on Left & Right Pages
+          createElement('line', { x1: 86, y1: 87, x2: 106, y2: 79, stroke: '#92400e', strokeWidth: 0.8 }),
+          createElement('line', { x1: 90, y1: 90, x2: 110, y2: 82, stroke: '#b45309', strokeWidth: 0.8 }),
+          createElement('line', { x1: 115, y1: 76, x2: 135, y2: 68, stroke: '#92400e', strokeWidth: 0.8 }),
+          createElement('line', { x1: 119, y1: 79, x2: 139, y2: 71, stroke: '#b45309', strokeWidth: 0.8 }),
+          // 60fps 3D Curved Flipping Page Leaf ( sweeps 0 -> 1 across isometric spine )
+          (() => {
+            const p = bookAnimPhase;
+            const angle = p * Math.PI;
+            const cosA = Math.cos(angle);
+            const sinA = Math.sin(angle);
+            const outerBottomX = 118 + 26 * cosA;
+            const outerBottomY = 83 - 10 * cosA - 18 * sinA;
+            const outerTopX = 106 + 26 * cosA;
+            const outerTopY = 75 - 10 * cosA - 19 * sinA;
+            const curlArch = 9 * sinA;
+            return createElement(
+              'g',
+              null,
+              createElement('path', {
+                d: `M 118 83 Q ${(118 + outerBottomX) / 2} ${(83 + outerBottomY) / 2 - curlArch} ${outerBottomX} ${outerBottomY} L ${outerTopX} ${outerTopY} Q ${(106 + outerTopX) / 2} ${(75 + outerTopY) / 2 - curlArch} 106 75 Z`,
+                fill: '#ffffff',
+                stroke: p > 0.03 && p < 0.97 ? '#f59e0b' : '#d97706',
+                strokeWidth: p > 0.03 && p < 0.97 ? 1.5 : 1,
+              }),
+              p > 0.05 && p < 0.95
+                ? createElement(
+                    'g',
+                    null,
+                    createElement('circle', {
+                      cx: 112 - p * 12,
+                      cy: 64 - sinA * 14,
+                      r: 2.2,
+                      fill: '#fef08a',
+                    }),
+                    createElement(
+                      'text',
+                      {
+                        x: 114,
+                        y: 56 - sinA * 12,
+                        textAnchor: 'middle',
+                        fill: '#fde68a',
+                        fontSize: '8',
+                        fontWeight: '700',
+                      },
+                      '+1m ✦',
+                    ),
+                  )
+                : null,
+            );
+          })(),
           // Floating Book Page Badge above the Open Book
           createElement('rect', {
-            x: 84,
-            y: 44,
-            width: 34,
+            x: 80,
+            y: 40,
+            width: 42,
             height: 13,
             rx: 6.5,
             fill: isDark ? 'rgba(24,20,16,0.92)' : 'rgba(255,251,235,0.94)',
             stroke: '#f59e0b',
-            strokeWidth: 1,
+            strokeWidth: 1.1,
           }),
           createElement(
             'text',
             {
               x: 101,
-              y: 53,
+              y: 49,
               textAnchor: 'middle',
               fill: isDark ? '#fde68a' : '#b45309',
               fontSize: '7.5',
@@ -569,7 +980,7 @@ function IsometricLifeZoneSvg({
         )
       : null,
 
-    // ================= ISLAND 2: 活力体态 (With Interactive Multi-Pose Fitness Character) =================
+    // ================= ISLAND 2: 活力体态 (With 60fps Articulated Multi-Pose Fitness Character) =================
     zone === 'vitality'
       ? createElement(
           'g',
@@ -608,247 +1019,14 @@ function IsometricLifeZoneSvg({
             strokeWidth: 1.2,
           }),
 
-          // Interactive Articulated Fitness Character (健身小人) on the Yoga Mat
-          workoutPose === 'squat'
-            ? createElement(
-                'g',
-                null,
-                // Shadow under character
-                createElement('ellipse', { cx: 108, cy: 96, rx: 14, ry: 6, fill: 'rgba(0,0,0,0.35)' }),
-                // Legs (bent in frame 1 deep squat, straight in frame 0)
-                createElement('polyline', {
-                  points: workoutFrame === 1 ? '102,94 95,84 104,78' : '102,94 103,80 105,70',
-                  fill: 'none',
-                  stroke: '#34d399',
-                  strokeWidth: 3.2,
-                  strokeLinecap: 'round',
-                  strokeLinejoin: 'round',
-                }),
-                createElement('polyline', {
-                  points: workoutFrame === 1 ? '114,94 121,84 112,78' : '114,94 113,80 111,70',
-                  fill: 'none',
-                  stroke: '#34d399',
-                  strokeWidth: 3.2,
-                  strokeLinecap: 'round',
-                  strokeLinejoin: 'round',
-                }),
-                // Torso
-                createElement('line', {
-                  x1: 108,
-                  y1: workoutFrame === 1 ? 79 : 71,
-                  x2: 108,
-                  y2: workoutFrame === 1 ? 63 : 54,
-                  stroke: '#fde68a',
-                  strokeWidth: 4.5,
-                  strokeLinecap: 'round',
-                }),
-                // Head
-                createElement('circle', {
-                  cx: 108,
-                  cy: workoutFrame === 1 ? 56 : 47,
-                  r: 5.5,
-                  fill: '#fef08a',
-                  stroke: '#d97706',
-                  strokeWidth: 1.2,
-                }),
-                // Golden Barbell across shoulders
-                createElement('line', {
-                  x1: 86,
-                  y1: workoutFrame === 1 ? 64 : 55,
-                  x2: 130,
-                  y2: workoutFrame === 1 ? 64 : 55,
-                  stroke: `url(#${goldMetalId})`,
-                  strokeWidth: 2.8,
-                  strokeLinecap: 'round',
-                }),
-                createElement('circle', {
-                  cx: 88,
-                  cy: workoutFrame === 1 ? 64 : 55,
-                  r: 5,
-                  fill: '#b45309',
-                  stroke: '#fde68a',
-                  strokeWidth: 1.1,
-                }),
-                createElement('circle', {
-                  cx: 128,
-                  cy: workoutFrame === 1 ? 64 : 55,
-                  r: 5,
-                  fill: '#b45309',
-                  stroke: '#fde68a',
-                  strokeWidth: 1.1,
-                }),
-              )
-            : workoutPose === 'pushup'
-              ? createElement(
-                  'g',
-                  null,
-                  createElement('ellipse', { cx: 108, cy: 96, rx: 18, ry: 6, fill: 'rgba(0,0,0,0.35)' }),
-                  // Plank Body (lowers toward mat in frame 1)
-                  createElement('line', {
-                    x1: 90,
-                    y1: 93,
-                    x2: 118,
-                    y2: workoutFrame === 1 ? 86 : 77,
-                    stroke: '#34d399',
-                    strokeWidth: 4.2,
-                    strokeLinecap: 'round',
-                  }),
-                  // Push-up Arms
-                  createElement('polyline', {
-                    points: workoutFrame === 1 ? '115,86 122,90 118,95' : '115,78 118,87 118,95',
-                    fill: 'none',
-                    stroke: '#fde68a',
-                    strokeWidth: 3,
-                    strokeLinecap: 'round',
-                    strokeLinejoin: 'round',
-                  }),
-                  // Head
-                  createElement('circle', {
-                    cx: 124,
-                    cy: workoutFrame === 1 ? 84 : 74,
-                    r: 5.2,
-                    fill: '#fef08a',
-                    stroke: '#d97706',
-                    strokeWidth: 1.2,
-                  }),
-                )
-              : workoutPose === 'press'
-                ? createElement(
-                    'g',
-                    null,
-                    createElement('ellipse', { cx: 108, cy: 96, rx: 13, ry: 5.5, fill: 'rgba(0,0,0,0.35)' }),
-                    // Legs
-                    createElement('line', { x1: 104, y1: 94, x2: 106, y2: 73, stroke: '#34d399', strokeWidth: 3.2, strokeLinecap: 'round' }),
-                    createElement('line', { x1: 112, y1: 94, x2: 110, y2: 73, stroke: '#34d399', strokeWidth: 3.2, strokeLinecap: 'round' }),
-                    // Torso
-                    createElement('line', { x1: 108, y1: 73, x2: 108, y2: 55, stroke: '#fde68a', strokeWidth: 4.5, strokeLinecap: 'round' }),
-                    // Head
-                    createElement('circle', { cx: 108, cy: 48, r: 5.5, fill: '#fef08a', stroke: '#d97706', strokeWidth: 1.2 }),
-                    // Arms + Twin Dumbbells (Overhead in frame 1, at shoulders in frame 0)
-                    createElement('polyline', {
-                      points: workoutFrame === 1 ? '108,58 96,46 96,35' : '108,58 96,62 96,52',
-                      fill: 'none',
-                      stroke: '#34d399',
-                      strokeWidth: 2.8,
-                      strokeLinecap: 'round',
-                    }),
-                    createElement('polyline', {
-                      points: workoutFrame === 1 ? '108,58 120,46 120,35' : '108,58 120,62 120,52',
-                      fill: 'none',
-                      stroke: '#34d399',
-                      strokeWidth: 2.8,
-                      strokeLinecap: 'round',
-                    }),
-                    createElement('rect', {
-                      x: 91,
-                      y: workoutFrame === 1 ? 32 : 49,
-                      width: 10,
-                      height: 4,
-                      rx: 1.5,
-                      fill: '#f5b942',
-                    }),
-                    createElement('rect', {
-                      x: 115,
-                      y: workoutFrame === 1 ? 32 : 49,
-                      width: 10,
-                      height: 4,
-                      rx: 1.5,
-                      fill: '#f5b942',
-                    }),
-                  )
-                : createElement(
-                    'g',
-                    null,
-                    createElement('ellipse', {
-                      cx: 108,
-                      cy: 96,
-                      rx: workoutFrame === 1 ? 9 : 13,
-                      ry: 5,
-                      fill: 'rgba(0,0,0,0.35)',
-                    }),
-                    // Jumping Jack Legs (Wide in air on frame 1, together on frame 0)
-                    createElement('line', {
-                      x1: 108,
-                      y1: workoutFrame === 1 ? 67 : 74,
-                      x2: workoutFrame === 1 ? 95 : 104,
-                      y2: workoutFrame === 1 ? 87 : 94,
-                      stroke: '#34d399',
-                      strokeWidth: 3.2,
-                      strokeLinecap: 'round',
-                    }),
-                    createElement('line', {
-                      x1: 108,
-                      y1: workoutFrame === 1 ? 67 : 74,
-                      x2: workoutFrame === 1 ? 121 : 112,
-                      y2: workoutFrame === 1 ? 87 : 94,
-                      stroke: '#34d399',
-                      strokeWidth: 3.2,
-                      strokeLinecap: 'round',
-                    }),
-                    // Torso
-                    createElement('line', {
-                      x1: 108,
-                      y1: workoutFrame === 1 ? 67 : 74,
-                      x2: 108,
-                      y2: workoutFrame === 1 ? 50 : 57,
-                      stroke: '#fde68a',
-                      strokeWidth: 4.4,
-                      strokeLinecap: 'round',
-                    }),
-                    // Jumping Jack Arms (High V-shape on frame 1)
-                    createElement('line', {
-                      x1: 108,
-                      y1: workoutFrame === 1 ? 54 : 60,
-                      x2: workoutFrame === 1 ? 93 : 98,
-                      y2: workoutFrame === 1 ? 37 : 72,
-                      stroke: '#34d399',
-                      strokeWidth: 2.8,
-                      strokeLinecap: 'round',
-                    }),
-                    createElement('line', {
-                      x1: 108,
-                      y1: workoutFrame === 1 ? 54 : 60,
-                      x2: workoutFrame === 1 ? 123 : 118,
-                      y2: workoutFrame === 1 ? 37 : 72,
-                      stroke: '#34d399',
-                      strokeWidth: 2.8,
-                      strokeLinecap: 'round',
-                    }),
-                    // Head
-                    createElement('circle', {
-                      cx: 108,
-                      cy: workoutFrame === 1 ? 43 : 50,
-                      r: 5.5,
-                      fill: '#fef08a',
-                      stroke: '#059669',
-                      strokeWidth: 1.2,
-                    }),
-                  ),
-
-          // Live Rep Counter Badge above Fitness Character
-          createElement('rect', {
-            x: 88,
-            y: 20,
-            width: 40,
-            height: 13,
-            rx: 6.5,
-            fill: isDark ? 'rgba(12,28,22,0.92)' : 'rgba(236,253,245,0.95)',
-            stroke: '#34d399',
-            strokeWidth: 1,
+          // 60fps Articulated Multi-Joint Athlete SVG
+          renderArticulatedAthleteSvg({
+            pose: workoutPose,
+            phase: workoutAnimPhase,
+            reps: workoutReps,
+            isDark,
+            goldMetalId,
           }),
-          createElement(
-            'text',
-            {
-              x: 108,
-              y: 29,
-              textAnchor: 'middle',
-              fill: isDark ? '#6ee7b7' : '#065f46',
-              fontSize: '7.5',
-              fontWeight: '700',
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-            },
-            `⚡x${workoutReps}`,
-          ),
 
           createElement('circle', {
             cx: 139,
@@ -1225,11 +1403,14 @@ export function IsometricStudioStage({
   const [hoveredHeatIdx, setHoveredHeatIdx] = useState<number | null>(null);
   const [bursts, setBursts] = useState<StageBurstFx[]>([]);
 
-  // Interactive Book Flip (+1m per tap) & Fitness Mini-Character Pose/Rep States
+  // 60fps Animated Book Page-Curl & Articulated Fitness Character States
   const [bookPageCount, setBookPageCount] = useState<number>(() => Math.max(0, studyMinutes));
+  const [bookAnimPhase, setBookAnimPhase] = useState<number>(0);
+  const [autoReading, setAutoReading] = useState<boolean>(false);
   const [workoutPose, setWorkoutPose] = useState<WorkoutPoseId>('squat');
-  const [workoutFrame, setWorkoutFrame] = useState<number>(0);
+  const [workoutAnimPhase, setWorkoutAnimPhase] = useState<number>(0);
   const [workoutReps, setWorkoutReps] = useState<number>(() => trainingSetsCount * 10);
+  const [autoWorkoutLeft, setAutoWorkoutLeft] = useState<number>(0);
 
   // Inline 1-minute scrubber state for 'day' mode inside Left Bento Card
   const [dayScrubRange, setDayScrubRange] = useState<{ startMinute: number; endMinute: number }>(() => {
@@ -1538,8 +1719,47 @@ export function IsometricStudioStage({
     }
   }
 
-  // Interactive Book Toy on Island 1: Tap to flip page & accumulate +1m (or +5m) reading time
+  // Smooth 60fps Book Page-Curl Sweep Animator
+  function runBookCurlAnimation() {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
+      setBookAnimPhase(0);
+      return;
+    }
+    const durationMs = 540;
+    const start = window.performance?.now ? window.performance.now() : 0;
+    const step = (now: number) => {
+      const raw = Math.max(0, Math.min(1, (now - start) / durationMs));
+      // Ease-out cubic
+      const eased = 1 - Math.pow(1 - raw, 3);
+      setBookAnimPhase(raw < 1 ? eased : 0);
+      if (raw < 1) {
+        window.requestAnimationFrame(step);
+      }
+    };
+    window.requestAnimationFrame(step);
+  }
+
+  // Smooth 60fps Biomechanical Rep Cycle Animator
+  function runAthleteRepAnimation() {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
+      setWorkoutAnimPhase(0);
+      return;
+    }
+    const durationMs = 580;
+    const start = window.performance?.now ? window.performance.now() : 0;
+    const step = (now: number) => {
+      const raw = Math.max(0, Math.min(1, (now - start) / durationMs));
+      setWorkoutAnimPhase(raw < 1 ? raw : 0);
+      if (raw < 1) {
+        window.requestAnimationFrame(step);
+      }
+    };
+    window.requestAnimationFrame(step);
+  }
+
+  // Interactive Book Toy on Island 1: Tap to curl-flip page & accumulate +1m (or +5m) reading time
   function handleFlipStudyBook(deltaMinutes = 1) {
+    runBookCurlAnimation();
     const nextPages = bookPageCount + deltaMinutes;
     setBookPageCount(nextPages);
     const bookTitle = t('沉浸翻书共读', 'Immersive Reading');
@@ -1592,11 +1812,11 @@ export function IsometricStudioStage({
     jump: { zh: '开合跳', en: 'Jump Jack', icon: '🔥', weightKg: null },
   };
 
-  // Interactive Fitness Character on Island 2: Tap to animate pose & increment rep
+  // Interactive Fitness Character on Island 2: Tap to animate full 60fps rep cycle & increment rep
   function handleTapWorkoutCharacter(repDelta = 1) {
+    runAthleteRepAnimation();
     const meta = WORKOUT_POSE_META[workoutPose];
     const nextReps = workoutReps + repDelta;
-    setWorkoutFrame((prev) => (prev === 0 ? 1 : 0));
     setWorkoutReps(nextReps);
     const exerciseName = t(meta.zh, meta.en);
     setTimeBlocks(
@@ -1638,19 +1858,37 @@ export function IsometricStudioStage({
     }
   }
 
-  function handleCycleWorkoutPose() {
+  function handleCycleWorkoutPose(targetPose?: WorkoutPoseId) {
     const order: WorkoutPoseId[] = ['squat', 'pushup', 'press', 'jump'];
-    const nextPose = order[(order.indexOf(workoutPose) + 1) % order.length] ?? 'squat';
+    const nextPose = targetPose ?? order[(order.indexOf(workoutPose) + 1) % order.length] ?? 'squat';
     setWorkoutPose(nextPose);
-    setWorkoutFrame(0);
+    runAthleteRepAnimation();
     const meta = WORKOUT_POSE_META[nextPose];
     triggerStageBurst(
       'vitality',
-      t(`⇄ 切换动作：${meta.icon} ${meta.zh}`, `⇄ Pose: ${meta.icon} ${meta.en}`),
+      t(`⇄ 动作：${meta.icon} ${meta.zh}`, `⇄ Pose: ${meta.icon} ${meta.en}`),
       pal.goldAccent,
       'chime',
     );
   }
+
+  // Continuous Auto-Read & Auto-Set Combo Loops
+  useEffect(() => {
+    if (!autoReading) return undefined;
+    const id = setInterval(() => {
+      handleFlipStudyBook(1);
+    }, 950);
+    return () => clearInterval(id);
+  });
+
+  useEffect(() => {
+    if (autoWorkoutLeft <= 0) return undefined;
+    const id = setTimeout(() => {
+      handleTapWorkoutCharacter(1);
+      setAutoWorkoutLeft((n) => Math.max(0, n - 1));
+    }, 640);
+    return () => clearTimeout(id);
+  });
 
   // Direct Island 3 Interactive Action: 1-Click Habit & Wish Check-In
   function handleQuickHabitCheckIn() {
@@ -2114,6 +2352,7 @@ export function IsometricStudioStage({
                       isDark={isDark}
                       weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
                       bookPageCount={bookPageCount}
+                      bookAnimPhase={bookAnimPhase}
                     />
                   </Pressable>
                   <View
@@ -2263,7 +2502,7 @@ export function IsometricStudioStage({
                       isDark={isDark}
                       weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
                       workoutPose={workoutPose}
-                      workoutFrame={workoutFrame}
+                      workoutAnimPhase={workoutAnimPhase}
                       workoutReps={workoutReps}
                     />
                   </Pressable>
@@ -2289,7 +2528,7 @@ export function IsometricStudioStage({
                       <Pressable
                         accessibilityRole="button"
                         accessibilityLabel="切换健身小人动作"
-                        onPress={handleCycleWorkoutPose}
+                        onPress={() => handleCycleWorkoutPose()}
                       >
                         <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700' }}>
                           {`${WORKOUT_POSE_META[workoutPose].icon} ⇄`}
@@ -2321,7 +2560,7 @@ export function IsometricStudioStage({
                         </Text>
                       </Pressable>
                       <Pressable
-                        onPress={handleCycleWorkoutPose}
+                        onPress={() => handleCycleWorkoutPose()}
                         style={({ pressed }) => [
                           styles.hudMicroBtn,
                           {
@@ -2473,6 +2712,159 @@ export function IsometricStudioStage({
                       </Pressable>
                     </View>
                   </View>
+                </View>
+              </View>
+            </View>
+
+            {/* Interactive Mini-Play Theater Control Strip (Book Page-Curl & Athlete Pose/Combo Deck) */}
+            <View
+              style={[
+                styles.interactivePlayDeck,
+                { backgroundColor: pal.barBg, borderColor: pal.bentoBorder },
+              ]}
+            >
+              {/* Left: Book Page-Curl Interactive Strip */}
+              <View style={styles.playDeckSection}>
+                <View style={styles.playDeckLabelCluster}>
+                  <Text variant="caption" style={{ color: pal.goldText, fontWeight: '700', fontSize: 11 }}>
+                    {t(`📖 翻书共读 P.${12 + bookPageCount}`, `📖 Book P.${12 + bookPageCount}`)}
+                  </Text>
+                  <View style={[styles.comboMiniTrack, { backgroundColor: pal.inputBg }]}>
+                    <View
+                      style={[
+                        styles.comboMiniFill,
+                        {
+                          width: `${((bookPageCount % 5) / 5) * 100 || 12}%`,
+                          backgroundColor: pal.terracottaAccent,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>
+                    {`${bookPageCount % 5}/5`}
+                  </Text>
+                </View>
+                <View style={styles.hudMicroActionRow}>
+                  <Pressable
+                    onPress={() => handleFlipStudyBook(1)}
+                    style={({ pressed }) => [
+                      styles.hudMicroBtn,
+                      {
+                        backgroundColor: pal.pillActiveBg,
+                        borderColor: pal.terracottaAccent,
+                        transform: [{ scale: pressed ? 0.92 : 1 }],
+                      },
+                    ]}
+                  >
+                    <Text variant="caption" style={{ fontSize: 10.5, fontWeight: '700', color: pal.goldText }}>
+                      {t('📖 翻一页 +1m', '📖 Flip +1m')}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setAutoReading((prev) => !prev)}
+                    style={({ pressed }) => [
+                      styles.hudMicroBtn,
+                      {
+                        backgroundColor: autoReading ? `${pal.emeraldAccent}28` : pal.pillBg,
+                        borderColor: autoReading ? pal.emeraldAccent : pal.bentoBorder,
+                        transform: [{ scale: pressed ? 0.92 : 1 }],
+                      },
+                    ]}
+                  >
+                    <Text
+                      variant="caption"
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: '700',
+                        color: autoReading ? pal.emeraldAccent : pal.sub,
+                      }}
+                    >
+                      {autoReading ? t('⏸ 停止连读', '⏸ Stop Read') : t('✨ 自动连读', '✨ Auto Read')}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              {/* Right: Articulated Fitness Character Pose Switcher & Auto-Set Combo Strip */}
+              <View style={styles.playDeckSection}>
+                <View style={styles.playDeckLabelCluster}>
+                  {(['squat', 'pushup', 'press', 'jump'] as WorkoutPoseId[]).map((pid) => {
+                    const m = WORKOUT_POSE_META[pid];
+                    const isCur = workoutPose === pid;
+                    return (
+                      <Pressable
+                        key={pid}
+                        onPress={() => handleCycleWorkoutPose(pid)}
+                        style={({ pressed }) => [
+                          styles.hudMicroBtn,
+                          {
+                            backgroundColor: isCur ? `${pal.emeraldAccent}24` : pal.pillBg,
+                            borderColor: isCur ? pal.emeraldAccent : pal.bentoBorder,
+                            transform: [{ scale: pressed ? 0.92 : 1 }],
+                          },
+                        ]}
+                      >
+                        <Text
+                          variant="caption"
+                          style={{
+                            fontSize: 10,
+                            fontWeight: isCur ? '700' : '500',
+                            color: isCur ? pal.emeraldAccent : pal.sub,
+                          }}
+                        >
+                          {`${m.icon} ${t(m.zh, m.en)}`}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <View style={styles.hudMicroActionRow}>
+                  <Pressable
+                    onPress={() => handleTapWorkoutCharacter(1)}
+                    style={({ pressed }) => [
+                      styles.hudMicroBtn,
+                      {
+                        backgroundColor: `${pal.emeraldAccent}26`,
+                        borderColor: pal.emeraldAccent,
+                        transform: [{ scale: pressed ? 0.91 : 1 }],
+                      },
+                    ]}
+                  >
+                    <Text variant="caption" style={{ fontSize: 10.5, fontWeight: '700', color: pal.emeraldAccent }}>
+                      {t(`⚡ 做 1 次 (${workoutReps % 5}/5)`, `⚡ 1 Rep (${workoutReps % 5}/5)`)}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      if (autoWorkoutLeft > 0) {
+                        setAutoWorkoutLeft(0);
+                      } else {
+                        handleTapWorkoutCharacter(1);
+                        setAutoWorkoutLeft(4);
+                      }
+                    }}
+                    style={({ pressed }) => [
+                      styles.hudMicroBtn,
+                      {
+                        backgroundColor: autoWorkoutLeft > 0 ? pal.pillActiveBg : pal.pillBg,
+                        borderColor: autoWorkoutLeft > 0 ? pal.goldAccent : pal.bentoBorder,
+                        transform: [{ scale: pressed ? 0.92 : 1 }],
+                      },
+                    ]}
+                  >
+                    <Text
+                      variant="caption"
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: '700',
+                        color: autoWorkoutLeft > 0 ? pal.goldText : pal.sub,
+                      }}
+                    >
+                      {autoWorkoutLeft > 0
+                        ? t(`🔥 连做中 (${autoWorkoutLeft})…`, `🔥 Combo (${autoWorkoutLeft})…`)
+                        : t('▶ 连做 1 组(5次)', '▶ Auto Set (5x)')}
+                    </Text>
+                  </Pressable>
                 </View>
               </View>
             </View>
@@ -3890,6 +4282,43 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     fontWeight: '700',
     letterSpacing: 0.2,
+  },
+  interactivePlayDeck: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 11,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 10,
+    zIndex: 5,
+  },
+  playDeckSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  playDeckLabelCluster: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 5,
+  },
+  comboMiniTrack: {
+    width: 44,
+    height: 6,
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  comboMiniFill: {
+    height: '100%',
+    borderRadius: 999,
   },
   isoHudSubBox: {
     paddingHorizontal: 8,
