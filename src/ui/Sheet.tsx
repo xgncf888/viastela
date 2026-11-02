@@ -2,8 +2,9 @@ import { Modal, Platform, Pressable, StyleSheet, View, type ViewStyle } from 're
 
 import { darkColor, theme as baseTheme } from './theme';
 import { useTheme } from './ThemeProvider';
+import { useReducedMotion } from './use-reduced-motion';
 
-function modalSurfaceStyle(cardColor: string, lineColor: string): ViewStyle {
+function modalSurfaceStyle(cardColor: string, lineColor: string, reducedMotion: boolean): ViewStyle {
   const isDark = cardColor === darkColor.card;
   if (Platform.OS === 'web') {
     return {
@@ -13,7 +14,10 @@ function modalSurfaceStyle(cardColor: string, lineColor: string): ViewStyle {
       boxShadow: isDark
         ? '0 24px 60px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.12)'
         : '0 24px 60px rgba(24, 24, 22, 0.22), 0 4px 14px rgba(24, 24, 22, 0.08), 0 0 0 1px rgba(38, 36, 31, 0.08)',
-    } as ViewStyle;
+      animationName: reducedMotion ? undefined : 'vsSheetSpringIn',
+      animationDuration: reducedMotion ? undefined : '200ms',
+      animationTimingFunction: reducedMotion ? undefined : 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+    } as unknown as ViewStyle;
   }
   return {
     backgroundColor: cardColor,
@@ -32,6 +36,7 @@ export function Sheet({
   children: React.ReactNode;
 }) {
   const theme = useTheme();
+  const reducedMotion = useReducedMotion() === true;
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.root}>
@@ -46,7 +51,7 @@ export function Sheet({
         <View
           style={[
             styles.card,
-            modalSurfaceStyle(theme.color.card, theme.color.line),
+            modalSurfaceStyle(theme.color.card, theme.color.line, reducedMotion),
           ]}
         >
           <View style={[styles.topAccentBar, { backgroundColor: theme.color.accent }]} />

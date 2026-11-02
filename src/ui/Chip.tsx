@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { cardSurfaceStyle } from './Card';
@@ -20,6 +21,7 @@ export function Chip({
 }) {
   const { color, press } = useTheme();
   const reducedMotion = useReducedMotion() === true;
+  const [hovered, setHovered] = useState(false);
 
   if (segmented) {
     return (
@@ -28,6 +30,8 @@ export function Chip({
         aria-selected={selected}
         accessibilityState={{ selected }}
         onPress={onPress}
+        onHoverIn={() => setHovered(true)}
+        onHoverOut={() => setHovered(false)}
         style={({ pressed }) => [
           styles.segmentedChip,
           washPressStyle(pressed, reducedMotion, press, color.pressed, Platform.OS === 'web'),
@@ -37,7 +41,9 @@ export function Chip({
               ? color.pressed
               : selected
                 ? color.card
-                : 'transparent',
+                : hovered
+                  ? color.fill
+                  : 'transparent',
           },
         ]}
       >
@@ -64,6 +70,8 @@ export function Chip({
       aria-selected={selected}
       accessibilityState={{ selected }}
       onPress={onPress}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
       style={({ pressed }) => [
         styles.chip,
         washPressStyle(pressed, reducedMotion, press, color.pressed, Platform.OS === 'web'),
@@ -72,8 +80,10 @@ export function Chip({
             ? color.pressed
             : selected
               ? color.accentSoft
-              : color.surface,
-          borderColor: selected ? color.accent : color.line,
+              : hovered
+                ? color.fill
+                : color.surface,
+          borderColor: selected ? color.accent : hovered ? color.muted : color.line,
         },
       ]}
     >

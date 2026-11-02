@@ -1,4 +1,4 @@
-import { createElement, useRef, type ReactNode } from 'react';
+import { createElement, useRef, useState, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -70,6 +70,8 @@ export function SidebarFrame({
 }) {
   const { color } = useTheme();
   const layout = useLayoutClass();
+  const [quickHovered, setQuickHovered] = useState(false);
+  const [paletteHovered, setPaletteHovered] = useState(false);
   const width = layout === 'medium' ? theme.layout.sidebarCompact : theme.layout.sidebar;
   return (
     <View style={[styles.sidebar, { width, backgroundColor: color.paperDeep, borderRightColor: color.line }]}>
@@ -81,11 +83,13 @@ export function SidebarFrame({
             accessibilityRole="button"
             accessibilityLabel="打开指令面板"
             onPress={onOpenPalette}
+            onHoverIn={() => setPaletteHovered(true)}
+            onHoverOut={() => setPaletteHovered(false)}
             style={({ pressed }) => [
               styles.windowTag,
               {
-                borderColor: color.line,
-                backgroundColor: pressed ? color.pressed : color.surface,
+                borderColor: paletteHovered ? color.muted : color.line,
+                backgroundColor: pressed ? color.pressed : paletteHovered ? color.fill : color.surface,
               },
             ]}
           >
@@ -115,10 +119,12 @@ export function SidebarFrame({
           accessibilityRole="button"
           accessibilityLabel="打开快速记录面板"
           onPress={onQuickAction}
+          onHoverIn={() => setQuickHovered(true)}
+          onHoverOut={() => setQuickHovered(false)}
           style={({ pressed }) => [
             styles.quickActionBtn,
-            cardSurfaceStyle(pressed ? color.pressed : color.card, color.line),
-            { borderColor: color.line },
+            cardSurfaceStyle(pressed ? color.pressed : quickHovered ? color.fill : color.card, color.line),
+            { borderColor: quickHovered ? color.accent : color.line },
           ]}
         >
           <Text variant="label" style={styles.quickActionText}>
@@ -228,6 +234,7 @@ export function NavItem({
   const reducedMotion = useReducedMotion() === true;
   const side = placement === 'side';
   const presses = useRef(createNavPress());
+  const [hovered, setHovered] = useState(false);
 
   const badgeColors =
     badgeTone === 'live'
@@ -244,6 +251,8 @@ export function NavItem({
       accessibilityLabel={label}
       accessibilityState={{ selected }}
       aria-selected={Platform.OS === 'web' ? selected : undefined}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
       onPressIn={() => {
         if (!selected) presses.current.pressIn(onPress);
       }}
@@ -257,6 +266,7 @@ export function NavItem({
         styles.nav,
         side ? styles.navSide : styles.navTab,
         washPressStyle(pressed, reducedMotion, press, color.pressed, Platform.OS === 'web'),
+        !pressed && !selected && hovered ? { backgroundColor: color.fill } : null,
         side && selected && !pressed ? cardSurfaceStyle(color.card, color.line) : null,
       ]}
     >
@@ -268,9 +278,9 @@ export function NavItem({
           ]}
         />
         {side && icon ? (
-          <NavStrokeIcon kind={icon} stroke={selected ? color.accent : color.muted} />
+          <NavStrokeIcon kind={icon} stroke={selected ? color.accent : hovered ? color.ink : color.muted} />
         ) : null}
-        <Text variant="tab" tone={selected ? 'ink' : 'muted'} style={selected ? styles.navSelected : undefined}>
+        <Text variant="tab" tone={selected || hovered ? 'ink' : 'muted'} style={selected ? styles.navSelected : undefined}>
           {label}
         </Text>
       </View>

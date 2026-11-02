@@ -1,4 +1,4 @@
-import { Children, type ReactNode } from 'react';
+import { Children, useState, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from './Button';
@@ -31,6 +31,7 @@ export function StatusCard({
 }) {
   const theme = useTheme();
   const reducedMotion = useReducedMotion() === true;
+  const [hovered, setHovered] = useState(false);
   const content = (
     <>
       {title ? <Text variant="label">{title}</Text> : null}
@@ -63,10 +64,15 @@ export function StatusCard({
       accessibilityRole="button"
       accessibilityLabel={summary}
       onPress={onPress}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
       style={({ pressed }) => [
         styles.frame,
         styles.pressCard,
-        cardSurfaceStyle(pressed ? theme.color.pressed : theme.color.card, theme.color.line),
+        cardSurfaceStyle(
+          pressed ? theme.color.pressed : hovered ? theme.color.fill : theme.color.card,
+          theme.color.line,
+        ),
         pressTransition(pressed, reducedMotion, theme.press, Platform.OS === 'web'),
       ]}
     >

@@ -43,6 +43,54 @@
   if (typeof document !== 'undefined' && document.head) {
     dedupeHead();
     new MutationObserver(dedupeHead).observe(document.head, { childList: true });
+    if (!document.getElementById('vs-silky-motion')) {
+      const styleEl = document.createElement('style');
+      styleEl.id = 'vs-silky-motion';
+      styleEl.textContent = `
+        * {
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+        }
+        [role="button"] {
+          cursor: pointer;
+          user-select: none;
+          -webkit-user-select: none;
+          transition: background-color 140ms cubic-bezier(0.2, 0, 0, 1),
+                      border-color 140ms cubic-bezier(0.2, 0, 0, 1),
+                      box-shadow 180ms cubic-bezier(0.2, 0, 0, 1),
+                      transform 140ms cubic-bezier(0.2, 0, 0, 1),
+                      opacity 140ms cubic-bezier(0.2, 0, 0, 1);
+        }
+        [role="button"]:active:not([aria-disabled="true"]) {
+          transform: scale(0.985);
+        }
+        @keyframes vsSheetSpringIn {
+          from {
+            opacity: 0;
+            transform: translateY(8px) scale(0.985);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+        ::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+          background: rgba(120, 115, 105, 0.22);
+          border-radius: 999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: rgba(120, 115, 105, 0.38);
+        }
+      `;
+      document.head.appendChild(styleEl);
+    }
   }
 
   const STORAGE_KEY = 'viastela.desktop.standalone.db.v1';

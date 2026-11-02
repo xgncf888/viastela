@@ -10,6 +10,8 @@ export function TextField({
   labelTrailing,
   value,
   onChangeText,
+  onSubmitEditing,
+  returnKeyType,
   placeholder,
   keyboardType = 'default',
   autoCapitalize = 'none',
@@ -22,6 +24,8 @@ export function TextField({
   labelTrailing?: ReactNode;
   value: string;
   onChangeText: (value: string) => void;
+  onSubmitEditing?: () => void;
+  returnKeyType?: 'done' | 'go' | 'next' | 'send';
   placeholder?: string;
   keyboardType?: 'default' | 'email-address' | 'number-pad' | 'decimal-pad';
   autoCapitalize?: 'none' | 'sentences';
@@ -32,6 +36,7 @@ export function TextField({
 }) {
   const theme = useTheme();
   const [focused, setFocused] = useState(false);
+  const [hovered, setHovered] = useState(false);
   const isNumeric = keyboardType === 'decimal-pad' || keyboardType === 'number-pad';
 
   const webFocusStyle: TextStyle | null =
@@ -43,12 +48,20 @@ export function TextField({
             : focused
               ? '0 0 0 3px rgba(204, 120, 92, 0.18)'
               : 'inset 0 1px 2px rgba(24, 24, 22, 0.03)',
-          transition: 'border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease',
+          transition: 'border-color 140ms cubic-bezier(0.2, 0, 0, 1), box-shadow 140ms cubic-bezier(0.2, 0, 0, 1), background-color 140ms cubic-bezier(0.2, 0, 0, 1)',
         } as unknown as TextStyle)
       : null;
 
   return (
-    <View style={styles.wrap}>
+    <View
+      style={styles.wrap}
+      {...(Platform.OS === 'web'
+        ? {
+            onMouseEnter: () => setHovered(true),
+            onMouseLeave: () => setHovered(false),
+          }
+        : {})}
+    >
       <View style={styles.labelRow}>
         <Text variant="caption" style={styles.label}>
           {label}
@@ -59,6 +72,8 @@ export function TextField({
         accessibilityLabel={label}
         value={value}
         onChangeText={onChangeText}
+        onSubmitEditing={onSubmitEditing}
+        returnKeyType={returnKeyType}
         placeholder={placeholder}
         placeholderTextColor={theme.color.textFaint}
         keyboardType={keyboardType}
@@ -73,7 +88,13 @@ export function TextField({
           styles.input,
           isNumeric ? styles.numericInput : null,
           {
-            borderColor: error ? theme.color.danger : focused ? theme.color.accent : theme.color.line,
+            borderColor: error
+              ? theme.color.danger
+              : focused
+                ? theme.color.accent
+                : hovered
+                  ? theme.color.muted
+                  : theme.color.line,
             backgroundColor: focused ? theme.color.card : theme.color.surface,
             color: theme.color.ink,
           },

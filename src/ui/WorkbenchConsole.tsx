@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View, type ViewStyle } from 'react-native';
 
 import {
   type CharioteerCommandContribution,
@@ -72,23 +72,28 @@ export function CockpitPillButton({
   onPress: () => void;
 }) {
   const { color } = useTheme();
+  const [hovered, setHovered] = useState(false);
   const palette =
     variant === 'primary'
       ? { bg: color.ink, fg: color.paper, border: color.ink }
       : variant === 'accent'
-        ? { bg: color.accent, fg: color.onToast, border: color.accent }
+        ? { bg: hovered ? color.accentHover : color.accent, fg: color.onToast, border: color.accent }
         : variant === 'green'
           ? { bg: color.greenSoft, fg: color.green, border: color.greenSoft }
-          : { bg: color.card, fg: color.ink, border: color.line };
+          : { bg: hovered ? color.fill : color.card, fg: color.ink, border: hovered ? color.muted : color.line };
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       onPress={onPress}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
       style={({ pressed }) => [
         styles.pillBtn,
-        variant === 'default' ? cardSurfaceStyle(pressed ? color.pressed : color.card, color.line) : null,
+        variant === 'default'
+          ? cardSurfaceStyle(pressed ? color.pressed : hovered ? color.fill : color.card, color.line)
+          : null,
         {
           backgroundColor: pressed && variant === 'default' ? color.pressed : palette.bg,
           borderColor: palette.border,
@@ -669,18 +674,61 @@ export function WorkbenchCommandPalette({
 }) {
   const { color } = useTheme();
   const [query, setQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(0);
   const filtered = filterWorkbenchCommands(manifest.contributions.commands, query);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [query, visible]);
+
+  useEffect(() => {
+    if (!visible || Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setActiveIndex((prev) => (filtered.length > 0 ? (prev + 1) % filtered.length : 0));
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        setActiveIndex((prev) =>
+          filtered.length > 0 ? (prev - 1 + filtered.length) % filtered.length : 0,
+        );
+      } else if (event.key === 'Enter' && filtered.length > 0) {
+        const selected = filtered[activeIndex] ?? filtered[0];
+        if (selected) {
+          event.preventDefault();
+          onExecuteCommand(selected);
+          setQuery('');
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [activeIndex, filtered, onExecuteCommand, visible]);
 
   if (!visible) return null;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={[styles.backdrop, { backgroundColor: color.overlay }]} onPress={onClose}>
+      <Pressable
+        style={[
+          styles.backdrop,
+          { backgroundColor: color.overlay },
+          Platform.OS === 'web' ? ({ backdropFilter: 'blur(8px)' } as unknown as ViewStyle) : null,
+        ]}
+        onPress={onClose}
+      >
         <Pressable
           style={[
             styles.paletteSheet,
             cardSurfaceStyle(color.card, color.line),
             { borderColor: color.line },
+            Platform.OS === 'web'
+              ? ({
+                  animationName: 'vsSheetSpringIn',
+                  animationDuration: '180ms',
+                  animationTimingFunction: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+                } as unknown as ViewStyle)
+              : null,
           ]}
           onPress={(e) => e.stopPropagation()}
         >
@@ -698,7 +746,7 @@ export function WorkbenchCommandPalette({
             <TextInput
               value={query}
               onChangeText={setQuery}
-              placeholder="输入指令名称或快捷键过滤（如：晨重、训练、⌘1）…"
+              placeholder="输入指令名称或快捷键过滤（支持 ↑/↓ 选择，Enter 执行）…"
               placeholderTextColor={color.muted}
               autoFocus={Platform.OS === 'web'}
               style={[
@@ -706,8 +754,14 @@ export function WorkbenchCommandPalette({
                 {
                   color: color.ink,
                   backgroundColor: color.surface,
-                  borderColor: color.line,
+                  borderColor: color.accent,
                 },
+                Platform.OS === 'web'
+                  ? ({
+                      outlineStyle: 'none',
+                      boxShadow: '0 0 0 3px rgba(204, 120, 92, 0.16)',
+                    } as unknown as ViewStyle)
+                  : null,
               ]}
             />
           </View>
@@ -715,33 +769,57 @@ export function WorkbenchCommandPalette({
           <View style={[styles.hairline, { backgroundColor: color.line }]} />
 
           <ScrollView style={styles.commandList}>
-            {filtered.map((cmd) => (
-              <Pressable
-                key={cmd.id}
-                accessibilityRole="button"
-                accessibilityLabel={cmd.title}
-                onPress={() => {
-                  onExecuteCommand(cmd);
-                  setQuery('');
-                }}
-                style={({ pressed }) => [
-                  styles.commandItem,
-                  { backgroundColor: pressed ? color.accentSoft : 'transparent' },
-                ]}
-              >
-                <View style={styles.commandItemLeft}>
-                  <Text variant="body">{cmd.title}</Text>
-                  <Text variant="caption" tone="muted" style={styles.mono}>
-                    {cmd.id}
-                  </Text>
-                </View>
-                <View style={[styles.kbdPill, { backgroundColor: color.pill }]}>
-                  <Text variant="caption" tone="muted" style={styles.mono}>
-                    {cmd.shortcut}
-                  </Text>
-                </View>
-              </Pressable>
-            ))}
+            {filtered.map((cmd, idx) => {
+              const isHighlighted = idx === activeIndex;
+              return (
+                <Pressable
+                  key={cmd.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={cmd.title}
+                  onHoverIn={() => setActiveIndex(idx)}
+                  onPress={() => {
+                    onExecuteCommand(cmd);
+                    setQuery('');
+                  }}
+                  style={({ pressed }) => [
+                    styles.commandItem,
+                    {
+                      backgroundColor: pressed
+                        ? color.pressed
+                        : isHighlighted
+                          ? color.accentSoft
+                          : 'transparent',
+                    },
+                  ]}
+                >
+                  <View style={styles.commandItemLeft}>
+                    <Text
+                      variant="body"
+                      style={isHighlighted ? styles.semibold : undefined}
+                    >
+                      {cmd.title}
+                    </Text>
+                    <Text variant="caption" tone="muted" style={styles.mono}>
+                      {cmd.id}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.kbdPill,
+                      { backgroundColor: isHighlighted ? color.card : color.pill },
+                    ]}
+                  >
+                    <Text
+                      variant="caption"
+                      tone={isHighlighted ? 'ink' : 'muted'}
+                      style={styles.mono}
+                    >
+                      {cmd.shortcut}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
           </ScrollView>
 
           <View style={[styles.hairline, { backgroundColor: color.line }]} />
@@ -754,7 +832,7 @@ export function WorkbenchCommandPalette({
               <Text variant="caption" tone="muted">
                 {mode === 'charioteer-host'
                   ? '已作为 Charioteer Perspective 插件挂载运行'
-                  : '独立应用运行中 · 支持通过 charioteer-plugin.json 挂载至 Charioteer'}
+                  : '独立应用运行中 · 支持 ↑/↓ 导航与 Enter 快速执行'}
               </Text>
             </View>
             <CockpitPillButton label="复制插件清单" onPress={onCopyManifest} />
@@ -1110,15 +1188,16 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   kbdPill: {
-    paddingHorizontal: 6,
+    paddingHorizontal: theme.space.sm,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: theme.radius.sm,
   },
   paletteFooter: {
+    paddingHorizontal: theme.space.md,
+    paddingVertical: theme.space.sm,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: theme.space.md,
     gap: theme.space.sm,
   },
   paletteFooterInfo: {
@@ -1130,6 +1209,5 @@ const styles = StyleSheet.create({
   },
   mono: {
     fontFamily: theme.fontFamily.mono,
-    fontVariant: ['tabular-nums'],
   },
 });

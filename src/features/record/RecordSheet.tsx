@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 
 import { createId } from '@/core/id';
 import { computeLocalDay, currentTimeZone, sheetAccountingHint } from '@/core/local-day';
@@ -104,11 +104,31 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
   const studyId = useRef<string | null>(null);
   const blockId = useRef<string | null>(null);
   const exerciseNames = exerciseChoices(recentExercises);
+
   useEffect(() => {
     if (trainingFormHasUnsavedEdits({ exercise, reps, mode, weight: load, bandLevel: band }, trainingBaseline)) {
       trainingId.current = null;
     }
   }, [band, exercise, load, mode, reps, trainingBaseline]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.altKey && !event.metaKey && !event.ctrlKey) {
+        const idx = Number.parseInt(event.key, 10) - 1;
+        if (idx >= 0 && idx < TYPES.length) {
+          const nextType = TYPES[idx];
+          if (nextType) {
+            event.preventDefault();
+            setType(nextType.id);
+          }
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   const last = latestRecord(records);
   const hint = sheetAccountingHint(new Date(), currentTimeZone(), daySwitch);
   const accountingDay = computeLocalDay(new Date(), currentTimeZone(), trainingSwitch);
@@ -305,6 +325,8 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
             labelTrailing={<TagChip label="MORNING / RETEST" tone="neutral" />}
             value={value}
             onChangeText={setValue}
+            onSubmitEditing={onSave}
+            returnKeyType="done"
             placeholder="例如 72.4"
             keyboardType="decimal-pad"
             autoFocus
@@ -404,6 +426,8 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
                     setLoad(next);
                     setTrainingError(null);
                   }}
+                  onSubmitEditing={() => void onSaveTraining()}
+                  returnKeyType="done"
                   placeholder="例如 40"
                   keyboardType="decimal-pad"
                   error={trainingField === 'weight' ? trainingError : null}
@@ -417,6 +441,8 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
                     setReps(next);
                     setTrainingError(null);
                   }}
+                  onSubmitEditing={() => void onSaveTraining()}
+                  returnKeyType="done"
                   placeholder="例如 8"
                   keyboardType="number-pad"
                   error={trainingField === 'reps' ? trainingError : null}
@@ -450,6 +476,8 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
                   setReps(next);
                   setTrainingError(null);
                 }}
+                onSubmitEditing={() => void onSaveTraining()}
+                returnKeyType="done"
                 placeholder="例如 8"
                 keyboardType="number-pad"
                 error={trainingField === 'reps' ? trainingError : null}
@@ -507,6 +535,8 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
               setTopic(next);
               setStudyError(null);
             }}
+            onSubmitEditing={() => void onSaveStudy()}
+            returnKeyType="done"
             placeholder="例如 AI Infra"
             autoFocus
             error={studyField === 'topic' ? studyError : null}
@@ -543,6 +573,8 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
                 setCustomMinutes(next);
                 setStudyError(null);
               }}
+              onSubmitEditing={() => void onSaveStudy()}
+              returnKeyType="done"
               placeholder="例如 20"
               keyboardType="number-pad"
               error={studyField === 'duration' ? studyError : null}
@@ -555,6 +587,8 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
               setNote(next);
               setStudyError(null);
             }}
+            onSubmitEditing={() => void onSaveStudy()}
+            returnKeyType="done"
             placeholder="一句话"
             error={studyField === 'note' ? studyError : null}
           />
@@ -576,6 +610,8 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
               setBlockBody(next);
               setBlockError(null);
             }}
+            onSubmitEditing={() => void onSaveBlock()}
+            returnKeyType="done"
             placeholder="记下刚才专注做的事或此刻想法"
             autoFocus
             error={blockError}
