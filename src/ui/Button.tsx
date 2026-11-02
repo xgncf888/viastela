@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from 'react-native';
 
-import { cardSurfaceStyle } from './Card';
 import { solidPressStyle, pressTransition } from './press';
 import { Text } from './Text';
 import { theme as baseTheme } from './theme';
@@ -74,12 +73,13 @@ export function Button({
   loading?: boolean;
   /** Shown in place of `label` while loading. Omit it to keep the resting label. */
   loadingLabel?: string;
-  /** Stretch to the column so stacked buttons share one width. Ghost never stretches (§5). */
+  /** Stretch to the column in compact dialogs; never stretches into a clunky full-screen bar on desktop. */
   fill?: boolean;
   /** Overrides the accessible name. The visible label stays `label`. */
   accessibilityLabel?: string;
 }) {
   const theme = useTheme();
+  const isDark = theme.scheme === 'dark';
   const reducedMotion = useReducedMotion() === true;
   const [hovered, setHovered] = useState(false);
   const [measured, setMeasured] = useState<number | null>(null);
@@ -96,16 +96,21 @@ export function Button({
   const ghost = variant === 'ghost' && !mini;
   const solid = (variant === 'primary' || variant === 'danger') && !mini;
   const secondary = variant === 'secondary' && !mini;
+
   const labelTone: Tone = mini
     ? 'ink'
     : variant === 'primary'
-      ? 'inverse'
+      ? isDark
+        ? 'accent'
+        : 'inverse'
       : variant === 'danger'
         ? 'inverse'
         : variant === 'ghost'
           ? tone === 'danger'
             ? 'danger'
-            : 'ink'
+            : tone === 'accent'
+              ? 'accent'
+              : 'muted'
           : tone === 'accent'
             ? 'accent'
             : 'ink';
@@ -136,18 +141,37 @@ export function Button({
         const background = solid
           ? variant === 'danger'
             ? theme.color.dangerFill
-            : hot
-              ? theme.color.accentHover
-              : theme.color.accent
+            : isDark
+              ? hot || down
+                ? 'rgba(245, 185, 66, 0.24)'
+                : 'rgba(245, 185, 66, 0.15)'
+              : hot
+                ? theme.color.accentHover
+                : theme.color.accent
           : secondary
             ? down || hot
               ? theme.color.fill
-              : theme.color.card
+              : theme.color.surface
             : hot || down
               ? variant === 'ghost' && tone === 'danger' && !down
                 ? theme.color.dangerSoft
                 : theme.color.fill
               : 'transparent';
+
+        const borderColor = solid
+          ? variant === 'danger'
+            ? theme.color.danger
+            : isDark
+              ? hot
+                ? '#FDE68A'
+                : 'rgba(245, 185, 66, 0.55)'
+              : theme.color.accent
+          : secondary || mini
+            ? hot
+              ? theme.color.accent
+              : theme.color.line
+            : 'transparent';
+
         const motion = solid
           ? solidPressStyle(down, disabled, reducedMotion, theme.press, Platform.OS === 'web')
           : {
@@ -156,11 +180,10 @@ export function Button({
             };
         return [
           styles.base,
-          secondary ? cardSurfaceStyle(background, theme.color.line) : {},
           {
             backgroundColor: background,
-            borderWidth: secondary || mini ? baseTheme.border.width : 0,
-            borderColor: secondary || mini ? theme.color.line : 'transparent',
+            borderWidth: solid || secondary || mini ? 1 : 0,
+            borderColor,
           },
           motion,
           mini ? styles.mini : {},
@@ -179,12 +202,12 @@ export function Button({
             color={spinner}
             size={theme.space.md}
           />
-          <Text variant="label" tone={labelTone} style={styles.label}>
+          <Text variant="caption" tone={labelTone} style={styles.label}>
             {visible}
           </Text>
         </View>
       ) : (
-        <Text variant="label" tone={labelTone} style={styles.label}>
+        <Text variant="caption" tone={labelTone} style={styles.label}>
           {visible}
         </Text>
       )}
@@ -194,30 +217,39 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: {
-    minHeight: baseTheme.layout.control,
-    borderRadius: 9,
+    minHeight: 30,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: baseTheme.space.md,
-    paddingVertical: 6,
-    minWidth: baseTheme.layout.control,
+    paddingHorizontal: 13,
+    paddingVertical: 5,
+    alignSelf: 'flex-start',
   },
   content: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: baseTheme.space.sm,
+    gap: 6,
   },
   label: {
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: baseTheme.fontWeight.semibold,
-    letterSpacing: 0.2,
+    letterSpacing: 0.25,
   },
   mini: {
     minHeight: baseTheme.layout.controlMini,
     height: baseTheme.layout.controlMini,
-    borderRadius: 7,
-    paddingHorizontal: baseTheme.space.sm,
+    borderRadius: 999,
+    paddingHorizontal: 10,
     paddingVertical: 0,
   },
-  ghost: { alignSelf: 'flex-start', paddingHorizontal: baseTheme.space.sm },
-  fill: { alignSelf: 'stretch', width: '100%' },
+  ghost: {
+    minHeight: 26,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  fill: {
+    alignSelf: 'stretch',
+  },
 });

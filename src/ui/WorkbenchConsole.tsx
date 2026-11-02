@@ -60,28 +60,44 @@ export function TagChip({
   );
 }
 
-/** Charioteer `.pill-btn` tactile button (`default`, `primary`, `accent`, `green`). */
+/** Charioteer `.pill-btn` tactile capsule button (`default`, `primary`, `accent`, `green`, plus optional `active` and `shortcut` badge). */
 export function CockpitPillButton({
   label,
+  shortcut,
+  active = false,
   variant = 'default',
   accessibilityLabel,
   onPress,
 }: {
   label: string;
+  shortcut?: string;
+  active?: boolean;
   variant?: 'default' | 'primary' | 'accent' | 'green';
   accessibilityLabel?: string;
   onPress: () => void;
 }) {
-  const { color } = useTheme();
+  const { color, scheme } = useTheme();
+  const isDark = scheme === 'dark';
   const [hovered, setHovered] = useState(false);
+  const resolvedVariant = active && variant === 'default' ? 'accent' : variant;
   const palette =
-    variant === 'primary'
+    resolvedVariant === 'primary'
       ? { bg: color.ink, fg: color.paper, border: color.ink }
-      : variant === 'accent'
-        ? { bg: hovered ? color.accentHover : color.accent, fg: color.onToast, border: color.accent }
-        : variant === 'green'
-          ? { bg: color.greenSoft, fg: color.green, border: color.greenSoft }
-          : { bg: hovered ? color.fill : color.card, fg: color.ink, border: hovered ? color.muted : color.line };
+      : resolvedVariant === 'accent'
+        ? isDark
+          ? {
+              bg: hovered ? 'rgba(245, 185, 66, 0.25)' : 'rgba(245, 185, 66, 0.14)',
+              fg: '#FDE68A',
+              border: hovered ? '#FDE68A' : 'rgba(245, 185, 66, 0.55)',
+            }
+          : { bg: hovered ? color.accentHover : color.accent, fg: color.onToast, border: color.accent }
+        : resolvedVariant === 'green'
+          ? { bg: color.greenSoft, fg: color.green, border: color.green }
+          : {
+              bg: hovered ? color.fill : color.surface,
+              fg: color.ink,
+              border: hovered ? color.accent : color.line,
+            };
 
   return (
     <Pressable
@@ -92,13 +108,11 @@ export function CockpitPillButton({
       onHoverOut={() => setHovered(false)}
       style={({ pressed }) => [
         styles.pillBtn,
-        variant === 'default'
-          ? cardSurfaceStyle(pressed ? color.pressed : hovered ? color.fill : color.card, color.line)
-          : null,
         {
-          backgroundColor: pressed && variant === 'default' ? color.pressed : palette.bg,
+          borderRadius: 999,
+          backgroundColor: pressed && resolvedVariant === 'default' ? color.pressed : palette.bg,
           borderColor: palette.border,
-          opacity: pressed && variant !== 'default' ? 0.88 : 1,
+          opacity: pressed && resolvedVariant !== 'default' ? 0.88 : 1,
         },
       ]}
     >
@@ -108,12 +122,34 @@ export function CockpitPillButton({
           styles.pillBtnText,
           {
             color: palette.fg,
-            fontWeight: variant === 'default' ? theme.fontWeight.medium : theme.fontWeight.semibold,
+            fontWeight: resolvedVariant === 'default' ? theme.fontWeight.medium : theme.fontWeight.semibold,
           },
         ]}
       >
         {label}
       </Text>
+      {shortcut ? (
+        <View
+          style={{
+            paddingHorizontal: 5,
+            paddingVertical: 1,
+            borderRadius: 4,
+            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(38, 36, 31, 0.08)',
+          }}
+        >
+          <Text
+            variant="caption"
+            style={{
+              fontSize: 9.5,
+              lineHeight: 12,
+              fontFamily: theme.fontFamily.mono,
+              color: palette.fg,
+            }}
+          >
+            {shortcut}
+          </Text>
+        </View>
+      ) : null}
     </Pressable>
   );
 }

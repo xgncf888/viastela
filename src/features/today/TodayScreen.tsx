@@ -79,6 +79,7 @@ export function TodayScreen() {
   const study = useStudy();
   const inset = useShellInset();
   const layout = useLayoutClass();
+  const { color } = useTheme();
   const [now, setNow] = useState(() => new Date());
   const [trainingDetail, setTrainingDetail] = useState(false);
   const [studyOpen, setStudyOpen] = useState(false);
@@ -182,6 +183,29 @@ export function TodayScreen() {
         />
 
         <Stack gap="md">
+          {/* 1. 2.5D Isometric Personal Time & Life Sanctuary (Front & Center on Desktop/Web) */}
+          {layout === 'expanded' || Platform.OS === 'web' ? (
+            <WorkbenchConsoleCard
+              mode={hostMode}
+              localDay={accounting}
+              latestWeightKg={last?.weightKg ?? null}
+              loggedCount={loggedCount}
+              activeWeightDays={activeWeightDays}
+              trainingSetsCount={trainingToday.length}
+              trainingVolumeKg={trainingVolumeKg}
+              studyMinutes={studyMinutesToday}
+              studyCount={studyToday.length}
+              onQuickWeight={() => openRecordSheet(last?.weightKg, 'weight')}
+              onQuickTraining={() => openRecordSheet(undefined, 'training')}
+              onQuickStudy={() => openRecordSheet(undefined, 'study')}
+              onQuickJournal={() => openRecordSheet(undefined, 'block')}
+              onOpenScope={() => openDesktopBridge('scope')}
+            />
+          ) : null}
+
+          <MonthEndNotice timeZone={timeZone} />
+
+          {/* 2. Sleek 7-Day Average & Today's Records Cockpit Card (No clunky full-width bar) */}
           <AverageBlock
             records={counted}
             endDay={accounting}
@@ -189,9 +213,9 @@ export function TodayScreen() {
             failed={loadError !== null}
             showSkeleton={weightGate.showSkeleton}
             timedOut={weightGate.timedOut}
+            lastWeightKg={last?.weightKg}
           />
-          <RecordEntry />
-          <MonthEndNotice timeZone={timeZone} />
+
           <LoadingRegion
             name="今日"
             loading={!ready}
@@ -209,101 +233,137 @@ export function TodayScreen() {
           >
             <Stack gap="md">
               <View testID="today-records">
-                <Stack gap="sm">
-                  <Row justify="between" align="center" gap="sm">
-                    <Row gap="sm" align="center">
-                      <Text variant="heading">{beforeSwitch ? `${formatMonthDay(accounting)}的记录` : '今天的记录'}</Text>
-                      {loggedCount > 0 ? (
-                        <TagChip
-                          label={allLogged ? '今天都记完了' : `已记 ${loggedCount}/3`}
-                          tone={allLogged ? 'exec' : 'owner'}
+                <Card>
+                  <Stack gap="xs">
+                    <Row justify="between" align="center" gap="sm" wrap>
+                      <Row gap="sm" align="center" wrap>
+                        <Text variant="label" style={{ fontWeight: '700' }}>
+                          {beforeSwitch ? `${formatMonthDay(accounting)}的记录` : '今天的记录'}
+                        </Text>
+                        {loggedCount > 0 ? (
+                          <TagChip
+                            label={allLogged ? '今天都记完了' : `已记 ${loggedCount}/3`}
+                            tone={allLogged ? 'exec' : 'owner'}
+                          />
+                        ) : null}
+                      </Row>
+
+                      <Row gap="xs" align="center" wrap>
+                        <CockpitPillButton
+                          label="＋ 记一笔"
+                          shortcut="⌘K"
+                          active
+                          accessibilityLabel="打开快速记录面板"
+                          onPress={() => openRecordSheet()}
                         />
-                      ) : null}
+                        {last && today.length > 0 ? (
+                          <CockpitPillButton
+                            label={`↻ 再记 ${formatKg(last.weightKg)} kg`}
+                            accessibilityLabel={`再记 ${formatKg(last.weightKg)} kg`}
+                            onPress={() => openRecordSheet(last.weightKg)}
+                          />
+                        ) : null}
+                      </Row>
                     </Row>
-                    {last && today.length > 0 ? (
-                      <Button
-                        label={`再记 ${formatKg(last.weightKg)} kg`}
-                        variant="secondary"
-                        onPress={() => openRecordSheet(last.weightKg)}
+
+                    <Divider />
+
+                    {readout.firstRecord ? (
+                      <EmptyState
+                        title={readout.firstRecord}
+                        description="记下体重后，这里会显示近 7 日均重。"
+                        action={
+                          <CockpitPillButton
+                            label="＋ 记录首笔"
+                            active
+                            onPress={() => openRecordSheet()}
+                          />
+                        }
                       />
                     ) : null}
-                  </Row>
-                  <Divider />
-                  {readout.firstRecord ? (
-                    <EmptyState
-                      title={readout.firstRecord}
-                      description="记下体重后，这里会显示近 7 日均重。"
-                      action={<Button label="记录" variant="secondary" onPress={() => openRecordSheet()} />}
-                    />
-                  ) : null}
-                  {today.length === 0 && last ? (
-                    <EmptyState
-                      title="今天还没有记录"
-                      description="再记会带上上次的体重，点保存后才会写入。"
-                      action={
-                        <Button
-                          label={`再记 ${formatKg(last.weightKg)} kg`}
-                          variant="secondary"
-                          onPress={() => openRecordSheet(last.weightKg)}
-                        />
-                      }
-                    />
-                  ) : null}
-                  {visibleToday.map((record, index) => {
-                    const failed = failedIds.has(record.id);
-                    return (
-                      <Fragment key={record.id}>
-                        {index > 0 ? <Divider /> : null}
-                        <Stack gap="xs">
-                          <Row justify="between" align="center" gap="sm">
-                            <Row gap="md" align="center">
-                              <Text variant="label">{weighInLabel(index)}</Text>
-                              <Text variant="body">
-                                {formatKg(record.weightKg)} kg · {formatClock(record.recordedAt, record.tz)}
-                              </Text>
-                            </Row>
-                            {failed ? null : (
-                              <Button label="删除" variant="ghost" onPress={() => scheduleDelete(record.id)} />
-                            )}
-                          </Row>
-                          {failed ? (
-                            <FailedSaveRow
-                              onRetry={() => void retry(record.id)}
-                              onDismiss={() => dismiss(record.id)}
-                            />
-                          ) : null}
-                        </Stack>
-                      </Fragment>
-                    );
-                  })}
-                </Stack>
+
+                    {today.length === 0 && last ? (
+                      <EmptyState
+                        title="今天还没有记录"
+                        description="再记会带上上次的体重，点保存后才会写入。"
+                        action={
+                          <CockpitPillButton
+                            label={`↻ 再记 ${formatKg(last.weightKg)} kg`}
+                            active
+                            onPress={() => openRecordSheet(last.weightKg)}
+                          />
+                        }
+                      />
+                    ) : null}
+
+                    {visibleToday.map((record, index) => {
+                      const failed = failedIds.has(record.id);
+                      return (
+                        <Fragment key={record.id}>
+                          {index > 0 ? <Divider /> : null}
+                          <Stack gap="xs">
+                            <View
+                              style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                paddingVertical: theme.space.xs,
+                                paddingHorizontal: theme.space.sm,
+                                borderRadius: theme.radius.sm,
+                                backgroundColor: color.surface,
+                              }}
+                            >
+                              <Row gap="md" align="center">
+                                <TagChip
+                                  label={weighInLabel(index)}
+                                  tone={index === 0 ? 'owner' : 'pod'}
+                                />
+                                <Text
+                                  variant="body"
+                                  style={{
+                                    fontFamily: theme.fontFamily.mono,
+                                    fontWeight: '600',
+                                  }}
+                                >
+                                  {formatKg(record.weightKg)} kg
+                                </Text>
+                                <Text
+                                  variant="caption"
+                                  tone="muted"
+                                  style={{ fontFamily: theme.fontFamily.mono }}
+                                >
+                                  {formatClock(record.recordedAt, record.tz)}
+                                </Text>
+                              </Row>
+                              {failed ? null : (
+                                <CockpitPillButton
+                                  label="× 删除"
+                                  accessibilityLabel="删除该条体重记录"
+                                  onPress={() => scheduleDelete(record.id)}
+                                />
+                              )}
+                            </View>
+                            {failed ? (
+                              <FailedSaveRow
+                                onRetry={() => void retry(record.id)}
+                                onDismiss={() => dismiss(record.id)}
+                              />
+                            ) : null}
+                          </Stack>
+                        </Fragment>
+                      );
+                    })}
+                  </Stack>
+                </Card>
               </View>
 
               {layout === 'expanded' || Platform.OS === 'web' ? (
-                <>
-                  <WorkbenchConsoleCard
-                    mode={hostMode}
-                    localDay={accounting}
-                    latestWeightKg={last?.weightKg ?? null}
-                    loggedCount={loggedCount}
-                    activeWeightDays={activeWeightDays}
-                    trainingSetsCount={trainingToday.length}
-                    trainingVolumeKg={trainingVolumeKg}
-                    studyMinutes={studyMinutesToday}
-                    studyCount={studyToday.length}
-                    onQuickWeight={() => openRecordSheet(last?.weightKg, 'weight')}
-                    onQuickTraining={() => openRecordSheet(undefined, 'training')}
-                    onQuickStudy={() => openRecordSheet(undefined, 'study')}
-                    onQuickJournal={() => openRecordSheet(undefined, 'block')}
-                    onOpenScope={() => openDesktopBridge('scope')}
-                  />
-                  <WeeklyRhythmCard
-                    endDay={accounting}
-                    weightRecords={counted}
-                    trainingSets={countedTraining}
-                    studyRecords={countedStudy}
-                  />
-                </>
+                <WeeklyRhythmCard
+                  endDay={accounting}
+                  weightRecords={counted}
+                  trainingSets={countedTraining}
+                  studyRecords={countedStudy}
+                />
               ) : null}
             </Stack>
           </LoadingRegion>
@@ -460,8 +520,8 @@ function FailedSaveRow({
         accessibilityLabel="重试"
         onPress={onRetry}
         style={{
-          minHeight: theme.layout.control,
-          minWidth: theme.layout.control,
+          minHeight: theme.layout.controlMini,
+          paddingHorizontal: theme.space.sm,
           justifyContent: 'center',
         }}
       >
@@ -692,14 +752,8 @@ function WeeklyRhythmCard({
   );
 }
 
-function RecordEntry() {
-  return <Button label="记录" fill onPress={() => openRecordSheet()} />;
-}
-
 /**
- * Title, display line, and detail line on every phase, so the record button
- * under this card does not move. The wait phase keeps the skeleton's space
- * without painting it. 「数据不足」 uses heading type inside the display line.
+ * Compact 7-day rolling weight card with inline Charioteer-style capsule actions.
  */
 function AverageBlock({
   records,
@@ -708,6 +762,7 @@ function AverageBlock({
   failed,
   showSkeleton,
   timedOut,
+  lastWeightKg,
 }: {
   records: Parameters<typeof averageCaption>[0];
   endDay: string;
@@ -715,6 +770,7 @@ function AverageBlock({
   failed: boolean;
   showSkeleton: boolean;
   timedOut: boolean;
+  lastWeightKg?: number;
 }) {
   const phase = weightColumnPhase({ ready, failed, showSkeleton, timedOut });
   const caption = averageCaption(records, endDay);
@@ -735,17 +791,44 @@ function AverageBlock({
     ) : null;
   return (
     <Card>
-      <View style={{ minHeight: averageBlockBodyHeight(), gap: theme.space.sm }}>
-        <LineBox height={theme.lineHeight.sm}>
-          <Text variant="muted" style={{ lineHeight: theme.lineHeight.sm }}>7 日均重</Text>
-        </LineBox>
-        <LineBox height={theme.lineHeight.display - 2} hidden={phase === 'wait' || phase === 'skeleton'}>
-          {value}
-        </LineBox>
-        <LineBox height={theme.lineHeight.sm} hidden={phase !== 'content'}>
-          {detail}
-        </LineBox>
-      </View>
+      <Row justify="between" align="center" gap="md" wrap>
+        <View style={{ minHeight: averageBlockBodyHeight(), gap: theme.space.xs, flex: 1 }}>
+          <LineBox height={theme.lineHeight.sm}>
+            <Row gap="xs" align="center">
+              <Text variant="muted" style={{ lineHeight: theme.lineHeight.sm }}>7 日均重</Text>
+              <TagChip label="EMA 滚动均值" tone="owner" />
+            </Row>
+          </LineBox>
+          <LineBox height={theme.lineHeight.display - 2} hidden={phase === 'wait' || phase === 'skeleton'}>
+            {value}
+          </LineBox>
+          <LineBox height={theme.lineHeight.sm} hidden={phase !== 'content'}>
+            {detail}
+          </LineBox>
+        </View>
+
+        <Row gap="xs" align="center" wrap>
+          <CockpitPillButton
+            label="⚖ 记录晨重"
+            shortcut="⌘K"
+            active
+            accessibilityLabel="记录晨重"
+            onPress={() => openRecordSheet(lastWeightKg, 'weight')}
+          />
+          <CockpitPillButton
+            label="🏋️ 训练"
+            shortcut="⇧⌘T"
+            accessibilityLabel="记录训练"
+            onPress={() => openRecordSheet(undefined, 'training')}
+          />
+          <CockpitPillButton
+            label="📚 学习"
+            shortcut="⇧⌘L"
+            accessibilityLabel="记录学习"
+            onPress={() => openRecordSheet(undefined, 'study')}
+          />
+        </Row>
+      </Row>
     </Card>
   );
 }
@@ -793,20 +876,34 @@ function WeightColumn({
     <View testID="today-weight-column">
       <Stack gap="sm">
         <Text variant="heading">体重</Text>
-        {phase === 'dash' ? (
-          <Card>
-            <Text variant="muted">—</Text>
-          </Card>
-        ) : null}
-        {phase === 'skeleton' ? (
-          <Card>
-            <SkeletonText lines={2} />
-          </Card>
-        ) : null}
-        {phase === 'content' && !recorded ? (
-          <StatusCard summary="未记录" actionLabel="记一笔" onAction={() => openRecordSheet()} />
-        ) : null}
-        {phase === 'content' && recorded ? <StatusCard summary={summary} hint={hint} /> : null}
+        <View style={{ position: 'relative' }}>
+          <View {...(phase === 'content' ? undefined : skeletonHiddenProps)}>
+            <StatusCard
+              summary={summary}
+              hint={hint}
+              actionLabel={recorded ? undefined : '记一笔'}
+              onAction={recorded ? undefined : () => openRecordSheet()}
+            />
+          </View>
+          {phase === 'wait' || phase === 'skeleton' ? (
+            <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}>
+              <Card>
+                {phase === 'skeleton' ? (
+                  <SkeletonText lines={2} />
+                ) : (
+                  <View style={{ height: theme.lineHeight.md * 2 + theme.space.xs }} {...skeletonHiddenProps} />
+                )}
+              </Card>
+            </View>
+          ) : null}
+          {phase === 'dash' ? (
+            <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}>
+              <Card>
+                <Text variant="muted">—</Text>
+              </Card>
+            </View>
+          ) : null}
+        </View>
       </Stack>
     </View>
   );

@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Platform, useColorScheme } from 'react-native';
+import { Platform } from 'react-native';
 
 import { darkColor, lightColor, theme as baseTheme, type Palette } from './theme';
 
-const THEME_STORAGE_KEY = 'viastela.theme_mode.v1';
+const THEME_STORAGE_KEY = 'viastela.theme_mode.v2';
 
 export type AppTheme = Omit<typeof baseTheme, 'color'> & {
   color: Palette;
@@ -67,20 +67,11 @@ export function useTheme(): AppTheme {
   return useContext(ThemeContext);
 }
 
-function readWebScheme(): 'light' | 'dark' | null {
-  if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    return null;
-  }
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
-
 function usePreferredScheme(): [
   'light' | 'dark',
   (next: 'light' | 'dark') => void,
 ] {
-  const system = useColorScheme();
   const [override, setOverride] = useState<'light' | 'dark' | null>(readStoredScheme);
-  const [webScheme, setWebScheme] = useState<'light' | 'dark' | null>(readWebScheme);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') {
@@ -88,24 +79,14 @@ function usePreferredScheme(): [
     }
     const onSub: ThemeListener = (next) => setOverride(next);
     themeListeners.add(onSub);
-
-    if (typeof window.matchMedia === 'function') {
-      const media = window.matchMedia('(prefers-color-scheme: dark)');
-      const apply = () => setWebScheme(media.matches ? 'dark' : 'light');
-      apply();
-      media.addEventListener('change', apply);
-      return () => {
-        themeListeners.delete(onSub);
-        media.removeEventListener('change', apply);
-      };
-    }
     return () => {
       themeListeners.delete(onSub);
     };
   }, []);
 
+  // Default to Obsidian & Molten Gold ('dark') in production/desktop, while keeping 'light' in Jest tests.
   const resolved: 'light' | 'dark' =
-    override ?? (webScheme ? webScheme : system === 'dark' ? 'dark' : 'light');
+    override ?? (isTestEnv() ? 'light' : 'dark');
 
   useEffect(() => {
     if (!isTestEnv()) {
