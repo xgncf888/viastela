@@ -63,6 +63,10 @@ import {
   writeActiveTimer,
 } from '@/data/time-block-tracker';
 
+import { parseQuickBookkeepingInput } from '@/core/bookkeeping';
+import { addLedgerTransaction } from '@/data/bookkeeping';
+
+import { BookkeepingLedgerHub } from './BookkeepingLedgerHub';
 import { useI18n } from './use-i18n';
 
 import { Text } from './Text';
@@ -70,7 +74,7 @@ import { theme } from './theme';
 import { useTheme } from './ThemeProvider';
 import { showToast } from './toast';
 
-export type SanctuaryPerspective = 'diorama' | 'daycycle' | 'summary';
+export type SanctuaryPerspective = 'diorama' | 'ledger' | 'daycycle' | 'summary';
 export type LifeZoneKey = 'focus' | 'vitality' | 'wishes';
 export type SpatialModuleFilter = 'all' | 'focus' | 'vitality' | 'wishes';
 export type WorkoutPoseId = 'squat' | 'pushup' | 'press' | 'jump';
@@ -2017,6 +2021,24 @@ export function IsometricStudioStage({
       return;
     }
     const minMatch = raw.match(/(\d+)\s*(m|min|分钟)/i);
+    const looksLikeMoney =
+      !minMatch && (/[¥$元块]|咖啡|拿铁|午饭|晚饭|早饭|外卖|打车|地铁|超市|买菜|工资/.test(raw) || perspective === 'ledger');
+    if (looksLikeMoney) {
+      const parsed = parseQuickBookkeepingInput(raw);
+      if (parsed) {
+        addLedgerTransaction({ ...parsed, localDay });
+        const v = recordPledgeReward(`记账：${parsed.note} ¥${parsed.amountCny}`, localDay, 10);
+        setVault(v);
+        setQuickInput('');
+        showToast({
+          text: t(
+            `💰 已记入账本：${parsed.note} ${parsed.kind === 'expense' ? '-' : '+'}¥${parsed.amountCny.toFixed(2)}`,
+            `💰 Logged to Ledger: ${parsed.note} ${parsed.kind === 'expense' ? '-' : '+'}¥${parsed.amountCny.toFixed(2)}`,
+          ),
+        });
+        return;
+      }
+    }
     const mins = minMatch ? Math.max(5, Math.min(360, Number.parseInt(minMatch[1]!, 10))) : 45;
     const now = new Date();
     const endMin = Math.max(mins, now.getHours() * 60 + now.getMinutes());
@@ -2324,6 +2346,7 @@ export function IsometricStudioStage({
             {(
               [
                 { id: 'diorama', label: t('全景', 'Stage') },
+                { id: 'ledger', label: t('💰 记账', '💰 Ledger') },
                 { id: 'daycycle', label: t('24H 节律', '24H Cycle') },
                 { id: 'summary', label: t('五维精要', 'Summary') },
               ] as const
@@ -2362,8 +2385,8 @@ export function IsometricStudioStage({
             onChangeText={setQuickInput}
             onSubmitEditing={onQuickAddTimeNote}
             placeholder={t(
-              '输入事项与分钟数直接切入 (如: 架构精读 45m)…',
-              'Type task & mins (e.g., System Design 45m)…',
+              '输入「架构精读 45m」切时间块，或「瑞幸拿铁 ¥18」秒记账…',
+              'Type "System Design 45m" or "Latte ¥18" to log…',
             )}
             placeholderTextColor={pal.muted}
             style={[
@@ -3909,6 +3932,13 @@ export function IsometricStudioStage({
               </View>
             </View>
           </View>
+        </View>
+      ) : null}
+
+      {/* Perspective 1B: Dedicated Bookkeeping & Budget Hub */}
+      {perspective === 'ledger' ? (
+        <View style={{ padding: 12 }}>
+          <BookkeepingLedgerHub localDay={localDay} />
         </View>
       ) : null}
 

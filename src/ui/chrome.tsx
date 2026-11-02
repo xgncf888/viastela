@@ -14,7 +14,7 @@ import { theme } from './theme';
 import { useTheme } from './ThemeProvider';
 import { useReducedMotion } from './use-reduced-motion';
 
-export type NavIconKind = 'today' | 'assets' | 'trend' | 'timeline' | 'me';
+export type NavIconKind = 'today' | 'ledger' | 'assets' | 'trend' | 'timeline' | 'me';
 export type NavBadgeTone = 'live' | 'alert' | 'neutral' | 'shortcut';
 
 /** Width only. Phones, split iPad, and a dragged browser window all follow the same cuts. */
@@ -163,13 +163,15 @@ function NavStrokeIcon({ kind, stroke }: { kind: NavIconKind; stroke: string }) 
   const d =
     kind === 'today'
       ? 'M4 6l4 4-4 4M10 14h6'
-      : kind === 'assets'
-        ? 'M3 5.5A1.5 1.5 0 0 1 4.5 4h11A1.5 1.5 0 0 1 17 5.5v9a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14.5v-9ZM3 8.5h14M12.5 12h2'
-        : kind === 'trend'
-          ? 'M4 15.5V9.5M8 15.5V5.5M12 15.5v-5M16 15.5V7'
-          : kind === 'timeline'
-            ? 'M4 5h12v8H9l-4 3v-3H4V5Z'
-            : 'M10 2.5 15.5 4.5v4.5c0 3.3-2.3 5.9-5.5 7.1-3.2-1.2-5.5-3.8-5.5-7.1V4.5L10 2.5Z';
+      : kind === 'ledger'
+        ? 'M4 4h12v12H4V4Zm3 4h6m-6 3.5h6m-3-5.5v7'
+        : kind === 'assets'
+          ? 'M3 5.5A1.5 1.5 0 0 1 4.5 4h11A1.5 1.5 0 0 1 17 5.5v9a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14.5v-9ZM3 8.5h14M12.5 12h2'
+          : kind === 'trend'
+            ? 'M4 15.5V9.5M8 15.5V5.5M12 15.5v-5M16 15.5V7'
+            : kind === 'timeline'
+              ? 'M4 5h12v8H9l-4 3v-3H4V5Z'
+              : 'M10 2.5 15.5 4.5v4.5c0 3.3-2.3 5.9-5.5 7.1-3.2-1.2-5.5-3.8-5.5-7.1V4.5L10 2.5Z';
 
   if (Platform.OS === 'web') {
     return createElement(

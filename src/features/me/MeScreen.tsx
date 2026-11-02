@@ -15,6 +15,7 @@ import {
 } from '@/core/data-export';
 import { computeLocalDay } from '@/core/local-day';
 import { signOut } from '@/data/auth';
+import { readBookkeepingState, writeBookkeepingState } from '@/data/bookkeeping';
 import {
   readPledgeVault,
   readSanctuaryStageState,
@@ -142,6 +143,7 @@ export function MeScreen() {
         pledgeVault: readPledgeVault(),
         stageState: readSanctuaryStageState(),
         timeCapsules: readTimeCapsules(),
+        bookkeeping: readBookkeepingState(),
       },
     });
     return { localDay, payload, json: JSON.stringify(payload, null, 2) };
@@ -215,6 +217,7 @@ export function MeScreen() {
         if (parsed.sanctuary.pledgeVault) writePledgeVault(parsed.sanctuary.pledgeVault);
         if (parsed.sanctuary.stageState) writeSanctuaryStageState(parsed.sanctuary.stageState);
         if (parsed.sanctuary.timeCapsules) writeTimeCapsules(parsed.sanctuary.timeCapsules);
+        if (parsed.sanctuary.bookkeeping) writeBookkeepingState(parsed.sanctuary.bookkeeping);
       }
       for (const w of parsed.weights.slice(-10)) {
         void weight.saveWeight(w.weightKg);

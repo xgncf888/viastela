@@ -3,6 +3,7 @@
  * weight records, training sets, study sessions, and full Sanctuary local state.
  */
 
+import type { BookkeepingState } from './bookkeeping';
 import type { PledgeVaultState, SanctuaryStageState, TimeCapsuleItem } from './life-gamification';
 import type { HabitItem, LifeMilestone, OkrObjective } from './life-milestones-okr';
 import type { StudyRecord } from './study';
@@ -19,6 +20,7 @@ export type SanctuaryBackupSnapshot = {
   pledgeVault?: PledgeVaultState;
   stageState?: SanctuaryStageState;
   timeCapsules?: readonly TimeCapsuleItem[];
+  bookkeeping?: BookkeepingState;
 };
 
 export type PersonalDataBackup = {
