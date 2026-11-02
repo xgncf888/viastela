@@ -5,7 +5,7 @@
  * - Workspace Root App: `/Users/guoyifeng1/Desktop/Gemini-Projects/<displayName>.app` (alongside `Charioteer.app`)
  * - Repo Root App:      `./<displayName>.app` (alongside `./charioteer/Charioteer.app`)
  * - Charioteer Plugin:  `~/.charioteer/plugins/viastela/` (auto-registered on build)
- * - Release Archives:   `./releases/` (`.pkg`, `.dmg`, `.zip`, `.apk`, `.ipa`, `.mobileconfig`, `SHA256SUMS.txt`)
+ * - Release Archives:   `./releases/` & `../Releases/<displayName>/` (`.pkg`, `.dmg`, `.zip`, `.apk`, `.ipa`, `.mobileconfig`, `SHA256SUMS.txt`)
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -30,17 +30,6 @@ function sha256File(filePath) {
   const hash = createHash('sha256');
   hash.update(readFileSync(filePath));
   return hash.digest('hex');
-}
-
-function copySignedApp(srcApp, destApp) {
-  rmSync(destApp, { recursive: true, force: true });
-  execFileSync('ditto', [srcApp, destApp], { stdio: 'inherit' });
-  try { execFileSync('xattr', ['-cr', destApp], { stdio: 'ignore' }); } catch {}
-  try {
-    execFileSync('codesign', ['--force', '--deep', '--sign', '-', destApp], { stdio: 'pipe' });
-  } catch {
-    // Ignore codesign warning if command-line tools are restricted
-  }
 }
 
 function main() {
@@ -71,7 +60,6 @@ function main() {
   rmSync(pluginZip, { force: true });
   execFileSync('ditto', ['-c', '-k', pluginStage, pluginZip], { stdio: 'inherit' });
 
-  // Auto-sync live plugin into ~/.charioteer/plugins/viastela
   try {
     const charioteerHome = process.env.CHARIOTEER_HOME || path.join(os.homedir(), '.charioteer');
     const livePluginDir = path.join(charioteerHome, 'plugins', 'viastela');
@@ -100,11 +88,9 @@ function main() {
     const appBundleName = `${displayName}.app`;
     const macAppSrc = path.join(MACOS_BUILD_DIR, appBundleName);
     if (existsSync(macAppSrc)) {
-      // Remove any legacy duplicate .app inside releases/ so only the unified root locations exist
       rmSync(path.join(RELEASES_DIR, appBundleName), { recursive: true, force: true });
       const repoRootApp = path.join(ROOT, appBundleName);
 
-      // Build single-file native macOS .pkg installer from repoRootApp
       const macPkgOut = path.join(RELEASES_DIR, 'viastela-macos.pkg');
       rmSync(macPkgOut, { force: true });
       execFileSync(
@@ -129,7 +115,7 @@ function main() {
   execFileSync('node', [path.join(ROOT, 'scripts', 'build-ios-ipa.mjs')], { cwd: ROOT, env, stdio: 'inherit' });
   execFileSync('node', [path.join(ROOT, 'scripts', 'build-android-apk.mjs')], { cwd: ROOT, env, stdio: 'inherit' });
 
-  console.log('5/5 Writing SHA256SUMS.txt...');
+  console.log('5/5 Writing SHA256SUMS.txt & syncing Releases/ directory...');
   const packageExts = ['.pkg', '.dmg', '.apk', '.ipa', '.mobileconfig', '.zip'];
   const files = readdirSync(RELEASES_DIR)
     .filter((name) => packageExts.some((ext) => name.endsWith(ext)))
@@ -141,10 +127,20 @@ function main() {
   });
   writeFileSync(path.join(RELEASES_DIR, 'SHA256SUMS.txt'), `${lines.join('\n')}\n`, 'utf8');
 
+  const outerReleaseDir = path.join(WORKSPACE_PARENT, 'Releases', displayName);
+  try {
+    mkdirSync(outerReleaseDir, { recursive: true });
+    for (const name of [...files, 'SHA256SUMS.txt']) {
+      cpSync(path.join(RELEASES_DIR, name), path.join(outerReleaseDir, name));
+    }
+  } catch {
+    // Ignore if outer directory is not writable in CI
+  }
+
   console.log(`\nUnified Desktop App Bundles ready:`);
   console.log(`  - ${path.join(WORKSPACE_PARENT, `${displayName}.app`)} (Workspace Root — alongside Charioteer.app)`);
   console.log(`  - ${path.join(ROOT, `${displayName}.app`)} (Repo Root)`);
-  console.log(`\nAll release archives ready in ${RELEASES_DIR}:`);
+  console.log(`\nAll release archives ready in ${RELEASES_DIR} & ${outerReleaseDir}:`);
   for (const line of lines) {
     console.log(`  - ${line}`);
   }
