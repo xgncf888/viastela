@@ -44,6 +44,7 @@ import {
   TagChip,
   WorkbenchConsoleCard,
 } from '@/ui/WorkbenchConsole';
+import { LifeMilestonesOkrHub } from '@/ui/LifeMilestonesOkrHub';
 import { TimeBlockMasteryHub } from '@/ui/TimeBlockMasteryHub';
 import { WearableSyncHub } from '@/ui/WearableSyncHub';
 
@@ -405,6 +406,15 @@ export function TodayScreen() {
               );
             })
           : null}
+
+        <LifeMilestonesOkrHub
+          localDay={accounting}
+          latestWeightKg={last?.weightKg ?? null}
+          totalWorkoutSets={countedTraining.length}
+          totalStudyHours={
+            countedStudy.reduce((sum, item) => sum + item.durationMinutes, 0) / 60
+          }
+        />
 
         <TimeBlockMasteryHub
           localDay={accounting}

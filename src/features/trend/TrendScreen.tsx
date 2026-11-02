@@ -26,6 +26,7 @@ import {
   CockpitPillButton,
   TagChip,
 } from '@/ui/WorkbenchConsole';
+import { LifeMilestonesOkrHub } from '@/ui/LifeMilestonesOkrHub';
 
 import { chartSeries } from './chart-model';
 
@@ -293,6 +294,10 @@ export function TrendScreen() {
               })}
             </Card>
           }
+        />
+        <LifeMilestonesOkrHub
+          localDay={endDay}
+          latestWeightKg={activePoint?.raw ?? null}
         />
       </Content>
     </Screen>
