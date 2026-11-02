@@ -12,8 +12,8 @@ import {
 import {
   appendHeartRateSample,
   applyHealthSummaryToTelemetry,
-  buildSampleKeepSyncPayload,
   checkLaunchUrlHealthSync,
+  clearWearableTelemetry,
   connectBleHeartRateMonitor,
   connectBleWeightScale,
   hasAutoSyncedToday,
@@ -23,8 +23,6 @@ import {
   readWearableGrants,
   readWearableTelemetry,
   syncIntervalsIcuCloud,
-  syncNativeOsHealthBridge,
-  updateWearableGrant,
   writeWearableTelemetry,
 } from '@/data/wearable-sync';
 
@@ -57,16 +55,12 @@ export function WearableSyncHub({
   const { color } = useTheme();
   const [telemetry, setTelemetry] = useState<WearableTelemetry>(readWearableTelemetry);
   const [grants, setGrants] = useState<WearableAuthGrant[]>(readWearableGrants);
-  const [hrSeries, setHrSeries] = useState<number[]>(() => {
-    const saved = readHeartRateSeries();
-    return saved.length >= 4 ? saved : [118, 124, 129, 134, 138, 135, 141, 138];
-  });
+  const [hrSeries, setHrSeries] = useState<number[]>(readHeartRateSeries);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
-  const [liveSimulating, setLiveSimulating] = useState(false);
-  const [scaleWeighing, setScaleWeighing] = useState(false);
+  const [bleHrScanning, setBleHrScanning] = useState(false);
+  const [bleScaleScanning, setBleScaleScanning] = useState(false);
   const [liveScaleKg, setLiveScaleKg] = useState<number | null>(null);
-  const [bleHrConnected, setBleHrConnected] = useState(false);
-  const [bleScaleConnected, setBleScaleConnected] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [authCenterOpen, setAuthCenterOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importPayload, setImportPayload] = useState('');
@@ -102,7 +96,7 @@ export function WearableSyncHub({
         deviceName,
       );
       setTelemetry(nextTel);
-      if (nextHr.length >= 4) setHrSeries(nextHr);
+      setHrSeries(nextHr);
 
       let syncedSets = 0;
       if (onSyncWorkoutSet && summary.workouts.length > 0) {
@@ -135,7 +129,7 @@ export function WearableSyncHub({
           text:
             parts.length > 0
               ? `${deviceName}：${parts.join(' · ')}`
-              : `已同步 ${deviceName} 健康指标`,
+              : `已同步 ${deviceName} 健康数据`,
         });
       }
     },
@@ -147,79 +141,43 @@ export function WearableSyncHub({
     const urlSync = checkLaunchUrlHealthSync();
     if (urlSync) {
       const timer = setTimeout(() => {
-        void commitSummaryToLedger(urlSync, 'apple-health', 'Apple Health / 快捷指令自动同步', false);
+        void commitSummaryToLedger(urlSync, 'apple-health', 'Apple Health / 快捷指令同步', false);
       }, 0);
       return () => clearTimeout(timer);
     }
-    // 2. If user authorized Apple Health / Health Connect / Intervals.icu with `autoSyncOnLaunch`, auto-sync once per accounting day
+    // 2. Only auto-sync on launch if user has explicitly configured Intervals.icu cloud credentials
     if (!localDay || hasAutoSyncedToday(localDay)) return;
-    const activeGrants = readWearableGrants().filter((g) => g.authorized && g.autoSyncOnLaunch);
-    if (activeGrants.length === 0) return;
+    const cloudGrant = readWearableGrants().find(
+      (g) => g.provider === 'intervals-icu' && g.authorized && g.athleteId && g.apiKey,
+    );
+    if (!cloudGrant || !cloudGrant.athleteId || !cloudGrant.apiKey) return;
 
     markAutoSyncedToday(localDay);
-    const firstGrant = activeGrants[0]!;
-    if (firstGrant.provider === 'intervals-icu' && firstGrant.athleteId && firstGrant.apiKey) {
-      void syncIntervalsIcuCloud(firstGrant.athleteId, firstGrant.apiKey)
-        .then((summary) =>
-          commitSummaryToLedger(summary, 'intervals-icu', 'Intervals.icu 云端自动同步', false),
-        )
-        .catch(() => undefined);
-    } else if (
-      firstGrant.provider === 'apple-health' ||
-      firstGrant.provider === 'health-connect'
-    ) {
-      void syncNativeOsHealthBridge(firstGrant.provider, latestWeightKg ?? 72.4)
-        .then((summary) =>
-          commitSummaryToLedger(
-            summary,
-            firstGrant.provider,
-            firstGrant.provider === 'apple-health' ? 'Apple Health 自动同步' : 'Health Connect 自动同步',
-            false,
-          ),
-        )
-        .catch(() => undefined);
-    }
-  }, [commitSummaryToLedger, latestWeightKg, localDay]);
-
-  // Live Heart Rate stream simulation
-  useEffect(() => {
-    if (!liveSimulating) return undefined;
-    const timer = setInterval(() => {
-      setHrSeries((prev) => {
-        const last = prev[prev.length - 1] ?? 132;
-        const delta = Math.round((Math.random() - 0.46) * 6);
-        const nextBpm = Math.max(92, Math.min(176, last + delta));
-        const nextSeries = appendHeartRateSample(nextBpm);
-        const nextTel: WearableTelemetry = {
-          ...telemetry,
-          source: 'ble-hr',
-          deviceName: 'Keep 手环 · 实时心率广播',
-          heartRateBpm: nextBpm,
-          minHeartRateBpm: Math.min(...nextSeries),
-          maxHeartRateBpm: Math.max(...nextSeries),
-          activeCaloriesKcal: (telemetry.activeCaloriesKcal ?? 420) + 1,
-          steps: (telemetry.steps ?? 8200) + 3,
-          updatedAt: new Date().toISOString(),
-        };
-        setTelemetry(nextTel);
-        writeWearableTelemetry(nextTel);
-        return nextSeries;
-      });
-    }, 1500);
-    return () => clearInterval(timer);
-  }, [liveSimulating, telemetry]);
+    void syncIntervalsIcuCloud(cloudGrant.athleteId, cloudGrant.apiKey)
+      .then((summary) =>
+        commitSummaryToLedger(summary, 'intervals-icu', 'Intervals.icu 云端自动同步', false),
+      )
+      .catch(() => undefined);
+  }, [commitSummaryToLedger, localDay]);
 
   async function onConnectBleScale() {
-    if (bleScaleConnected) {
+    if (bleScaleScanning) {
       disconnectBleScaleRef.current?.();
       disconnectBleScaleRef.current = null;
-      setBleScaleConnected(false);
-      showToast({ text: '已断开蓝牙体脂秤' });
+      setBleScaleScanning(false);
+      setStatusMessage(null);
+      showToast({ text: '已停止蓝牙体脂秤扫描' });
       return;
     }
+    setStatusMessage('正在通过蓝牙扫描附近 BLE 体脂秤 (GATT 0x181D / 0x181B)，请亮屏并站上体脂秤…');
     try {
       const conn = await connectBleWeightScale((reading) => {
         setLiveScaleKg(reading.weightKg);
+        setStatusMessage(
+          reading.stabilized
+            ? `已锁定真实称重 ${reading.weightKg.toFixed(2)} kg（来自 ${reading.deviceName}），已自动写入今日晨重`
+            : `正在接收 ${reading.deviceName} 实时读数：${reading.weightKg.toFixed(2)} kg（等待数值稳定锁定…）`,
+        );
         if (reading.stabilized && lastSavedScaleKgRef.current !== reading.weightKg) {
           lastSavedScaleKgRef.current = reading.weightKg;
           void commitSummaryToLedger(
@@ -237,67 +195,31 @@ export function WearableSyncHub({
         }
       });
       disconnectBleScaleRef.current = conn.disconnect;
-      setBleScaleConnected(true);
+      setBleScaleScanning(true);
       setGrants(readWearableGrants());
-      showToast({ text: `已连接 ${conn.deviceName}，站上体脂秤稳定后将自动记录晨重` });
-    } catch {
-      // If Web Bluetooth is unavailable or user cancels picker, run realistic 2.2s smart scale auto-weighing flow
-      onSimulateScaleWeighIn();
+      showToast({ text: conn.deviceName });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '未检测到蓝牙体脂秤';
+      setStatusMessage(msg);
+      showToast({ text: msg, tone: 'error' });
     }
-  }
-
-  function onSimulateScaleWeighIn() {
-    if (scaleWeighing) return;
-    setScaleWeighing(true);
-    const targetKg = Number(((latestWeightKg ?? 72.4) - 0.1).toFixed(1));
-    const steps = [
-      Number((targetKg - 1.2).toFixed(1)),
-      Number((targetKg + 0.4).toFixed(1)),
-      Number((targetKg - 0.1).toFixed(1)),
-      targetKg,
-    ];
-    let idx = 0;
-    setLiveScaleKg(steps[0]!);
-    const timer = setInterval(() => {
-      idx += 1;
-      if (idx < steps.length) {
-        setLiveScaleKg(steps[idx]!);
-      } else {
-        clearInterval(timer);
-        setScaleWeighing(false);
-        updateWearableGrant('ble-scale', {
-          authorized: true,
-          lastSyncedAt: new Date().toISOString(),
-        });
-        setGrants(readWearableGrants());
-        void commitSummaryToLedger(
-          {
-            weights: [{ weightKg: targetKg, recordedAt: new Date().toISOString() }],
-            workouts: [],
-            latestHeartRateBpm: null,
-            stepsToday: null,
-            activeCaloriesToday: null,
-          },
-          'ble-scale',
-          'Keep 智能体脂秤 S1 Pro (BLE 0x181D)',
-          false,
-        );
-      }
-    }, 450);
   }
 
   async function onConnectBleBand() {
-    if (bleHrConnected) {
+    if (bleHrScanning) {
       disconnectBleHrRef.current?.();
       disconnectBleHrRef.current = null;
-      setBleHrConnected(false);
+      setBleHrScanning(false);
+      setStatusMessage(null);
       showToast({ text: '已断开蓝牙心率手环' });
       return;
     }
+    setStatusMessage('正在通过蓝牙扫描 Keep 手环 / 运动手表 (GATT 0x180D)，请在手环上开启「心率广播」…');
     try {
       const conn = await connectBleHeartRateMonitor((bpm, deviceName) => {
         const nextSeries = appendHeartRateSample(bpm);
         setHrSeries(nextSeries);
+        setStatusMessage(`已连接 ${deviceName} · 实时心率 ${bpm} BPM`);
         setTelemetry((prev) => {
           const updated: WearableTelemetry = {
             ...prev,
@@ -313,33 +235,13 @@ export function WearableSyncHub({
         });
       });
       disconnectBleHrRef.current = conn.disconnect;
-      setBleHrConnected(true);
-      setLiveSimulating(false);
+      setBleHrScanning(true);
       setGrants(readWearableGrants());
-      showToast({ text: `已连接 ${conn.deviceName} 实时心率流` });
-    } catch {
-      setLiveSimulating(true);
-      updateWearableGrant('ble-hr', {
-        authorized: true,
-        lastSyncedAt: new Date().toISOString(),
-      });
-      setGrants(readWearableGrants());
-      showToast({ text: '已开启 Keep 手环实时心率广播流' });
-    }
-  }
-
-  async function onAuthorizeAndSyncOsHealth(provider: 'apple-health' | 'health-connect') {
-    setSyncingProvider(provider);
-    try {
-      const summary = await syncNativeOsHealthBridge(provider, latestWeightKg ?? 72.4);
-      await commitSummaryToLedger(
-        summary,
-        provider,
-        provider === 'apple-health' ? 'Apple HealthKit (体重+Keep训练)' : 'Android Health Connect (体重+Keep训练)',
-        false,
-      );
-    } finally {
-      setSyncingProvider(null);
+      showToast({ text: conn.deviceName });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '未检测到开启心率广播的蓝牙手环';
+      setStatusMessage(msg);
+      showToast({ text: msg, tone: 'error' });
     }
   }
 
@@ -348,11 +250,11 @@ export function WearableSyncHub({
     try {
       const summary = await syncIntervalsIcuCloud(intervalsAthleteId, intervalsApiKey);
       await commitSummaryToLedger(summary, 'intervals-icu', 'Intervals.icu 云端同步', false);
+      setStatusMessage('已从 Intervals.icu 同步真实体重与运动记录');
     } catch (err) {
-      showToast({
-        text: err instanceof Error ? err.message : 'Intervals.icu 同步失败',
-        tone: 'error',
-      });
+      const msg = err instanceof Error ? err.message : 'Intervals.icu 同步失败';
+      setStatusMessage(msg);
+      showToast({ text: msg, tone: 'error' });
     } finally {
       setSyncingProvider(null);
     }
@@ -362,7 +264,7 @@ export function WearableSyncHub({
     const url = 'https://xgncf888.github.io/viastela/?health_sync=1&weight={最新体重}&hr={心率}&kcal={活动能量}&steps={步数}&workout=Keep训练&mins=25';
     if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
       await navigator.clipboard.writeText(url);
-      showToast({ text: '已复制 iOS「健康 / Keep 自动同步」快捷指令 URL 模板' });
+      showToast({ text: '已复制 iOS「苹果健康 / Keep 自动同步」快捷指令 URL 模板' });
       return;
     }
     try {
@@ -373,105 +275,221 @@ export function WearableSyncHub({
   }
 
   async function onRunImport(rawText: string) {
-    const { summary } = importFitnessDataAndUpdateTelemetry(rawText);
-    await commitSummaryToLedger(summary, 'keep', 'Keep 智能体脂秤 & 手环', false);
+    const clean = rawText.trim();
+    if (!clean) {
+      showToast({ text: '请先粘贴真实的 Keep / Apple Health JSON 或 CSV 数据', tone: 'error' });
+      return;
+    }
+    const { summary } = importFitnessDataAndUpdateTelemetry(clean);
+    if (
+      summary.weights.length === 0 &&
+      summary.workouts.length === 0 &&
+      summary.latestHeartRateBpm === null
+    ) {
+      showToast({ text: '未解析到有效的体重、心率或训练字段，请检查格式', tone: 'error' });
+      return;
+    }
+    await commitSummaryToLedger(summary, 'keep', '手动导入 / 快捷指令同步', false);
     setImportOpen(false);
     setImportPayload('');
+  }
+
+  function onResetCachedTelemetry() {
+    const empty = clearWearableTelemetry();
+    setTelemetry(empty);
+    setHrSeries([]);
+    setLiveScaleKg(null);
+    setStatusMessage('已清空之前的本地演示缓存数据，当前仅显示真实硬件/云端同步数据');
+    showToast({ text: '已清除演示缓存数据' });
   }
 
   const authorizedCount = grants.filter((g) => g.authorized).length;
   const activeBpm =
     hoverIdx !== null && hrSeries[hoverIdx] !== undefined
       ? hrSeries[hoverIdx]!
-      : (telemetry.heartRateBpm ?? hrSeries[hrSeries.length - 1] ?? 136);
-  const zone = classifyHeartRateZone(activeBpm);
+      : telemetry.heartRateBpm;
+  const zone = activeBpm !== null ? classifyHeartRateZone(activeBpm) : null;
   const { linePath, areaPath } = buildSparklineSvgPath(hrSeries, 220, 44);
-  const displayedScaleKg = liveScaleKg ?? telemetry.latestWeightKg ?? latestWeightKg ?? 72.4;
+  const scaleWeightToShow = liveScaleKg ?? telemetry.latestWeightKg;
 
   return (
     <Card>
       <Stack gap="sm">
         <Row justify="between" align="center" gap="sm" wrap>
           <Row gap="sm" align="center" wrap>
-            <Text variant="heading">智能体脂秤、Keep 手环与健康设备自动同步</Text>
+            <Text variant="heading">硬件体脂秤与 Keep 手环连接台（真实蓝牙 / 云端桥接）</Text>
             <TagChip
               label={
-                scaleWeighing
-                  ? `WEIGHING · ${displayedScaleKg.toFixed(1)} kg 测量中…`
-                  : bleScaleConnected || bleHrConnected
-                    ? 'BLE LIVE · 蓝牙直连中'
-                    : authorizedCount > 0
-                      ? `已授权 ${authorizedCount} 台设备 · 自动关联`
-                      : `${zone.label} · ${activeBpm} BPM`
+                bleScaleScanning || bleHrScanning
+                  ? 'BLE SCANNING · 正在扫描真实硬件…'
+                  : activeBpm !== null && zone
+                    ? `CONNECTED · ${zone.label} ${activeBpm} BPM`
+                    : scaleWeightToShow !== null
+                      ? `SCALE SYNCED · ${scaleWeightToShow.toFixed(1)} kg`
+                      : 'STANDBY · 未连接硬件'
               }
-              tone={authorizedCount > 0 || bleScaleConnected || bleHrConnected ? 'exec' : zone.tone}
+              tone={
+                bleScaleScanning || bleHrScanning || activeBpm !== null || scaleWeightToShow !== null
+                  ? 'exec'
+                  : 'neutral'
+              }
             />
           </Row>
           <Row gap="xs" align="center" wrap>
             <CockpitPillButton
-              label={
-                scaleWeighing
-                  ? '上秤测量中…'
-                  : bleScaleConnected
-                    ? '断开体脂秤'
-                    : '智能体脂秤自动称重'
-              }
+              label={bleScaleScanning ? '停止扫描体脂秤' : '扫描蓝牙体脂秤 (BLE)'}
               variant="accent"
-              accessibilityLabel="连接智能体脂秤自动称重并写入今日晨重"
+              accessibilityLabel="通过原生 CoreBluetooth 或 Web Bluetooth 扫描附近智能体脂秤"
               onPress={() => void onConnectBleScale()}
             />
             <CockpitPillButton
-              label={bleHrConnected || liveSimulating ? '停止手环心率流' : '连接 Keep 手环心率'}
-              accessibilityLabel="通过蓝牙 BLE 连接 Keep 手环或开启实时心率流"
+              label={bleHrScanning ? '断开手环心率' : '扫描 Keep 心率手环 (BLE)'}
+              accessibilityLabel="通过蓝牙 BLE 扫描 Keep 手环或运动手表心率广播"
               onPress={() => void onConnectBleBand()}
             />
             <CockpitPillButton
-              label={`设备授权中心 (${authorizedCount}/5)`}
-              accessibilityLabel="打开设备授权与自动同步设置中心"
+              label={`云端与自动化配置 (${authorizedCount})`}
+              accessibilityLabel="打开 Intervals.icu 云端与 iOS 快捷指令配置"
               onPress={() => setAuthCenterOpen((prev) => !prev)}
             />
             <CockpitPillButton
-              label="手动/批量导入"
+              label="JSON/CSV 导入"
               accessibilityLabel="导入 Keep 或 Apple Health 数据"
               onPress={() => setImportOpen((prev) => !prev)}
             />
+            {telemetry.heartRateBpm !== null || telemetry.latestWeightKg !== null ? (
+              <CockpitPillButton
+                label="清空缓存"
+                accessibilityLabel="清空之前缓存的设备读数"
+                onPress={onResetCachedTelemetry}
+              />
+            ) : null}
           </Row>
         </Row>
+
+        {statusMessage ? (
+          <View style={[styles.statusBanner, { backgroundColor: color.surface, borderColor: color.line }]}>
+            <Text variant="caption" tone="ink">
+              {statusMessage}
+            </Text>
+          </View>
+        ) : null}
 
         <Divider />
 
         <View style={styles.metricsGrid}>
-          {/* 1. Smart Scale Auto Weight Card */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="点击触发智能体脂秤自动称重并同步到今日晨重"
-            onPress={() => void onConnectBleScale()}
-            style={({ pressed }) => [
+          {/* 1. Real BLE Smart Scale Card */}
+          <View
+            style={[
               styles.metricCard,
-              cardSurfaceStyle(pressed ? color.pressed : color.surface, color.line),
-              { borderColor: scaleWeighing ? color.accent : color.line },
+              cardSurfaceStyle(color.surface, color.line),
+              { borderColor: bleScaleScanning ? color.accent : color.line },
             ]}
           >
             <Row justify="between" align="center">
               <Text variant="caption" tone="muted">
-                智能体脂秤自动称重 (BLE 0x181D / HealthKit)
+                蓝牙智能体脂秤 (BLE 0x181D / 0x181B)
               </Text>
               <TagChip
-                label={scaleWeighing ? '锁定中…' : '点击上秤同步'}
-                tone={scaleWeighing ? 'owner' : 'exec'}
+                label={
+                  bleScaleScanning
+                    ? '扫描广播中…'
+                    : scaleWeightToShow !== null
+                      ? '已同步'
+                      : '未连接'
+                }
+                tone={bleScaleScanning ? 'owner' : scaleWeightToShow !== null ? 'exec' : 'neutral'}
               />
             </Row>
             <Text variant="heading" style={styles.bigMono}>
-              {`${displayedScaleKg.toFixed(1)} kg`}
+              {scaleWeightToShow !== null ? `${scaleWeightToShow.toFixed(2)} kg` : '未连接体脂秤'}
             </Text>
             <Text variant="caption" tone="muted">
-              {scaleWeighing
-                ? '正在接收体脂秤蓝牙广播并校准数值…'
-                : '体重锁定后自动写入「今日晨重」与「28 天趋势」'}
+              {bleScaleScanning
+                ? '正在通过 Mac 原生 CoreBluetooth 监听附近体脂秤广播，请赤脚站上体脂秤…'
+                : latestWeightKg
+                  ? `当前台账晨重 ${latestWeightKg.toFixed(1)} kg · 点击上方「扫描蓝牙体脂秤」连接真实硬件`
+                  : '点击上方「扫描蓝牙体脂秤」连接真实 BLE 体脂秤，数值稳定后自动入账'}
             </Text>
-          </Pressable>
+          </View>
 
-          {/* 2. Interactive Real-Time Heart Rate Card */}
+          {/* 2. Real BLE Heart Rate Card */}
+          <View
+            style={[
+              styles.metricCard,
+              cardSurfaceStyle(color.surface, color.line),
+              { borderColor: bleHrScanning ? color.accent : color.line },
+            ]}
+          >
+            <Row justify="between" align="center">
+              <Text variant="caption" tone="muted">
+                Keep 手环实时心率 (BLE 0x180D)
+              </Text>
+              <TagChip
+                label={zone ? zone.label : bleHrScanning ? '等待广播…' : '未连接'}
+                tone={zone ? zone.tone : bleHrScanning ? 'owner' : 'neutral'}
+              />
+            </Row>
+            <Row justify="between" align="center" gap="sm">
+              <View style={{ flex: 1 }}>
+                <Text variant="heading" style={styles.bigMono}>
+                  {activeBpm !== null ? `${activeBpm} BPM` : '等待手环广播'}
+                </Text>
+                <Text variant="caption" tone="muted">
+                  {activeBpm !== null && hrSeries.length > 0
+                    ? `区间 ${Math.min(...hrSeries)}–${Math.max(...hrSeries)} BPM (${telemetry.deviceName})`
+                    : '在 Keep 手环/手表开启「心率广播」后点击扫描连接'}
+                </Text>
+              </View>
+              {hrSeries.length >= 2 ? (
+                <View style={styles.hrChartWrap}>
+                  {Platform.OS === 'web'
+                    ? createElement(
+                        'svg',
+                        {
+                          width: 130,
+                          height: 36,
+                          viewBox: '0 0 220 44',
+                          fill: 'none',
+                          'aria-hidden': true,
+                        },
+                        createElement('path', {
+                          d: areaPath,
+                          fill: 'rgba(204, 120, 92, 0.16)',
+                        }),
+                        createElement('path', {
+                          d: linePath,
+                          stroke: color.accent,
+                          strokeWidth: 2,
+                          strokeLinecap: 'round',
+                          strokeLinejoin: 'round',
+                        }),
+                      )
+                    : null}
+                  <View style={styles.scrubOverlay}>
+                    {hrSeries.map((pt, idx) => (
+                      <Pressable
+                        key={`hr-pt-${idx}`}
+                        accessibilityRole="button"
+                        accessibilityLabel={`心率采样点 ${idx + 1}: ${pt} BPM`}
+                        onHoverIn={() => setHoverIdx(idx)}
+                        onHoverOut={() => setHoverIdx(null)}
+                        onPress={() => setHoverIdx(idx === hoverIdx ? null : idx)}
+                        style={[
+                          styles.scrubSlot,
+                          hoverIdx === idx
+                            ? { borderBottomWidth: 2, borderBottomColor: color.accent }
+                            : null,
+                        ]}
+                      />
+                    ))}
+                  </View>
+                </View>
+              ) : null}
+            </Row>
+          </View>
+
+          {/* 3. Active Calories & Steps Card */}
           <View
             style={[
               styles.metricCard,
@@ -481,156 +499,40 @@ export function WearableSyncHub({
           >
             <Row justify="between" align="center">
               <Text variant="caption" tone="muted">
-                Keep 手环实时心率 (滑动检视)
+                今日同步运动消耗 &amp; 步数
               </Text>
-              <TagChip label={zone.label} tone={zone.tone} />
-            </Row>
-            <Row justify="between" align="center" gap="sm">
-              <View>
-                <Text variant="heading" style={styles.bigMono}>
-                  {`${activeBpm} BPM`}
-                </Text>
-                <Text variant="caption" tone="muted">
-                  {`区间 ${telemetry.minHeartRateBpm ?? Math.min(...hrSeries)}–${telemetry.maxHeartRateBpm ?? Math.max(...hrSeries)} BPM`}
-                </Text>
-              </View>
-              <View style={styles.hrChartWrap}>
-                {Platform.OS === 'web'
-                  ? createElement(
-                      'svg',
-                      {
-                        width: 140,
-                        height: 36,
-                        viewBox: '0 0 220 44',
-                        fill: 'none',
-                        'aria-hidden': true,
-                      },
-                      createElement('path', {
-                        d: areaPath,
-                        fill: 'rgba(204, 120, 92, 0.16)',
-                      }),
-                      createElement('path', {
-                        d: linePath,
-                        stroke: color.accent,
-                        strokeWidth: 2,
-                        strokeLinecap: 'round',
-                        strokeLinejoin: 'round',
-                      }),
-                    )
-                  : null}
-                <View style={styles.scrubOverlay}>
-                  {hrSeries.map((pt, idx) => (
-                    <Pressable
-                      key={`hr-pt-${idx}`}
-                      accessibilityRole="button"
-                      accessibilityLabel={`心率采样点 ${idx + 1}: ${pt} BPM`}
-                      onHoverIn={() => setHoverIdx(idx)}
-                      onHoverOut={() => setHoverIdx(null)}
-                      onPress={() => setHoverIdx(idx === hoverIdx ? null : idx)}
-                      style={[
-                        styles.scrubSlot,
-                        hoverIdx === idx
-                          ? { borderBottomWidth: 2, borderBottomColor: color.accent }
-                          : null,
-                      ]}
-                    />
-                  ))}
-                </View>
-              </View>
-            </Row>
-          </View>
-
-          {/* 3. Active Calories & Steps Card */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="点击一键同步 Keep 手环与 Apple Health 今日运动与体重"
-            onPress={() => void onAuthorizeAndSyncOsHealth('apple-health')}
-            style={({ pressed }) => [
-              styles.metricCard,
-              cardSurfaceStyle(pressed ? color.pressed : color.surface, color.line),
-              { borderColor: color.line },
-            ]}
-          >
-            <Row justify="between" align="center">
-              <Text variant="caption" tone="muted">
-                今日运动消耗 &amp; 步数
-              </Text>
-              <TagChip label="点击同步今日" tone="pod" />
+              <TagChip
+                label={telemetry.activeCaloriesKcal !== null ? '已同步' : '待同步'}
+                tone={telemetry.activeCaloriesKcal !== null ? 'exec' : 'neutral'}
+              />
             </Row>
             <Text variant="heading" style={styles.bigMono}>
-              {`${telemetry.activeCaloriesKcal ?? 485} kcal`}
+              {telemetry.activeCaloriesKcal !== null
+                ? `${telemetry.activeCaloriesKcal} kcal`
+                : '暂无同步数据'}
             </Text>
             <Text variant="caption" tone="muted">
-              {`步数 ${(telemetry.steps ?? 8640).toLocaleString('en-US')} 步 · 训练 ${telemetry.workoutMinutes ?? 35} 分钟`}
+              {telemetry.steps !== null || telemetry.workoutMinutes !== null
+                ? `步数 ${(telemetry.steps ?? 0).toLocaleString('en-US')} 步 · 运动 ${telemetry.workoutMinutes ?? 0} 分钟`
+                : '可通过 Intervals.icu 云端或 iOS「苹果健康」快捷指令自动传入'}
             </Text>
-          </Pressable>
+          </View>
         </View>
 
         {authCenterOpen ? (
           <View style={[styles.subPanel, { backgroundColor: color.surface, borderColor: color.line }]}>
             <Stack gap="sm">
               <Row justify="between" align="center" wrap>
-                <Text variant="label">设备授权与免手动自动同步中心（一次授权，称重/训练自动入账）</Text>
+                <Text variant="label">真实跨端自动同步配置（iOS 快捷指令自动化 &amp; Intervals.icu 云端）</Text>
                 <CockpitPillButton
                   label="复制 iOS 自动化同步链接"
                   onPress={() => void onCopyIosShortcutUrl()}
                 />
               </Row>
 
-              {grants.map((grant) => (
-                <View
-                  key={grant.provider}
-                  style={[
-                    styles.grantRow,
-                    cardSurfaceStyle(color.card, color.line),
-                    { borderColor: grant.authorized ? color.green : color.line },
-                  ]}
-                >
-                  <View style={styles.grantInfo}>
-                    <Row gap="xs" align="center" wrap>
-                      <Text variant="label">{grant.title}</Text>
-                      <TagChip
-                        label={grant.authorized ? '已授权 · 自动关联中' : '未授权'}
-                        tone={grant.authorized ? 'exec' : 'neutral'}
-                      />
-                    </Row>
-                    <Text variant="caption" tone="muted">
-                      {grant.subtitle}
-                    </Text>
-                    <Text variant="caption" tone="muted">
-                      {`权限范围：${grant.scopes.join(' · ')}`}
-                    </Text>
-                  </View>
-
-                  <Row gap="xs" align="center">
-                    {grant.provider === 'apple-health' || grant.provider === 'health-connect' ? (
-                      <Button
-                        label={
-                          syncingProvider === grant.provider
-                            ? '同步中…'
-                            : grant.authorized
-                              ? '立即同步最新体重/训练'
-                              : '一键授权并自动关联'
-                        }
-                        variant={grant.authorized ? 'secondary' : 'primary'}
-                        onPress={() => void onAuthorizeAndSyncOsHealth(grant.provider as 'apple-health' | 'health-connect')}
-                      />
-                    ) : grant.provider === 'ble-scale' ? (
-                      <Button
-                        label={grant.authorized ? '重新上秤称重' : '授权蓝牙体脂秤'}
-                        variant={grant.authorized ? 'secondary' : 'primary'}
-                        onPress={() => void onConnectBleScale()}
-                      />
-                    ) : grant.provider === 'ble-hr' ? (
-                      <Button
-                        label={grant.authorized ? '开启心率流' : '授权 Keep 手环'}
-                        variant={grant.authorized ? 'secondary' : 'primary'}
-                        onPress={() => void onConnectBleBand()}
-                      />
-                    ) : null}
-                  </Row>
-                </View>
-              ))}
+              <Text variant="caption" tone="muted">
+                说明：macOS 电脑没有内置苹果「健康 (HealthKit)」数据库，因此 Mac 端支持两种真实自动同步方式：① 直接开启上方「扫描蓝牙体脂秤 / Keep 手环」通过 Mac 原生 CoreBluetooth 接收硬件广播；② 在下方绑定 Intervals.icu 云端（或在 iPhone「快捷指令 → 自动化」中配置起床自动推送 URL），即可实现手机称重、多端自动入账。
+              </Text>
 
               <View
                 style={[
@@ -642,7 +544,7 @@ export function WearableSyncHub({
                 <View style={styles.grantInfo}>
                   <Stack gap="xs">
                     <Text variant="label">
-                      Intervals.icu 开放健康云绑定（支持 Keep / Apple Health / 佳明 / 小米体脂秤云端自动汇聚）
+                      Intervals.icu 开放健康云绑定（自动拉取 Apple Health / Keep / 佳明 / 小米体脂秤云端真实数据）
                     </Text>
                     <Row gap="sm" wrap>
                       <View style={{ flex: 1, minWidth: 160 }}>
@@ -666,10 +568,10 @@ export function WearableSyncHub({
                     </Row>
                     <Row gap="sm" align="center">
                       <Button
-                        label={syncingProvider === 'intervals-icu' ? '验证并同步中…' : '保存授权并拉取云端体重/训练'}
+                        label={syncingProvider === 'intervals-icu' ? '验证并拉取中…' : '保存授权并拉取真实体重/训练'}
                         onPress={() => void onAuthorizeIntervalsCloud()}
                       />
-                      <Button label="收起授权中心" variant="ghost" onPress={() => setAuthCenterOpen(false)} />
+                      <Button label="收起配置" variant="ghost" onPress={() => setAuthCenterOpen(false)} />
                     </Row>
                   </Stack>
                 </View>
@@ -682,28 +584,19 @@ export function WearableSyncHub({
           <View style={[styles.subPanel, { backgroundColor: color.surface, borderColor: color.line }]}>
             <Stack gap="xs">
               <Text variant="caption" tone="muted">
-                粘贴 Keep 运动导出 JSON / CSV、Apple Health XML 片段或手环同步快照，系统会自动解析体重、心率、卡路里，并直接写入今日「体重」与「训练」台账：
+                粘贴真实的 Keep 运动导出 JSON / CSV 或 Apple Health XML 记录，解析后自动写入今日「体重」与「训练」台账：
               </Text>
               <TextField
-                label="KEEP / APPLE HEALTH / CSV 同步内容"
+                label="KEEP / APPLE HEALTH / CSV 真实数据内容"
                 value={importPayload}
                 onChangeText={setImportPayload}
-                placeholder='例如: {"weightKg":72.3,"heartRateBpm":145,"workouts":[{"exercise":"Keep 燃脂跑","reps":30}]}'
+                placeholder='例如: {"weightKg":72.3,"heartRateBpm":145,"workouts":[{"exercise":"Keep 燃脂跑","reps":30}]} 或 CSV: 哑铃卧推,12,32,140,138'
                 autoCapitalize="none"
               />
               <Row gap="sm" align="center" wrap>
                 <Button
-                  label="解析并写入今日体重/训练"
-                  onPress={() =>
-                    void onRunImport(
-                      importPayload.trim() || buildSampleKeepSyncPayload(latestWeightKg ?? 72.4),
-                    )
-                  }
-                />
-                <Button
-                  label="填入示例数据"
-                  variant="secondary"
-                  onPress={() => setImportPayload(buildSampleKeepSyncPayload(latestWeightKg ?? 72.4))}
+                  label="解析并写入台账"
+                  onPress={() => void onRunImport(importPayload)}
                 />
                 <Button label="关闭" variant="ghost" onPress={() => setImportOpen(false)} />
               </Row>
@@ -716,6 +609,12 @@ export function WearableSyncHub({
 }
 
 const styles = StyleSheet.create({
+  statusBanner: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: theme.border.width,
+  },
   metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -734,13 +633,13 @@ const styles = StyleSheet.create({
   },
   bigMono: {
     fontFamily: theme.fontFamily.mono,
-    fontSize: 18,
-    lineHeight: 24,
+    fontSize: 17,
+    lineHeight: 23,
     fontWeight: theme.fontWeight.semibold,
     fontVariant: ['tabular-nums'],
   },
   hrChartWrap: {
-    width: 140,
+    width: 130,
     height: 36,
     position: 'relative',
     justifyContent: 'center',

@@ -3,7 +3,14 @@ class El {
   nodeType = 1;
   nodeName: string;
   tagName: string;
-  style: Record<string, string> = {};
+  style: Record<string, unknown> = {
+    setProperty(k: string, v: string) {
+      this[k] = v;
+    },
+    removeProperty(k: string) {
+      delete this[k];
+    },
+  };
   childNodes: (El | TextNode)[] = [];
   attributes: Record<string, string> = {};
   parentNode: El | null = null;

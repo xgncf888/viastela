@@ -28,6 +28,7 @@ import {
 } from '@/core/training';
 import { parseWeightKg } from '@/core/weight-input';
 import { formatKg, latestRecord } from '@/core/weight-stats';
+import { addTimeBlock } from '@/data/time-block-tracker';
 import { saveJournal } from '@/data/timeline';
 import { useStudy } from '@/features/study/StudyProvider';
 import { useTraining } from '@/features/training/TrainingProvider';
@@ -289,7 +290,19 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
         mood: normalized.mood,
         tags: [...normalized.tags],
       });
-      showToast({ text: '已记下' });
+      const now = new Date();
+      const endMin = now.getHours() * 60 + now.getMinutes();
+      const startMin = Math.max(0, endMin - 30);
+      addTimeBlock({
+        localDay: normalized.entryDay,
+        startMinute: startMin,
+        endMinute: Math.max(startMin + 1, endMin),
+        category: 'deep-work',
+        title: normalized.body,
+        goalId: null,
+        note: null,
+      });
+      showToast({ text: '已记下并切入 24H 时间块' });
       closeRecordSheet();
     } catch (saveError) {
       const notice = timelineSaveNotice(saveError);

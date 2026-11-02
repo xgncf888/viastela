@@ -47,6 +47,8 @@ const INFO_PLIST = `<?xml version="1.0" encoding="UTF-8"?>
   <string>12.0</string>
   <key>NSHighResolutionCapable</key>
   <true/>
+  <key>NSBluetoothAlwaysUsageDescription</key>
+  <string>${APP_TITLE} 需要访问蓝牙以连接智能体脂秤（BLE 0x181D/0x181B）与 Keep 运动手环（BLE 0x180D），实现自动称重与实时心率同步。</string>
   <key>NSAppTransportSecurity</key>
   <dict>
     <key>NSAllowsArbitraryLoads</key>
@@ -572,6 +574,139 @@ const LOCAL_STANDALONE_BRIDGE_JS = `
 
 const SWIFT_SOURCE = `import Cocoa
 import WebKit
+import CoreBluetooth
+
+final class NativeBleBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
+    static let shared = NativeBleBridge()
+    private var central: CBCentralManager?
+    private var activePeripheral: CBPeripheral?
+    private(set) var bleState: String = "idle"
+    private(set) var deviceName: String = ""
+    private(set) var latestWeightKg: Double? = nil
+    private(set) var weightStabilized: Bool = false
+    private(set) var latestHeartRateBpm: Int? = nil
+    private(set) var lastUpdatedAt: String = ""
+
+    private let weightScaleService = CBUUID(string: "181D")
+    private let bodyCompService = CBUUID(string: "181B")
+    private let heartRateService = CBUUID(string: "180D")
+    private let weightMeasChar = CBUUID(string: "2A9D")
+    private let bodyCompChar = CBUUID(string: "2A9C")
+    private let hrMeasChar = CBUUID(string: "2A37")
+
+    func startScan() {
+        if central == nil {
+            bleState = "initializing"
+            central = CBCentralManager(delegate: self, queue: .main)
+        } else if central?.state == .poweredOn {
+            bleState = "scanning"
+            central?.scanForPeripherals(
+                withServices: [weightScaleService, bodyCompService, heartRateService],
+                options: [CBCentralManagerScanOptionAllowDuplicatesKey: true]
+            )
+        }
+    }
+
+    func stopScan() {
+        central?.stopScan()
+        if let p = activePeripheral {
+            central?.cancelPeripheralConnection(p)
+            activePeripheral = nil
+        }
+        bleState = "stopped"
+    }
+
+    func statusJson() -> Data {
+        var dict: [String: Any] = [
+            "bleState": bleState,
+            "deviceName": deviceName,
+            "weightStabilized": weightStabilized,
+            "updatedAt": lastUpdatedAt
+        ]
+        if let w = latestWeightKg { dict["weightKg"] = w }
+        if let hr = latestHeartRateBpm { dict["heartRateBpm"] = hr }
+        return (try? JSONSerialization.data(withJSONObject: dict)) ?? Data("{}".utf8)
+    }
+
+    func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        switch central.state {
+        case .poweredOn:
+            bleState = "scanning"
+            central.scanForPeripherals(
+                withServices: [weightScaleService, bodyCompService, heartRateService],
+                options: [CBCentralManagerScanOptionAllowDuplicatesKey: true]
+            )
+        case .poweredOff:
+            bleState = "poweredOff"
+        case .unauthorized:
+            bleState = "unauthorized"
+        case .unsupported:
+            bleState = "unsupported"
+        default:
+            bleState = "unavailable"
+        }
+    }
+
+    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String: Any], rssi RSSI: NSNumber) {
+        let name = peripheral.name ?? (advertisementData[CBAdvertisementDataLocalNameKey] as? String) ?? "BLE 运动健康设备"
+        deviceName = name
+        if activePeripheral == nil {
+            activePeripheral = peripheral
+            peripheral.delegate = self
+            bleState = "connecting"
+            central.connect(peripheral, options: nil)
+        }
+    }
+
+    func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        bleState = "connected"
+        deviceName = peripheral.name ?? deviceName
+        peripheral.discoverServices([weightScaleService, bodyCompService, heartRateService])
+    }
+
+    func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+        guard let services = peripheral.services else { return }
+        for svc in services {
+            peripheral.discoverCharacteristics([weightMeasChar, bodyCompChar, hrMeasChar], for: svc)
+        }
+    }
+
+    func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+        guard let chars = service.characteristics else { return }
+        for ch in chars {
+            peripheral.setNotifyValue(true, for: ch)
+        }
+    }
+
+    func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
+        guard let data = characteristic.value else { return }
+        let bytes = [UInt8](data)
+        let iso = ISO8601DateFormatter().string(from: Date())
+        if characteristic.uuid == hrMeasChar, bytes.count >= 2 {
+            let is16 = (bytes[0] & 0x01) == 1
+            let bpm = is16 && bytes.count >= 3 ? Int(bytes[1]) | (Int(bytes[2]) << 8) : Int(bytes[1])
+            if bpm >= 25 && bpm <= 250 {
+                latestHeartRateBpm = bpm
+                lastUpdatedAt = iso
+            }
+        } else if (characteristic.uuid == weightMeasChar || characteristic.uuid == bodyCompChar), bytes.count >= 3 {
+            let flags = bytes[0]
+            let isImperial = (flags & 0x01) == 1
+            let isJin = (flags & 0x10) != 0
+            let stabilized = (flags & 0x20) != 0 || (flags & 0x80) == 0
+            let raw = Int(bytes[1]) | (Int(bytes[2]) << 8)
+            var kg = isImperial ? Double(raw) * 0.01 * 0.45359237 : (isJin ? Double(raw) * 0.005 : Double(raw) * 0.005)
+            if kg < 25 && Double(raw) * 0.01 >= 25 && Double(raw) * 0.01 <= 250 {
+                kg = Double(raw) * 0.01
+            }
+            if kg >= 25 && kg <= 250 {
+                latestWeightKg = (kg * 100).rounded() / 100
+                weightStabilized = stabilized
+                lastUpdatedAt = iso
+            }
+        }
+    }
+}
 
 class BundleSchemeHandler: NSObject, WKURLSchemeHandler {
     let webRoot: URL
@@ -605,6 +740,31 @@ class BundleSchemeHandler: NSObject, WKURLSchemeHandler {
         var relPath = url.path
         if relPath.hasPrefix("/") {
             relPath.removeFirst()
+        }
+
+        if relPath.hasPrefix("__ble__/") {
+            let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            let action = comps?.queryItems?.first(where: { $0.name == "action" })?.value ?? "status"
+            DispatchQueue.main.async {
+                if action == "start" {
+                    NativeBleBridge.shared.startScan()
+                } else if action == "stop" {
+                    NativeBleBridge.shared.stopScan()
+                }
+                let payload = NativeBleBridge.shared.statusJson()
+                let headers: [String: String] = [
+                    "Content-Type": "application/json; charset=utf-8",
+                    "Content-Length": "\\(payload.count)",
+                    "Access-Control-Allow-Origin": "*",
+                    "Cache-Control": "no-cache"
+                ]
+                if let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers) {
+                    urlSchemeTask.didReceive(response)
+                }
+                urlSchemeTask.didReceive(payload)
+                urlSchemeTask.didFinish()
+            }
+            return
         }
 
         if relPath == "__market__/yahoo",

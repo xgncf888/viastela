@@ -35,6 +35,7 @@ import { Text } from '@/ui/Text';
 import { TimelineItem } from '@/ui/TimelineItem';
 import { DeletedRecordNotice } from '@/ui/deleted-record';
 import { theme } from '@/ui/theme';
+import { TimeBlockMasteryHub } from '@/ui/TimeBlockMasteryHub';
 import { showToast } from '@/ui/toast';
 
 import { JournalSheet, type JournalSeed } from './JournalSheet';
@@ -323,6 +324,7 @@ export function TimelineScreen() {
               ))
             )}
             {loadingMore ? <Text variant="body">读取中</Text> : null}
+            {today ? <TimeBlockMasteryHub localDay={today} /> : null}
           </Stack>
         </LoadingRegion>
       </TimelineScroll>

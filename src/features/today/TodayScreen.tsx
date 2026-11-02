@@ -44,6 +44,7 @@ import {
   TagChip,
   WorkbenchConsoleCard,
 } from '@/ui/WorkbenchConsole';
+import { TimeBlockMasteryHub } from '@/ui/TimeBlockMasteryHub';
 import { WearableSyncHub } from '@/ui/WearableSyncHub';
 
 function shortWeekday(localDay: string): string {
@@ -404,6 +405,12 @@ export function TodayScreen() {
               );
             })
           : null}
+
+        <TimeBlockMasteryHub
+          localDay={accounting}
+          onSyncStudyRecord={(input) => study.saveRecord(input)}
+          onSyncTrainingSet={(input) => training.saveSet(input)}
+        />
 
         <WearableSyncHub
           latestWeightKg={last?.weightKg}

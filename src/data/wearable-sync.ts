@@ -17,7 +17,7 @@ const LAST_AUTOSYNC_DAY_KEY = 'viastela.wearable.autosync_day.v1';
 
 const DEFAULT_TELEMETRY: WearableTelemetry = {
   source: 'keep',
-  deviceName: 'Keep 体脂秤 & 手环 / Apple Health',
+  deviceName: '未连接设备',
   latestWeightKg: null,
   heartRateBpm: null,
   minHeartRateBpm: null,
@@ -25,7 +25,7 @@ const DEFAULT_TELEMETRY: WearableTelemetry = {
   activeCaloriesKcal: null,
   steps: null,
   workoutMinutes: null,
-  updatedAt: new Date().toISOString(),
+  updatedAt: '',
 };
 
 export function readWearableTelemetry(): WearableTelemetry {
@@ -51,6 +51,18 @@ export function writeWearableTelemetry(next: WearableTelemetry): void {
   } catch {
     // Ignore storage error
   }
+}
+
+export function clearWearableTelemetry(): WearableTelemetry {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(TELEMETRY_KEY);
+      localStorage.removeItem(HR_HISTORY_KEY);
+    }
+  } catch {
+    // Ignore storage error
+  }
+  return DEFAULT_TELEMETRY;
 }
 
 export function readWearableGrants(): WearableAuthGrant[] {
@@ -136,13 +148,76 @@ export function isWebBluetoothSupported(): boolean {
   return Boolean((navigator as unknown as { bluetooth?: { requestDevice?: unknown } }).bluetooth?.requestDevice);
 }
 
+export function isNativeCoreBluetoothShell(): boolean {
+  if (typeof window === 'undefined' || !window.location) return false;
+  const proto = window.location.protocol || '';
+  return proto === 'app:' || proto === 'viastela-local:';
+}
+
+export type NativeBleStatus = {
+  bleState: string;
+  deviceName: string;
+  weightKg?: number;
+  weightStabilized?: boolean;
+  heartRateBpm?: number;
+  updatedAt: string;
+};
+
 /**
- * Connects directly to a Smart Weight Scale (Keep Scale / Xiaomi Mi Scale / Huawei / standard BLE 0x181D / 0x181B).
- * Automatically emits live weight readings and flags when the measurement stabilizes so it can be auto-saved.
+ * Starts or polls the real macOS/iOS CoreBluetooth `CBCentralManager` hardware scanner (`/__ble__/scan?action=start|status|stop`).
+ * Never fabricates numbers—returns real hardware state (`scanning`, `connected`, `poweredOff`, `unauthorized`) and real GATT frames.
+ */
+export async function pollNativeCoreBluetooth(
+  action: 'start' | 'status' | 'stop' = 'status',
+): Promise<NativeBleStatus | null> {
+  if (!isNativeCoreBluetoothShell()) return null;
+  try {
+    const res = await fetch(`/__ble__/scan?action=${action}&_t=${Date.now()}`);
+    if (!res.ok) return null;
+    const data = (await res.json()) as NativeBleStatus;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Connects directly to a Smart Weight Scale (Keep Scale / Xiaomi Mi Scale / Huawei / standard BLE 0x181D / 0x181B)
+ * via Web Bluetooth or native CoreBluetooth. Does NOT fabricate fake readings if no scale is connected.
  */
 export async function connectBleWeightScale(
   onWeightMeasurement: (reading: { weightKg: number; stabilized: boolean; deviceName: string }) => void,
-): Promise<{ deviceName: string; disconnect: () => void }> {
+): Promise<{ mode: 'web-ble' | 'core-bluetooth'; deviceName: string; disconnect: () => void }> {
+  if (isNativeCoreBluetoothShell()) {
+    const initial = await pollNativeCoreBluetooth('start');
+    if (initial?.bleState === 'poweredOff') {
+      throw new Error('系统蓝牙当前处于关闭状态，请在 macOS 控制中心开启蓝牙后再踏上体脂秤');
+    }
+    if (initial?.bleState === 'unauthorized') {
+      throw new Error('请在「系统设置 → 隐私与安全性 → 蓝牙」中允许本应用访问蓝牙');
+    }
+    const timer = setInterval(() => {
+      void pollNativeCoreBluetooth('status').then((st) => {
+        if (!st) return;
+        if (typeof st.weightKg === 'number' && st.weightKg > 0) {
+          onWeightMeasurement({
+            weightKg: st.weightKg,
+            stabilized: Boolean(st.weightStabilized),
+            deviceName: st.deviceName || '蓝牙智能体脂秤',
+          });
+        }
+      });
+    }, 1000);
+    return {
+      mode: 'core-bluetooth',
+      deviceName: initial?.deviceName || '正在扫描附近 BLE 体脂秤 (0x181D / 0x181B)…',
+      disconnect: () => {
+        clearInterval(timer);
+        void pollNativeCoreBluetooth('stop');
+      },
+    };
+  }
+
   const nav = navigator as unknown as {
     bluetooth?: {
       requestDevice: (options: unknown) => Promise<{
@@ -166,7 +241,7 @@ export async function connectBleWeightScale(
   };
 
   if (!nav.bluetooth?.requestDevice) {
-    throw new Error('当前运行环境暂未开启 Web Bluetooth 蓝牙直连，可使用「一键授权设备同步」或体脂秤上秤模拟');
+    throw new Error('当前浏览器不支持 Web Bluetooth（请使用 macOS 桌面客户端或 Chrome/Edge 连接蓝牙体脂秤）');
   }
 
   const device = await nav.bluetooth.requestDevice({
@@ -225,6 +300,7 @@ export async function connectBleWeightScale(
   });
 
   return {
+    mode: 'web-ble',
     deviceName,
     disconnect: () => {
       try {
@@ -239,10 +315,37 @@ export async function connectBleWeightScale(
 /**
  * Connects directly to a Keep Band / Mi Band / Polar / Garmin / Coros wearable
  * broadcasting the standard BLE Heart Rate Service (`0x180D`) and Characteristic (`0x2A37`).
+ * Never silently fabricates fake heart rate numbers.
  */
 export async function connectBleHeartRateMonitor(
   onHeartRate: (bpm: number, deviceName: string) => void,
-): Promise<{ deviceName: string; disconnect: () => void }> {
+): Promise<{ mode: 'web-ble' | 'core-bluetooth'; deviceName: string; disconnect: () => void }> {
+  if (isNativeCoreBluetoothShell()) {
+    const initial = await pollNativeCoreBluetooth('start');
+    if (initial?.bleState === 'poweredOff') {
+      throw new Error('系统蓝牙当前处于关闭状态，请在 macOS 控制中心开启蓝牙');
+    }
+    if (initial?.bleState === 'unauthorized') {
+      throw new Error('请在「系统设置 → 隐私与安全性 → 蓝牙」中允许本应用访问蓝牙');
+    }
+    const timer = setInterval(() => {
+      void pollNativeCoreBluetooth('status').then((st) => {
+        if (!st) return;
+        if (typeof st.heartRateBpm === 'number' && st.heartRateBpm > 0) {
+          onHeartRate(st.heartRateBpm, st.deviceName || 'Keep 蓝牙心率手环');
+        }
+      });
+    }, 1000);
+    return {
+      mode: 'core-bluetooth',
+      deviceName: initial?.deviceName || '正在扫描附近 BLE 心率手环 (0x180D)…',
+      disconnect: () => {
+        clearInterval(timer);
+        void pollNativeCoreBluetooth('stop');
+      },
+    };
+  }
+
   const nav = navigator as unknown as {
     bluetooth?: {
       requestDevice: (options: unknown) => Promise<{
@@ -266,7 +369,7 @@ export async function connectBleHeartRateMonitor(
   };
 
   if (!nav.bluetooth?.requestDevice) {
-    throw new Error('当前运行环境暂未开启 Web Bluetooth 蓝牙直连，可使用「Keep / 健康设备授权同步」或心率演练流');
+    throw new Error('当前浏览器不支持 Web Bluetooth（请使用 macOS 桌面客户端或 Chrome/Edge 连接 Keep 手环）');
   }
 
   const device = await nav.bluetooth.requestDevice({
@@ -303,6 +406,7 @@ export async function connectBleHeartRateMonitor(
   });
 
   return {
+    mode: 'web-ble',
     deviceName,
     disconnect: () => {
       try {
@@ -312,46 +416,6 @@ export async function connectBleHeartRateMonitor(
       }
     },
   };
-}
-
-/**
- * Queries the native OS Health bridge (`/__health__/sync`) when running inside the native
- * iOS (HealthKit `HKHealthStore`), Android (Health Connect), or macOS app shell.
- */
-export async function syncNativeOsHealthBridge(
-  provider: 'apple-health' | 'health-connect',
-  fallbackWeightKg = 72.4,
-): Promise<HealthImportSummary> {
-  try {
-    if (typeof window !== 'undefined' && window.location) {
-      const proto = window.location.protocol || '';
-      const host = window.location.hostname || '';
-      if (proto === 'app:' || proto === 'viastela-local:' || host === 'appassets.androidplatform.net') {
-        const res = await fetch(`/__health__/sync?provider=${provider}&_t=${Date.now()}`);
-        if (res.ok) {
-          const text = await res.text();
-          const parsed = parseFitnessSyncPayload(text);
-          if (parsed.weights.length > 0 || parsed.workouts.length > 0 || parsed.latestHeartRateBpm) {
-            updateWearableGrant(provider, {
-              authorized: true,
-              lastSyncedAt: new Date().toISOString(),
-            });
-            return parsed;
-          }
-        }
-      }
-    }
-  } catch {
-    // Fall back to local bridge snapshot
-  }
-
-  const sample = buildSampleKeepSyncPayload(fallbackWeightKg);
-  const parsed = parseFitnessSyncPayload(sample);
-  updateWearableGrant(provider, {
-    authorized: true,
-    lastSyncedAt: new Date().toISOString(),
-  });
-  return parsed;
 }
 
 /**
@@ -435,62 +499,18 @@ export async function syncIntervalsIcuCloud(
   return summary;
 }
 
-/**
- * Generates a realistic Keep Smart Scale + Keep Band + Apple Health sync snapshot
- * for 1-click experience or when testing without a physical scale/band nearby.
- */
-export function buildSampleKeepSyncPayload(currentWeightKg = 72.4): string {
-  const now = new Date();
-  return JSON.stringify(
-    {
-      device: 'Keep 智能体脂秤 S1 Pro & 手环 B4',
-      syncedAt: now.toISOString(),
-      heartRateBpm: 138,
-      steps: 9420,
-      caloriesKcal: 585,
-      weights: [
-        {
-          weightKg: Number((currentWeightKg - 0.1).toFixed(1)),
-          recordedAt: now.toISOString(),
-        },
-      ],
-      workouts: [
-        {
-          exercise: 'Keep 手环 · 燃脂 HIIT 核心训练',
-          reps: 25,
-          durationMinutes: 25,
-          caloriesKcal: 310,
-          avgHeartRateBpm: 146,
-          recordedAt: now.toISOString(),
-        },
-        {
-          exercise: 'Keep 哑铃上斜卧推',
-          reps: 12,
-          weightKg: 30,
-          durationMinutes: 15,
-          caloriesKcal: 145,
-          avgHeartRateBpm: 132,
-          recordedAt: now.toISOString(),
-        },
-      ],
-    },
-    null,
-    2,
-  );
-}
-
 export function applyHealthSummaryToTelemetry(
   summary: HealthImportSummary,
   source: WearableSourceId = 'keep',
-  deviceName = 'Keep 智能体脂秤 & 手环 / Apple Health',
+  deviceName = '已同步设备',
 ): {
   summary: HealthImportSummary;
   telemetry: WearableTelemetry;
   hrSeries: number[];
 } {
   const current = readWearableTelemetry();
-  const nextBpm = summary.latestHeartRateBpm ?? current.heartRateBpm ?? 134;
-  const hrSeries = appendHeartRateSample(nextBpm);
+  const nextBpm = summary.latestHeartRateBpm ?? current.heartRateBpm;
+  const hrSeries = nextBpm !== null ? appendHeartRateSample(nextBpm) : readHeartRateSeries();
   const minHr = hrSeries.length > 0 ? Math.min(...hrSeries) : nextBpm;
   const maxHr = hrSeries.length > 0 ? Math.max(...hrSeries) : nextBpm;
   const totalWorkoutMin = summary.workouts.reduce((sum, w) => sum + w.durationMinutes, 0);
@@ -506,9 +526,9 @@ export function applyHealthSummaryToTelemetry(
     heartRateBpm: nextBpm,
     minHeartRateBpm: minHr,
     maxHeartRateBpm: maxHr,
-    activeCaloriesKcal: summary.activeCaloriesToday ?? current.activeCaloriesKcal ?? 460,
-    steps: summary.stepsToday ?? current.steps ?? 8420,
-    workoutMinutes: totalWorkoutMin > 0 ? totalWorkoutMin : (current.workoutMinutes ?? 35),
+    activeCaloriesKcal: summary.activeCaloriesToday ?? current.activeCaloriesKcal,
+    steps: summary.stepsToday ?? current.steps,
+    workoutMinutes: totalWorkoutMin > 0 ? totalWorkoutMin : current.workoutMinutes,
     updatedAt: new Date().toISOString(),
   };
 
@@ -522,12 +542,11 @@ export function importFitnessDataAndUpdateTelemetry(rawText: string): {
   hrSeries: number[];
 } {
   const summary = parseFitnessSyncPayload(rawText);
-  return applyHealthSummaryToTelemetry(summary, 'keep', 'Keep 体脂秤 & 手环 / Apple Health');
+  return applyHealthSummaryToTelemetry(summary, 'keep', '手动导入 / 快捷指令同步');
 }
 
 /**
- * Checks if the URL contains `?health_sync=1&weight=...` (from iOS Shortcuts / Android automation)
- * or if an authorized device grant has `autoSyncOnLaunch` enabled and hasn't synced today yet.
+ * Checks if the URL contains `?health_sync=1&weight=...` (from iOS Shortcuts / Android automation).
  */
 export function checkLaunchUrlHealthSync(): HealthImportSummary | null {
   if (typeof window === 'undefined' || !window.location?.search) return null;
