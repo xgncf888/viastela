@@ -331,10 +331,12 @@
         .filter((b) => !b.deleted_at)
         .reduce((s, b) => s + Number(b.amount || 0), 0);
       let secUsd = 0;
+      const livePrices = window.__VIASTELA_LIVE_QUOTES__ || {};
       const quotes = (db.holdings || [])
         .filter((h) => !h.deleted_at)
         .map((h) => {
-          const price = 140;
+          const live = Number(livePrices[h.symbol]);
+          const price = Number.isFinite(live) && live > 0 ? live : 140;
           secUsd += Number(h.quantity || 0) * price;
           return {
             symbol: h.symbol,

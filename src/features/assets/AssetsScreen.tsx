@@ -72,6 +72,7 @@ import { Content } from '@/ui/Content';
 import { EmptyState } from '@/ui/EmptyState';
 import { LineChart, type ChartStroke } from '@/ui/LineChart';
 import { LoadingRegion } from '@/ui/LoadingRegion';
+import { MarketPulseBoard } from '@/ui/MarketPulseBoard';
 import { Callout, Columns, Divider, Row, ScreenHeader, Stack } from '@/ui/layout';
 import { RefreshStatus } from '@/ui/RefreshStatus';
 import { SkeletonDisplay, SkeletonLedger, SkeletonMetric, SkeletonText } from '@/ui/Skeleton';
@@ -532,8 +533,13 @@ export function AssetsScreen() {
                   </Card>
                 }
               />
+              <MarketPulseBoard
+                holdingSymbols={visibleHoldings.map((item) => item.symbol)}
+              />
             </Stack>
-          ) : null}
+          ) : (
+            <MarketPulseBoard />
+          )}
         </LoadingRegion>
       </Content>
       <AccountForm
