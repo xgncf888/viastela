@@ -1259,8 +1259,25 @@ function main() {
     console.log('Note: hdiutil .dmg creation skipped in restricted environment; .app and .zip are ready.');
   }
 
-  console.log(`Built macOS packages in ${OUT_DIR}:`);
-  console.log(`  - ${APP_BUNDLE}`);
+  // Sync to Repo Root and Workspace Parent Root (matching Charioteer TARGET_BUNDLES convention)
+  const targetBundles = [
+    path.join(ROOT, APP_NAME),
+    path.resolve(ROOT, '..', APP_NAME),
+  ];
+  for (const target of targetBundles) {
+    try {
+      rmSync(target, { recursive: true, force: true });
+      execFileSync('ditto', [APP_BUNDLE, target], { stdio: 'inherit' });
+      try { execFileSync('xattr', ['-cr', target], { stdio: 'ignore' }); } catch {}
+      execFileSync('codesign', ['--force', '--deep', '--sign', '-', target], { stdio: 'pipe' });
+    } catch {
+      // Ignore if parent workspace is read-only in CI
+    }
+  }
+
+  console.log(`Built macOS packages in ${OUT_DIR} & synced root bundles:`);
+  console.log(`  - ${path.resolve(ROOT, '..', APP_NAME)}`);
+  console.log(`  - ${path.join(ROOT, APP_NAME)}`);
   console.log(`  - ${zipPath}`);
   if (existsSync(dmgPath)) console.log(`  - ${dmgPath}`);
 }

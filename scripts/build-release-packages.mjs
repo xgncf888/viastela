@@ -1,13 +1,11 @@
 #!/usr/bin/env node
 /**
- * Builds all local distributable packages into `releases/` and syncs `<displayName>.app`:
- * 1. `releases/viastela-macos.pkg` (Native macOS Single-File Installer, ~2.1 MB)
- * 2. `releases/<displayName>.app` & `releases/viastela-macos.zip` (macOS Native Desktop App)
- * 3. `releases/viastela-ios.mobileconfig` (Native iOS 1-Tap Home Screen Installer Profile)
- * 4. `releases/viastela-ios-unsigned.ipa` (Native iOS IPA when Xcode iphoneos SDK is available)
- * 5. `releases/viastela-android.apk` (Native Android APK when ANDROID_HOME is available)
- * 6. `releases/viastela-web-pwa.zip` & `releases/viastela-charioteer-plugin.zip`
- * 7. `releases/SHA256SUMS.txt` (SHA-256 Checksum Manifest)
+ * Builds all local distributable packages and syncs `<displayName>.app` using the
+ * unified Charioteer workspace convention:
+ * - Workspace Root App: `/Users/guoyifeng1/Desktop/Gemini-Projects/<displayName>.app` (alongside `Charioteer.app`)
+ * - Repo Root App:      `./<displayName>.app` (alongside `./charioteer/Charioteer.app`)
+ * - Charioteer Plugin:  `~/.charioteer/plugins/viastela/` (auto-registered on build)
+ * - Release Archives:   `./releases/` (`.pkg`, `.dmg`, `.zip`, `.apk`, `.ipa`, `.mobileconfig`, `SHA256SUMS.txt`)
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -17,6 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const WORKSPACE_PARENT = path.resolve(ROOT, '..');
 const RELEASES_DIR = path.join(ROOT, 'releases');
 const DIST_DIR = path.join(ROOT, 'dist');
 const MACOS_BUILD_DIR = path.join(ROOT, 'web-build', 'macos');
@@ -71,6 +70,16 @@ function main() {
   const pluginZip = path.join(RELEASES_DIR, 'viastela-charioteer-plugin.zip');
   rmSync(pluginZip, { force: true });
   execFileSync('ditto', ['-c', '-k', pluginStage, pluginZip], { stdio: 'inherit' });
+
+  // Auto-sync live plugin into ~/.charioteer/plugins/viastela
+  try {
+    const charioteerHome = process.env.CHARIOTEER_HOME || path.join(os.homedir(), '.charioteer');
+    const livePluginDir = path.join(charioteerHome, 'plugins', 'viastela');
+    mkdirSync(livePluginDir, { recursive: true });
+    cpSync(pluginStage, livePluginDir, { recursive: true });
+  } catch {
+    // Ignore if home dir is restricted in CI
+  }
   rmSync(pluginStage, { recursive: true, force: true });
 
   if (process.platform === 'darwin') {
@@ -91,21 +100,24 @@ function main() {
     const appBundleName = `${displayName}.app`;
     const macAppSrc = path.join(MACOS_BUILD_DIR, appBundleName);
     if (existsSync(macAppSrc)) {
-      const releaseApp = path.join(RELEASES_DIR, appBundleName);
-      copySignedApp(macAppSrc, releaseApp);
-      copySignedApp(macAppSrc, path.join(ROOT, appBundleName));
-      const parentWorkspaceDir = path.resolve(ROOT, '..');
-      if (existsSync(path.join(parentWorkspaceDir, 'Charioteer.app')) || existsSync(path.join(parentWorkspaceDir, appBundleName))) {
-        copySignedApp(macAppSrc, path.join(parentWorkspaceDir, appBundleName));
+      // Remove any legacy duplicate .app inside releases/ so only the unified root locations exist
+      rmSync(path.join(RELEASES_DIR, appBundleName), { recursive: true, force: true });
+
+      const repoRootApp = path.join(ROOT, appBundleName);
+      const workspaceRootApp = path.join(WORKSPACE_PARENT, appBundleName);
+      copySignedApp(macAppSrc, repoRootApp);
+      if (existsSync(path.join(WORKSPACE_PARENT, 'Charioteer.app')) || existsSync(workspaceRootApp)) {
+        copySignedApp(macAppSrc, workspaceRootApp);
       }
-      // Build single-file native macOS .pkg installer
+
+      // Build single-file native macOS .pkg installer from repoRootApp
       const macPkgOut = path.join(RELEASES_DIR, 'viastela-macos.pkg');
       rmSync(macPkgOut, { force: true });
       execFileSync(
         'pkgbuild',
         [
           '--component',
-          releaseApp,
+          repoRootApp,
           '--install-location',
           '/Applications',
           '--identifier',
@@ -135,7 +147,10 @@ function main() {
   });
   writeFileSync(path.join(RELEASES_DIR, 'SHA256SUMS.txt'), `${lines.join('\n')}\n`, 'utf8');
 
-  console.log(`\nAll release packages ready in ${RELEASES_DIR}:`);
+  console.log(`\nUnified Desktop App Bundles ready:`);
+  console.log(`  - ${path.join(WORKSPACE_PARENT, `${displayName}.app`)} (Workspace Root — alongside Charioteer.app)`);
+  console.log(`  - ${path.join(ROOT, `${displayName}.app`)} (Repo Root)`);
+  console.log(`\nAll release archives ready in ${RELEASES_DIR}:`);
   for (const line of lines) {
     console.log(`  - ${line}`);
   }
