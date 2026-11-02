@@ -1203,29 +1203,28 @@ function Golden24HourRibbonBridgesSvg({
   if (Platform.OS !== 'web') return null;
 
   const sparkles: [number, number, number][] = [
-    [285, 192, 1.8],
-    [310, 206, 2.2],
-    [366, 208, 2.0],
-    [412, 185, 2.2],
-    [595, 190, 1.8],
-    [620, 205, 2.3],
-    [676, 206, 2.1],
-    [722, 184, 2.0],
+    [285, 172, 1.8],
+    [312, 186, 2.2],
+    [368, 187, 2.0],
+    [412, 166, 2.2],
+    [595, 171, 1.8],
+    [622, 185, 2.3],
+    [678, 186, 2.1],
+    [722, 165, 2.0],
   ];
 
   return createElement(
     'svg',
     {
-      viewBox: '0 0 1000 245',
+      viewBox: '0 0 1000 214',
       preserveAspectRatio: 'none',
       style: {
         position: 'absolute',
         top: 0,
         left: 0,
         right: 0,
-        bottom: 0,
         width: '100%',
-        height: '100%',
+        height: 210,
         pointerEvents: 'none',
         zIndex: 1,
       },
@@ -1249,21 +1248,21 @@ function Golden24HourRibbonBridgesSvg({
       ),
     ),
     createElement('path', {
-      d: 'M 245 172 C 310 222, 380 222, 445 172',
+      d: 'M 248 154 C 312 194, 378 194, 442 154',
       fill: 'none',
       stroke: isDark ? 'rgba(245, 185, 66, 0.18)' : 'rgba(204, 120, 92, 0.16)',
-      strokeWidth: 16,
+      strokeWidth: 14,
       strokeLinecap: 'round',
     }),
     createElement('path', {
-      d: 'M 245 172 C 310 222, 380 222, 445 172',
+      d: 'M 248 154 C 312 194, 378 194, 442 154',
       fill: 'none',
       stroke: 'url(#ribbonBody1)',
-      strokeWidth: 7,
+      strokeWidth: 6.5,
       strokeLinecap: 'round',
     }),
     createElement('path', {
-      d: 'M 245 169 C 310 219, 380 219, 445 169',
+      d: 'M 248 151 C 312 191, 378 191, 442 151',
       fill: 'none',
       stroke: isDark ? '#fef08a' : '#fffbeb',
       strokeWidth: 2,
@@ -1271,41 +1270,41 @@ function Golden24HourRibbonBridgesSvg({
     }),
     createElement('circle', {
       cx: 345,
-      cy: 208,
-      r: 15,
+      cy: 183,
+      r: 13.5,
       fill: isDark ? '#261c10' : '#fffbeb',
       stroke: '#d97706',
-      strokeWidth: 2.2,
+      strokeWidth: 2.1,
     }),
     createElement(
       'text',
       {
         x: 345,
-        y: 212,
+        y: 187,
         textAnchor: 'middle',
         fill: isDark ? '#fef08a' : '#92400e',
-        fontSize: '10.5',
+        fontSize: '10',
         fontWeight: '700',
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
       },
       '24',
     ),
     createElement('path', {
-      d: 'M 555 172 C 620 222, 690 222, 755 172',
+      d: 'M 558 154 C 622 194, 688 194, 752 154',
       fill: 'none',
       stroke: isDark ? 'rgba(245, 185, 66, 0.18)' : 'rgba(204, 120, 92, 0.16)',
-      strokeWidth: 16,
+      strokeWidth: 14,
       strokeLinecap: 'round',
     }),
     createElement('path', {
-      d: 'M 555 172 C 620 222, 690 222, 755 172',
+      d: 'M 558 154 C 622 194, 688 194, 752 154',
       fill: 'none',
       stroke: 'url(#ribbonBody2)',
-      strokeWidth: 7,
+      strokeWidth: 6.5,
       strokeLinecap: 'round',
     }),
     createElement('path', {
-      d: 'M 555 169 C 620 219, 690 219, 755 169',
+      d: 'M 558 151 C 622 191, 688 191, 752 151',
       fill: 'none',
       stroke: isDark ? '#fef08a' : '#fffbeb',
       strokeWidth: 2,
@@ -1313,20 +1312,20 @@ function Golden24HourRibbonBridgesSvg({
     }),
     createElement('circle', {
       cx: 655,
-      cy: 208,
-      r: 15,
+      cy: 183,
+      r: 13.5,
       fill: isDark ? '#261c10' : '#fffbeb',
       stroke: '#d97706',
-      strokeWidth: 2.2,
+      strokeWidth: 2.1,
     }),
     createElement(
       'text',
       {
         x: 655,
-        y: 212,
+        y: 187,
         textAnchor: 'middle',
         fill: isDark ? '#fef08a' : '#92400e',
-        fontSize: '10.5',
+        fontSize: '10',
         fontWeight: '700',
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
       },
@@ -2398,61 +2397,11 @@ export function IsometricStudioStage({
                     <Text variant="caption" style={[styles.hudMetricText, { color: pal.sub }]}>
                       {timer.isRunning
                         ? `· ${t('计时', 'Timer')} ${formatTimerClock(timerElapsedSeconds)}`
-                        : `· 📖 P.${12 + bookPageCount} · ${trackedMinsToday}m (${displayMasteryHours}h)`}
+                        : `· ${trackedMinsToday}m (${displayMasteryHours}h)`}
                     </Text>
                     <Text variant="caption" style={[styles.hudSubText, { color: pal.muted }]}>
-                      {timer.isRunning
-                        ? `  ${timer.title}`
-                        : t('  点书本翻页 +1m · 满 5 页奖 ¥25', '  Tap book +1m · 5p = +¥25')}
+                      {`· 📖 P.${12 + bookPageCount} · ¥${vault.wishBalanceCny.toLocaleString('en-US')}`}
                     </Text>
-                    <View style={styles.hudMicroActionRow}>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="点一下翻书加一分钟"
-                        onPress={() => handleFlipStudyBook(1)}
-                        style={({ pressed }) => [
-                          styles.hudMicroBtn,
-                          {
-                            backgroundColor: pal.pillActiveBg,
-                            borderColor: pal.terracottaAccent,
-                            transform: [{ scale: pressed ? 0.91 : 1 }],
-                          },
-                        ]}
-                      >
-                        <Text
-                          variant="caption"
-                          style={{
-                            fontSize: 10,
-                            fontWeight: '700',
-                            color: pal.goldText,
-                          }}
-                        >
-                          {t('📖 翻页 +1m', '📖 Flip +1m')}
-                        </Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => handleToggleFocusTimer()}
-                        style={({ pressed }) => [
-                          styles.hudMicroBtn,
-                          {
-                            backgroundColor: timer.isRunning ? `${pal.emeraldAccent}28` : pal.pillBg,
-                            borderColor: timer.isRunning ? pal.emeraldAccent : pal.bentoBorder,
-                            transform: [{ scale: pressed ? 0.93 : 1 }],
-                          },
-                        ]}
-                      >
-                        <Text
-                          variant="caption"
-                          style={{
-                            fontSize: 10,
-                            fontWeight: '700',
-                            color: timer.isRunning ? pal.emeraldAccent : pal.sub,
-                          }}
-                        >
-                          {timer.isRunning ? t('⏸ 结算', '⏸ Done') : t('▶ 计时', '▶ Timer')}
-                        </Text>
-                      </Pressable>
-                    </View>
                   </View>
                 </View>
               </View>
@@ -2536,62 +2485,11 @@ export function IsometricStudioStage({
                       </Pressable>
                     </View>
                     <Text variant="caption" style={[styles.hudMetricText, { color: pal.sub }]}>
-                      {`· ${WORKOUT_POSE_META[workoutPose].icon} ${t(WORKOUT_POSE_META[workoutPose].zh, WORKOUT_POSE_META[workoutPose].en)} x${workoutReps}`}
+                      {`· ${latestWeightKg ? `${latestWeightKg.toFixed(1)} kg` : '72.4 kg'}`}
                     </Text>
                     <Text variant="caption" style={[styles.hudSubText, { color: pal.muted }]}>
-                      {`  ${latestWeightKg ? `${latestWeightKg.toFixed(1)}kg` : '72.4kg'} · ${t('点小人动一下 +1', 'Tap character +1')}`}
+                      {`· ${t(WORKOUT_POSE_META[workoutPose].zh, WORKOUT_POSE_META[workoutPose].en)} x${workoutReps} · ${trainingSetsCount || 14} ${t('组', 'sets')}`}
                     </Text>
-                    <View style={styles.hudMicroActionRow}>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="点一下健身小人动一下加一次"
-                        onPress={() => handleTapWorkoutCharacter(1)}
-                        style={({ pressed }) => [
-                          styles.hudMicroBtn,
-                          {
-                            backgroundColor: `${pal.emeraldAccent}24`,
-                            borderColor: pal.emeraldAccent,
-                            transform: [{ scale: pressed ? 0.91 : 1 }],
-                          },
-                        ]}
-                      >
-                        <Text variant="caption" style={{ fontSize: 10, fontWeight: '700', color: pal.emeraldAccent }}>
-                          {t('⚡ 动一下 +1', '⚡ Rep +1')}
-                        </Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => handleCycleWorkoutPose()}
-                        style={({ pressed }) => [
-                          styles.hudMicroBtn,
-                          {
-                            backgroundColor: pal.pillBg,
-                            borderColor: pal.bentoBorder,
-                            transform: [{ scale: pressed ? 0.92 : 1 }],
-                          },
-                        ]}
-                      >
-                        <Text variant="caption" style={{ fontSize: 10, color: pal.goldText }}>
-                          {t('⇄ 换动作', '⇄ Pose')}
-                        </Text>
-                      </Pressable>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="快速确认今日体重"
-                        onPress={() => handleQuickWeightNudge(0)}
-                        style={({ pressed }) => [
-                          styles.hudMicroBtn,
-                          {
-                            backgroundColor: pal.pillBg,
-                            borderColor: pal.bentoBorder,
-                            transform: [{ scale: pressed ? 0.92 : 1 }],
-                          },
-                        ]}
-                      >
-                        <Text variant="caption" style={{ fontSize: 10, color: pal.sub }}>
-                          {t('✓ 晨重', '✓ Kg')}
-                        </Text>
-                      </Pressable>
-                    </View>
                   </View>
                 </View>
               </View>
@@ -2679,193 +2577,270 @@ export function IsometricStudioStage({
                     <Text variant="caption" style={[styles.hudSubText, { color: pal.muted }]}>
                       {`· ¥${vault.wishBalanceCny.toLocaleString('en-US')}`}
                     </Text>
-                    <View style={styles.hudMicroActionRow}>
-                      <Pressable
-                        onPress={handleQuickHabitCheckIn}
-                        style={({ pressed }) => [
-                          styles.hudMicroBtn,
-                          {
-                            backgroundColor: pal.pillActiveBg,
-                            borderColor: pal.goldAccent,
-                            transform: [{ scale: pressed ? 0.92 : 1 }],
-                          },
-                        ]}
-                      >
-                        <Text variant="caption" style={{ fontSize: 10, fontWeight: '700', color: pal.goldText }}>
-                          {t('✓ 习惯 +¥25', '✓ Habit +¥25')}
-                        </Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => selectIslandAndSync('wishes')}
-                        style={({ pressed }) => [
-                          styles.hudMicroBtn,
-                          {
-                            backgroundColor: pal.pillBg,
-                            borderColor: pal.bentoBorder,
-                            transform: [{ scale: pressed ? 0.92 : 1 }],
-                          },
-                        ]}
-                      >
-                        <Text variant="caption" style={{ fontSize: 10, color: pal.sub }}>
-                          {t('纪念日', 'Milestones')}
-                        </Text>
-                      </Pressable>
-                    </View>
                   </View>
                 </View>
               </View>
             </View>
+          </View>
 
-            {/* Interactive Mini-Play Theater Control Strip (Book Page-Curl & Athlete Pose/Combo Deck) */}
+          {/* 3-Column Aligned Micro-Play Dock (1-to-1 Under Each Island, Zero Overlap with 24H Ribbon Bridges) */}
+          <View style={styles.interactivePlayDeck}>
+            {/* Column 1: Under 心流书房 — Book Page-Curl & Focus Timer */}
             <View
               style={[
-                styles.interactivePlayDeck,
-                { backgroundColor: pal.barBg, borderColor: pal.bentoBorder },
+                styles.playDeckSection,
+                {
+                  backgroundColor: pal.barBg,
+                  borderColor: selectedZone === 'focus' ? pal.terracottaAccent : pal.bentoBorder,
+                },
               ]}
             >
-              {/* Left: Book Page-Curl Interactive Strip */}
-              <View style={styles.playDeckSection}>
-                <View style={styles.playDeckLabelCluster}>
-                  <Text variant="caption" style={{ color: pal.goldText, fontWeight: '700', fontSize: 11 }}>
-                    {t(`📖 翻书共读 P.${12 + bookPageCount}`, `📖 Book P.${12 + bookPageCount}`)}
+              <View style={styles.playDeckLabelCluster}>
+                <Text variant="caption" style={{ color: pal.goldText, fontWeight: '700', fontSize: 10.5 }}>
+                  {t(`📖 P.${12 + bookPageCount}`, `📖 P.${12 + bookPageCount}`)}
+                </Text>
+                <View style={[styles.comboMiniTrack, { backgroundColor: pal.inputBg }]}>
+                  <View
+                    style={[
+                      styles.comboMiniFill,
+                      {
+                        width: `${((bookPageCount % 5) / 5) * 100 || 14}%`,
+                        backgroundColor: pal.terracottaAccent,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text variant="caption" style={{ color: pal.muted, fontSize: 9.5 }}>
+                  {`${bookPageCount % 5}/5`}
+                </Text>
+              </View>
+              <View style={styles.hudMicroActionRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="点一下翻书加一分钟"
+                  onPress={() => handleFlipStudyBook(1)}
+                  style={({ pressed }) => [
+                    styles.hudMicroBtn,
+                    {
+                      backgroundColor: pal.pillActiveBg,
+                      borderColor: pal.terracottaAccent,
+                      transform: [{ scale: pressed ? 0.92 : 1 }],
+                    },
+                  ]}
+                >
+                  <Text variant="caption" style={{ fontSize: 10, fontWeight: '700', color: pal.goldText }}>
+                    {t('📖 翻页 +1m', '📖 Flip +1m')}
                   </Text>
-                  <View style={[styles.comboMiniTrack, { backgroundColor: pal.inputBg }]}>
-                    <View
-                      style={[
-                        styles.comboMiniFill,
+                </Pressable>
+                <Pressable
+                  onPress={() => setAutoReading((prev) => !prev)}
+                  style={({ pressed }) => [
+                    styles.hudMicroBtn,
+                    {
+                      backgroundColor: autoReading ? `${pal.emeraldAccent}28` : pal.pillBg,
+                      borderColor: autoReading ? pal.emeraldAccent : pal.bentoBorder,
+                      transform: [{ scale: pressed ? 0.92 : 1 }],
+                    },
+                  ]}
+                >
+                  <Text
+                    variant="caption"
+                    style={{
+                      fontSize: 10,
+                      fontWeight: '700',
+                      color: autoReading ? pal.emeraldAccent : pal.sub,
+                    }}
+                  >
+                    {autoReading ? t('⏸ 连读中', '⏸ Auto') : t('✨ 连读', '✨ Auto')}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => handleToggleFocusTimer()}
+                  style={({ pressed }) => [
+                    styles.hudMicroBtn,
+                    {
+                      backgroundColor: timer.isRunning ? `${pal.emeraldAccent}28` : pal.pillBg,
+                      borderColor: timer.isRunning ? pal.emeraldAccent : pal.bentoBorder,
+                      transform: [{ scale: pressed ? 0.93 : 1 }],
+                    },
+                  ]}
+                >
+                  <Text
+                    variant="caption"
+                    style={{
+                      fontSize: 10,
+                      fontWeight: '700',
+                      color: timer.isRunning ? pal.emeraldAccent : pal.sub,
+                    }}
+                  >
+                    {timer.isRunning ? t('⏸ 结算', '⏸ Done') : t('▶ 计时', '▶ Timer')}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Column 2: Under 活力体态 — Articulated Athlete Pose Switcher, Rep & Weight */}
+            <View
+              style={[
+                styles.playDeckSection,
+                {
+                  backgroundColor: pal.barBg,
+                  borderColor: selectedZone === 'vitality' ? pal.emeraldAccent : pal.bentoBorder,
+                },
+              ]}
+            >
+              <View style={styles.playDeckLabelCluster}>
+                {(['squat', 'pushup', 'press', 'jump'] as WorkoutPoseId[]).map((pid) => {
+                  const m = WORKOUT_POSE_META[pid];
+                  const isCur = workoutPose === pid;
+                  return (
+                    <Pressable
+                      key={pid}
+                      onPress={() => handleCycleWorkoutPose(pid)}
+                      style={({ pressed }) => [
+                        styles.hudMicroBtn,
                         {
-                          width: `${((bookPageCount % 5) / 5) * 100 || 12}%`,
-                          backgroundColor: pal.terracottaAccent,
+                          backgroundColor: isCur ? `${pal.emeraldAccent}24` : pal.pillBg,
+                          borderColor: isCur ? pal.emeraldAccent : pal.bentoBorder,
+                          transform: [{ scale: pressed ? 0.92 : 1 }],
                         },
                       ]}
-                    />
-                  </View>
-                  <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>
-                    {`${bookPageCount % 5}/5`}
-                  </Text>
-                </View>
-                <View style={styles.hudMicroActionRow}>
-                  <Pressable
-                    onPress={() => handleFlipStudyBook(1)}
-                    style={({ pressed }) => [
-                      styles.hudMicroBtn,
-                      {
-                        backgroundColor: pal.pillActiveBg,
-                        borderColor: pal.terracottaAccent,
-                        transform: [{ scale: pressed ? 0.92 : 1 }],
-                      },
-                    ]}
-                  >
-                    <Text variant="caption" style={{ fontSize: 10.5, fontWeight: '700', color: pal.goldText }}>
-                      {t('📖 翻一页 +1m', '📖 Flip +1m')}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => setAutoReading((prev) => !prev)}
-                    style={({ pressed }) => [
-                      styles.hudMicroBtn,
-                      {
-                        backgroundColor: autoReading ? `${pal.emeraldAccent}28` : pal.pillBg,
-                        borderColor: autoReading ? pal.emeraldAccent : pal.bentoBorder,
-                        transform: [{ scale: pressed ? 0.92 : 1 }],
-                      },
-                    ]}
-                  >
-                    <Text
-                      variant="caption"
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: '700',
-                        color: autoReading ? pal.emeraldAccent : pal.sub,
-                      }}
                     >
-                      {autoReading ? t('⏸ 停止连读', '⏸ Stop Read') : t('✨ 自动连读', '✨ Auto Read')}
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
-
-              {/* Right: Articulated Fitness Character Pose Switcher & Auto-Set Combo Strip */}
-              <View style={styles.playDeckSection}>
-                <View style={styles.playDeckLabelCluster}>
-                  {(['squat', 'pushup', 'press', 'jump'] as WorkoutPoseId[]).map((pid) => {
-                    const m = WORKOUT_POSE_META[pid];
-                    const isCur = workoutPose === pid;
-                    return (
-                      <Pressable
-                        key={pid}
-                        onPress={() => handleCycleWorkoutPose(pid)}
-                        style={({ pressed }) => [
-                          styles.hudMicroBtn,
-                          {
-                            backgroundColor: isCur ? `${pal.emeraldAccent}24` : pal.pillBg,
-                            borderColor: isCur ? pal.emeraldAccent : pal.bentoBorder,
-                            transform: [{ scale: pressed ? 0.92 : 1 }],
-                          },
-                        ]}
+                      <Text
+                        variant="caption"
+                        style={{
+                          fontSize: 9.5,
+                          fontWeight: isCur ? '700' : '500',
+                          color: isCur ? pal.emeraldAccent : pal.sub,
+                        }}
                       >
-                        <Text
-                          variant="caption"
-                          style={{
-                            fontSize: 10,
-                            fontWeight: isCur ? '700' : '500',
-                            color: isCur ? pal.emeraldAccent : pal.sub,
-                          }}
-                        >
-                          {`${m.icon} ${t(m.zh, m.en)}`}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-                <View style={styles.hudMicroActionRow}>
-                  <Pressable
-                    onPress={() => handleTapWorkoutCharacter(1)}
-                    style={({ pressed }) => [
-                      styles.hudMicroBtn,
-                      {
-                        backgroundColor: `${pal.emeraldAccent}26`,
-                        borderColor: pal.emeraldAccent,
-                        transform: [{ scale: pressed ? 0.91 : 1 }],
-                      },
-                    ]}
-                  >
-                    <Text variant="caption" style={{ fontSize: 10.5, fontWeight: '700', color: pal.emeraldAccent }}>
-                      {t(`⚡ 做 1 次 (${workoutReps % 5}/5)`, `⚡ 1 Rep (${workoutReps % 5}/5)`)}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => {
-                      if (autoWorkoutLeft > 0) {
-                        setAutoWorkoutLeft(0);
-                      } else {
-                        handleTapWorkoutCharacter(1);
-                        setAutoWorkoutLeft(4);
-                      }
+                        {`${m.icon}${t(m.zh, m.en)}`}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <View style={styles.hudMicroActionRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="点一下健身小人动一下加一次"
+                  onPress={() => handleTapWorkoutCharacter(1)}
+                  style={({ pressed }) => [
+                    styles.hudMicroBtn,
+                    {
+                      backgroundColor: `${pal.emeraldAccent}24`,
+                      borderColor: pal.emeraldAccent,
+                      transform: [{ scale: pressed ? 0.91 : 1 }],
+                    },
+                  ]}
+                >
+                  <Text variant="caption" style={{ fontSize: 10, fontWeight: '700', color: pal.emeraldAccent }}>
+                    {t(`⚡ 动一下 +1 (${workoutReps % 5}/5)`, `⚡ Rep +1 (${workoutReps % 5}/5)`)}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    if (autoWorkoutLeft > 0) {
+                      setAutoWorkoutLeft(0);
+                    } else {
+                      handleTapWorkoutCharacter(1);
+                      setAutoWorkoutLeft(4);
+                    }
+                  }}
+                  style={({ pressed }) => [
+                    styles.hudMicroBtn,
+                    {
+                      backgroundColor: autoWorkoutLeft > 0 ? pal.pillActiveBg : pal.pillBg,
+                      borderColor: autoWorkoutLeft > 0 ? pal.goldAccent : pal.bentoBorder,
+                      transform: [{ scale: pressed ? 0.92 : 1 }],
+                    },
+                  ]}
+                >
+                  <Text
+                    variant="caption"
+                    style={{
+                      fontSize: 10,
+                      fontWeight: '700',
+                      color: autoWorkoutLeft > 0 ? pal.goldText : pal.sub,
                     }}
-                    style={({ pressed }) => [
-                      styles.hudMicroBtn,
-                      {
-                        backgroundColor: autoWorkoutLeft > 0 ? pal.pillActiveBg : pal.pillBg,
-                        borderColor: autoWorkoutLeft > 0 ? pal.goldAccent : pal.bentoBorder,
-                        transform: [{ scale: pressed ? 0.92 : 1 }],
-                      },
-                    ]}
                   >
-                    <Text
-                      variant="caption"
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: '700',
-                        color: autoWorkoutLeft > 0 ? pal.goldText : pal.sub,
-                      }}
-                    >
-                      {autoWorkoutLeft > 0
-                        ? t(`🔥 连做中 (${autoWorkoutLeft})…`, `🔥 Combo (${autoWorkoutLeft})…`)
-                        : t('▶ 连做 1 组(5次)', '▶ Auto Set (5x)')}
-                    </Text>
-                  </Pressable>
-                </View>
+                    {autoWorkoutLeft > 0
+                      ? t(`🔥 连做(${autoWorkoutLeft})`, `🔥 (${autoWorkoutLeft})`)
+                      : t('▶ 连做5次', '▶ 5x Set')}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="快速确认今日体重"
+                  onPress={() => handleQuickWeightNudge(0)}
+                  style={({ pressed }) => [
+                    styles.hudMicroBtn,
+                    {
+                      backgroundColor: pal.pillBg,
+                      borderColor: pal.bentoBorder,
+                      transform: [{ scale: pressed ? 0.92 : 1 }],
+                    },
+                  ]}
+                >
+                  <Text variant="caption" style={{ fontSize: 10, color: pal.sub }}>
+                    {t('✓ 晨重', '✓ Kg')}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Column 3: Under 星愿纪念台 — Habit Check-In & Wish Vault */}
+            <View
+              style={[
+                styles.playDeckSection,
+                {
+                  backgroundColor: pal.barBg,
+                  borderColor: selectedZone === 'wishes' ? pal.goldAccent : pal.bentoBorder,
+                },
+              ]}
+            >
+              <View style={styles.playDeckLabelCluster}>
+                <Text variant="caption" style={{ color: pal.goldText, fontWeight: '700', fontSize: 10.5 }}>
+                  {`🎁 ¥${vault.wishBalanceCny.toLocaleString('en-US')}`}
+                </Text>
+                <Text variant="caption" style={{ color: pal.muted, fontSize: 9.5 }}>
+                  {t(
+                    `已打卡 ${habits.filter((h) => h.completedDays.includes(localDay)).length}/${habits.length}`,
+                    `Habits ${habits.filter((h) => h.completedDays.includes(localDay)).length}/${habits.length}`,
+                  )}
+                </Text>
+              </View>
+              <View style={styles.hudMicroActionRow}>
+                <Pressable
+                  onPress={handleQuickHabitCheckIn}
+                  style={({ pressed }) => [
+                    styles.hudMicroBtn,
+                    {
+                      backgroundColor: pal.pillActiveBg,
+                      borderColor: pal.goldAccent,
+                      transform: [{ scale: pressed ? 0.92 : 1 }],
+                    },
+                  ]}
+                >
+                  <Text variant="caption" style={{ fontSize: 10, fontWeight: '700', color: pal.goldText }}>
+                    {t('✓ 习惯 +¥25', '✓ Habit +¥25')}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => selectIslandAndSync('wishes')}
+                  style={({ pressed }) => [
+                    styles.hudMicroBtn,
+                    {
+                      backgroundColor: pal.pillBg,
+                      borderColor: pal.bentoBorder,
+                      transform: [{ scale: pressed ? 0.92 : 1 }],
+                    },
+                  ]}
+                >
+                  <Text variant="caption" style={{ fontSize: 10, color: pal.sub }}>
+                    {t('纪念日与OKR', 'Milestones')}
+                  </Text>
+                </Pressable>
               </View>
             </View>
           </View>
@@ -3919,7 +3894,8 @@ const styles = StyleSheet.create({
   },
   stageGridBg: {
     position: 'relative',
-    minHeight: 224,
+    minHeight: 212,
+    paddingBottom: 8,
   },
   isoCanvas: {
     position: 'relative',
@@ -3929,8 +3905,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-around',
     paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 6,
+    paddingTop: 8,
+    paddingBottom: 8,
     gap: 10,
   },
   isoIslandSlot: {
@@ -3945,38 +3921,39 @@ const styles = StyleSheet.create({
   islandArtWrap: {
     position: 'relative',
     width: 280,
-    height: 196,
+    height: 192,
     justifyContent: 'flex-end',
     alignItems: 'flex-start',
   },
   floatingHudCorner: {
     position: 'absolute',
-    top: 10,
-    right: 0,
+    top: 4,
+    right: -2,
     zIndex: 5,
-    minWidth: 138,
-    paddingHorizontal: 11,
-    paddingVertical: 8,
-    borderRadius: 11,
+    minWidth: 124,
+    maxWidth: 152,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
     borderWidth: 1,
-    gap: 3,
+    gap: 2,
   },
   hudTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 8,
+    gap: 6,
     marginBottom: 1,
   },
   hudTitleText: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
   },
   hudProgressRing: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 1.8,
+    width: 15,
+    height: 15,
+    borderRadius: 7.5,
+    borderWidth: 1.6,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3986,11 +3963,11 @@ const styles = StyleSheet.create({
     borderRadius: 2.5,
   },
   hudMetricText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontFamily: theme.fontFamily.mono,
   },
   hudSubText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontFamily: theme.fontFamily.mono,
   },
   hudMicroActionRow: {
@@ -3998,11 +3975,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: 4,
-    paddingTop: 3,
   },
   hudMicroBtn: {
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: 2.5,
     borderRadius: 5,
     borderWidth: 1,
   },
@@ -4284,31 +4260,34 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   interactivePlayDeck: {
-    marginHorizontal: 16,
-    marginTop: 4,
-    marginBottom: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 11,
-    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingTop: 2,
+    paddingBottom: 8,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
     justifyContent: 'space-between',
     flexWrap: 'wrap',
     gap: 10,
     zIndex: 5,
   },
   playDeckSection: {
+    flex: 1,
+    minWidth: 250,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
   },
   playDeckLabelCluster: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 5,
+    gap: 4,
   },
   comboMiniTrack: {
     width: 44,
