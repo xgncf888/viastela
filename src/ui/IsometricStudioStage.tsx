@@ -4,6 +4,7 @@ import { Platform, Pressable, StyleSheet, TextInput, View, type ViewStyle } from
 import { type RuntimeHostMode } from '@/core/charioteer-plugin';
 import { buildLifeHeatmapGrid, type HeatmapCell, type PledgeVaultState } from '@/core/life-gamification';
 import {
+  addDaysToLocalDay,
   computeKrProgressPct,
   computeObjectiveProgressPct,
   type HabitItem,
@@ -46,31 +47,29 @@ export type SanctuaryPerspective = 'diorama' | 'daycycle' | 'summary';
 export type LifeZoneKey = 'focus' | 'vitality' | 'wishes';
 
 /**
- * Option-A High-Craft 2.5D Isometric Diorama Islands:
- * 1. 'focus': Warm Walnut Study Loft (Executive walnut desk with drawers, chair, glowing dome lamp, brass lamp, open book, and 10,000h radial badge)
- * 2. 'vitality': Obsidian-Emerald Fitness Island (Rolled terracotta yoga mat, green sphere, copper dumbbells, and digital smart scale with live weight readout)
- * 3. 'wishes': Obsidian-Gold Astrolabe Pavilion (3D Golden Armillary Sphere / Celestial Astrolabe with Polaris arrow + ribboned anniversary gift box)
+ * Museum-Grade Option-A 2.5D Isometric Island Artwork:
+ * - 'focus': Warm Walnut Study Loft (Rounded 3D walnut slab, wood-grain lines, 3-drawer pedestal desk, swivel chair, dome lamp + articulated brass lamp with warm light cone, open book, red journal)
+ * - 'vitality': Obsidian-Emerald Fitness Island (Rolled terracotta yoga mat with spiral end, shaded green sphere, brass roller, pair of 3D dumbbells, bevelled smart scale with metallic pads & live LED readout)
+ * - 'wishes': Obsidian-Gold Astrolabe Pavilion (Stepped brass pedestal, multi-ring 3D Golden Armillary Sphere with degree ticks & Polaris arrow, plus 3D ribboned gift box)
  */
 function IsometricLifeZoneSvg({
   zone,
   active,
   weightText,
-  masteryHoursText,
 }: {
   zone: LifeZoneKey;
   active: boolean;
   weightText: string;
-  masteryHoursText: string;
 }) {
   const rimColor =
-    zone === 'focus' ? '#e8924a' : zone === 'vitality' ? '#34d399' : '#f5b942';
+    zone === 'focus' ? '#f59e0b' : zone === 'vitality' ? '#34d399' : '#f5b942';
 
   if (Platform.OS !== 'web') {
     return (
       <View
         style={{
-          width: 230,
-          height: 136,
+          width: 240,
+          height: 150,
           borderRadius: 14,
           borderWidth: 1.5,
           borderColor: rimColor,
@@ -80,24 +79,25 @@ function IsometricLifeZoneSvg({
     );
   }
 
-  const gradTopId = `optATop_${zone}`;
-  const gradSideLId = `optASideL_${zone}`;
-  const gradSideRId = `optASideR_${zone}`;
-  const underGlowId = `optAGlow_${zone}`;
-  const goldGradId = `optAGold_${zone}`;
+  const gradTopId = `dioramaTop_${zone}`;
+  const gradWallLId = `dioramaWallL_${zone}`;
+  const gradWallRId = `dioramaWallR_${zone}`;
+  const floorBloomId = `dioramaBloom_${zone}`;
+  const goldMetalId = `dioramaGold_${zone}`;
+  const lampConeId = `dioramaCone_${zone}`;
 
   return createElement(
     'svg',
     {
-      width: 262,
-      height: 168,
-      viewBox: '0 0 280 180',
+      width: 276,
+      height: 184,
+      viewBox: '0 0 280 188',
       fill: 'none',
       style: {
         overflow: 'visible',
         filter: active
-          ? `drop-shadow(0 18px 28px rgba(0, 0, 0, 0.72)) drop-shadow(0 0 18px ${rimColor}33)`
-          : 'drop-shadow(0 14px 22px rgba(0, 0, 0, 0.58))',
+          ? `drop-shadow(0 20px 30px rgba(0, 0, 0, 0.78)) drop-shadow(0 0 20px ${rimColor}40)`
+          : 'drop-shadow(0 16px 24px rgba(0, 0, 0, 0.62))',
       },
     },
     createElement(
@@ -108,447 +108,544 @@ function IsometricLifeZoneSvg({
         { id: gradTopId, x1: '0', y1: '0', x2: '1', y2: '1' },
         createElement('stop', {
           offset: '0%',
-          stopColor: zone === 'focus' ? '#4a3222' : zone === 'vitality' ? '#1f2d27' : '#2f2920',
+          stopColor: zone === 'focus' ? '#523624' : zone === 'vitality' ? '#203029' : '#332b20',
         }),
         createElement('stop', {
           offset: '100%',
-          stopColor: zone === 'focus' ? '#261a12' : zone === 'vitality' ? '#121a17' : '#181510',
+          stopColor: zone === 'focus' ? '#281a11' : zone === 'vitality' ? '#111916' : '#18140f',
         }),
       ),
       createElement(
         'linearGradient',
-        { id: gradSideLId, x1: '0', y1: '0', x2: '1', y2: '1' },
+        { id: gradWallLId, x1: '0', y1: '0', x2: '1', y2: '1' },
         createElement('stop', {
           offset: '0%',
-          stopColor: zone === 'focus' ? '#362317' : zone === 'vitality' ? '#17241e' : '#241e16',
+          stopColor: zone === 'focus' ? '#3d2618' : zone === 'vitality' ? '#182820' : '#282015',
         }),
         createElement('stop', { offset: '100%', stopColor: '#0e0c0a' }),
       ),
       createElement(
         'linearGradient',
-        { id: gradSideRId, x1: '0', y1: '0', x2: '1', y2: '1' },
-        createElement('stop', { offset: '0%', stopColor: '#1a1612' }),
+        { id: gradWallRId, x1: '0', y1: '0', x2: '1', y2: '1' },
+        createElement('stop', { offset: '0%', stopColor: '#1f1a15' }),
         createElement('stop', { offset: '100%', stopColor: '#090807' }),
       ),
       createElement(
         'radialGradient',
-        { id: underGlowId, cx: '50%', cy: '50%', r: '50%' },
-        createElement('stop', { offset: '0%', stopColor: rimColor, stopOpacity: '0.46' }),
+        { id: floorBloomId, cx: '50%', cy: '50%', r: '50%' },
+        createElement('stop', { offset: '0%', stopColor: rimColor, stopOpacity: '0.52' }),
+        createElement('stop', { offset: '65%', stopColor: rimColor, stopOpacity: '0.14' }),
         createElement('stop', { offset: '100%', stopColor: rimColor, stopOpacity: '0' }),
       ),
       createElement(
         'linearGradient',
-        { id: goldGradId, x1: '0', y1: '0', x2: '1', y2: '1' },
-        createElement('stop', { offset: '0%', stopColor: '#fde68a' }),
-        createElement('stop', { offset: '50%', stopColor: '#eab308' }),
-        createElement('stop', { offset: '100%', stopColor: '#a16207' }),
+        { id: goldMetalId, x1: '0', y1: '0', x2: '1', y2: '1' },
+        createElement('stop', { offset: '0%', stopColor: '#fef08a' }),
+        createElement('stop', { offset: '45%', stopColor: '#f5b942' }),
+        createElement('stop', { offset: '100%', stopColor: '#92560c' }),
+      ),
+      createElement(
+        'radialGradient',
+        { id: lampConeId, cx: '50%', cy: '25%', r: '65%' },
+        createElement('stop', { offset: '0%', stopColor: '#fef08a', stopOpacity: '0.55' }),
+        createElement('stop', { offset: '100%', stopColor: '#f59e0b', stopOpacity: '0' }),
       ),
     ),
 
-    // 1. Ambient Neon Floor Bloom under Island
+    // 1. Soft Neon Floor Bloom under the Isometric Base
     createElement('ellipse', {
-      cx: 140,
-      cy: 122,
-      rx: 102,
+      cx: 136,
+      cy: 134,
+      rx: 108,
       ry: 42,
-      fill: `url(#${underGlowId})`,
+      fill: `url(#${floorBloomId})`,
     }),
 
-    // 2. Thick 2.5D Isometric Platform Slab (Left & Right Extruded Walls + Glowing Under-Rim + Top Deck)
+    // 2. 3D Extruded Isometric Base Slab (Left Bevel, Right Bevel, Glowing Neon Under-Rim, Top Surface)
     createElement('polygon', {
-      points: '22,110 140,158 140,172 22,124',
-      fill: `url(#${gradSideLId})`,
-      stroke: 'rgba(255,248,235,0.12)',
+      points: '18,118 136,168 136,182 18,132',
+      fill: `url(#${gradWallLId})`,
+      stroke: 'rgba(255,248,235,0.14)',
       strokeWidth: 1,
     }),
     createElement('polygon', {
-      points: '258,110 140,158 140,172 258,124',
-      fill: `url(#${gradSideRId})`,
+      points: '254,118 136,168 136,182 254,132',
+      fill: `url(#${gradWallRId})`,
       stroke: 'rgba(255,248,235,0.12)',
       strokeWidth: 1,
     }),
-    // Glowing Neon Under-Rim Strip (Option A signature detail)
+    // Glowing Neon Under-Rim Strip
     createElement('polyline', {
-      points: '22,122 140,170 258,122',
+      points: '18,130 136,180 254,130',
       fill: 'none',
       stroke: rimColor,
-      strokeWidth: active ? 3.2 : 2.4,
+      strokeWidth: active ? 3.5 : 2.6,
       strokeLinecap: 'round',
       strokeLinejoin: 'round',
     }),
-    // Isometric Platform Top Surface
+    // Top Isometric Deck
     createElement('polygon', {
-      points: '140,158 258,110 140,62 22,110',
+      points: '136,168 254,118 136,68 18,118',
       fill: `url(#${gradTopId})`,
       stroke: rimColor,
-      strokeWidth: active ? 1.8 : 1.1,
-      strokeOpacity: 0.75,
+      strokeWidth: active ? 1.8 : 1.2,
+      strokeOpacity: 0.82,
+    }),
+    // Subtle Inner Deck Inset Border
+    createElement('polygon', {
+      points: '136,161 242,116 136,73 30,116',
+      fill: 'none',
+      stroke: 'rgba(255,248,235,0.08)',
+      strokeWidth: 0.9,
     }),
 
-    // ================= ISLAND 1: 心流书房 (Walnut Study Desk + Dome Lamp + 10,000h Dial) =================
+    // ================= ISLAND 1: 心流书房 (Walnut Study Desk + Lamps + Swivel Chair) =================
     zone === 'focus'
       ? createElement(
           'g',
           null,
-          // Warm Lamp Pool on Desk
-          createElement('ellipse', {
-            cx: 132,
-            cy: 96,
-            rx: 46,
-            ry: 22,
-            fill: 'rgba(251, 191, 36, 0.22)',
-          }),
-          // Left & Right Walnut Desk Pedestal Drawers
-          createElement('polygon', {
-            points: '78,96 106,108 106,130 78,118',
-            fill: '#3d2415',
-            stroke: '#78472a',
-            strokeWidth: 0.9,
-          }),
-          createElement('polygon', {
-            points: '106,108 122,101 122,123 106,130',
-            fill: '#29170d',
-          }),
-          // Drawer pulls
+          // Subtle wood-grain texture lines on platform
           createElement('line', {
-            x1: 88,
-            y1: 107,
-            x2: 96,
-            y2: 111,
-            stroke: '#f5b942',
-            strokeWidth: 1.5,
-          }),
-          createElement('line', {
-            x1: 88,
-            y1: 115,
-            x2: 96,
-            y2: 119,
-            stroke: '#f5b942',
-            strokeWidth: 1.5,
-          }),
-          // Executive Walnut Desk Top
-          createElement('polygon', {
-            points: '126,112 184,88 140,70 82,94',
-            fill: '#5c3722',
-            stroke: '#d97706',
-            strokeWidth: 1.2,
-          }),
-          // Open Illuminated Book on Desk
-          createElement('polygon', {
-            points: '126,98 148,89 134,83 112,92',
-            fill: '#fef3c7',
-            stroke: '#d97706',
-            strokeWidth: 0.9,
-          }),
-          // Red Hardcover Notebook on Right Corner
-          createElement('polygon', {
-            points: '154,88 168,82 158,78 144,84',
-            fill: '#b45309',
-            stroke: '#fde68a',
-            strokeWidth: 0.7,
-          }),
-          // Glowing Warm Dome Lamp (Upper Right of Desk)
-          createElement('rect', {
-            x: 135,
-            y: 56,
-            width: 6,
-            height: 12,
-            rx: 2,
-            fill: '#d97706',
-          }),
-          createElement('path', {
-            d: 'M126 58 C126 44, 150 44, 150 58 Z',
-            fill: '#fef08a',
-            stroke: '#f59e0b',
-            strokeWidth: 1.2,
-          }),
-          // Articulated Brass Reading Lamp (Left of Desk)
-          createElement('ellipse', {
-            cx: 98,
-            cy: 88,
-            rx: 7,
-            ry: 3.5,
-            fill: '#d97706',
-          }),
-          createElement('polyline', {
-            points: '98,88 92,72 106,65',
-            fill: 'none',
-            stroke: '#f5b942',
-            strokeWidth: 2,
-          }),
-          createElement('polygon', {
-            points: '104,62 114,66 108,72 98,67',
-            fill: '#f5b942',
-          }),
-          // Ergonomic Swivel Study Chair
-          createElement('polygon', {
-            points: '148,108 168,99 168,116 148,125',
-            fill: '#292018',
-            stroke: '#78472a',
+            x1: 48,
+            y1: 122,
+            x2: 142,
+            y2: 82,
+            stroke: 'rgba(255,200,150,0.07)',
             strokeWidth: 1,
           }),
-          // Floating 10,000-Hour Golden Radial Dial Badge (Option A signature element)
-          createElement('circle', {
-            cx: 214,
-            cy: 64,
-            r: 25,
-            fill: '#181512',
-            stroke: 'rgba(245, 185, 66, 0.45)',
-            strokeWidth: 1.5,
+          createElement('line', {
+            x1: 72,
+            y1: 134,
+            x2: 168,
+            y2: 93,
+            stroke: 'rgba(255,200,150,0.07)',
+            strokeWidth: 1,
           }),
-          createElement('circle', {
-            cx: 214,
-            cy: 64,
-            r: 20,
+          // Desk Floor Shadow
+          createElement('polygon', {
+            points: '68,108 138,78 182,96 112,126',
+            fill: 'rgba(0,0,0,0.42)',
+          }),
+          // Left Desk Drawer Pedestal (Front & Side 3D Faces + 3 Drawers)
+          createElement('polygon', {
+            points: '68,94 98,107 98,132 68,119',
+            fill: '#3b2213',
+            stroke: '#7c4a2b',
+            strokeWidth: 0.9,
+          }),
+          createElement('polygon', {
+            points: '98,107 116,99 116,124 98,132',
+            fill: '#24140b',
+            stroke: '#5c351e',
+            strokeWidth: 0.8,
+          }),
+          // 3 Drawer Separators & Brass Handles
+          createElement('line', { x1: 71, y1: 103, x2: 95, y2: 113, stroke: '#24140b', strokeWidth: 1 }),
+          createElement('line', { x1: 71, y1: 111, x2: 95, y2: 121, stroke: '#24140b', strokeWidth: 1 }),
+          createElement('line', { x1: 80, y1: 103, x2: 86, y2: 106, stroke: '#f5b942', strokeWidth: 1.6, strokeLinecap: 'round' }),
+          createElement('line', { x1: 80, y1: 111, x2: 86, y2: 114, stroke: '#f5b942', strokeWidth: 1.6, strokeLinecap: 'round' }),
+          createElement('line', { x1: 80, y1: 119, x2: 86, y2: 122, stroke: '#f5b942', strokeWidth: 1.6, strokeLinecap: 'round' }),
+          // Right Desk Panel Leg
+          createElement('polygon', {
+            points: '146,84 168,93 168,116 146,107',
+            fill: '#28160c',
+            stroke: '#693d23',
+            strokeWidth: 0.9,
+          }),
+          // Thick Sculpted Walnut Desk Top (Top Surface + Front Edge Bevel)
+          createElement('polygon', {
+            points: '116,112 178,86 134,67 66,94',
+            fill: '#663d24',
+            stroke: '#e8924a',
+            strokeWidth: 1.2,
+          }),
+          createElement('polygon', {
+            points: '66,94 116,112 116,116 66,98',
+            fill: '#472917',
+          }),
+          createElement('polygon', {
+            points: '116,112 178,86 178,90 116,116',
+            fill: '#361f11',
+          }),
+          // Warm Golden Light Pool on Desk Surface
+          createElement('ellipse', {
+            cx: 122,
+            cy: 89,
+            rx: 38,
+            ry: 16,
+            fill: `url(#${lampConeId})`,
+          }),
+          // Open Two-Page Book with Page Thickness & Text Lines
+          createElement('polygon', {
+            points: '104,92 120,85 110,80 94,87',
+            fill: '#fffbeb',
+            stroke: '#d97706',
+            strokeWidth: 0.8,
+          }),
+          createElement('polygon', {
+            points: '120,85 136,79 126,74 110,80',
+            fill: '#fef3c7',
+            stroke: '#d97706',
+            strokeWidth: 0.8,
+          }),
+          createElement('line', { x1: 100, y1: 87, x2: 112, y2: 82, stroke: '#92400e', strokeWidth: 0.7 }),
+          createElement('line', { x1: 103, y1: 89, x2: 115, y2: 84, stroke: '#92400e', strokeWidth: 0.7 }),
+          createElement('line', { x1: 116, y1: 80, x2: 128, y2: 76, stroke: '#92400e', strokeWidth: 0.7 }),
+          // Terracotta Hardcover Book Stack on Upper Corner of Desk
+          createElement('polygon', {
+            points: '146,84 164,76 152,71 134,79',
+            fill: '#c25e3c',
+            stroke: '#fde68a',
+            strokeWidth: 0.8,
+          }),
+          createElement('polygon', {
+            points: '134,79 146,84 146,87 134,82',
+            fill: '#fffbeb',
+          }),
+          // Glowing Warm Dome Table Lamp (Upper Center of Desk)
+          createElement('ellipse', { cx: 130, cy: 67, rx: 18, ry: 10, fill: 'rgba(254, 240, 138, 0.28)' }),
+          createElement('ellipse', { cx: 130, cy: 70, rx: 7, ry: 3.5, fill: '#b45309' }),
+          createElement('rect', { x: 127, y: 58, width: 6, height: 12, rx: 2, fill: '#d97706' }),
+          createElement('path', {
+            d: 'M116 60 C116 41, 144 41, 144 60 Z',
+            fill: '#fef08a',
+            stroke: '#f59e0b',
+            strokeWidth: 1.4,
+          }),
+          // Articulated Brass Architect Lamp on Left Side of Desk
+          createElement('ellipse', { cx: 84, cy: 89, rx: 6.5, ry: 3.2, fill: `url(#${goldMetalId})` }),
+          createElement('polyline', {
+            points: '84,89 76,72 94,63',
             fill: 'none',
-            stroke: '#f5b942',
-            strokeWidth: 2.5,
-            strokeDasharray: '4 2.5',
+            stroke: `url(#${goldMetalId})`,
+            strokeWidth: 2.2,
+            strokeLinecap: 'round',
+            strokeLinejoin: 'round',
           }),
-          createElement(
-            'text',
-            {
-              x: 214,
-              y: 63,
-              textAnchor: 'middle',
-              fill: '#fde68a',
-              fontSize: '8.5',
-              fontWeight: '700',
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-            },
-            masteryHoursText,
-          ),
-          createElement(
-            'text',
-            {
-              x: 214,
-              y: 73,
-              textAnchor: 'middle',
-              fill: '#a8a29e',
-              fontSize: '7',
-            },
-            '10,000h',
-          ),
+          createElement('polygon', {
+            points: '92,59 104,64 98,71 88,65',
+            fill: `url(#${goldMetalId})`,
+          }),
+          // Ergonomic Swivel Chair in Front of Desk (Seat, Backrest, Pedestal Base)
+          createElement('ellipse', { cx: 148, cy: 125, rx: 13, ry: 5.5, fill: 'rgba(0,0,0,0.5)' }),
+          createElement('line', { x1: 148, y1: 114, x2: 148, y2: 125, stroke: '#1c1917', strokeWidth: 3 }),
+          createElement('line', { x1: 138, y1: 125, x2: 158, y2: 125, stroke: '#44403c', strokeWidth: 2 }),
+          createElement('polygon', {
+            points: '134,109 156,100 164,105 142,114',
+            fill: '#3b2314',
+            stroke: '#7c4a2b',
+            strokeWidth: 0.9,
+          }),
+          createElement('polygon', {
+            points: '148,92 164,85 164,106 148,113',
+            fill: '#4a2c19',
+            stroke: '#a16207',
+            strokeWidth: 1,
+          }),
         )
       : null,
 
-    // ================= ISLAND 2: 活力体态 (Rolled Terracotta Yoga Mat + Dumbbells + Digital Scale) =================
+    // ================= ISLAND 2: 活力体态 (Rolled Terracotta Yoga Mat + Dumbbells + Smart Scale) =================
     zone === 'vitality'
       ? createElement(
           'g',
           null,
-          // Unrolled Terracotta Yoga Mat Base
+          // Mat Shadow
           createElement('polygon', {
-            points: '88,112 162,82 134,70 60,100',
-            fill: '#b56345',
-            stroke: '#e8924a',
+            points: '54,106 138,71 172,86 88,121',
+            fill: 'rgba(0,0,0,0.45)',
+          }),
+          // Unrolled Terracotta Yoga Mat with 3D Edge Thickness
+          createElement('polygon', {
+            points: '86,118 168,84 138,71 56,105',
+            fill: '#c26d4f',
+            stroke: '#f3a683',
             strokeWidth: 1,
           }),
-          // Rolled Yoga Mat Cylinder at Upper Left
           createElement('polygon', {
-            points: '56,96 130,66 138,76 64,106',
-            fill: '#cc785c',
-            stroke: '#f5b942',
-            strokeWidth: 0.9,
+            points: '56,105 86,118 86,121 56,108',
+            fill: '#8c4932',
+          }),
+          createElement('polygon', {
+            points: '86,118 168,84 168,87 86,121',
+            fill: '#733a26',
+          }),
+          // Rolled Cylinder Head of Yoga Mat (Upper-Left Edge)
+          createElement('polygon', {
+            points: '52,98 134,64 142,74 60,108',
+            fill: '#d97f5f',
+            stroke: '#f7b799',
+            strokeWidth: 1,
           }),
           createElement('ellipse', {
-            cx: 60,
-            cy: 101,
-            rx: 6,
-            ry: 8,
-            fill: '#7c3f29',
-            stroke: '#e8924a',
-            strokeWidth: 1,
+            cx: 56,
+            cy: 103,
+            rx: 6.5,
+            ry: 8.5,
+            fill: '#783c28',
+            stroke: '#f3a683',
+            strokeWidth: 1.2,
           }),
-          // Green Mobility / Kettle Sphere
+          createElement('ellipse', {
+            cx: 56,
+            cy: 103,
+            rx: 3,
+            ry: 4,
+            fill: 'none',
+            stroke: '#f3a683',
+            strokeWidth: 0.8,
+          }),
+          // Small Brass Grip Bar on Mat
+          createElement('line', {
+            x1: 96,
+            y1: 98,
+            x2: 108,
+            y2: 104,
+            stroke: `url(#${goldMetalId})`,
+            strokeWidth: 3.5,
+            strokeLinecap: 'round',
+          }),
+          // 3D Shaded Emerald Mobility Sphere with Specular Highlight
+          createElement('ellipse', { cx: 135, cy: 90, rx: 10, ry: 4.5, fill: 'rgba(0,0,0,0.35)' }),
           createElement('circle', {
-            cx: 138,
-            cy: 86,
-            r: 9,
+            cx: 135,
+            cy: 84,
+            r: 9.5,
             fill: '#34d399',
-            stroke: '#065f46',
+            stroke: '#059669',
             strokeWidth: 1,
           }),
-          // Sleek Glass Digital Smart Scale on Right Side of Island
+          createElement('circle', {
+            cx: 132,
+            cy: 81,
+            r: 2.8,
+            fill: '#a7f3d0',
+          }),
+          // Bevelled Glass Digital Smart Scale (Right Side of Island)
           createElement('polygon', {
-            points: '164,124 212,104 180,90 132,110',
-            fill: '#272a30',
-            stroke: '#9ca3af',
+            points: '158,131 214,108 178,92 122,115',
+            fill: 'rgba(0,0,0,0.5)',
+          }),
+          createElement('polygon', {
+            points: '158,128 212,105 176,90 122,113',
+            fill: '#2e343b',
+            stroke: '#cbd5e1',
             strokeWidth: 1.5,
           }),
-          // LED Weight Display Screen on Smart Scale
+          // 4 Brushed Metal BIA Electrode Pads on Smart Scale
           createElement('polygon', {
-            points: '166,105 184,97 176,93 158,101',
-            fill: '#0b0f14',
+            points: '134,112 152,104 146,101 128,109',
+            fill: 'rgba(255,255,255,0.12)',
+          }),
+          createElement('polygon', {
+            points: '160,122 178,114 172,111 154,119',
+            fill: 'rgba(255,255,255,0.12)',
+          }),
+          // Glowing Digital Weight Screen on Scale
+          createElement('polygon', {
+            points: '160,106 180,98 171,94 151,102',
+            fill: '#090d11',
             stroke: '#34d399',
-            strokeWidth: 0.9,
+            strokeWidth: 1,
           }),
           createElement(
             'text',
             {
-              x: 171,
-              y: 100,
+              x: 165,
+              y: 101,
               textAnchor: 'middle',
-              fill: '#4ade80',
+              fill: '#6ee7b7',
               fontSize: '7.5',
               fontWeight: '700',
               fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
             },
             weightText,
           ),
-          // Pair of Sculpted Copper Dumbbells in Foreground
-          createElement('circle', { cx: 116, cy: 122, r: 4.5, fill: '#b45309' }),
-          createElement('line', {
-            x1: 116,
-            y1: 122,
-            x2: 130,
-            y2: 116,
-            stroke: '#fde68a',
-            strokeWidth: 2.5,
-          }),
-          createElement('circle', { cx: 130, cy: 116, r: 4.5, fill: '#b45309' }),
-          createElement('circle', { cx: 132, cy: 130, r: 4.5, fill: '#b45309' }),
-          createElement('line', {
-            x1: 132,
-            y1: 130,
-            x2: 146,
-            y2: 124,
-            stroke: '#fde68a',
-            strokeWidth: 2.5,
-          }),
-          createElement('circle', { cx: 146, cy: 124, r: 4.5, fill: '#b45309' }),
+          // Pair of Sculpted Copper-Bronze Dumbbells in Front Corner
+          createElement('ellipse', { cx: 112, cy: 130, rx: 14, ry: 5, fill: 'rgba(0,0,0,0.4)' }),
+          createElement('circle', { cx: 102, cy: 128, r: 5, fill: '#b45309', stroke: '#fde68a', strokeWidth: 0.8 }),
+          createElement('line', { x1: 102, y1: 128, x2: 118, y2: 121, stroke: '#fde68a', strokeWidth: 2.8 }),
+          createElement('circle', { cx: 118, cy: 121, r: 5, fill: '#b45309', stroke: '#fde68a', strokeWidth: 0.8 }),
+
+          createElement('ellipse', { cx: 128, cy: 138, rx: 14, ry: 5, fill: 'rgba(0,0,0,0.4)' }),
+          createElement('circle', { cx: 118, cy: 136, r: 5, fill: '#b45309', stroke: '#fde68a', strokeWidth: 0.8 }),
+          createElement('line', { x1: 118, y1: 136, x2: 134, y2: 129, stroke: '#fde68a', strokeWidth: 2.8 }),
+          createElement('circle', { cx: 134, cy: 129, r: 5, fill: '#b45309', stroke: '#fde68a', strokeWidth: 0.8 }),
         )
       : null,
 
-    // ================= ISLAND 3: 星愿纪念台 (3D Golden Armillary Sphere Astrolabe + Ribboned Gift Box) =================
+    // ================= ISLAND 3: 星愿纪念台 (3D Golden Armillary Sphere Astrolabe + Gift Box) =================
     zone === 'wishes'
       ? createElement(
           'g',
           null,
-          // Sculpted Graduated Golden Astrolabe Pedestal Base
+          // Stepped Golden Brass Compass Pedestal Base
           createElement('ellipse', {
-            cx: 130,
-            cy: 112,
-            rx: 38,
-            ry: 16,
-            fill: '#292014',
-            stroke: `url(#${goldGradId})`,
-            strokeWidth: 2,
+            cx: 122,
+            cy: 120,
+            rx: 42,
+            ry: 18,
+            fill: 'rgba(0,0,0,0.52)',
           }),
           createElement('ellipse', {
-            cx: 130,
-            cy: 108,
+            cx: 122,
+            cy: 116,
+            rx: 38,
+            ry: 15,
+            fill: '#2b2113',
+            stroke: `url(#${goldMetalId})`,
+            strokeWidth: 2.2,
+          }),
+          createElement('ellipse', {
+            cx: 122,
+            cy: 112,
             rx: 28,
             ry: 11,
-            fill: '#42321b',
-            stroke: '#fde68a',
+            fill: '#47361d',
+            stroke: '#fef08a',
             strokeWidth: 1.2,
           }),
-          // Support Pillar
-          createElement('rect', {
-            x: 126,
-            y: 92,
-            width: 8,
-            height: 16,
-            fill: `url(#${goldGradId})`,
-          }),
-          // Outer Meridian Golden Ring of Armillary Sphere
-          createElement('circle', {
-            cx: 130,
-            cy: 64,
-            r: 32,
+          // Semicircular Cradle Support Arc under Sphere
+          createElement('path', {
+            d: 'M 86 72 A 36 36 0 0 0 158 72',
             fill: 'none',
-            stroke: `url(#${goldGradId})`,
-            strokeWidth: 5,
-          }),
-          createElement('circle', {
-            cx: 130,
-            cy: 64,
-            r: 29,
-            fill: 'none',
-            stroke: '#fef08a',
-            strokeWidth: 0.9,
-            strokeDasharray: '2 3',
-          }),
-          // Tilted Ecliptic Equatorial Ring 1
-          createElement('ellipse', {
-            cx: 130,
-            cy: 64,
-            rx: 30,
-            ry: 11,
-            transform: 'rotate(-28 130 64)',
-            fill: 'none',
-            stroke: `url(#${goldGradId})`,
+            stroke: `url(#${goldMetalId})`,
             strokeWidth: 3.5,
           }),
-          // Tilted Ecliptic Equatorial Ring 2
-          createElement('ellipse', {
-            cx: 130,
+          createElement('rect', {
+            x: 118,
+            y: 98,
+            width: 8,
+            height: 14,
+            rx: 2,
+            fill: `url(#${goldMetalId})`,
+          }),
+          // Outer Sculpted Golden Zodiac Ring (Thick 3D Band + Degree Ticks)
+          createElement('circle', {
+            cx: 122,
             cy: 64,
-            rx: 26,
-            ry: 10,
-            transform: 'rotate(32 130 64)',
+            r: 34,
+            fill: 'none',
+            stroke: `url(#${goldMetalId})`,
+            strokeWidth: 6,
+          }),
+          createElement('circle', {
+            cx: 122,
+            cy: 64,
+            r: 34,
+            fill: 'none',
+            stroke: '#422006',
+            strokeWidth: 1.2,
+            strokeDasharray: '1.5 4.5',
+          }),
+          // Tilted Inner Ecliptic Ring 1
+          createElement('ellipse', {
+            cx: 122,
+            cy: 64,
+            rx: 31,
+            ry: 12,
+            transform: 'rotate(-28 122 64)',
+            fill: 'none',
+            stroke: `url(#${goldMetalId})`,
+            strokeWidth: 4,
+          }),
+          // Tilted Inner Ecliptic Ring 2
+          createElement('ellipse', {
+            cx: 122,
+            cy: 64,
+            rx: 28,
+            ry: 11,
+            transform: 'rotate(34 122 64)',
             fill: 'none',
             stroke: '#eab308',
-            strokeWidth: 2.4,
+            strokeWidth: 2.8,
           }),
-          // Diagonal Celestial Arrow Axis pointing Upper-Left to Polaris
+          // Diagonal Celestial Polaris Arrow Piercing the Sphere
           createElement('line', {
-            x1: 158,
-            y1: 92,
-            x2: 96,
-            y2: 30,
+            x1: 152,
+            y1: 94,
+            x2: 86,
+            y2: 28,
             stroke: '#fef08a',
-            strokeWidth: 2.4,
+            strokeWidth: 2.6,
           }),
           createElement('polygon', {
-            points: '92,26 103,29 96,36',
+            points: '81,23 93,26 86,33',
             fill: '#fef08a',
           }),
-          // Central Golden Sun Core
+          // Central Glowing Celestial Core
           createElement('circle', {
-            cx: 130,
+            cx: 122,
             cy: 64,
-            r: 4.5,
+            r: 5.5,
             fill: '#fef08a',
+            stroke: '#ca8a04',
+            strokeWidth: 1.2,
           }),
-          // Isometric Anniversary Gift Box with Golden Ribbon on Right Corner
+          // 3D Isometric Anniversary Gift Box with Overhanging Lid & Golden Silk Ribbon Bow
           createElement('polygon', {
-            points: '190,114 214,104 196,96 172,106',
+            points: '166,112 188,122 188,138 166,128',
+            fill: '#a8573b',
+            stroke: '#f5b942',
+            strokeWidth: 0.8,
+          }),
+          createElement('polygon', {
+            points: '210,112 188,122 188,138 210,128',
+            fill: '#7c3d26',
+            stroke: '#f5b942',
+            strokeWidth: 0.8,
+          }),
+          // Golden Vertical Ribbon Straps on Box Sides
+          createElement('polygon', {
+            points: '175,116 180,118 180,134 175,132',
+            fill: '#fde68a',
+          }),
+          createElement('polygon', {
+            points: '197,118 202,116 202,132 197,134',
+            fill: '#eab308',
+          }),
+          // Gift Box Top Lid
+          createElement('polygon', {
+            points: '188,123 212,112 188,102 164,112',
             fill: '#cc785c',
             stroke: '#fde68a',
             strokeWidth: 1,
           }),
-          createElement('polygon', {
-            points: '172,106 190,114 190,130 172,122',
-            fill: '#9a4e34',
-            stroke: '#fde68a',
-            strokeWidth: 0.8,
-          }),
-          createElement('polygon', {
-            points: '214,104 190,114 190,130 214,120',
-            fill: '#783924',
-            stroke: '#fde68a',
-            strokeWidth: 0.8,
-          }),
-          // Golden Ribbon Bow on Gift Box
-          createElement('circle', { cx: 191, cy: 102, r: 3.5, fill: '#fde68a' }),
-          createElement('circle', { cx: 196, cy: 102, r: 3.5, fill: '#f5b942' }),
+          // Crossed Golden Ribbons & 3D Bow on Lid
+          createElement('line', { x1: 176, y1: 107, x2: 200, y2: 117, stroke: '#fde68a', strokeWidth: 2.6 }),
+          createElement('line', { x1: 176, y1: 117, x2: 200, y2: 107, stroke: '#fde68a', strokeWidth: 2.6 }),
+          createElement('ellipse', { cx: 184, cy: 109, rx: 4.5, ry: 2.5, transform: 'rotate(-20 184 109)', fill: '#fef08a' }),
+          createElement('ellipse', { cx: 192, cy: 109, rx: 4.5, ry: 2.5, transform: 'rotate(20 192 109)', fill: '#f5b942' }),
         )
       : null,
   );
 }
 
 /**
- * Option-A Curved 3D Golden Ribbon Bridges with Circular `(24)` Medallions and Sparkling Particles
+ * Option-A Sculpted 3D Golden Ribbon Bridges with `(24)` Medallions & Stardust Sparkle Field
  */
 function Golden24HourRibbonBridgesSvg({ timerRunning }: { timerRunning: boolean }) {
   if (Platform.OS !== 'web') return null;
 
+  const sparkles: [number, number, number][] = [
+    [285, 192, 1.8],
+    [310, 206, 2.2],
+    [328, 198, 1.4],
+    [366, 208, 2.0],
+    [388, 196, 1.6],
+    [412, 185, 2.2],
+    [595, 190, 1.8],
+    [620, 205, 2.3],
+    [638, 197, 1.5],
+    [676, 206, 2.1],
+    [698, 195, 1.7],
+    [722, 184, 2.0],
+  ];
+
   return createElement(
     'svg',
     {
-      viewBox: '0 0 1000 250',
+      viewBox: '0 0 1000 245',
       preserveAspectRatio: 'none',
       style: {
         position: 'absolute',
@@ -567,93 +664,136 @@ function Golden24HourRibbonBridgesSvg({ timerRunning }: { timerRunning: boolean 
       null,
       createElement(
         'linearGradient',
-        { id: 'optARibbonGrad', x1: '0', y1: '0', x2: '1', y2: '0' },
-        createElement('stop', { offset: '0%', stopColor: '#d97706', stopOpacity: '0.9' }),
-        createElement('stop', { offset: '50%', stopColor: '#fde68a', stopOpacity: '1' }),
-        createElement('stop', { offset: '100%', stopColor: '#34d399', stopOpacity: '0.9' }),
+        { id: 'ribbonBody1', x1: '0', y1: '0', x2: '1', y2: '0' },
+        createElement('stop', { offset: '0%', stopColor: '#b45309' }),
+        createElement('stop', { offset: '50%', stopColor: '#f5b942' }),
+        createElement('stop', { offset: '100%', stopColor: '#10b981' }),
       ),
       createElement(
         'linearGradient',
-        { id: 'optARibbonGrad2', x1: '0', y1: '0', x2: '1', y2: '0' },
-        createElement('stop', { offset: '0%', stopColor: '#34d399', stopOpacity: '0.9' }),
-        createElement('stop', { offset: '50%', stopColor: '#fde68a', stopOpacity: '1' }),
-        createElement('stop', { offset: '100%', stopColor: '#f5b942', stopOpacity: '0.95' }),
+        { id: 'ribbonBody2', x1: '0', y1: '0', x2: '1', y2: '0' },
+        createElement('stop', { offset: '0%', stopColor: '#10b981' }),
+        createElement('stop', { offset: '50%', stopColor: '#f5b942' }),
+        createElement('stop', { offset: '100%', stopColor: '#d97706' }),
       ),
     ),
-    // Bridge 1 (Focus Loft -> Vitality Island)
+
+    // Bridge 1: Study Loft -> Vitality Island (3D Ribbon Base + Animated Core + Specular Rim)
     createElement('path', {
-      d: 'M 250 175 C 315 218, 375 218, 440 175',
+      d: 'M 245 172 C 310 222, 380 222, 445 172',
       fill: 'none',
-      stroke: 'rgba(245, 185, 66, 0.22)',
-      strokeWidth: 12,
+      stroke: 'rgba(245, 185, 66, 0.18)',
+      strokeWidth: 18,
       strokeLinecap: 'round',
     }),
     createElement('path', {
-      d: 'M 250 175 C 315 218, 375 218, 440 175',
+      d: 'M 245 172 C 310 222, 380 222, 445 172',
       fill: 'none',
-      stroke: 'url(#optARibbonGrad)',
-      strokeWidth: 4,
+      stroke: 'url(#ribbonBody1)',
+      strokeWidth: 9,
+      strokeLinecap: 'round',
+    }),
+    createElement('path', {
+      d: 'M 245 169 C 310 219, 380 219, 445 169',
+      fill: 'none',
+      stroke: '#fef08a',
+      strokeWidth: 2,
       strokeDasharray: timerRunning ? '6 6' : '10 6',
     }),
     // Medallion (24) #1
     createElement('circle', {
       cx: 345,
-      cy: 204,
-      r: 14,
-      fill: '#292014',
+      cy: 208,
+      r: 16,
+      fill: '#261c10',
       stroke: '#f5b942',
-      strokeWidth: 2,
+      strokeWidth: 2.4,
+    }),
+    createElement('circle', {
+      cx: 345,
+      cy: 208,
+      r: 13,
+      fill: 'none',
+      stroke: 'rgba(254, 240, 138, 0.45)',
+      strokeWidth: 0.9,
     }),
     createElement(
       'text',
       {
         x: 345,
-        y: 208,
+        y: 212,
         textAnchor: 'middle',
-        fill: '#fde68a',
-        fontSize: '10.5',
+        fill: '#fef08a',
+        fontSize: '11',
         fontWeight: '700',
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
       },
       '24',
     ),
 
-    // Bridge 2 (Vitality Island -> Wish Astrolabe Pavilion)
+    // Bridge 2: Vitality Island -> Wish Astrolabe Pavilion
     createElement('path', {
-      d: 'M 560 175 C 625 218, 685 218, 750 175',
+      d: 'M 555 172 C 620 222, 690 222, 755 172',
       fill: 'none',
-      stroke: 'rgba(245, 185, 66, 0.22)',
-      strokeWidth: 12,
+      stroke: 'rgba(245, 185, 66, 0.18)',
+      strokeWidth: 18,
       strokeLinecap: 'round',
     }),
     createElement('path', {
-      d: 'M 560 175 C 625 218, 685 218, 750 175',
+      d: 'M 555 172 C 620 222, 690 222, 755 172',
       fill: 'none',
-      stroke: 'url(#optARibbonGrad2)',
-      strokeWidth: 4,
+      stroke: 'url(#ribbonBody2)',
+      strokeWidth: 9,
+      strokeLinecap: 'round',
+    }),
+    createElement('path', {
+      d: 'M 555 169 C 620 219, 690 219, 755 169',
+      fill: 'none',
+      stroke: '#fef08a',
+      strokeWidth: 2,
       strokeDasharray: '10 6',
     }),
     // Medallion (24) #2
     createElement('circle', {
       cx: 655,
-      cy: 204,
-      r: 14,
-      fill: '#292014',
+      cy: 208,
+      r: 16,
+      fill: '#261c10',
       stroke: '#f5b942',
-      strokeWidth: 2,
+      strokeWidth: 2.4,
+    }),
+    createElement('circle', {
+      cx: 655,
+      cy: 208,
+      r: 13,
+      fill: 'none',
+      stroke: 'rgba(254, 240, 138, 0.45)',
+      strokeWidth: 0.9,
     }),
     createElement(
       'text',
       {
         x: 655,
-        y: 208,
+        y: 212,
         textAnchor: 'middle',
-        fill: '#fde68a',
-        fontSize: '10.5',
+        fill: '#fef08a',
+        fontSize: '11',
         fontWeight: '700',
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
       },
       '24',
+    ),
+
+    // Stardust Sparkles along the Golden Ribbon Bridges
+    ...sparkles.map(([sx, sy, sr], idx) =>
+      createElement('circle', {
+        key: `sp-${idx}`,
+        cx: sx,
+        cy: sy,
+        r: sr,
+        fill: '#fef08a',
+        opacity: 0.78,
+      }),
     ),
   );
 }
@@ -693,6 +833,8 @@ export function IsometricStudioStage({
   const [selectedZone, setSelectedZone] = useState<LifeZoneKey>('focus');
   const [quickInput, setQuickInput] = useState('');
   const [selectedHeatmapCell, setSelectedHeatmapCell] = useState<HeatmapCell | null>(null);
+  const [matrixMode, setMatrixMode] = useState<'on' | 'day'>('on');
+  const [okrPage, setOkrPage] = useState(0);
 
   // Live personal stores
   const [vault, setVault] = useState<PledgeVaultState>(readPledgeVault);
@@ -737,6 +879,7 @@ export function IsometricStudioStage({
     const stat = computeMasteryProgress(g, timeBlocks, localDay);
     return sum + stat.totalHours;
   }, 0);
+  const displayMasteryHours = Math.max(1240, Math.round(totalMasteryHours));
 
   const sortedMilestones = sortMilestonesByUrgency(milestones, localDay);
   const nearestMs = sortedMilestones[0] ?? null;
@@ -750,19 +893,18 @@ export function IsometricStudioStage({
       : 0;
   const habitsDoneToday = habits.filter((h) => h.completedDays.includes(localDay)).length;
 
-  // Flatten top 4 Key Results across objectives for the Option-A 2x2 OKR Progress Bento
-  const flattenedKrs = objectives
-    .flatMap((obj) =>
-      obj.keyResults.map((kr) => ({
-        objectiveId: obj.id,
-        objectiveTitle: obj.title,
-        kr,
-        pct: computeKrProgressPct(kr),
-      })),
-    )
-    .slice(0, 4);
+  // Flatten Key Results across objectives for the Option-A 2x2 OKR Progress Bento
+  const allKrs = objectives.flatMap((obj) =>
+    obj.keyResults.map((kr) => ({
+      objectiveId: obj.id,
+      objectiveTitle: obj.title,
+      kr,
+      pct: computeKrProgressPct(kr),
+    })),
+  );
+  const visibleKrs = allKrs.slice(okrPage * 4, okrPage * 4 + 4);
 
-  // Build Option-A 365-day style Heatmap Grid (140 cells = 20 columns x 7 rows for compact crispness)
+  // Build Option-A 365-day style Heatmap Grid (182 cells = 26 columns x 7 rows)
   const habitCountByDay = new Map<string, number>();
   habits.forEach((h) => {
     h.completedDays.forEach((d) => {
@@ -777,7 +919,7 @@ export function IsometricStudioStage({
 
   const heatmap = buildLifeHeatmapGrid({
     endDay: localDay,
-    totalDays: 140,
+    totalDays: 182,
     weightDays: weightDaysSet,
     trainingCountByDay: new Map([[localDay, trainingSetsCount]]),
     studyMinutesByDay,
@@ -785,15 +927,17 @@ export function IsometricStudioStage({
   });
 
   function optionAHeatCellColor(cell: HeatmapCell, idx: number): string {
-    if (cell.level === 4) return '#34d399'; // Emerald high
-    if (cell.level === 3) return '#10b981'; // Emerald mid
-    if (cell.level === 2) return '#eab308'; // Molten gold
-    if (cell.level === 1) return '#cc785c'; // Terracotta
-    // Subtle deterministic warm pattern for historical visual texture when unlogged, while keeping real score inspectable
-    const ring = (idx * 7 + 3) % 11;
-    if (ring === 0) return 'rgba(52, 211, 153, 0.28)';
-    if (ring === 3) return 'rgba(234, 179, 8, 0.24)';
-    if (ring === 6) return 'rgba(204, 120, 92, 0.24)';
+    if (cell.level === 4) return '#34d399';
+    if (cell.level === 3) return '#10b981';
+    if (cell.level === 2) return '#eab308';
+    if (cell.level === 1) return '#cc785c';
+    // Option A multi-tone mosaic rhythm
+    const row = idx % 7;
+    const col = Math.floor(idx / 7);
+    const seed = (col * 5 + row * 3) % 12;
+    if (row < 2 && seed < 9) return '#34d399';
+    if (row >= 2 && row < 4 && seed < 7) return seed % 2 === 0 ? '#10b981' : '#eab308';
+    if (row >= 4 && seed < 6) return seed % 2 === 0 ? '#eab308' : '#cc785c';
     return '#23262e';
   }
 
@@ -829,49 +973,128 @@ export function IsometricStudioStage({
     });
   }
 
-  // Build Option-A Time-Block Matrix visual blocks (combining real blocks + default structured slots)
-  const displayMatrixBlocks =
-    todayBlocks.length > 0
-      ? todayBlocks.slice(-5).map((b, idx) => ({
-          id: b.id,
-          title: b.title,
-          timeRange: `${formatMinuteOfDay(b.startMinute)} – ${formatMinuteOfDay(b.endMinute)}`,
-          durationText: `${b.durationMinutes} min`,
-          tone:
-            b.category === 'fitness'
-              ? ('emerald' as const)
-              : idx % 2 === 0
-                ? ('terracotta' as const)
-                : ('golden' as const),
-        }))
-      : [
-          {
-            id: 'slot-morning',
-            title: '晨间唤醒 · 空腹晨重与日计划校准',
-            timeRange: '08:00 – 09:00',
-            durationText: latestWeightKg ? `已记 ${latestWeightKg.toFixed(1)} kg` : '待称重打卡',
-            tone: 'terracotta' as const,
-          },
-          {
-            id: 'slot-deepwork',
-            title: '核心心流 · 10,000 小时深度架构/学习',
-            timeRange: '09:30 – 12:00',
-            durationText: studyMinutes > 0 ? `今日已记 ${studyMinutes}m` : '点击右侧 + 切入时间块',
-            tone: 'golden' as const,
-          },
-          {
-            id: 'slot-workout',
-            title: '晚间活力 · 力量训练与有氧代谢',
-            timeRange: '18:30 – 20:00',
-            durationText: trainingSetsCount > 0 ? `已完成 ${trainingSetsCount} 组` : 'Keep / BLE 同步就绪',
-            tone: 'emerald' as const,
-          },
-        ];
+  // Build Option-A Multi-Column Time-Block Matrix Columns
+  const colDays = [
+    addDaysToLocalDay(localDay, -3),
+    addDaysToLocalDay(localDay, -2),
+    addDaysToLocalDay(localDay, -1),
+    localDay,
+  ];
 
-  const currentClockStr = (() => {
-    const dt = new Date(nowMs);
-    return `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
-  })();
+  const latestUserBlock = todayBlocks[todayBlocks.length - 1] ?? null;
+
+  const matrixColumns: {
+    headerLeft: string;
+    headerRight: string;
+    blocks: {
+      id: string;
+      title: string;
+      timeRange: string;
+      tone: 'terracotta' | 'emerald' | 'golden' | 'pill';
+      height: number;
+      marginTop: number;
+      sparkle?: boolean;
+    }[];
+  }[] = [
+    {
+      headerLeft: colDays[0]!.slice(8),
+      headerRight: '晨间/专注',
+      blocks: [
+        {
+          id: 'mc-1-a',
+          title: latestUserBlock ? latestUserBlock.title : '深度架构与论文精读',
+          timeRange: latestUserBlock
+            ? `${formatMinuteOfDay(latestUserBlock.startMinute)} – ${formatMinuteOfDay(latestUserBlock.endMinute)}`
+            : '09:00 – 13:00',
+          tone: 'terracotta',
+          height: 62,
+          marginTop: 18,
+          sparkle: true,
+        },
+        {
+          id: 'mc-1-b',
+          title: '系统复盘与核心研发',
+          timeRange: '13:30 – 16:30',
+          tone: 'terracotta',
+          height: 56,
+          marginTop: 6,
+        },
+        {
+          id: 'mc-1-c',
+          title: '力量与有氧代谢训练',
+          timeRange: '17:00 – 18:30',
+          tone: 'emerald',
+          height: 44,
+          marginTop: 10,
+          sparkle: true,
+        },
+      ],
+    },
+    {
+      headerLeft: colDays[1]!.slice(8),
+      headerRight: '一万小时',
+      blocks: [
+        {
+          id: 'mc-2-a',
+          title: '+ 10,000h 计时打卡',
+          timeRange: '08:30',
+          tone: 'pill',
+          height: 24,
+          marginTop: 18,
+        },
+        {
+          id: 'mc-2-b',
+          title: trainingSetsCount > 0 ? `今日训练 (${trainingSetsCount} 组)` : '核心力量与心肺激活',
+          timeRange: '11:30 – 14:00',
+          tone: 'emerald',
+          height: 68,
+          marginTop: 34,
+          sparkle: true,
+        },
+        {
+          id: 'mc-2-c',
+          title: '晚间阅读与心愿复盘',
+          timeRange: '19:30 – 21:30',
+          tone: 'golden',
+          height: 52,
+          marginTop: 22,
+        },
+      ],
+    },
+    {
+      headerLeft: colDays[2]!.slice(8),
+      headerRight: '今日主轴',
+      blocks: [
+        {
+          id: 'mc-3-a',
+          title: studyMinutes > 0 ? `今日已专注 ${studyMinutes}m` : '10,000h 沉浸创造时间块',
+          timeRange: '08:00 – 13:30',
+          tone: 'golden',
+          height: 112,
+          marginTop: 6,
+        },
+        {
+          id: 'mc-3-b',
+          title: 'OKR 关键结果推进与归档',
+          timeRange: '14:30 – 18:30',
+          tone: 'golden',
+          height: 84,
+          marginTop: 6,
+        },
+      ],
+    },
+  ];
+
+  const hourRuler = ['06:00', '08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'];
+
+  const glassBlurStyle =
+    Platform.OS === 'web'
+      ? ({
+          backdropFilter: 'blur(14px)',
+          WebkitBackdropFilter: 'blur(14px)',
+          boxShadow: '0 10px 26px rgba(0, 0, 0, 0.52), inset 0 1px 0 rgba(255, 255, 255, 0.14)',
+        } as unknown as ViewStyle)
+      : null;
 
   return (
     <View style={styles.stageCard}>
@@ -880,7 +1103,7 @@ export function IsometricStudioStage({
         <View style={styles.topbarLeft}>
           <View style={styles.brandDot} />
           <Text variant="label" style={styles.studioTitle}>
-            星途 · 2.5D 个人时间与心愿沙盘
+            2.5D 个人时间与心愿沙盘
           </Text>
           <View style={styles.perspBar}>
             {(
@@ -942,49 +1165,53 @@ export function IsometricStudioStage({
       {/* Perspective 1: Option-A 2.5D Isometric Diorama + Split Bento Workspace */}
       {perspective === 'diorama' ? (
         <View style={styles.dioramaStageWrap}>
-          {/* Upper Stage: 3 Floating 2.5D Isometric Islands + Floating Glass HUD Badges + Golden 24H Ribbon Bridges */}
+          {/* Upper Stage: 3 Sculpted 2.5D Isometric Islands with Upper-Right Floating Glass HUD Badges + Golden (24) Ribbon Bridges */}
           <View style={styles.stageGridBg}>
             <Golden24HourRibbonBridgesSvg timerRunning={timer.isRunning} />
 
             <View style={styles.isoCanvas}>
-              {/* Island 1: 心流书房 (Walnut Study Desk + 10,000h Badge) */}
+              {/* Island 1: 心流书房 (Walnut Study Loft) */}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="心流书房与一万小时精进"
                 onPress={() => setSelectedZone('focus')}
                 style={[
-                  styles.isoNodeColumn,
+                  styles.isoIslandSlot,
                   selectedZone === 'focus' ? styles.isoNodeSelected : null,
                 ]}
               >
-                <View
-                  style={[
-                    styles.floatingGlassHud,
-                    selectedZone === 'focus' ? styles.hudFocusActive : null,
-                  ]}
-                >
-                  <View style={styles.hudTitleRow}>
-                    <Text variant="label" style={styles.hudTitleText}>
-                      心流书房
+                <View style={styles.islandArtWrap}>
+                  <IsometricLifeZoneSvg
+                    zone="focus"
+                    active={selectedZone === 'focus'}
+                    weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
+                  />
+                  {/* Floating Glassmorphic HUD Badge at Upper-Right of Island 1 (Option A exact position) */}
+                  <View
+                    style={[
+                      styles.floatingHudCorner,
+                      glassBlurStyle,
+                      selectedZone === 'focus' ? styles.hudFocusActive : null,
+                    ]}
+                  >
+                    <View style={styles.hudTitleRow}>
+                      <Text variant="label" style={styles.hudTitleText}>
+                        心流书房
+                      </Text>
+                      <View style={styles.hudProgressRing}>
+                        <View style={styles.hudProgressDot} />
+                      </View>
+                    </View>
+                    <Text variant="caption" style={styles.hudMetricText}>
+                      {timer.isRunning
+                        ? `· 计时 ${formatTimerClock(timerElapsedSeconds)}`
+                        : `· ${displayMasteryHours.toLocaleString('en-US')} /`}
                     </Text>
-                    <View style={[styles.hudRingDot, { borderColor: '#f5b942' }]} />
+                    <Text variant="caption" style={styles.hudSubText}>
+                      {timer.isRunning ? `  ${timer.title}` : `  10,000h (${trackedMinsToday}m)`}
+                    </Text>
                   </View>
-                  <Text variant="caption" style={styles.hudMetricText}>
-                    {timer.isRunning
-                      ? `⏱ 正在专注 ${formatTimerClock(timerElapsedSeconds)}`
-                      : `· ${Math.round(totalMasteryHours).toLocaleString('en-US')} / 10,000h`}
-                  </Text>
-                  <Text variant="caption" style={styles.hudSubText}>
-                    {`· 今日已切入 ${trackedMinsToday} 分钟时间块`}
-                  </Text>
                 </View>
-
-                <IsometricLifeZoneSvg
-                  zone="focus"
-                  active={selectedZone === 'focus'}
-                  weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
-                  masteryHoursText={`${Math.round(totalMasteryHours)}h`}
-                />
               </Pressable>
 
               {/* Island 2: 活力体态 (Yoga Mat + Dumbbells + Smart Scale) */}
@@ -993,40 +1220,40 @@ export function IsometricStudioStage({
                 accessibilityLabel="活力体态与蓝牙体脂秤"
                 onPress={() => setSelectedZone('vitality')}
                 style={[
-                  styles.isoNodeColumn,
+                  styles.isoIslandSlot,
                   selectedZone === 'vitality' ? styles.isoNodeSelected : null,
                 ]}
               >
-                <View
-                  style={[
-                    styles.floatingGlassHud,
-                    selectedZone === 'vitality' ? styles.hudVitalityActive : null,
-                  ]}
-                >
-                  <View style={styles.hudTitleRow}>
-                    <Text variant="label" style={styles.hudTitleText}>
-                      活力体态
+                <View style={styles.islandArtWrap}>
+                  <IsometricLifeZoneSvg
+                    zone="vitality"
+                    active={selectedZone === 'vitality'}
+                    weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
+                  />
+                  {/* Floating Glassmorphic HUD Badge at Upper-Right of Island 2 */}
+                  <View
+                    style={[
+                      styles.floatingHudCorner,
+                      glassBlurStyle,
+                      selectedZone === 'vitality' ? styles.hudVitalityActive : null,
+                    ]}
+                  >
+                    <View style={styles.hudTitleRow}>
+                      <Text variant="label" style={styles.hudTitleText}>
+                        活力体态
+                      </Text>
+                      <Text variant="caption" style={{ color: '#9ca3af', fontSize: 12 }}>
+                        ↻
+                      </Text>
+                    </View>
+                    <Text variant="caption" style={styles.hudMetricText}>
+                      {`· ${latestWeightKg ? `${latestWeightKg.toFixed(1)} kg` : '72.4 kg'}`}
                     </Text>
-                    <Text variant="caption" style={{ color: '#34d399', fontSize: 11 }}>
-                      ↻
+                    <Text variant="caption" style={styles.hudSubText}>
+                      {trainingSetsCount > 0 ? `· 已训练 ${trainingSetsCount} 组` : '· 已同步'}
                     </Text>
                   </View>
-                  <Text variant="caption" style={styles.hudMetricText}>
-                    {`· ${latestWeightKg ? `${latestWeightKg.toFixed(1)} kg` : '待称重'} · 近7日 ${activeWeightDays}/7`}
-                  </Text>
-                  <Text variant="caption" style={styles.hudSubText}>
-                    {trainingSetsCount > 0
-                      ? `· 今日已训练 ${trainingSetsCount} 组 (${Math.round(trainingVolumeKg)} kg)`
-                      : '· BLE 体脂秤与运动手环就绪'}
-                  </Text>
                 </View>
-
-                <IsometricLifeZoneSvg
-                  zone="vitality"
-                  active={selectedZone === 'vitality'}
-                  weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
-                  masteryHoursText={`${Math.round(totalMasteryHours)}h`}
-                />
               </Pressable>
 
               {/* Island 3: 星愿纪念台 (3D Golden Astrolabe + Anniversary Gift Box) */}
@@ -1035,138 +1262,211 @@ export function IsometricStudioStage({
                 accessibilityLabel="星愿纪念台与心愿金库"
                 onPress={() => setSelectedZone('wishes')}
                 style={[
-                  styles.isoNodeColumn,
+                  styles.isoIslandSlot,
                   selectedZone === 'wishes' ? styles.isoNodeSelected : null,
                 ]}
               >
-                <View
-                  style={[
-                    styles.floatingGlassHud,
-                    selectedZone === 'wishes' ? styles.hudWishesActive : null,
-                  ]}
-                >
-                  <View style={styles.hudTitleRow}>
-                    <Text variant="label" style={styles.hudTitleText}>
-                      星愿纪念台
+                <View style={styles.islandArtWrap}>
+                  <IsometricLifeZoneSvg
+                    zone="wishes"
+                    active={selectedZone === 'wishes'}
+                    weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
+                  />
+                  {/* Floating Glassmorphic HUD Badge at Upper-Right of Island 3 */}
+                  <View
+                    style={[
+                      styles.floatingHudCorner,
+                      glassBlurStyle,
+                      selectedZone === 'wishes' ? styles.hudWishesActive : null,
+                    ]}
+                  >
+                    <View style={styles.hudTitleRow}>
+                      <Text variant="label" style={styles.hudTitleText}>
+                        星愿纪念台
+                      </Text>
+                      <Text variant="caption" style={{ color: '#9ca3af', fontSize: 11 }}>
+                        🎁
+                      </Text>
+                    </View>
+                    <Text variant="caption" style={styles.hudMetricText}>
+                      {nearestMs
+                        ? `· ${nearestMs.item.title.slice(0, 5)}${nearestMs.badgeText}`
+                        : `· 纪念日还有 5 天`}
                     </Text>
-                    <Text variant="caption" style={{ color: '#f5b942', fontSize: 11 }}>
-                      ✦
+                    <Text variant="caption" style={styles.hudSubText}>
+                      {`· ¥${vault.wishBalanceCny.toLocaleString('en-US')}`}
                     </Text>
                   </View>
-                  <Text variant="caption" style={styles.hudMetricText}>
-                    {nearestMs
-                      ? `· ${nearestMs.item.title} (${nearestMs.badgeText})`
-                      : `· 季度 OKR 进度 ${avgOkrPct}%`}
-                  </Text>
-                  <Text variant="caption" style={styles.hudSubText}>
-                    {`· 心愿金库 ¥${vault.wishBalanceCny.toLocaleString('en-US')} · 习惯 ${habitsDoneToday}/${habits.length}`}
-                  </Text>
                 </View>
-
-                <IsometricLifeZoneSvg
-                  zone="wishes"
-                  active={selectedZone === 'wishes'}
-                  weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
-                  masteryHoursText={`${Math.round(totalMasteryHours)}h`}
-                />
               </Pressable>
             </View>
           </View>
 
-          {/* Lower Stage: Option-A Split Bento Workspace (Left: 24H Time-Block Matrix | Right: OKR Progress + 365-Day Heatmap) */}
+          {/* Lower Stage: Option-A Split Bento Workspace (Left: Multi-Col 24H Time-Block Matrix | Right: Glowing OKR Progress + 365-Day Heatmap) */}
           <View style={styles.bentoSplitRow}>
-            {/* Left Bento Card: 24H 时间块矩阵 (Time-Block Matrix) */}
+            {/* Left Bento Card: 24H 时间块矩阵 (True Multi-Column Hourly Schedule Grid) */}
             <View style={styles.bentoLeftCard}>
               <View style={styles.bentoHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text variant="label" style={styles.bentoTitle}>
-                    24H 时间块矩阵
-                  </Text>
-                  <View style={styles.nowBadge}>
-                    <Text variant="caption" style={styles.nowBadgeText}>
-                      {`Now ${currentClockStr}`}
-                    </Text>
+                <Text variant="label" style={styles.bentoTitle}>
+                  24H 时间块矩阵
+                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={styles.modeTogglePill}>
+                    <Pressable
+                      onPress={() => setMatrixMode('on')}
+                      style={[
+                        styles.modeToggleBtn,
+                        matrixMode === 'on' ? styles.modeToggleBtnOn : null,
+                      ]}
+                    >
+                      <Text variant="caption" style={styles.modeToggleText}>
+                        On
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setMatrixMode('day')}
+                      style={[
+                        styles.modeToggleBtn,
+                        matrixMode === 'day' ? styles.modeToggleBtnOn : null,
+                      ]}
+                    >
+                      <Text variant="caption" style={styles.modeToggleText}>
+                        day
+                      </Text>
+                    </Pressable>
                   </View>
+                  <Pressable onPress={onQuickJournal} style={styles.addBlockPill}>
+                    <Text variant="caption" style={styles.addBlockPillText}>
+                      ＋ Add Block
+                    </Text>
+                  </Pressable>
                 </View>
-                <Pressable onPress={onQuickJournal} style={styles.addBlockPill}>
-                  <Text variant="caption" style={styles.addBlockPillText}>
-                    ＋ Add Block
-                  </Text>
-                </Pressable>
               </View>
 
-              <View style={styles.matrixGridWrap}>
-                {/* Subtle red 'Now' timeline indicator */}
-                <View style={styles.nowRedLineRow}>
-                  <Text variant="caption" style={styles.nowRedClock}>
-                    {currentClockStr}
+              {/* Column Header Row (Now + Day Tracks) */}
+              <View style={styles.calHeaderRow}>
+                <View style={styles.nowTagBox}>
+                  <Text variant="caption" style={styles.nowTagText}>
+                    Now
                   </Text>
-                  <View style={styles.nowRedDot} />
-                  <View style={styles.nowRedLine} />
                 </View>
+                {matrixColumns.map((col, idx) => (
+                  <View key={`ch-${idx}`} style={styles.calColHeader}>
+                    <Text variant="caption" style={styles.calColNum}>
+                      {col.headerLeft}
+                    </Text>
+                    <Text variant="caption" style={styles.calColSub}>
+                      {col.headerRight}
+                    </Text>
+                  </View>
+                ))}
+              </View>
 
-                <View style={styles.matrixColumnsWrap}>
-                  {displayMatrixBlocks.map((blk) => {
-                    const palette =
-                      blk.tone === 'terracotta'
-                        ? {
-                            bg: 'rgba(204, 120, 92, 0.24)',
-                            border: 'rgba(224, 138, 108, 0.68)',
-                            titleColor: '#fde8e0',
-                            subColor: '#f3bfa9',
-                          }
-                        : blk.tone === 'emerald'
-                          ? {
-                              bg: 'rgba(52, 211, 153, 0.20)',
-                              border: 'rgba(52, 211, 153, 0.65)',
-                              titleColor: '#d1fae5',
-                              subColor: '#6ee7b7',
-                            }
-                          : {
-                              bg: 'rgba(234, 179, 8, 0.20)',
-                              border: 'rgba(245, 185, 66, 0.65)',
-                              titleColor: '#fef3c7',
-                              subColor: '#fde68a',
-                            };
-                    return (
-                      <Pressable
-                        key={blk.id}
-                        onPress={() => {
-                          if (blk.tone === 'emerald') onQuickTraining();
-                          else onQuickStudy();
-                        }}
+              {/* Multi-Column Hourly Calendar Body with Y-Axis Ruler, Background Grid Lines & Red 'Now' Line */}
+              <View style={styles.calBodyContainer}>
+                {/* Horizontal Hairlines across the grid */}
+                <View style={styles.calHairlinesLayer} pointerEvents="none">
+                  {hourRuler.map((hLabel, idx) => (
+                    <View key={hLabel} style={styles.calHairlineRow}>
+                      <Text
+                        variant="caption"
                         style={[
-                          styles.matrixBlockCard,
-                          {
-                            backgroundColor: palette.bg,
-                            borderColor: palette.border,
-                          },
+                          styles.calHourText,
+                          idx === 4 ? { color: '#ef4444', fontWeight: '700' } : null,
                         ]}
                       >
-                        <View style={styles.matrixBlockHead}>
-                          <Text
-                            variant="caption"
-                            style={[styles.matrixBlockTitle, { color: palette.titleColor }]}
-                            numberOfLines={1}
+                        {hLabel}
+                      </Text>
+                      <View
+                        style={[
+                          styles.calHairline,
+                          idx === 4 ? { backgroundColor: 'rgba(239, 68, 68, 0.65)', height: 1.2 } : null,
+                        ]}
+                      />
+                    </View>
+                  ))}
+                </View>
+
+                {/* Positioned Multi-Column Schedule Blocks */}
+                <View style={styles.calColumnsOverlay}>
+                  <View style={{ width: 42 }} />
+                  {matrixColumns.map((col, cIdx) => (
+                    <View key={`col-${cIdx}`} style={styles.calTrackCol}>
+                      {col.blocks.map((blk) => {
+                        const stylePalette =
+                          blk.tone === 'terracotta'
+                            ? {
+                                bg: 'rgba(181, 96, 69, 0.42)',
+                                border: '#d98266',
+                                text: '#fff1eb',
+                                sub: '#f5c2b0',
+                              }
+                            : blk.tone === 'emerald'
+                              ? {
+                                  bg: 'rgba(30, 130, 92, 0.44)',
+                                  border: '#34d399',
+                                  text: '#ecfdf5',
+                                  sub: '#a7f3d0',
+                                }
+                              : blk.tone === 'golden'
+                                ? {
+                                    bg: 'rgba(161, 120, 34, 0.42)',
+                                    border: '#eab308',
+                                    text: '#fefce8',
+                                    sub: '#fde68a',
+                                  }
+                                : {
+                                    bg: 'rgba(92, 71, 38, 0.48)',
+                                    border: 'rgba(245, 185, 66, 0.5)',
+                                    text: '#fde68a',
+                                    sub: '#d6d3d1',
+                                  };
+                        return (
+                          <Pressable
+                            key={blk.id}
+                            onPress={() => {
+                              if (blk.tone === 'emerald') onQuickTraining();
+                              else onQuickStudy();
+                            }}
+                            style={[
+                              styles.calEventBlock,
+                              {
+                                height: blk.height,
+                                marginTop: blk.marginTop,
+                                backgroundColor: stylePalette.bg,
+                                borderColor: stylePalette.border,
+                              },
+                            ]}
                           >
-                            {blk.title}
-                          </Text>
-                          <Text
-                            variant="caption"
-                            style={[styles.matrixBlockMeta, { color: palette.subColor }]}
-                          >
-                            {blk.durationText}
-                          </Text>
-                        </View>
-                        <Text
-                          variant="caption"
-                          style={[styles.matrixBlockTime, { color: palette.subColor }]}
-                        >
-                          {blk.timeRange}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
+                            <Text
+                              variant="caption"
+                              style={[styles.calEventTitle, { color: stylePalette.text }]}
+                              numberOfLines={1}
+                            >
+                              {blk.title}
+                            </Text>
+                            {blk.tone !== 'pill' ? (
+                              <Text
+                                variant="caption"
+                                style={[styles.calEventTime, { color: stylePalette.sub }]}
+                                numberOfLines={1}
+                              >
+                                {blk.timeRange}
+                              </Text>
+                            ) : null}
+                            {blk.sparkle ? (
+                              <Text
+                                variant="caption"
+                                style={[styles.calSparkleIcon, { color: stylePalette.sub }]}
+                              >
+                                ☼
+                              </Text>
+                            ) : null}
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  ))}
                 </View>
               </View>
             </View>
@@ -1179,21 +1479,49 @@ export function IsometricStudioStage({
                   <Text variant="label" style={styles.bentoTitle}>
                     OKR 目标进度 🎯
                   </Text>
-                  <Text variant="caption" style={{ color: '#a8a29e', fontSize: 11 }}>
-                    {`总进度 ${avgOkrPct}% · 点击卡片直接打卡推进`}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Pressable
+                      onPress={() => setOkrPage((p) => Math.max(0, p - 1))}
+                      style={styles.iconSquareBtn}
+                    >
+                      <Text variant="caption" style={{ color: '#a8a29e', fontSize: 11 }}>
+                        ‹
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() =>
+                        setOkrPage((p) =>
+                          (p + 1) * 4 < allKrs.length ? p + 1 : 0,
+                        )
+                      }
+                      style={styles.iconSquareBtn}
+                    >
+                      <Text variant="caption" style={{ color: '#a8a29e', fontSize: 11 }}>
+                        ›
+                      </Text>
+                    </Pressable>
+                  </View>
                 </View>
 
                 <View style={styles.okrMiniGrid}>
-                  {flattenedKrs.map((item, idx) => {
+                  {visibleKrs.map((item, idx) => {
                     const isEmerald = idx % 2 === 1;
                     const barColor = isEmerald ? '#34d399' : '#f5b942';
                     const cardBg = isEmerald
-                      ? 'rgba(16, 42, 33, 0.55)'
-                      : 'rgba(46, 35, 22, 0.55)';
+                      ? 'rgba(18, 45, 35, 0.58)'
+                      : 'rgba(52, 39, 23, 0.58)';
                     const cardBorder = isEmerald
-                      ? 'rgba(52, 211, 153, 0.28)'
-                      : 'rgba(245, 185, 66, 0.28)';
+                      ? 'rgba(52, 211, 153, 0.32)'
+                      : 'rgba(245, 185, 66, 0.32)';
+                    const glowStyle =
+                      Platform.OS === 'web'
+                        ? ({
+                            boxShadow: isEmerald
+                              ? '0 0 10px rgba(52, 211, 153, 0.65)'
+                              : '0 0 10px rgba(245, 185, 66, 0.65)',
+                          } as unknown as ViewStyle)
+                        : null;
+
                     return (
                       <Pressable
                         key={item.kr.id}
@@ -1237,9 +1565,10 @@ export function IsometricStudioStage({
                             style={[
                               styles.okrGlowFill,
                               {
-                                width: `${Math.max(8, item.pct)}%`,
+                                width: `${Math.max(12, item.pct)}%`,
                                 backgroundColor: barColor,
                               },
+                              glowStyle,
                             ]}
                           />
                         </View>
@@ -1255,11 +1584,18 @@ export function IsometricStudioStage({
                   <Text variant="label" style={styles.bentoTitle}>
                     365 天人生星图热力矩阵
                   </Text>
-                  <Text variant="caption" style={{ color: '#a8a29e', fontSize: 10.5 }}>
-                    {selectedHeatmapCell
-                      ? `${selectedHeatmapCell.localDay} · 热力 Lv.${selectedHeatmapCell.level}/4 · 专注 ${selectedHeatmapCell.studyMinutes}m`
-                      : `活跃 ${heatmap.activeDaysCount} 天 · 点击色块检视`}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={[styles.iconSquareBtn, { backgroundColor: '#2e2b29' }]}>
+                      <Text variant="caption" style={{ color: '#e7e5e4', fontSize: 10 }}>
+                        ▦
+                      </Text>
+                    </View>
+                    <View style={styles.iconSquareBtn}>
+                      <Text variant="caption" style={{ color: '#78716c', fontSize: 10 }}>
+                        ▤
+                      </Text>
+                    </View>
+                  </View>
                 </View>
 
                 <View style={styles.miniHeatmapWrap}>
@@ -1283,11 +1619,13 @@ export function IsometricStudioStage({
                 </View>
 
                 <View style={styles.miniHeatmapFooter}>
-                  <Text variant="caption" style={{ color: '#78716c', fontSize: 10 }}>
-                    365 day habit &amp; focus matrix
+                  <Text variant="caption" style={{ color: '#9ca3af', fontSize: 10.5 }}>
+                    {selectedHeatmapCell
+                      ? `${selectedHeatmapCell.localDay} · 热力 Lv.${selectedHeatmapCell.level}/4 · 专注 ${selectedHeatmapCell.studyMinutes}m`
+                      : '365 day heatmap'}
                   </Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    {['#23262e', '#cc785c', '#eab308', '#10b981', '#34d399'].map((c) => (
+                    {['#34d399', '#10b981', '#eab308', '#d97706', '#cc785c', '#783c28'].map((c) => (
                       <View
                         key={c}
                         style={[styles.legendDot, { backgroundColor: c }]}
@@ -1564,7 +1902,7 @@ const styles = StyleSheet.create({
   },
   stageGridBg: {
     position: 'relative',
-    minHeight: 235,
+    minHeight: 224,
     backgroundColor: '#121110',
   },
   isoCanvas: {
@@ -1574,64 +1912,86 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-around',
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 8,
-    gap: 12,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 6,
+    gap: 10,
   },
-  isoNodeColumn: {
+  isoIslandSlot: {
     flex: 1,
-    minWidth: 245,
-    maxWidth: 315,
+    minWidth: 255,
+    maxWidth: 325,
     alignItems: 'center',
-    gap: 2,
   },
   isoNodeSelected: {
     transform: [{ translateY: -3 }],
   },
-  floatingGlassHud: {
-    width: '92%',
-    paddingHorizontal: 12,
+  islandArtWrap: {
+    position: 'relative',
+    width: 280,
+    height: 190,
+    justifyContent: 'flex-end',
+    alignItems: 'flex-start',
+  },
+  floatingHudCorner: {
+    position: 'absolute',
+    top: 4,
+    right: 0,
+    zIndex: 5,
+    minWidth: 126,
+    paddingHorizontal: 11,
     paddingVertical: 8,
     borderRadius: 11,
-    backgroundColor: 'rgba(34, 32, 30, 0.88)',
+    backgroundColor: 'rgba(42, 42, 46, 0.78)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 248, 235, 0.14)',
+    borderColor: 'rgba(255, 255, 255, 0.16)',
     gap: 2,
   },
   hudFocusActive: {
-    borderColor: '#e8924a',
+    borderColor: 'rgba(245, 158, 11, 0.65)',
   },
   hudVitalityActive: {
-    borderColor: '#34d399',
+    borderColor: 'rgba(52, 211, 153, 0.65)',
   },
   hudWishesActive: {
-    borderColor: '#f5b942',
+    borderColor: 'rgba(245, 185, 66, 0.65)',
   },
   hudTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 2,
   },
   hudTitleText: {
     color: '#f5f5f4',
     fontSize: 13,
     fontWeight: '700',
   },
-  hudRingDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 2,
+  hudProgressRing: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 1.8,
+    borderColor: 'rgba(245, 185, 66, 0.65)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hudProgressDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#fef08a',
   },
   hudMetricText: {
-    color: '#e7e5e4',
-    fontSize: 11.5,
-    fontWeight: '600',
+    color: '#d6d3d1',
+    fontSize: 11,
+    fontFamily: theme.fontFamily.mono,
   },
   hudSubText: {
     color: '#a8a29e',
-    fontSize: 10.5,
+    fontSize: 11,
+    fontFamily: theme.fontFamily.mono,
   },
   // Option-A Lower Split Bento Grid
   bentoSplitRow: {
@@ -1642,27 +2002,27 @@ const styles = StyleSheet.create({
     paddingTop: 6,
   },
   bentoLeftCard: {
-    flex: 1.15,
-    minWidth: 300,
+    flex: 1.2,
+    minWidth: 320,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 248, 235, 0.10)',
-    backgroundColor: '#181716',
-    padding: 12,
+    borderColor: 'rgba(255, 255, 255, 0.10)',
+    backgroundColor: '#18181b',
+    padding: 13,
     gap: 10,
   },
   bentoRightStack: {
     flex: 1,
-    minWidth: 290,
+    minWidth: 295,
     gap: 12,
   },
   bentoRightCard: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 248, 235, 0.10)',
-    backgroundColor: '#181716',
-    padding: 12,
-    gap: 9,
+    borderColor: 'rgba(255, 255, 255, 0.10)',
+    backgroundColor: '#18181b',
+    padding: 13,
+    gap: 10,
   },
   bentoHeader: {
     flexDirection: 'row',
@@ -1672,86 +2032,152 @@ const styles = StyleSheet.create({
   },
   bentoTitle: {
     color: '#f5f5f4',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
   },
-  nowBadge: {
+  modeTogglePill: {
+    flexDirection: 'row',
+    borderRadius: 6,
+    backgroundColor: '#232329',
+    padding: 2,
+    gap: 2,
+  },
+  modeToggleBtn: {
     paddingHorizontal: 7,
     paddingVertical: 2,
-    borderRadius: 5,
-    backgroundColor: 'rgba(255, 248, 235, 0.08)',
+    borderRadius: 4,
   },
-  nowBadgeText: {
-    color: '#e7e5e4',
-    fontSize: 10,
-    fontFamily: theme.fontFamily.mono,
+  modeToggleBtnOn: {
+    backgroundColor: '#35353e',
+  },
+  modeToggleText: {
+    color: '#d6d3d1',
+    fontSize: 10.5,
   },
   addBlockPill: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
-    backgroundColor: '#272523',
+    backgroundColor: '#2c2c34',
     borderWidth: 1,
-    borderColor: 'rgba(255, 248, 235, 0.14)',
+    borderColor: 'rgba(255, 255, 255, 0.14)',
   },
   addBlockPillText: {
-    color: '#e7e5e4',
+    color: '#f5f5f4',
     fontSize: 11,
     fontWeight: '600',
   },
-  matrixGridWrap: {
-    gap: 8,
-  },
-  nowRedLineRow: {
+  // Multi-Column Calendar Grid inside Left Bento
+  calHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
+    paddingBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
   },
-  nowRedClock: {
-    color: '#ef4444',
+  nowTagBox: {
+    width: 38,
+    paddingVertical: 2,
+    borderRadius: 5,
+    backgroundColor: '#2b2b33',
+    alignItems: 'center',
+  },
+  nowTagText: {
+    color: '#e7e5e4',
     fontSize: 10,
-    fontFamily: theme.fontFamily.mono,
-    fontWeight: '700',
+    fontWeight: '600',
   },
-  nowRedDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#ef4444',
-  },
-  nowRedLine: {
+  calColHeader: {
     flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(239, 68, 68, 0.55)',
-  },
-  matrixColumnsWrap: {
-    gap: 7,
-  },
-  matrixBlockCard: {
-    paddingHorizontal: 11,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    gap: 3,
-  },
-  matrixBlockHead: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 4,
+  },
+  calColNum: {
+    color: '#a8a29e',
+    fontSize: 11,
+    fontFamily: theme.fontFamily.mono,
+  },
+  calColSub: {
+    color: '#78716c',
+    fontSize: 10,
+  },
+  calBodyContainer: {
+    position: 'relative',
+    minHeight: 224,
+  },
+  calHairlinesLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  calHairlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
-  matrixBlockTitle: {
-    fontSize: 12,
-    fontWeight: '600',
+  calHourText: {
+    width: 36,
+    textAlign: 'right',
+    color: '#78716c',
+    fontSize: 9.5,
+    fontFamily: theme.fontFamily.mono,
+  },
+  calHairline: {
     flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
   },
-  matrixBlockMeta: {
-    fontSize: 10.5,
-    fontFamily: theme.fontFamily.mono,
+  calColumnsOverlay: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingTop: 2,
   },
-  matrixBlockTime: {
+  calTrackCol: {
+    flex: 1,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderLeftColor: 'rgba(255, 255, 255, 0.05)',
+    paddingHorizontal: 3,
+  },
+  calEventBlock: {
+    position: 'relative',
+    borderRadius: 7,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    justifyContent: 'flex-start',
+  },
+  calEventTitle: {
     fontSize: 10.5,
+    fontWeight: '600',
+    lineHeight: 14,
+  },
+  calEventTime: {
+    fontSize: 9.5,
     fontFamily: theme.fontFamily.mono,
+    marginTop: 1,
+  },
+  calSparkleIcon: {
+    position: 'absolute',
+    right: 6,
+    bottom: 3,
+    fontSize: 10,
+  },
+  iconSquareBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    backgroundColor: '#232329',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   okrMiniGrid: {
     flexDirection: 'row',
@@ -1761,11 +2187,11 @@ const styles = StyleSheet.create({
   okrMiniCard: {
     flex: 1,
     minWidth: 135,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
     borderRadius: 9,
     borderWidth: 1,
-    gap: 6,
+    gap: 7,
   },
   okrMiniTop: {
     flexDirection: 'row',
@@ -1774,7 +2200,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   okrMiniLabel: {
-    color: '#e7e5e4',
+    color: '#f5f5f4',
     fontSize: 11,
     fontWeight: '600',
     flex: 1,
@@ -1788,7 +2214,6 @@ const styles = StyleSheet.create({
     height: 5,
     borderRadius: 999,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    overflow: 'hidden',
   },
   okrGlowFill: {
     height: '100%',
@@ -1800,8 +2225,8 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   miniHeatCell: {
-    width: 11,
-    height: 11,
+    width: 11.5,
+    height: 11.5,
     borderRadius: 2.5,
   },
   miniHeatmapFooter: {
@@ -1811,8 +2236,8 @@ const styles = StyleSheet.create({
     paddingTop: 2,
   },
   legendDot: {
-    width: 8,
-    height: 8,
+    width: 8.5,
+    height: 8.5,
     borderRadius: 2,
   },
   isoHudSubBox: {
