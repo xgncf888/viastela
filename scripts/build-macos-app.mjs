@@ -1267,6 +1267,7 @@ function main() {
   const targetBundles = [
     path.join(ROOT, APP_NAME),
     path.resolve(ROOT, '..', APP_NAME),
+    path.resolve(ROOT, '..', 'Releases', displayName, APP_NAME),
   ];
   for (const bundlePath of targetBundles) {
     try {

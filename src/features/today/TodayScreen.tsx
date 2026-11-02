@@ -48,6 +48,7 @@ import {
 } from '@/ui/WorkbenchConsole';
 import { LifeMilestonesOkrHub } from '@/ui/LifeMilestonesOkrHub';
 import { LifeSynergyPlaygroundHub } from '@/ui/LifeSynergyPlaygroundHub';
+import { OneTapSmartFlowCard } from '@/ui/OneTapSmartFlowCard';
 import { TimeBlockMasteryHub } from '@/ui/TimeBlockMasteryHub';
 import { WearableSyncHub } from '@/ui/WearableSyncHub';
 
@@ -202,6 +203,19 @@ export function TodayScreen() {
         />
 
         <Stack gap="md">
+          {/* 0. Zero-Friction 1-Tap User Flow Card (Answers: '拿起手机第一个点哪里？一键即记') */}
+          <OneTapSmartFlowCard
+            localDay={accounting}
+            lastWeightKg={last?.weightKg ?? null}
+            hasWeightToday={visibleToday.length > 0}
+            hasFocusToday={studyToday.length > 0}
+            hasWorkoutToday={trainingToday.length > 0}
+            onOneTapSaveWeight={(kg) => void saveWeight(kg)}
+            onOneTapSaveStudy={(input) => study.saveRecord(input)}
+            onOneTapSaveWorkout={(input) => training.saveSet(input)}
+            onOpenCustomSheet={(kind) => openRecordSheet(last?.weightKg, kind)}
+          />
+
           {/* 1. 2.5D Isometric Personal Time & Life Sanctuary (Front & Center on Desktop/Web) */}
           {layout === 'expanded' || Platform.OS === 'web' ? (
             <WorkbenchConsoleCard

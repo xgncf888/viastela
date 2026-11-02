@@ -4,6 +4,11 @@ import { type GestureResponderEvent, type LayoutChangeEvent, Platform, View } fr
 import { createId } from '@/core/id';
 import { computeLocalDay, currentTimeZone, sheetAccountingHint } from '@/core/local-day';
 import {
+  buildOneTapWeightPresets,
+  ONE_TAP_FOCUS_PRESETS,
+  ONE_TAP_WORKOUT_PRESETS,
+} from '@/core/one-tap-flow';
+import {
   DEFAULT_STUDY_MINUTES,
   parseStudyDraft,
   STUDY_MINUTE_CHOICES,
@@ -373,6 +378,27 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
       </ChipGroup>
       {type === 'weight' ? (
         <Stack gap="ms">
+          {/* 1-Tap Instant Weight Save Strip (Zero Typing) */}
+          <Stack gap="xs">
+            <Text variant="caption" tone="muted">
+              ⚡ 一键秒存（点按直接保存并关闭，无需打字）
+            </Text>
+            <Row gap="xs" wrap>
+              {buildOneTapWeightPresets(last?.weightKg ?? prefillKg).map((preset) => (
+                <CockpitPillButton
+                  key={preset.id}
+                  label={preset.labelZh}
+                  active={preset.isPrimary}
+                  onPress={() => {
+                    if (!draftId.current) draftId.current = createId();
+                    void saveWeight(preset.weightKg, draftId.current);
+                    showToast({ text: `✓ 已一键记入 ${preset.weightKg.toFixed(1)} kg` });
+                    closeRecordSheet();
+                  }}
+                />
+              ))}
+            </Row>
+          </Stack>
           <TextField
             label="体重（kg）"
             labelTrailing={<TagChip label="MORNING / RETEST" tone="neutral" />}
@@ -407,6 +433,32 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
         </Stack>
       ) : type === 'training' ? (
         <Stack gap="ms">
+          {/* 1-Tap Instant Workout Set Strip (Zero Typing) */}
+          <Stack gap="xs">
+            <Text variant="caption" tone="muted">
+              ⚡ 常用组一键秒存（点按直接记入今日训练）
+            </Text>
+            <Row gap="xs" wrap>
+              {ONE_TAP_WORKOUT_PRESETS.map((preset) => (
+                <CockpitPillButton
+                  key={preset.id}
+                  label={preset.labelZh}
+                  active={preset.isPrimary}
+                  onPress={() => {
+                    void saveSet({
+                      exercise: preset.exerciseZh,
+                      reps: preset.reps,
+                      weightKg: preset.weightKg,
+                      bandLevel: preset.bandLevel,
+                      existingId: createId(),
+                    });
+                    showToast({ text: `✓ 已一键记入：${preset.exerciseZh} × ${preset.reps}次` });
+                    closeRecordSheet();
+                  }}
+                />
+              ))}
+            </Row>
+          </Stack>
           <Stack gap="xs">
             <Text variant="caption">选择动作</Text>
             <ChipGroup>
@@ -563,6 +615,31 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
         </Stack>
       ) : type === 'study' ? (
         <Stack gap="ms">
+          {/* 1-Tap Instant Study Session Strip (Zero Typing) */}
+          <Stack gap="xs">
+            <Text variant="caption" tone="muted">
+              ⚡ 常用专注一键秒存（点按直接保存并同步时间块）
+            </Text>
+            <Row gap="xs" wrap>
+              {ONE_TAP_FOCUS_PRESETS.map((preset) => (
+                <CockpitPillButton
+                  key={preset.id}
+                  label={`⚡ ${preset.topicZh} · ${preset.durationMinutes}m`}
+                  active={preset.isPrimary}
+                  onPress={() => {
+                    void study.saveRecord({
+                      topic: preset.topicZh,
+                      durationMinutes: preset.durationMinutes,
+                      note: '一键专注打卡',
+                      existingId: createId(),
+                    });
+                    showToast({ text: `✓ 已一键记入：${preset.topicZh} (${preset.durationMinutes}m)` });
+                    closeRecordSheet();
+                  }}
+                />
+              ))}
+            </Row>
+          </Stack>
           {study.recentTopics.length > 0 ? (
             <Stack gap="xs">
               <Text variant="caption">常用主题</Text>
