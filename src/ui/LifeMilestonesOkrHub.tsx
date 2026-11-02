@@ -32,6 +32,8 @@ import {
   toggleHabitDay,
 } from '@/data/life-milestones-okr';
 
+import { useI18n } from './use-i18n';
+
 import { Button } from './Button';
 import { Chip } from './Chip';
 import { ChipGroup } from './ChipGroup';
@@ -333,6 +335,7 @@ export function LifeMilestonesOkrHub({
   totalStudyHours?: number | null;
 }) {
   const { color, scheme } = useTheme();
+  const { t } = useI18n();
   const isDark = scheme === 'dark';
 
   // Unified Adaptive Palette: Warm Parchment in light mode, Obsidian & Molten Gold in dark mode
@@ -563,7 +566,7 @@ export function LifeMilestonesOkrHub({
         <View style={styles.topHeaderLeft}>
           <View style={[styles.goldPulseDot, { backgroundColor: pal.goldPrimary }]} />
           <Text variant="label" style={[styles.mainHeaderTitle, { color: pal.titleText }]}>
-            星轨纪念日 · OKR 双环指挥台 · 每日微习惯 3D 键帽舱
+            {t('星轨纪念日 · OKR 双环指挥台 · 每日微习惯 3D 键帽舱', 'Astral Milestones · OKR Dual-Ring Command · 3D Habit Keycaps')}
           </Text>
           <View
             style={[
@@ -572,7 +575,7 @@ export function LifeMilestonesOkrHub({
             ]}
           >
             <Text variant="caption" style={[styles.summaryPillText, { color: pal.pillText }]}>
-              {`OKR 总进度 ${avgOkrProgress}% · 今日习惯 ${habitsCompletedToday}/${habits.length}`}
+              {t(`OKR 总进度 ${avgOkrProgress}% · 今日习惯 ${habitsCompletedToday}/${habits.length}`, `OKR ${avgOkrProgress}% · Habits ${habitsCompletedToday}/${habits.length}`)}
             </Text>
           </View>
         </View>
@@ -588,7 +591,7 @@ export function LifeMilestonesOkrHub({
             ]}
           >
             <Text variant="caption" style={[styles.actionDarkPillText, { color: pal.actionBtnText }]}>
-              ＋ 纪念日/倒数日
+              {t('＋ 纪念日/倒数日', '＋ Milestone')}
             </Text>
           </Pressable>
           <Pressable
@@ -601,7 +604,7 @@ export function LifeMilestonesOkrHub({
             ]}
           >
             <Text variant="caption" style={[styles.actionDarkPillText, { color: pal.actionBtnText }]}>
-              ＋ 新增 OKR
+              {t('＋ 新增 OKR', '＋ New OKR')}
             </Text>
           </Pressable>
           <Pressable
@@ -614,7 +617,7 @@ export function LifeMilestonesOkrHub({
             ]}
           >
             <Text variant="caption" style={[styles.actionGoldPillText, { color: pal.pillText }]}>
-              ＋ 打卡习惯
+              {t('＋ 打卡习惯', '＋ Habit')}
             </Text>
           </Pressable>
         </View>

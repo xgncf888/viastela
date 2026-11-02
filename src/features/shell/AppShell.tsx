@@ -10,6 +10,7 @@ import {
   detectRuntimeHostMode,
   type RuntimeHostMode,
 } from '@/core/charioteer-plugin';
+import { useI18n } from '@/ui/use-i18n';
 import { computeLocalDay, formatMonthDay } from '@/core/local-day';
 import { studyRecordsOnDay } from '@/core/study';
 import { trainingSetsOnDay } from '@/core/training';
@@ -49,14 +50,15 @@ const TABS: readonly {
   id: 'today' | 'assets' | 'trend' | 'timeline' | 'me';
   href: '/' | '/assets' | '/trend' | '/timeline' | '/me';
   label: string;
+  enLabel: string;
   icon: NavIconKind;
   shortcut: string;
 }[] = [
-  { id: 'today', href: '/', label: '今日', icon: 'today', shortcut: '⌘1' },
-  { id: 'assets', href: '/assets', label: '资产', icon: 'assets', shortcut: '⌘2' },
-  { id: 'trend', href: '/trend', label: '趋势', icon: 'trend', shortcut: '⌘3' },
-  { id: 'timeline', href: '/timeline', label: '时间线', icon: 'timeline', shortcut: '⌘4' },
-  { id: 'me', href: '/me', label: '我的', icon: 'me', shortcut: '⌘5' },
+  { id: 'today', href: '/', label: '今日', enLabel: 'Today', icon: 'today', shortcut: '⌘1' },
+  { id: 'assets', href: '/assets', label: '资产', enLabel: 'Assets', icon: 'assets', shortcut: '⌘2' },
+  { id: 'trend', href: '/trend', label: '趋势', enLabel: 'Trends', icon: 'trend', shortcut: '⌘3' },
+  { id: 'timeline', href: '/timeline', label: '时间线', enLabel: 'Timeline', icon: 'timeline', shortcut: '⌘4' },
+  { id: 'me', href: '/me', label: '我的', enLabel: 'Profile', icon: 'me', shortcut: '⌘5' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -86,6 +88,7 @@ type CharioteerPluginRuntimeBridge = {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { toggleTheme } = useTheme();
+  const { locale, toggleLocale, t } = useI18n();
   const layout = useLayoutClass();
   const side = layout !== 'compact';
   const routeTab = currentTab(usePathname());
@@ -123,9 +126,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         today: todayBadge,
         assets: 'USD',
         trend: trendBadge,
-        timeline: '台账',
+        timeline: locale === 'en' ? 'Log' : '台账',
       }),
-    [todayBadge, trendBadge],
+    [locale, todayBadge, trendBadge],
   );
 
   const runtimeMode: RuntimeHostMode = useMemo(() => {
@@ -265,6 +268,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           return;
         }
       }
+      if (event.altKey && !event.metaKey && !event.ctrlKey && event.key.toLowerCase() === 'l') {
+        event.preventDefault();
+        toggleLocale();
+        return;
+      }
       const mod = event.metaKey || event.ctrlKey;
       if (mod && !event.altKey) {
         const lower = event.key.toLowerCase();
@@ -325,7 +333,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       delete hostWindow.__viastelaDesktop;
       delete hostWindow.__charioteerPlugin;
     };
-  }, [executeCommandById, manifest, paletteOpen, runtimeMode, scopeOpen, toggleTheme]);
+  }, [executeCommandById, manifest, paletteOpen, runtimeMode, scopeOpen, toggleLocale, toggleTheme]);
 
   function badgeForTab(tabId: TabId): { text: string; tone: NavBadgeTone } {
     if (tabId === 'today') {
@@ -349,7 +357,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     const json = JSON.stringify(manifest, null, 2);
     if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
       await navigator.clipboard.writeText(json);
-      showToast({ text: '已复制 Charioteer 插件清单 (charioteer-plugin.json)' });
+      showToast({
+        text: t(
+          '已复制 Charioteer 插件清单 (charioteer-plugin.json)',
+          'Copied Charioteer plugin manifest (charioteer-plugin.json)',
+        ),
+      });
       setPaletteOpen(false);
       setScopeOpen(false);
     }
@@ -377,13 +390,14 @@ export function AppShell({ children }: { children: ReactNode }) {
               />
             }
           >
-            <NavGroupLabel label="WORKBENCH · 核心视图" />
+            <NavGroupLabel label={t('WORKBENCH · 核心视图', 'WORKBENCH · CORE VIEWS')} />
             {TABS.map((tab) => {
               const badge = badgeForTab(tab.id);
+              const displayLabel = locale === 'en' ? tab.enLabel : tab.label;
               return (
                 <NavItem
                   key={tab.id}
-                  label={tab.label}
+                  label={displayLabel}
                   icon={tab.icon}
                   badge={badge.text}
                   badgeTone={badge.tone}
@@ -402,7 +416,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <NavItem
                 key={tab.id}
                 placement="tab"
-                label={tab.label}
+                label={locale === 'en' ? tab.enLabel : tab.label}
                 selected={current === tab.id}
                 onPress={() => go(tab)}
               />

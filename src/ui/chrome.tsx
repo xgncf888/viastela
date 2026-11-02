@@ -2,6 +2,8 @@ import { createElement, useRef, useState, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useI18n } from './use-i18n';
+
 import { BrandMark } from './BrandMark';
 import { cardSurfaceStyle } from './Card';
 import { layoutClassForWidth, type LayoutClass } from './layout-class';
@@ -52,7 +54,7 @@ export function ShellFrame({
 
 export function SidebarFrame({
   title,
-  badgeLabel = '星途 OS',
+  badgeLabel,
   onQuickAction,
   onOpenPalette,
   panel,
@@ -69,10 +71,12 @@ export function SidebarFrame({
   children: ReactNode;
 }) {
   const { color } = useTheme();
+  const { t } = useI18n();
   const layout = useLayoutClass();
   const [quickHovered, setQuickHovered] = useState(false);
   const [paletteHovered, setPaletteHovered] = useState(false);
   const width = layout === 'medium' ? theme.layout.sidebarCompact : theme.layout.sidebar;
+  const resolvedBadge = badgeLabel ?? t('星途 OS', 'Personal OS');
   return (
     <View style={[styles.sidebar, { width, backgroundColor: color.paperDeep, borderRightColor: color.line }]}>
       {/* Top window bar: reserves space on the left for native macOS traffic lights without drawing duplicate fake dots */}
@@ -109,7 +113,7 @@ export function SidebarFrame({
         </View>
         <View style={[styles.brandBadge, { backgroundColor: color.accentSoft }]}>
           <Text variant="caption" style={[styles.brandBadgeText, { color: color.accent }]} numberOfLines={1}>
-            {badgeLabel}
+            {resolvedBadge}
           </Text>
         </View>
       </View>
@@ -128,7 +132,7 @@ export function SidebarFrame({
           ]}
         >
           <Text variant="label" style={styles.quickActionText}>
-            ＋ 快速记录
+            {t('＋ 快速记录', '＋ Quick Log')}
           </Text>
           <View style={[styles.kbdChip, { backgroundColor: color.pill }]}>
             <Text variant="caption" tone="muted" style={styles.monoSmall}>

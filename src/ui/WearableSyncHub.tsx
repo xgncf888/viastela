@@ -26,6 +26,8 @@ import {
   writeWearableTelemetry,
 } from '@/data/wearable-sync';
 
+import { useI18n } from './use-i18n';
+
 import { Button } from './Button';
 import { Card, cardSurfaceStyle } from './Card';
 import { Divider, Row, Stack } from './layout';
@@ -53,6 +55,7 @@ export function WearableSyncHub({
   onSyncWeightKg?: (weightKg: number) => Promise<unknown>;
 }) {
   const { color } = useTheme();
+  const { t } = useI18n();
   const [telemetry, setTelemetry] = useState<WearableTelemetry>(readWearableTelemetry);
   const [grants, setGrants] = useState<WearableAuthGrant[]>(readWearableGrants);
   const [hrSeries, setHrSeries] = useState<number[]>(readHeartRateSeries);
@@ -317,16 +320,18 @@ export function WearableSyncHub({
       <Stack gap="sm">
         <Row justify="between" align="center" gap="sm" wrap>
           <Row gap="sm" align="center" wrap>
-            <Text variant="heading">硬件体脂秤与 Keep 手环连接台（真实蓝牙 / 云端桥接）</Text>
+            <Text variant="heading">
+              {t('硬件体脂秤与 Keep 手环连接台（真实蓝牙 / 云端桥接）', 'Smart Scale & Wearable BLE / Cloud Sync Hub')}
+            </Text>
             <TagChip
               label={
                 bleScaleScanning || bleHrScanning
-                  ? 'BLE SCANNING · 正在扫描真实硬件…'
+                  ? t('BLE SCANNING · 正在扫描真实硬件…', 'BLE SCANNING…')
                   : activeBpm !== null && zone
                     ? `CONNECTED · ${zone.label} ${activeBpm} BPM`
                     : scaleWeightToShow !== null
                       ? `SCALE SYNCED · ${scaleWeightToShow.toFixed(1)} kg`
-                      : 'STANDBY · 未连接硬件'
+                      : t('STANDBY · 未连接硬件', 'STANDBY · Ready')
               }
               tone={
                 bleScaleScanning || bleHrScanning || activeBpm !== null || scaleWeightToShow !== null
@@ -337,23 +342,23 @@ export function WearableSyncHub({
           </Row>
           <Row gap="xs" align="center" wrap>
             <CockpitPillButton
-              label={bleScaleScanning ? '停止扫描体脂秤' : '扫描蓝牙体脂秤 (BLE)'}
+              label={bleScaleScanning ? t('停止扫描体脂秤', 'Stop Scale Scan') : t('扫描蓝牙体脂秤 (BLE)', 'Scan BLE Scale')}
               variant="accent"
               accessibilityLabel="通过原生 CoreBluetooth 或 Web Bluetooth 扫描附近智能体脂秤"
               onPress={() => void onConnectBleScale()}
             />
             <CockpitPillButton
-              label={bleHrScanning ? '断开手环心率' : '扫描 Keep 心率手环 (BLE)'}
+              label={bleHrScanning ? t('断开手环心率', 'Disconnect Band') : t('扫描 Keep 心率手环 (BLE)', 'Scan BLE Heart Band')}
               accessibilityLabel="通过蓝牙 BLE 扫描 Keep 手环或运动手表心率广播"
               onPress={() => void onConnectBleBand()}
             />
             <CockpitPillButton
-              label={`云端与自动化配置 (${authorizedCount})`}
+              label={t(`云端与自动化配置 (${authorizedCount})`, `Cloud & Shortcuts (${authorizedCount})`)}
               accessibilityLabel="打开 Intervals.icu 云端与 iOS 快捷指令配置"
               onPress={() => setAuthCenterOpen((prev) => !prev)}
             />
             <CockpitPillButton
-              label="JSON/CSV 导入"
+              label={t('JSON/CSV 导入', 'Import JSON/CSV')}
               accessibilityLabel="导入 Keep 或 Apple Health 数据"
               onPress={() => setImportOpen((prev) => !prev)}
             />

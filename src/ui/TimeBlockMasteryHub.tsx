@@ -36,6 +36,8 @@ import {
   writeActiveTimer,
 } from '@/data/time-block-tracker';
 
+import { useI18n } from './use-i18n';
+
 import { Button } from './Button';
 import { Card, cardSurfaceStyle } from './Card';
 import { Chip } from './Chip';
@@ -68,6 +70,7 @@ export function TimeBlockMasteryHub({
   onSyncTimelineBlock?: (body: string) => Promise<unknown>;
 }) {
   const { color, scheme } = useTheme();
+  const { t } = useI18n();
   const isDark = scheme === 'dark';
   const [blocks, setBlocks] = useState<TimeBlockItem[]>(readTimeBlocks);
   const [goals, setGoals] = useState<MasteryGoal[]>(readMasteryGoals);
@@ -410,29 +413,31 @@ export function TimeBlockMasteryHub({
         {/* Header */}
         <Row justify="between" align="center" gap="sm" wrap>
           <Row gap="sm" align="center" wrap>
-            <Text variant="heading">24H 1分钟级拖拽时间轴 · 实时计时器 · 10,000 小时定律</Text>
+            <Text variant="heading">
+              {t('24H 1分钟级拖拽时间轴 · 实时计时器 · 10,000 小时定律', '24H 1-Min Drag Timeline · Live Timer · 10,000-Hour Mastery')}
+            </Text>
             <TagChip
               label={
                 timer.isRunning
                   ? `TRACKING · ${formatTimerClock(elapsedSeconds)}`
-                  : `今日已追踪 ${totalTrackedMinsToday} / 1440 分钟`
+                  : t(`今日已追踪 ${totalTrackedMinsToday} / 1440 分钟`, `Tracked ${totalTrackedMinsToday} / 1440m today`)
               }
               tone={timer.isRunning ? 'exec' : 'owner'}
             />
           </Row>
           <Row gap="xs" align="center" wrap>
             <CockpitPillButton
-              label="+ 手动输入起止"
+              label={t('+ 手动输入起止', '+ Manual Range')}
               accessibilityLabel="手动按起止分钟补录时间块"
               onPress={() => setManualOpen((prev) => !prev)}
             />
             <CockpitPillButton
-              label="+ 10000h 目标"
+              label={t('+ 10000h 目标', '+ 10000h Goal')}
               accessibilityLabel="添加新的 10000 小时精进目标"
               onPress={() => setGoalFormOpen((prev) => !prev)}
             />
             <CockpitPillButton
-              label={compact24h ? '展开凌晨 00–05 点' : '折叠空闲凌晨'}
+              label={compact24h ? t('展开凌晨 00–05 点', 'Show 00–05h') : t('折叠空闲凌晨', 'Hide Idle Night')}
               accessibilityLabel="切换 24 小时完整视图与日间紧凑视图"
               onPress={() => setCompact24h((prev) => !prev)}
             />

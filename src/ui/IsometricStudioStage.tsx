@@ -39,6 +39,8 @@ import {
   readTimeBlocks,
 } from '@/data/time-block-tracker';
 
+import { useI18n } from './use-i18n';
+
 import { Text } from './Text';
 import { theme } from './theme';
 import { useTheme } from './ThemeProvider';
@@ -46,6 +48,7 @@ import { showToast } from './toast';
 
 export type SanctuaryPerspective = 'diorama' | 'daycycle' | 'summary';
 export type LifeZoneKey = 'focus' | 'vitality' | 'wishes';
+export type SpatialModuleFilter = 'all' | 'focus' | 'vitality' | 'wishes';
 
 /**
  * Dual-Theme (黑金风 Dark Obsidian-Gold ⇄ 暖色调 Warm Sunlit Parchment) 2.5D Isometric Island Artwork
@@ -724,6 +727,8 @@ export function IsometricStudioStage({
   trainingVolumeKg,
   studyMinutes,
   studyCount,
+  activeModuleFilter = 'all',
+  onSelectModuleFilter,
   onQuickWeight,
   onQuickTraining,
   onQuickStudy,
@@ -739,6 +744,8 @@ export function IsometricStudioStage({
   trainingVolumeKg: number;
   studyMinutes: number;
   studyCount: number;
+  activeModuleFilter?: SpatialModuleFilter;
+  onSelectModuleFilter?: (filter: SpatialModuleFilter) => void;
   onQuickWeight: () => void;
   onQuickTraining: () => void;
   onQuickStudy: () => void;
@@ -746,14 +753,24 @@ export function IsometricStudioStage({
   onOpenScope?: () => void;
 }) {
   const { color, scheme, toggleTheme } = useTheme();
+  const { locale, toggleLocale, t } = useI18n();
   const isDark = scheme === 'dark';
 
   const [perspective, setPerspective] = useState<SanctuaryPerspective>('diorama');
-  const [selectedZone, setSelectedZone] = useState<LifeZoneKey>('focus');
+  const [internalZone, setInternalZone] = useState<LifeZoneKey>('focus');
+  const [showOnboardingGuide, setShowOnboardingGuide] = useState(false);
   const [quickInput, setQuickInput] = useState('');
   const [selectedHeatmapCell, setSelectedHeatmapCell] = useState<HeatmapCell | null>(null);
   const [matrixMode, setMatrixMode] = useState<'on' | 'day'>('on');
   const [okrPage, setOkrPage] = useState(0);
+
+  const selectedZone: LifeZoneKey =
+    activeModuleFilter && activeModuleFilter !== 'all' ? activeModuleFilter : internalZone;
+
+  function selectIslandAndSync(zone: LifeZoneKey) {
+    setInternalZone(zone);
+    onSelectModuleFilter?.(zone);
+  }
 
   // Live personal stores
   const [vault, setVault] = useState<PledgeVaultState>(readPledgeVault);
@@ -915,7 +932,8 @@ export function IsometricStudioStage({
     const now = new Date();
     const endMin = now.getHours() * 60 + now.getMinutes();
     const startMin = Math.max(0, endMin - mins);
-    const cleanTitle = (minMatch ? raw.replace(minMatch[0], '') : raw).trim() || '深度专注';
+    const cleanTitle =
+      (minMatch ? raw.replace(minMatch[0], '') : raw).trim() || t('深度专注', 'Deep Focus');
 
     setTimeBlocks(
       addTimeBlock({
@@ -930,9 +948,12 @@ export function IsometricStudioStage({
     const v = recordPledgeReward(`记录时间块：${cleanTitle} (${mins}分钟)`, localDay);
     setVault(v);
     setQuickInput('');
-    setSelectedZone('focus');
+    selectIslandAndSync('focus');
     showToast({
-      text: `已切入 24H 时间块矩阵：${cleanTitle} (${mins} 分钟) · 心愿金库 +¥${v.config.checkInRewardCny}`,
+      text: t(
+        `已切入 24H 时间块矩阵：${cleanTitle} (${mins} 分钟) · 心愿金库 +¥${v.config.checkInRewardCny}`,
+        `Added to 24H Time Block Matrix: ${cleanTitle} (${mins}m) · Wish Vault +¥${v.config.checkInRewardCny}`,
+      ),
     });
   }
 
@@ -960,11 +981,13 @@ export function IsometricStudioStage({
   }[] = [
     {
       headerLeft: colDays[0]!.slice(8),
-      headerRight: '晨间/专注',
+      headerRight: t('晨间/专注', 'AM Focus'),
       blocks: [
         {
           id: 'mc-1-a',
-          title: latestUserBlock ? latestUserBlock.title : '深度架构与论文精读',
+          title: latestUserBlock
+            ? latestUserBlock.title
+            : t('深度架构与论文精读', 'Deep Architecture & Paper Reading'),
           timeRange: latestUserBlock
             ? `${formatMinuteOfDay(latestUserBlock.startMinute)} – ${formatMinuteOfDay(latestUserBlock.endMinute)}`
             : '09:00 – 13:00',
@@ -975,7 +998,7 @@ export function IsometricStudioStage({
         },
         {
           id: 'mc-1-b',
-          title: '系统复盘与核心研发',
+          title: t('系统复盘与核心研发', 'System Review & Core R&D'),
           timeRange: '13:30 – 16:30',
           tone: 'terracotta',
           height: 56,
@@ -983,7 +1006,7 @@ export function IsometricStudioStage({
         },
         {
           id: 'mc-1-c',
-          title: '力量与有氧代谢训练',
+          title: t('力量与有氧代谢训练', 'Strength & Metabolic Conditioning'),
           timeRange: '17:00 – 18:30',
           tone: 'emerald',
           height: 44,
@@ -994,11 +1017,11 @@ export function IsometricStudioStage({
     },
     {
       headerLeft: colDays[1]!.slice(8),
-      headerRight: '一万小时',
+      headerRight: t('一万小时', '10,000h'),
       blocks: [
         {
           id: 'mc-2-a',
-          title: '+ 10,000h 计时打卡',
+          title: t('+ 10,000h 计时打卡', '+ 10,000h Focus Check-In'),
           timeRange: '08:30',
           tone: 'pill',
           height: 24,
@@ -1006,7 +1029,10 @@ export function IsometricStudioStage({
         },
         {
           id: 'mc-2-b',
-          title: trainingSetsCount > 0 ? `今日训练 (${trainingSetsCount} 组)` : '核心力量与心肺激活',
+          title:
+            trainingSetsCount > 0
+              ? t(`今日训练 (${trainingSetsCount} 组)`, `Today's Workout (${trainingSetsCount} sets)`)
+              : t('核心力量与心肺激活', 'Core Strength & Cardio'),
           timeRange: '11:30 – 14:00',
           tone: 'emerald',
           height: 68,
@@ -1015,7 +1041,7 @@ export function IsometricStudioStage({
         },
         {
           id: 'mc-2-c',
-          title: '晚间阅读与心愿复盘',
+          title: t('晚间阅读与心愿复盘', 'Evening Reading & Wish Review'),
           timeRange: '19:30 – 21:30',
           tone: 'golden',
           height: 52,
@@ -1025,11 +1051,14 @@ export function IsometricStudioStage({
     },
     {
       headerLeft: colDays[2]!.slice(8),
-      headerRight: '今日主轴',
+      headerRight: t('今日主轴', 'Today'),
       blocks: [
         {
           id: 'mc-3-a',
-          title: studyMinutes > 0 ? `今日已专注 ${studyMinutes}m` : '10,000h 沉浸创造时间块',
+          title:
+            studyMinutes > 0
+              ? t(`今日已专注 ${studyMinutes}m`, `Focused ${studyMinutes}m Today`)
+              : t('10,000h 沉浸创造时间块', '10,000h Deep Creation Block'),
           timeRange: '08:00 – 13:30',
           tone: 'golden',
           height: 112,
@@ -1037,7 +1066,7 @@ export function IsometricStudioStage({
         },
         {
           id: 'mc-3-b',
-          title: 'OKR 关键结果推进与归档',
+          title: t('OKR 关键结果推进与归档', 'OKR Key Results & Review'),
           timeRange: '14:30 – 18:30',
           tone: 'golden',
           height: 84,
@@ -1060,6 +1089,129 @@ export function IsometricStudioStage({
         } as unknown as ViewStyle)
       : null;
 
+  const dailyWorkflowSteps = [
+    {
+      id: 'step-weight',
+      num: '①',
+      zone: 'vitality' as LifeZoneKey,
+      done: Boolean(latestWeightKg),
+      title: t('晨起记体重', 'Morning Weigh-In'),
+      status: latestWeightKg
+        ? t(`✓ 已记 ${latestWeightKg.toFixed(1)} kg`, `✓ ${latestWeightKg.toFixed(1)} kg`)
+        : t('点击记录 ⌘K', 'Log Weight ⌘K'),
+      accent: pal.emeraldAccent,
+      onPress: () => {
+        selectIslandAndSync('vitality');
+        onQuickWeight();
+      },
+    },
+    {
+      id: 'step-focus',
+      num: '②',
+      zone: 'focus' as LifeZoneKey,
+      done: trackedMinsToday > 0 || timer.isRunning,
+      title: t('专注与1m时间块', 'Focus & 1m Time Block'),
+      status:
+        trackedMinsToday > 0
+          ? t(`✓ 已专注 ${trackedMinsToday}m`, `✓ ${trackedMinsToday}m Tracked`)
+          : t('切入时间块 ⇧⌘J', 'Add 1m Block ⇧⌘J'),
+      accent: pal.terracottaAccent,
+      onPress: () => {
+        selectIslandAndSync('focus');
+        onQuickJournal();
+      },
+    },
+    {
+      id: 'step-workout',
+      num: '③',
+      zone: 'vitality' as LifeZoneKey,
+      done: trainingSetsCount > 0,
+      title: t('运动与穿戴同步', 'Workout & Wearable'),
+      status:
+        trainingSetsCount > 0
+          ? t(`✓ 已练 ${trainingSetsCount} 组`, `✓ ${trainingSetsCount} Sets Done`)
+          : t('记录训练 ⇧⌘T', 'Log Workout ⇧⌘T'),
+      accent: '#38bdf8',
+      onPress: () => {
+        selectIslandAndSync('vitality');
+        onQuickTraining();
+      },
+    },
+    {
+      id: 'step-wishes',
+      num: '④',
+      zone: 'wishes' as LifeZoneKey,
+      done: habitsDoneToday > 0,
+      title: t('OKR推进与心愿金', 'OKR & Wish Vault'),
+      status: t(
+        `OKR ${avgOkrPct}% · ¥${vault.wishBalanceCny}`,
+        `OKR ${avgOkrPct}% · ¥${vault.wishBalanceCny}`,
+      ),
+      accent: pal.goldAccent,
+      onPress: () => {
+        selectIslandAndSync('wishes');
+      },
+    },
+  ];
+
+  const activeIslandInfo =
+    selectedZone === 'focus'
+      ? {
+          badge: t('① 心流书房 · 已联动', '① Flow Study · Linked'),
+          title: t(
+            '管理 24H 时间块矩阵（支持 1 分钟拖拽框选）与 10,000 小时精进计时',
+            'Controls 24H Time-Block Matrix (1-min drag selection) & 10,000-Hour Mastery Timer',
+          ),
+          ctaLabel: t('＋ 切入 1m 时间块 (⇧⌘J)', '＋ Add 1m Time Block (⇧⌘J)'),
+          secondaryLabel: t('📚 记学习 (⇧⌘L)', '📚 Log Study (⇧⌘L)'),
+          accent: pal.terracottaAccent,
+          onPrimary: onQuickJournal,
+          onSecondary: onQuickStudy,
+        }
+      : selectedZone === 'vitality'
+        ? {
+            badge: t('② 活力体态站 · 已联动', '② Vitality Station · Linked'),
+            title: t(
+              '管理每日空腹晨重、7 日 EMA 均重趋势、力量训练组数与智能手环/体脂秤同步',
+              'Controls Morning Weigh-In, 7-Day EMA Weight Trend, Strength Sets & Wearable Sync',
+            ),
+            ctaLabel: t('⚖ 记录今日晨重 (⌘K)', '⚖ Log Morning Weight (⌘K)'),
+            secondaryLabel: t('🏋️ 记录训练组 (⇧⌘T)', '🏋️ Log Workout Set (⇧⌘T)'),
+            accent: pal.emeraldAccent,
+            onPrimary: onQuickWeight,
+            onSecondary: onQuickTraining,
+          }
+        : {
+            badge: t('③ 星愿纪念台 · 已联动', '③ Astral Wish Altar · Linked'),
+            title: t(
+              '管理重要纪念日倒数、季度 OKR 关键结果打卡，每次自律打卡自动注入 +¥25 心愿金',
+              'Controls Milestone Countdowns, Quarterly OKR Key Results & +¥25 Wish Vault Rewards',
+            ),
+            ctaLabel: t('🎯 聚焦下方 OKR 与心愿金库', '🎯 Focus OKR & Wish Vault Below'),
+            secondaryLabel: t('✦ 打卡习惯 +¥25', '✦ Check-In +¥25'),
+            accent: pal.goldAccent,
+            onPrimary: () => onSelectModuleFilter?.('wishes'),
+            onSecondary: () => {
+              const firstKr = allKrs[0];
+              if (firstKr) {
+                checkInKeyResult(
+                  firstKr.objectiveId,
+                  firstKr.kr.id,
+                  firstKr.kr.stepDelta,
+                  localDay,
+                );
+                const v = recordPledgeReward(`OKR 推进：${firstKr.kr.title}`, localDay);
+                setVault(v);
+                showToast({
+                  text: t(
+                    `已推进「${firstKr.kr.title}」· 心愿金库 +¥${v.config.checkInRewardCny}`,
+                    `Advanced "${firstKr.kr.title}" · Wish Vault +¥${v.config.checkInRewardCny}`,
+                  ),
+                });
+              }
+            },
+          };
+
   return (
     <View
       style={[
@@ -1070,7 +1222,7 @@ export function IsometricStudioStage({
         },
       ]}
     >
-      {/* Top Bar: Theme-Unified Header + 1-Click Warm/Black-Gold Toggle */}
+      {/* Top Bar: Theme-Unified Header + 1-Click Warm/Black-Gold Toggle + Bilingual Toggle */}
       <View
         style={[
           styles.studioTopbar,
@@ -1083,7 +1235,7 @@ export function IsometricStudioStage({
         <View style={styles.topbarLeft}>
           <View style={[styles.brandDot, { backgroundColor: pal.goldAccent }]} />
           <Text variant="label" style={[styles.studioTitle, { color: pal.ink }]}>
-            2.5D 个人时间与心愿沙盘
+            {t('2.5D 个人时间与心愿沙盘', '2.5D Personal Time & Wish Sanctuary')}
           </Text>
           <View
             style={[
@@ -1096,9 +1248,9 @@ export function IsometricStudioStage({
           >
             {(
               [
-                { id: 'diorama', label: '2.5D 沙盘全览' },
-                { id: 'daycycle', label: '24H 昼夜节律环' },
-                { id: 'summary', label: '今日五维精要' },
+                { id: 'diorama', label: t('2.5D 沙盘全览', '2.5D Studio') },
+                { id: 'daycycle', label: t('24H 昼夜节律环', '24H Day Cycle') },
+                { id: 'summary', label: t('今日五维精要', '5-Dim Summary') },
               ] as const
             ).map((tab) => {
               const active = perspective === tab.id;
@@ -1135,7 +1287,9 @@ export function IsometricStudioStage({
             onPress={() => {
               toggleTheme();
               showToast({
-                text: isDark ? '已切换至「晨曦暖纸风」全局主题 (⌘T)' : '已切换至「黑金星盘风」全局主题 (⌘T)',
+                text: isDark
+                  ? t('已切换至「晨曦暖纸风」全局主题 (⌘T)', 'Switched to Warm Parchment Theme (⌘T)')
+                  : t('已切换至「黑金星盘风」全局主题 (⌘T)', 'Switched to Black-Gold Obsidian Theme (⌘T)'),
               });
             }}
             style={[
@@ -1155,7 +1309,71 @@ export function IsometricStudioStage({
                 fontWeight: '700',
               }}
             >
-              {isDark ? '✦ 黑金风 ⇄ 切换暖色调 (⌘T)' : '☀ 暖色调 ⇄ 切换黑金风 (⌘T)'}
+              {isDark
+                ? t('✦ 黑金风 ⇄ 暖色调 (⌘T)', '✦ Black-Gold ⇄ Warm (⌘T)')
+                : t('☀ 暖色调 ⇄ 黑金风 (⌘T)', '☀ Warm ⇄ Black-Gold (⌘T)')}
+            </Text>
+          </Pressable>
+
+          {/* Instant Bilingual Switcher (中 / EN) */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="切换中英文语言 Switch Language"
+            onPress={() => {
+              const next = toggleLocale();
+              showToast({
+                text:
+                  next === 'en'
+                    ? 'Switched to English (⌥L)'
+                    : '已切换为中文界面 (⌥L)',
+              });
+            }}
+            style={[
+              styles.dispatchBtn,
+              {
+                height: 28,
+                backgroundColor: pal.pillBg,
+                borderColor: pal.bentoBorder,
+              },
+            ]}
+          >
+            <Text
+              variant="caption"
+              style={{
+                color: pal.ink,
+                fontSize: 11,
+                fontWeight: '700',
+              }}
+            >
+              {locale === 'zh' ? '🌐 中 / EN' : '🌐 EN / 中文'}
+            </Text>
+          </Pressable>
+
+          {/* Expandable How-To-Use Guide Toggle */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="查看沙盘使用指南 How It Works"
+            onPress={() => setShowOnboardingGuide((prev) => !prev)}
+            style={[
+              styles.dispatchBtn,
+              {
+                height: 28,
+                backgroundColor: showOnboardingGuide ? pal.pillActiveBg : pal.pillBg,
+                borderColor: showOnboardingGuide ? pal.goldAccent : pal.bentoBorder,
+              },
+            ]}
+          >
+            <Text
+              variant="caption"
+              style={{
+                color: showOnboardingGuide ? pal.goldText : pal.sub,
+                fontSize: 11,
+                fontWeight: '700',
+              }}
+            >
+              {showOnboardingGuide
+                ? t('▲ 收起用法指南', '▲ Hide Guide')
+                : t('❓ 30秒看懂沙盘用法', '❓ How It Works')}
             </Text>
           </Pressable>
         </View>
@@ -1165,7 +1383,10 @@ export function IsometricStudioStage({
             value={quickInput}
             onChangeText={setQuickInput}
             onSubmitEditing={onQuickAddTimeNote}
-            placeholder="快速切入时间块 (如: 系统架构精读 60m / 肩背训练 45m)…"
+            placeholder={t(
+              '快速切入时间块 (如: 系统架构精读 60m / 肩背训练 45m)…',
+              'Quick add time block (e.g., System Design 60m / Back Workout 45m)…',
+            )}
             placeholderTextColor={pal.muted}
             style={[
               styles.studioTaskInput,
@@ -1191,11 +1412,179 @@ export function IsometricStudioStage({
             ]}
           >
             <Text variant="caption" style={[styles.dispatchBtnText, { color: pal.goldText }]}>
-              ＋ Add Block
+              {t('＋ 切入时间块', '＋ Add Block')}
             </Text>
           </Pressable>
         </View>
       </View>
+
+      {/* Interactive 4-Step Daily Workflow Loop Ribbon (Always Visible Onboarding & Quick Loop) */}
+      <View
+        style={[
+          styles.workflowLoopRibbon,
+          {
+            backgroundColor: isDark ? 'rgba(26, 22, 19, 0.92)' : color.paperDeep,
+            borderBottomColor: pal.hairline,
+          },
+        ]}
+      >
+        <View style={styles.workflowHeaderCol}>
+          <Text variant="caption" style={{ color: pal.goldText, fontWeight: '700', fontSize: 11 }}>
+            {t('🧭 今日 4 步闭环', '🧭 4-Step Daily Loop')}
+          </Text>
+          <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>
+            {t('点击任意步骤直接打卡或联动下方模块 →', 'Click any step to log or filter modules →')}
+          </Text>
+        </View>
+
+        <View style={styles.workflowStepsRow}>
+          {dailyWorkflowSteps.map((step) => {
+            const isSelectedZone = selectedZone === step.zone;
+            return (
+              <Pressable
+                key={step.id}
+                accessibilityRole="button"
+                accessibilityLabel={`${step.num} ${step.title}`}
+                onPress={step.onPress}
+                style={({ pressed }) => [
+                  styles.workflowStepCard,
+                  {
+                    backgroundColor: isSelectedZone ? pal.pillActiveBg : pal.bentoBg,
+                    borderColor: step.done
+                      ? step.accent
+                      : isSelectedZone
+                        ? pal.goldAccent
+                        : pal.bentoBorder,
+                    opacity: pressed ? 0.85 : 1,
+                  },
+                ]}
+              >
+                <View style={styles.workflowStepTop}>
+                  <Text
+                    variant="caption"
+                    style={{
+                      color: step.done ? step.accent : pal.ink,
+                      fontWeight: '700',
+                      fontSize: 11.5,
+                    }}
+                  >
+                    {`${step.num} ${step.title}`}
+                  </Text>
+                  <View
+                    style={[
+                      styles.workflowStatusBadge,
+                      {
+                        backgroundColor: step.done
+                          ? `${step.accent}22`
+                          : isDark
+                            ? 'rgba(255,255,255,0.06)'
+                            : color.pill,
+                      },
+                    ]}
+                  >
+                    <Text
+                      variant="caption"
+                      style={{
+                        color: step.done ? step.accent : pal.muted,
+                        fontSize: 10,
+                        fontWeight: '600',
+                        fontFamily: theme.fontFamily.mono,
+                      }}
+                    >
+                      {step.status}
+                    </Text>
+                  </View>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Expandable 30-Second Visual Guide: How the 3 2.5D Islands Connect to the Homepage */}
+      {showOnboardingGuide ? (
+        <View
+          style={[
+            styles.onboardingDrawer,
+            {
+              backgroundColor: isDark ? '#171411' : color.surface,
+              borderBottomColor: pal.stageBorder,
+            },
+          ]}
+        >
+          <View style={styles.onboardingDrawerHeader}>
+            <Text variant="label" style={{ color: pal.goldText, fontWeight: '700', fontSize: 12.5 }}>
+              {t(
+                '💡 为什么首页有这三座 2.5D 岛屿？它们如何与下方工作台联动？',
+                '💡 How the 3 Isometric Islands Connect to Your Daily Workspace',
+              )}
+            </Text>
+            <Text variant="caption" style={{ color: pal.muted, fontSize: 11 }}>
+              {t(
+                '三座岛屿不是静态插画，而是「空间化总控开关」——点击任意岛屿，即可直接操作或聚焦下方对应功能区：',
+                'Each island is an interactive spatial switch—click any island to act immediately or filter the workspace below:',
+              )}
+            </Text>
+          </View>
+
+          <View style={styles.onboardingCols}>
+            {[
+              {
+                num: t('岛屿 ① · 心流书房', 'Island ① · Flow Study'),
+                accent: pal.terracottaAccent,
+                mapTo: t('联动下方：24H 时间块 & 10,000h 精进工作台', 'Links to: 24H Time-Block & 10,000h Hub'),
+                desc: t(
+                  '上方可直接输入「架构精读 60m」切入时间块；下方工作台支持 1 分钟粒度拖拽框选、60 格放大镜微调与番茄钟倒计时。',
+                  'Type "System Design 60m" above or use the 1-minute drag-to-select timeline & 60-cell magnifier below.',
+                ),
+                zone: 'focus' as LifeZoneKey,
+              },
+              {
+                num: t('岛屿 ② · 活力体态站', 'Island ② · Vitality Station'),
+                accent: pal.emeraldAccent,
+                mapTo: t('联动下方：7日均重趋势、今日训练组 & 智能穿戴同步', 'Links to: 7-Day EMA Weight, Workouts & Wearables'),
+                desc: t(
+                  '微缩体脂秤实时映射你的最新体重；点击可快速记录晨重 (⌘K)、力量训练组 (⇧⌘T) 或一键同步 Apple Watch / 体脂秤。',
+                  'The miniature scale displays your live weight. Click to log morning weight (⌘K), training sets (⇧⌘T), or sync wearables.',
+                ),
+                zone: 'vitality' as LifeZoneKey,
+              },
+              {
+                num: t('岛屿 ③ · 星愿纪念台', 'Island ③ · Astral Wish Altar'),
+                accent: pal.goldAccent,
+                mapTo: t('联动下方：人生纪念日、OKR 目标 & 心愿金库', 'Links to: Milestones, Quarterly OKRs & Wish Vault'),
+                desc: t(
+                  '浑天仪追踪最近的重要纪念日倒数；每次完成晨重、时间块或 OKR 关键结果，系统自动向你的心愿金库注入 +¥25 奖励金。',
+                  'Tracks upcoming milestones & quarterly OKRs. Every completed check-in automatically deposits +¥25 into your Wish Vault.',
+                ),
+                zone: 'wishes' as LifeZoneKey,
+              },
+            ].map((guide) => (
+              <Pressable
+                key={guide.num}
+                onPress={() => selectIslandAndSync(guide.zone)}
+                style={[
+                  styles.onboardingColCard,
+                  {
+                    backgroundColor: pal.bentoBg,
+                    borderColor: selectedZone === guide.zone ? guide.accent : pal.bentoBorder,
+                  },
+                ]}
+              >
+                <Text variant="label" style={{ color: guide.accent, fontWeight: '700', fontSize: 12 }}>
+                  {guide.num}
+                </Text>
+                <Text variant="caption" style={{ color: pal.ink, fontWeight: '600', fontSize: 11 }}>
+                  {guide.mapTo}
+                </Text>
+                <Text variant="caption" style={{ color: pal.muted, fontSize: 11, lineHeight: 15 }}>
+                  {guide.desc}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : null}
 
       {/* Perspective 1: Option-A 2.5D Isometric Diorama + Split Bento Workspace */}
       {perspective === 'diorama' ? (
@@ -1209,13 +1598,35 @@ export function IsometricStudioStage({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="心流书房与一万小时精进"
-                onPress={() => setSelectedZone('focus')}
+                onPress={() => selectIslandAndSync('focus')}
                 style={[
                   styles.isoIslandSlot,
                   selectedZone === 'focus' ? styles.isoNodeSelected : null,
                 ]}
               >
                 <View style={styles.islandArtWrap}>
+                  {/* Interactive Callout Pin */}
+                  <View
+                    style={[
+                      styles.islandCalloutPin,
+                      {
+                        backgroundColor:
+                          selectedZone === 'focus' ? pal.terracottaAccent : pal.pillBg,
+                        borderColor: pal.terracottaAccent,
+                      },
+                    ]}
+                  >
+                    <Text
+                      variant="caption"
+                      style={{
+                        color: selectedZone === 'focus' ? '#fffbeb' : pal.goldText,
+                        fontSize: 10,
+                        fontWeight: '700',
+                      }}
+                    >
+                      {t('① 点击联动：专注 & 24H时间轴', '① Click: Focus & 24H Timeline')}
+                    </Text>
+                  </View>
                   <IsometricLifeZoneSvg
                     zone="focus"
                     active={selectedZone === 'focus'}
@@ -1235,7 +1646,7 @@ export function IsometricStudioStage({
                   >
                     <View style={styles.hudTitleRow}>
                       <Text variant="label" style={[styles.hudTitleText, { color: pal.ink }]}>
-                        心流书房
+                        {t('心流书房', 'Flow Study')}
                       </Text>
                       <View style={[styles.hudProgressRing, { borderColor: pal.goldAccent }]}>
                         <View style={[styles.hudProgressDot, { backgroundColor: pal.goldAccent }]} />
@@ -1243,7 +1654,7 @@ export function IsometricStudioStage({
                     </View>
                     <Text variant="caption" style={[styles.hudMetricText, { color: pal.sub }]}>
                       {timer.isRunning
-                        ? `· 计时 ${formatTimerClock(timerElapsedSeconds)}`
+                        ? `· ${t('计时', 'Timer')} ${formatTimerClock(timerElapsedSeconds)}`
                         : `· ${displayMasteryHours.toLocaleString('en-US')} /`}
                     </Text>
                     <Text variant="caption" style={[styles.hudSubText, { color: pal.muted }]}>
@@ -1257,13 +1668,35 @@ export function IsometricStudioStage({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="活力体态与蓝牙体脂秤"
-                onPress={() => setSelectedZone('vitality')}
+                onPress={() => selectIslandAndSync('vitality')}
                 style={[
                   styles.isoIslandSlot,
                   selectedZone === 'vitality' ? styles.isoNodeSelected : null,
                 ]}
               >
                 <View style={styles.islandArtWrap}>
+                  {/* Interactive Callout Pin */}
+                  <View
+                    style={[
+                      styles.islandCalloutPin,
+                      {
+                        backgroundColor:
+                          selectedZone === 'vitality' ? pal.emeraldAccent : pal.pillBg,
+                        borderColor: pal.emeraldAccent,
+                      },
+                    ]}
+                  >
+                    <Text
+                      variant="caption"
+                      style={{
+                        color: selectedZone === 'vitality' ? '#052e16' : pal.emeraldAccent,
+                        fontSize: 10,
+                        fontWeight: '700',
+                      }}
+                    >
+                      {t('② 点击联动：晨重 & 训练/手环', '② Click: Weight & Workout')}
+                    </Text>
+                  </View>
                   <IsometricLifeZoneSvg
                     zone="vitality"
                     active={selectedZone === 'vitality'}
@@ -1283,7 +1716,7 @@ export function IsometricStudioStage({
                   >
                     <View style={styles.hudTitleRow}>
                       <Text variant="label" style={[styles.hudTitleText, { color: pal.ink }]}>
-                        活力体态
+                        {t('活力体态', 'Vitality')}
                       </Text>
                       <Text variant="caption" style={{ color: pal.emeraldAccent, fontSize: 12 }}>
                         ↻
@@ -1293,7 +1726,9 @@ export function IsometricStudioStage({
                       {`· ${latestWeightKg ? `${latestWeightKg.toFixed(1)} kg` : '72.4 kg'}`}
                     </Text>
                     <Text variant="caption" style={[styles.hudSubText, { color: pal.muted }]}>
-                      {trainingSetsCount > 0 ? `· 已训练 ${trainingSetsCount} 组` : '· 已同步'}
+                      {trainingSetsCount > 0
+                        ? t(`· 已训练 ${trainingSetsCount} 组`, `· ${trainingSetsCount} Sets Logged`)
+                        : t('· 已同步', '· Synced')}
                     </Text>
                   </View>
                 </View>
@@ -1303,13 +1738,35 @@ export function IsometricStudioStage({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="星愿纪念台与心愿金库"
-                onPress={() => setSelectedZone('wishes')}
+                onPress={() => selectIslandAndSync('wishes')}
                 style={[
                   styles.isoIslandSlot,
                   selectedZone === 'wishes' ? styles.isoNodeSelected : null,
                 ]}
               >
                 <View style={styles.islandArtWrap}>
+                  {/* Interactive Callout Pin */}
+                  <View
+                    style={[
+                      styles.islandCalloutPin,
+                      {
+                        backgroundColor:
+                          selectedZone === 'wishes' ? pal.goldAccent : pal.pillBg,
+                        borderColor: pal.goldAccent,
+                      },
+                    ]}
+                  >
+                    <Text
+                      variant="caption"
+                      style={{
+                        color: selectedZone === 'wishes' ? '#1c1917' : pal.goldText,
+                        fontSize: 10,
+                        fontWeight: '700',
+                      }}
+                    >
+                      {t('③ 点击联动：纪念日 & OKR/心愿', '③ Click: Milestones & OKR')}
+                    </Text>
+                  </View>
                   <IsometricLifeZoneSvg
                     zone="wishes"
                     active={selectedZone === 'wishes'}
@@ -1329,7 +1786,7 @@ export function IsometricStudioStage({
                   >
                     <View style={styles.hudTitleRow}>
                       <Text variant="label" style={[styles.hudTitleText, { color: pal.ink }]}>
-                        星愿纪念台
+                        {t('星愿纪念台', 'Wish Altar')}
                       </Text>
                       <Text variant="caption" style={{ color: pal.goldAccent, fontSize: 11 }}>
                         🎁
@@ -1338,7 +1795,7 @@ export function IsometricStudioStage({
                     <Text variant="caption" style={[styles.hudMetricText, { color: pal.sub }]}>
                       {nearestMs
                         ? `· ${nearestMs.item.title.slice(0, 5)}${nearestMs.badgeText}`
-                        : `· 纪念日还有 5 天`}
+                        : t('· 纪念日还有 5 天', '· Milestone in 5d')}
                     </Text>
                     <Text variant="caption" style={[styles.hudSubText, { color: pal.muted }]}>
                       {`· ¥${vault.wishBalanceCny.toLocaleString('en-US')}`}
@@ -1346,6 +1803,111 @@ export function IsometricStudioStage({
                   </View>
                 </View>
               </Pressable>
+            </View>
+
+            {/* Active Island Command Dock: Bridges the 3 2.5D Islands with the Homepage Modules Below */}
+            <View
+              style={[
+                styles.islandCommandDock,
+                {
+                  backgroundColor: pal.barBg,
+                  borderColor: activeIslandInfo.accent,
+                },
+              ]}
+            >
+              <View style={styles.islandDockLeft}>
+                <View
+                  style={[
+                    styles.islandDockBadge,
+                    { backgroundColor: `${activeIslandInfo.accent}22`, borderColor: activeIslandInfo.accent },
+                  ]}
+                >
+                  <Text
+                    variant="caption"
+                    style={{ color: activeIslandInfo.accent, fontWeight: '700', fontSize: 11 }}
+                  >
+                    {activeIslandInfo.badge}
+                  </Text>
+                </View>
+                <Text
+                  variant="caption"
+                  style={{ color: pal.sub, fontSize: 11.5, flex: 1 }}
+                  numberOfLines={1}
+                >
+                  {activeIslandInfo.title}
+                </Text>
+              </View>
+
+              <View style={styles.islandDockActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={activeIslandInfo.onPrimary}
+                  style={[
+                    styles.dockActionBtn,
+                    {
+                      backgroundColor: pal.pillActiveBg,
+                      borderColor: activeIslandInfo.accent,
+                    },
+                  ]}
+                >
+                  <Text
+                    variant="caption"
+                    style={{ color: pal.goldText, fontWeight: '700', fontSize: 11 }}
+                  >
+                    {activeIslandInfo.ctaLabel}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={activeIslandInfo.onSecondary}
+                  style={[
+                    styles.dockActionBtn,
+                    {
+                      backgroundColor: pal.pillBg,
+                      borderColor: pal.bentoBorder,
+                    },
+                  ]}
+                >
+                  <Text
+                    variant="caption"
+                    style={{ color: pal.ink, fontWeight: '600', fontSize: 11 }}
+                  >
+                    {activeIslandInfo.secondaryLabel}
+                  </Text>
+                </Pressable>
+                {onSelectModuleFilter ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() =>
+                      onSelectModuleFilter(
+                        activeModuleFilter === selectedZone ? 'all' : selectedZone,
+                      )
+                    }
+                    style={[
+                      styles.dockActionBtn,
+                      {
+                        backgroundColor:
+                          activeModuleFilter === selectedZone ? pal.pillActiveBg : pal.pillBg,
+                        borderColor:
+                          activeModuleFilter === selectedZone ? pal.goldAccent : pal.bentoBorder,
+                      },
+                    ]}
+                  >
+                    <Text
+                      variant="caption"
+                      style={{
+                        color: activeModuleFilter === selectedZone ? pal.goldText : pal.muted,
+                        fontWeight: '600',
+                        fontSize: 11,
+                      }}
+                    >
+                      {activeModuleFilter === selectedZone
+                        ? t('✦ 正在聚焦该模块 (点此看全部)', '✦ Filtering Module (Show All)')
+                        : t('🔍 仅看下方对应模块', '🔍 Filter Below to This Zone')}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
           </View>
 
@@ -1363,7 +1925,7 @@ export function IsometricStudioStage({
             >
               <View style={styles.bentoHeader}>
                 <Text variant="label" style={[styles.bentoTitle, { color: pal.ink }]}>
-                  24H 时间块矩阵
+                  {t('24H 时间块矩阵', '24H Time-Block Matrix')}
                 </Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <View
@@ -1558,7 +2120,7 @@ export function IsometricStudioStage({
               >
                 <View style={styles.bentoHeader}>
                   <Text variant="label" style={[styles.bentoTitle, { color: pal.ink }]}>
-                    OKR 目标进度 🎯
+                    {t('OKR 目标进度 🎯', 'OKR Objectives 🎯')}
                   </Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     <Pressable
@@ -1628,7 +2190,10 @@ export function IsometricStudioStage({
                           const v = recordPledgeReward(`OKR 推进：${item.kr.title}`, localDay);
                           setVault(v);
                           showToast({
-                            text: `已推进「${item.kr.title}」· 心愿金库 +¥${v.config.checkInRewardCny}`,
+                            text: t(
+                              `已推进「${item.kr.title}」· 心愿金库 +¥${v.config.checkInRewardCny}`,
+                              `Advanced "${item.kr.title}" · Wish Vault +¥${v.config.checkInRewardCny}`,
+                            ),
                           });
                         }}
                         style={[
@@ -1686,7 +2251,7 @@ export function IsometricStudioStage({
               >
                 <View style={styles.bentoHeader}>
                   <Text variant="label" style={[styles.bentoTitle, { color: pal.ink }]}>
-                    365 天人生星图热力矩阵
+                    {t('365 天人生星图热力矩阵', '365-Day Life Synergy Heatmap')}
                   </Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     <View
@@ -1725,7 +2290,10 @@ export function IsometricStudioStage({
                 <View style={styles.miniHeatmapFooter}>
                   <Text variant="caption" style={{ color: pal.muted, fontSize: 10.5 }}>
                     {selectedHeatmapCell
-                      ? `${selectedHeatmapCell.localDay} · 热力 Lv.${selectedHeatmapCell.level}/4 · 专注 ${selectedHeatmapCell.studyMinutes}m`
+                      ? t(
+                          `${selectedHeatmapCell.localDay} · 热力 Lv.${selectedHeatmapCell.level}/4 · 专注 ${selectedHeatmapCell.studyMinutes}m`,
+                          `${selectedHeatmapCell.localDay} · Lv.${selectedHeatmapCell.level}/4 · Focus ${selectedHeatmapCell.studyMinutes}m`,
+                        )
                       : '365 day heatmap'}
                   </Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -1751,33 +2319,59 @@ export function IsometricStudioStage({
           <View style={styles.dayCycleGrid}>
             {[
               {
-                phase: '06:00 – 09:00 · 晨间唤醒',
-                title: '空腹晨重 & 目标校准',
-                status: latestWeightKg ? `已记晨重 ${latestWeightKg.toFixed(1)} kg` : '待记录今日晨重',
-                detail: '早起空腹称重最能反映真实体脂趋势，完成后自动点亮今日第一块基石。',
+                phase: t('06:00 – 09:00 · 晨间唤醒', '06:00 – 09:00 · Morning Awakening'),
+                title: t('空腹晨重 & 目标校准', 'Morning Weigh-In & Calibration'),
+                status: latestWeightKg
+                  ? t(`已记晨重 ${latestWeightKg.toFixed(1)} kg`, `Logged ${latestWeightKg.toFixed(1)} kg`)
+                  : t('待记录今日晨重', 'Pending Morning Weigh-In'),
+                detail: t(
+                  '早起空腹称重最能反映真实体脂趋势，完成后自动点亮今日第一块基石。',
+                  'Morning fasting weight best reflects your true body-fat trend and lights up your first daily milestone.',
+                ),
                 accent: pal.emeraldAccent,
               },
               {
-                phase: '09:00 – 18:00 · 日间心流',
-                title: '深度专注 & 一万小时积累',
-                status: `今日已投入 ${trackedMinsToday} 分钟`,
-                detail: '将高难度学习与创造放在精力峰值时段，每一分钟都会沉淀进 10,000 小时定律。',
+                phase: t('09:00 – 18:00 · 日间心流', '09:00 – 18:00 · Daytime Deep Flow'),
+                title: t('深度专注 & 一万小时积累', 'Deep Focus & 10,000-Hour Mastery'),
+                status: t(`今日已投入 ${trackedMinsToday} 分钟`, `${trackedMinsToday} mins invested today`),
+                detail: t(
+                  '将高难度学习与创造放在精力峰值时段，每一分钟都会沉淀进 10,000 小时定律。',
+                  'Schedule demanding creation during peak energy windows—every minute compounds into your 10,000-hour mastery.',
+                ),
                 accent: pal.terracottaAccent,
               },
               {
-                phase: '18:00 – 21:00 · 晚间活力',
-                title: '力量/有氧训练 & 身体恢复',
-                status: trainingSetsCount > 0 ? `已完成 ${trainingSetsCount} 组 (${Math.round(trainingVolumeKg)} kg)` : '待开启今日运动',
-                detail: '力量或有氧训练不仅塑造体态，还能为次日带来更高的深度专注时长。',
+                phase: t('18:00 – 21:00 · 晚间活力', '18:00 – 21:00 · Evening Vitality'),
+                title: t('力量/有氧训练 & 身体恢复', 'Strength / Cardio & Recovery'),
+                status:
+                  trainingSetsCount > 0
+                    ? t(
+                        `已完成 ${trainingSetsCount} 组 (${Math.round(trainingVolumeKg)} kg)`,
+                        `${trainingSetsCount} sets (${Math.round(trainingVolumeKg)} kg)`,
+                      )
+                    : t('待开启今日运动', 'Workout Pending'),
+                detail: t(
+                  '力量或有氧训练不仅塑造体态，还能为次日带来更高的深度专注时长。',
+                  'Strength and cardio training sharpen both physique and next-day cognitive endurance.',
+                ),
                 accent: '#38bdf8',
               },
               {
-                phase: '21:00 – 23:30 · 夜间复盘',
-                title: '习惯打卡、纪念日与心愿蓄力',
-                status: `习惯 ${habitsDoneToday}/${habits.length} · 心愿池 ¥${vault.wishBalanceCny}`,
+                phase: t('21:00 – 23:30 · 夜间复盘', '21:00 – 23:30 · Nightly Reflection'),
+                title: t('习惯打卡、纪念日与心愿蓄力', 'Habits, Milestones & Wish Vault'),
+                status: t(
+                  `习惯 ${habitsDoneToday}/${habits.length} · 心愿池 ¥${vault.wishBalanceCny}`,
+                  `Habits ${habitsDoneToday}/${habits.length} · Vault ¥${vault.wishBalanceCny}`,
+                ),
                 detail: nearestMs
-                  ? `距离「${nearestMs.item.title}」${nearestMs.badgeText}，每一次打卡都在为心愿蓄力。`
-                  : '睡前花 2 分钟完成习惯打卡与随手记，让一天有始有终。',
+                  ? t(
+                      `距离「${nearestMs.item.title}」${nearestMs.badgeText}，每一次打卡都在为心愿蓄力。`,
+                      `Upcoming "${nearestMs.item.title}" (${nearestMs.badgeText})—every check-in funds your Wish Vault.`,
+                    )
+                  : t(
+                      '睡前花 2 分钟完成习惯打卡与随手记，让一天有始有终。',
+                      'Spend 2 minutes before bed checking off daily habits and notes.',
+                    ),
                 accent: pal.goldAccent,
               },
             ].map((slot) => (
@@ -1822,57 +2416,59 @@ export function IsometricStudioStage({
         <View style={[styles.ledgerGrid, { backgroundColor: pal.stageBg }]}>
           <View style={[styles.ledgerCol, { borderRightColor: pal.hairline }]}>
             <Text variant="caption" style={[styles.ledgerKey, { color: pal.muted }]}>
-              今日三件事
+              {t('今日三件事', 'Daily Core 3')}
             </Text>
             <Text variant="heading" style={{ color: loggedCount === 3 ? pal.emeraldAccent : pal.terracottaAccent }}>
-              {`${loggedCount} / 3 已记`}
+              {t(`${loggedCount} / 3 已记`, `${loggedCount} / 3 Logged`)}
             </Text>
             <Text variant="caption" style={[styles.ledgerSub, { color: pal.muted }]}>
-              晨重 · 训练 · 学习
+              {t('晨重 · 训练 · 学习', 'Weight · Workout · Study')}
             </Text>
           </View>
           <View style={[styles.ledgerCol, { borderRightColor: pal.hairline }]}>
             <Text variant="caption" style={[styles.ledgerKey, { color: pal.muted }]}>
-              近 7 日晨重
+              {t('近 7 日晨重', '7-Day Weigh-Ins')}
             </Text>
             <Text variant="heading" style={{ color: pal.ink }}>
-              {`${activeWeightDays} / 7 天`}
+              {t(`${activeWeightDays} / 7 天`, `${activeWeightDays} / 7 Days`)}
             </Text>
             <Text variant="caption" style={[styles.ledgerSub, { color: pal.muted }]}>
-              稳定追踪均重趋势
+              {t('稳定追踪均重趋势', 'Rolling EMA weight trend')}
             </Text>
           </View>
           <View style={[styles.ledgerCol, { borderRightColor: pal.hairline }]}>
             <Text variant="caption" style={[styles.ledgerKey, { color: pal.muted }]}>
-              今日训练负荷
+              {t('今日训练负荷', 'Training Load')}
             </Text>
             <Text variant="heading" style={{ color: pal.ink }}>
-              {`${trainingSetsCount} 组`}
+              {t(`${trainingSetsCount} 组`, `${trainingSetsCount} Sets`)}
             </Text>
             <Text variant="caption" style={[styles.ledgerSub, { color: pal.muted }]}>
-              {`累计容量 ${Math.round(trainingVolumeKg)} kg`}
+              {t(`累计容量 ${Math.round(trainingVolumeKg)} kg`, `Volume ${Math.round(trainingVolumeKg)} kg`)}
             </Text>
           </View>
           <View style={[styles.ledgerCol, { borderRightColor: pal.hairline }]}>
             <Text variant="caption" style={[styles.ledgerKey, { color: pal.muted }]}>
-              今日专注时间块
+              {t('今日专注时间块', 'Focus Time Blocks')}
             </Text>
             <Text variant="heading" style={{ color: pal.ink }}>
-              {`${trackedMinsToday} 分钟`}
+              {t(`${trackedMinsToday} 分钟`, `${trackedMinsToday} mins`)}
             </Text>
             <Text variant="caption" style={[styles.ledgerSub, { color: pal.muted }]}>
-              {`已完成 ${studyCount} 项学习`}
+              {t(`已完成 ${studyCount} 项学习`, `${studyCount} study sessions`)}
             </Text>
           </View>
           <View style={styles.ledgerCol}>
             <Text variant="caption" style={[styles.ledgerKey, { color: pal.muted }]}>
-              心愿池 &amp; OKR
+              {t('心愿池 & OKR', 'Wish Vault & OKR')}
             </Text>
             <Text variant="heading" style={{ color: pal.goldText }}>
               {`¥${vault.wishBalanceCny} · ${avgOkrPct}%`}
             </Text>
             <Text variant="caption" style={[styles.ledgerSub, { color: pal.muted }]}>
-              {nearestMs ? `${nearestMs.item.title} ${nearestMs.badgeText}` : `习惯 ${habitsDoneToday}/${habits.length}`}
+              {nearestMs
+                ? `${nearestMs.item.title} ${nearestMs.badgeText}`
+                : t(`习惯 ${habitsDoneToday}/${habits.length}`, `Habits ${habitsDoneToday}/${habits.length}`)}
             </Text>
           </View>
         </View>
@@ -1890,14 +2486,14 @@ export function IsometricStudioStage({
       >
         <View style={styles.quickDispatchLeft}>
           <Text variant="caption" style={{ color: pal.muted, fontWeight: '600' }}>
-            快捷记录
+            {t('快捷记录', 'Quick Log')}
           </Text>
           <Pressable
             onPress={onQuickWeight}
             style={[styles.quickPill, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
           >
             <Text variant="caption" style={[styles.quickPillText, { color: pal.ink }]}>
-              ＋ 晨重 ⌘K
+              {t('＋ 晨重 ⌘K', '＋ Weight ⌘K')}
             </Text>
           </Pressable>
           <Pressable
@@ -1905,7 +2501,7 @@ export function IsometricStudioStage({
             style={[styles.quickPill, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
           >
             <Text variant="caption" style={[styles.quickPillText, { color: pal.ink }]}>
-              ＋ 训练 ⇧⌘T
+              {t('＋ 训练 ⇧⌘T', '＋ Workout ⇧⌘T')}
             </Text>
           </Pressable>
           <Pressable
@@ -1913,7 +2509,7 @@ export function IsometricStudioStage({
             style={[styles.quickPill, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
           >
             <Text variant="caption" style={[styles.quickPillText, { color: pal.ink }]}>
-              ＋ 学习 ⇧⌘L
+              {t('＋ 学习 ⇧⌘L', '＋ Study ⇧⌘L')}
             </Text>
           </Pressable>
           <Pressable
@@ -1921,7 +2517,7 @@ export function IsometricStudioStage({
             style={[styles.quickPill, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
           >
             <Text variant="caption" style={[styles.quickPillText, { color: pal.ink }]}>
-              ＋ 时间块 ⇧⌘J
+              {t('＋ 时间块 ⇧⌘J', '＋ Time Block ⇧⌘J')}
             </Text>
           </Pressable>
         </View>
@@ -1931,7 +2527,9 @@ export function IsometricStudioStage({
             style={[styles.quickPill, { backgroundColor: pal.pillBg, borderColor: pal.bentoBorder }]}
           >
             <Text variant="caption" style={[styles.quickPillText, { color: pal.ink }]}>
-              {mode === 'charioteer-host' ? 'Charioteer 挂载态 (⌘B) →' : '工作台导览 (⌘B) →'}
+              {mode === 'charioteer-host'
+                ? t('Charioteer 挂载态 (⌘B) →', 'Charioteer Host (⌘B) →')
+                : t('工作台导览 (⌘B) →', 'Workbench Guide (⌘B) →')}
             </Text>
           </Pressable>
         ) : null}
@@ -1960,7 +2558,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
   },
   brandDot: {
     width: 8,
@@ -2008,7 +2606,7 @@ const styles = StyleSheet.create({
   },
   dispatchBtn: {
     height: 30,
-    paddingHorizontal: 12,
+    paddingHorizontal: 11,
     borderRadius: 7,
     borderWidth: 1,
     alignItems: 'center',
@@ -2017,6 +2615,67 @@ const styles = StyleSheet.create({
   dispatchBtnText: {
     fontSize: 11.5,
     fontWeight: '600',
+  },
+  workflowLoopRibbon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+  },
+  workflowHeaderCol: {
+    gap: 2,
+    minWidth: 150,
+  },
+  workflowStepsRow: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  workflowStepCard: {
+    flex: 1,
+    minWidth: 165,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  workflowStepTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  workflowStatusBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  onboardingDrawer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    gap: 10,
+  },
+  onboardingDrawerHeader: {
+    gap: 3,
+  },
+  onboardingCols: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  onboardingColCard: {
+    flex: 1,
+    minWidth: 230,
+    padding: 11,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 4,
   },
   dioramaStageWrap: {
     paddingBottom: 14,
@@ -2049,13 +2708,64 @@ const styles = StyleSheet.create({
   islandArtWrap: {
     position: 'relative',
     width: 280,
-    height: 190,
+    height: 196,
     justifyContent: 'flex-end',
     alignItems: 'flex-start',
   },
-  floatingHudCorner: {
+  islandCalloutPin: {
     position: 'absolute',
     top: 4,
+    left: 6,
+    zIndex: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  islandCommandDock: {
+    marginHorizontal: 14,
+    marginTop: 4,
+    marginBottom: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+    zIndex: 3,
+  },
+  islandDockLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    flex: 1,
+    minWidth: 240,
+  },
+  islandDockBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  islandDockActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  dockActionBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  floatingHudCorner: {
+    position: 'absolute',
+    top: 28,
     right: 0,
     zIndex: 5,
     minWidth: 126,

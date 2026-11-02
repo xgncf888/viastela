@@ -7,12 +7,14 @@ import {
   filterWorkbenchCommands,
   type RuntimeHostMode,
 } from '@/core/charioteer-plugin';
+import { useI18n } from './use-i18n';
 import { cardSurfaceStyle } from './Card';
 import { Text } from './Text';
 import { theme } from './theme';
 import { useTheme } from './ThemeProvider';
-import { IsometricStudioStage } from './IsometricStudioStage';
+import { IsometricStudioStage, type SpatialModuleFilter } from './IsometricStudioStage';
 
+export type { SpatialModuleFilter };
 export type TagChipTone = 'owner' | 'exec' | 'rev' | 'neutral' | 'pod';
 
 /** Charioteer `.tag-chip` semantic badge (`role-owner` terracotta, `role-exec` forest green, `role-rev` amber, `pod` bordered). */
@@ -174,12 +176,13 @@ export function CockpitHeaderBar({
   extra?: ReactNode;
 }) {
   const { color, scheme, toggleTheme } = useTheme();
+  const { locale, toggleLocale, t } = useI18n();
   return (
     <View style={styles.headerBar}>
       <View style={[styles.scopeBar, { backgroundColor: color.paperDeep, borderColor: color.line }]}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="切换工作台作用域"
+          accessibilityLabel={t('切换工作台作用域', 'Switch workspace scope')}
           onPress={onOpenScope}
           style={[
             styles.scopePill,
@@ -198,7 +201,7 @@ export function CockpitHeaderBar({
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="切换暖色调与黑金风主题 (⌘T)"
+          accessibilityLabel={t('切换暖色调与黑金风主题 (⌘T)', 'Toggle Warm Parchment & Obsidian Gold theme (⌘T)')}
           onPress={toggleTheme}
           style={({ pressed }) => [
             styles.scopePill,
@@ -206,14 +209,29 @@ export function CockpitHeaderBar({
           ]}
         >
           <Text variant="caption" tone="muted" style={styles.scopePillText}>
-            {scheme === 'dark' ? '✦ 黑金风 ⇄ 暖色' : '☀ 暖色调 ⇄ 黑金'}
+            {scheme === 'dark'
+              ? t('✦ 黑金 ⇄ 暖色', '✦ Gold ⇄ Warm')
+              : t('☀ 暖色 ⇄ 黑金', '☀ Warm ⇄ Gold')}
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('切换中英文语言 (⌥L)', 'Switch language ZH / EN (⌥L)')}
+          onPress={toggleLocale}
+          style={({ pressed }) => [
+            styles.scopePill,
+            { backgroundColor: pressed ? color.pressed : 'transparent' },
+          ]}
+        >
+          <Text variant="caption" tone="muted" style={styles.scopePillText}>
+            {locale === 'zh' ? '🌐 中/EN' : '🌐 EN/中'}
           </Text>
         </Pressable>
       </View>
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`状态总览 ${hudText}`}
+        accessibilityLabel={`${t('状态总览', 'Status')} ${hudText}`}
         onPress={onOpenScope ?? onOpenPalette}
         style={({ pressed }) => [
           styles.trayHudPill,
@@ -229,9 +247,9 @@ export function CockpitHeaderBar({
 
       {onOpenRecord ? (
         <CockpitPillButton
-          label="＋ 快记 ⌘K"
+          label={t('＋ 快记 ⌘K', '＋ Quick Log ⌘K')}
           variant="accent"
-          accessibilityLabel="顶部快捷记录"
+          accessibilityLabel={t('顶部快捷记录', 'Quick record')}
           onPress={onOpenRecord}
         />
       ) : null}
@@ -265,6 +283,7 @@ export function WorkbenchSidebarPanel({
   onOpenScope?: () => void;
 }) {
   const { color, scheme, toggleTheme } = useTheme();
+  const { locale, toggleLocale, t } = useI18n();
   const loggedCount = (weightLogged ? 1 : 0) + (trainingLogged ? 1 : 0) + (studyLogged ? 1 : 0);
 
   return (
@@ -278,10 +297,14 @@ export function WorkbenchSidebarPanel({
       >
         <View style={styles.telemetryHeader}>
           <Text variant="caption" style={styles.semibold}>
-            今日节律台账
+            {t('今日节律台账', 'Daily Telemetry')}
           </Text>
           <TagChip
-            label={loggedCount === 3 ? '3/3 已满' : `${loggedCount}/3 已记`}
+            label={
+              loggedCount === 3
+                ? t('3/3 已满', '3/3 Done')
+                : `${loggedCount}/3 ${t('已记', 'Logged')}`
+            }
             tone={loggedCount === 3 ? 'exec' : loggedCount > 0 ? 'owner' : 'neutral'}
           />
         </View>
@@ -297,7 +320,7 @@ export function WorkbenchSidebarPanel({
               ]}
             />
             <Text variant="caption" tone={weightLogged ? 'ink' : 'muted'} style={styles.dotLabel}>
-              晨重
+              {t('晨重', 'Weight')}
             </Text>
           </View>
           <View style={styles.dotItem}>
@@ -311,7 +334,7 @@ export function WorkbenchSidebarPanel({
               ]}
             />
             <Text variant="caption" tone={trainingLogged ? 'ink' : 'muted'} style={styles.dotLabel}>
-              训练
+              {t('训练', 'Workout')}
             </Text>
           </View>
           <View style={styles.dotItem}>
@@ -325,7 +348,7 @@ export function WorkbenchSidebarPanel({
               ]}
             />
             <Text variant="caption" tone={studyLogged ? 'ink' : 'muted'} style={styles.dotLabel}>
-              学习
+              {t('学习', 'Study')}
             </Text>
           </View>
         </View>
@@ -333,7 +356,7 @@ export function WorkbenchSidebarPanel({
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="查看本地运行时与 Charioteer 插件连接"
+        accessibilityLabel={t('查看本地运行时与 Charioteer 插件连接', 'Inspect local runtime & Charioteer plugin connection')}
         onPress={onOpenScope ?? onOpenPalette}
         style={({ pressed }) => [
           styles.sideGwBtn,
@@ -344,15 +367,15 @@ export function WorkbenchSidebarPanel({
         <View style={[styles.dotLive, { backgroundColor: color.green }]} />
         <Text variant="caption" style={styles.sideGwText} numberOfLines={1}>
           {mode === 'charioteer-host'
-            ? 'charioteer://plugin · 已挂载'
-            : `local://viastela · ${timeZone ?? '已同步'}`}
+            ? `charioteer://plugin · ${t('已挂载', 'Mounted')}`
+            : `local://viastela · ${timeZone ?? t('已同步', 'Synced')}`}
         </Text>
       </Pressable>
 
       <View style={styles.sideFootLinks}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="快记快捷键"
+          accessibilityLabel={t('快记快捷键', 'Quick record shortcut')}
           onPress={onQuickRecord}
           style={({ pressed }) => [
             styles.sideFootBtn,
@@ -360,7 +383,7 @@ export function WorkbenchSidebarPanel({
           ]}
         >
           <Text variant="caption" tone="muted" style={styles.footBtnText}>
-            Record
+            {t('快记', 'Log')}
           </Text>
           <Text variant="caption" tone="muted" style={styles.footBtnKbd}>
             ⌘K
@@ -368,23 +391,7 @@ export function WorkbenchSidebarPanel({
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="打开工作台指令面板"
-          onPress={onOpenPalette}
-          style={({ pressed }) => [
-            styles.sideFootBtn,
-            { backgroundColor: pressed ? color.pressed : 'transparent' },
-          ]}
-        >
-          <Text variant="caption" tone="muted" style={styles.footBtnText}>
-            Search
-          </Text>
-          <Text variant="caption" tone="muted" style={styles.footBtnKbd}>
-            ⌘P
-          </Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="切换暖色调与黑金风主题"
+          accessibilityLabel={t('切换暖色调与黑金风主题', 'Toggle theme')}
           onPress={toggleTheme}
           style={({ pressed }) => [
             styles.sideFootBtn,
@@ -392,10 +399,26 @@ export function WorkbenchSidebarPanel({
           ]}
         >
           <Text variant="caption" tone="muted" style={styles.footBtnText}>
-            {scheme === 'dark' ? '黑金' : '暖色'}
+            {scheme === 'dark' ? t('黑金', 'Gold') : t('暖色', 'Warm')}
           </Text>
           <Text variant="caption" tone="muted" style={styles.footBtnKbd}>
             ⌘T
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('切换中英文语言', 'Switch ZH / EN language')}
+          onPress={toggleLocale}
+          style={({ pressed }) => [
+            styles.sideFootBtn,
+            { backgroundColor: pressed ? color.pressed : 'transparent' },
+          ]}
+        >
+          <Text variant="caption" tone="muted" style={styles.footBtnText}>
+            {locale === 'zh' ? '中/EN' : 'EN/中'}
+          </Text>
+          <Text variant="caption" tone="muted" style={styles.footBtnKbd}>
+            ⌥L
           </Text>
         </Pressable>
       </View>
@@ -416,6 +439,8 @@ export function WorkbenchConsoleCard({
   trainingVolumeKg,
   studyMinutes,
   studyCount,
+  activeModuleFilter = 'all',
+  onSelectModuleFilter,
   onQuickWeight,
   onQuickTraining,
   onQuickStudy,
@@ -431,6 +456,8 @@ export function WorkbenchConsoleCard({
   trainingVolumeKg: number;
   studyMinutes: number;
   studyCount: number;
+  activeModuleFilter?: SpatialModuleFilter;
+  onSelectModuleFilter?: (filter: SpatialModuleFilter) => void;
   onQuickWeight: () => void;
   onQuickTraining: () => void;
   onQuickStudy: () => void;
@@ -449,6 +476,8 @@ export function WorkbenchConsoleCard({
         trainingVolumeKg={trainingVolumeKg}
         studyMinutes={studyMinutes}
         studyCount={studyCount}
+        activeModuleFilter={activeModuleFilter}
+        onSelectModuleFilter={onSelectModuleFilter}
         onQuickWeight={onQuickWeight}
         onQuickTraining={onQuickTraining}
         onQuickStudy={onQuickStudy}

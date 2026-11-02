@@ -38,6 +38,8 @@ import {
 } from '@/data/life-milestones-okr';
 import { readActiveTimer, readTimeBlocks } from '@/data/time-block-tracker';
 
+import { useI18n } from './use-i18n';
+
 import { Button } from './Button';
 import { Card, cardSurfaceStyle } from './Card';
 import { Chip } from './Chip';
@@ -63,6 +65,7 @@ export function LifeSynergyPlaygroundHub({
   studyRecords: readonly StudyRecord[];
 }) {
   const { color } = useTheme();
+  const { t } = useI18n();
   const [vault, setVault] = useState<PledgeVaultState>(readPledgeVault);
   const [capsules, setCapsules] = useState<TimeCapsuleItem[]>(readTimeCapsules);
   const [milestones, setMilestones] = useState<LifeMilestone[]>(readLifeMilestones);
@@ -245,23 +248,24 @@ export function LifeSynergyPlaygroundHub({
         <Row justify="between" align="center" gap="sm" wrap>
           <Row gap="sm" align="center" wrap>
             <Text variant="heading">
-              高阶联动实验室 · 对赌心愿金库 · 身心同频分析 · 年度星图与时间胶囊
+              {t('高阶联动实验室 · 对赌心愿金库 · 身心同频分析 · 年度星图与时间胶囊', 'Life Synergy Lab · Wish Pledge Vault · Mind-Body Correlation · Time Capsules')}
             </Text>
-            <TagChip label={`菜单栏常驻: ${menuBarTitle}`} tone="exec" />
+            <TagChip label={t(`菜单栏常驻: ${menuBarTitle}`, `Menu Bar: ${menuBarTitle}`)} tone="exec" />
           </Row>
           <Row gap="xs" align="center" wrap>
             <CockpitPillButton
-              label="+ 新增心愿奖励"
+              label={t('+ 新增心愿奖励', '+ Add Wish Reward')}
               accessibilityLabel="新增对赌心愿奖励池目标"
               onPress={() => setWishFormOpen((prev) => !prev)}
             />
             <CockpitPillButton
-              label="+ 封存时间胶囊"
+              label={t('+ 封存时间胶囊', '+ Seal Time Capsule')}
               accessibilityLabel="写一封定时解锁的时间胶囊信件"
               onPress={() => setCapsuleFormOpen((prev) => !prev)}
             />
             <CockpitPillButton
-              label="同步 macOS 菜单栏"
+              label={t('同步 macOS 菜单栏', 'Sync macOS Menu Bar')}
+
               accessibilityLabel="立即将当前专注计时与纪念日倒数同步至 macOS 顶部状态栏"
               onPress={() => {
                 void pushNativeMenuBarTitle(menuBarTitle).then((ok) => {
