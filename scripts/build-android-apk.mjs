@@ -213,6 +213,22 @@ public class MainActivity extends Activity {
                 Uri uri = request.getUrl();
                 if (uri != null && "appassets.androidplatform.net".equals(uri.getHost())) {
                     String relPath = uri.getPath();
+                    if ("/__market__/yahoo".equals(relPath)) {
+                        String symbol = uri.getQueryParameter("symbol");
+                        if (symbol != null && !symbol.isEmpty()) {
+                            try {
+                                java.net.URL remote = new java.net.URL("https://query1.finance.yahoo.com/v8/finance/chart/" + Uri.encode(symbol) + "?interval=5m&range=1d");
+                                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) remote.openConnection();
+                                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14)");
+                                conn.setConnectTimeout(4000);
+                                conn.setReadTimeout(4000);
+                                InputStream is = conn.getInputStream();
+                                Map<String, String> headers = new HashMap<>();
+                                headers.put("Access-Control-Allow-Origin", "*");
+                                return new WebResourceResponse("application/json", "UTF-8", 200, "OK", headers, is);
+                            } catch (Exception ignored) {}
+                        }
+                    }
                     if (relPath == null || relPath.isEmpty() || "/".equals(relPath)) {
                         relPath = "/index.html";
                     }

@@ -606,6 +606,32 @@ class BundleSchemeHandler: NSObject, WKURLSchemeHandler {
         if relPath.hasPrefix("/") {
             relPath.removeFirst()
         }
+
+        if relPath == "__market__/yahoo",
+           let comps = URLComponents(url: url, resolvingAgainstBaseURL: false),
+           let symbol = comps.queryItems?.first(where: { $0.name == "symbol" })?.value,
+           let encoded = symbol.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+           let remoteURL = URL(string: "https://query1.finance.yahoo.com/v8/finance/chart/\\(encoded)?interval=5m&range=1d") {
+            var req = URLRequest(url: remoteURL)
+            req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
+            req.timeoutInterval = 4.0
+            URLSession.shared.dataTask(with: req) { data, _, _ in
+                let payload = data ?? Data("{}".utf8)
+                let headers: [String: String] = [
+                    "Content-Type": "application/json; charset=utf-8",
+                    "Content-Length": "\\(payload.count)",
+                    "Access-Control-Allow-Origin": "*",
+                    "Cache-Control": "no-cache"
+                ]
+                if let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers) {
+                    urlSchemeTask.didReceive(response)
+                }
+                urlSchemeTask.didReceive(payload)
+                urlSchemeTask.didFinish()
+            }.resume()
+            return
+        }
+
         if relPath.isEmpty {
             relPath = "index.html"
         }

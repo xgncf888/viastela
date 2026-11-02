@@ -19,6 +19,7 @@ import {
   readFinnhubApiKey,
   readRefreshIntervalSec,
   refreshMarketQuotes,
+  subscribeBtcRealtimeStream,
   writeColorConvention,
   writeCustomWatchlist,
   writeFinnhubApiKey,
@@ -126,16 +127,51 @@ export function MarketPulseBoard({
   );
 
   useEffect(() => {
-    void triggerRefresh(false);
-  }, [triggerRefresh]);
+    let active = true;
+    void refreshMarketQuotes(holdingSymbols, watchlist).then((next) => {
+      if (!active) return;
+      setQuotes(next);
+      onSyncPortfolioQuotes?.();
+    });
+    return () => {
+      active = false;
+    };
+  }, [holdingSymbols, onSyncPortfolioQuotes, watchlist]);
 
   useEffect(() => {
     if (intervalSec <= 0) return undefined;
     const timer = setInterval(() => {
-      void triggerRefresh(false);
+      void refreshMarketQuotes(holdingSymbols, watchlist).then((next) => {
+        setQuotes(next);
+        onSyncPortfolioQuotes?.();
+      });
     }, intervalSec * 1000);
     return () => clearInterval(timer);
-  }, [intervalSec, triggerRefresh]);
+  }, [holdingSymbols, intervalSec, onSyncPortfolioQuotes, watchlist]);
+
+  // Connect sub-second WebSocket stream for BTC 24h real-time ticks
+  useEffect(() => {
+    return subscribeBtcRealtimeStream((tick) => {
+      setQuotes((prev) =>
+        prev.map((item) => {
+          if (item.symbol !== 'BTC') return item;
+          const nextSpark =
+            item.sparkline.length >= 4
+              ? [...item.sparkline.slice(0, -1), tick.price]
+              : [...item.sparkline, tick.price];
+          return {
+            ...item,
+            price: tick.price,
+            change: tick.change,
+            changePct: tick.changePct,
+            sparkline: nextSpark,
+            source: 'live',
+            asOf: new Date().toISOString(),
+          };
+        }),
+      );
+    });
+  }, []);
 
   function onToggleColorConv() {
     const next: ColorConvention = colorConv === 'intl' ? 'cn' : 'intl';
@@ -260,12 +296,12 @@ export function MarketPulseBoard({
           <View style={[styles.subPanel, { backgroundColor: color.surface, borderColor: color.line }]}>
             <Stack gap="xs">
               <TextField
-                label="添加股票 / ETF / 港A股代码"
+                label="添加股票 / ETF / 港A股代码（美股自动识别纳斯达克 / 纽交所 / AMEX）"
                 value={symbolInput}
                 onChangeText={setSymbolInput}
                 onSubmitEditing={onAddCustomSymbol}
                 returnKeyType="done"
-                placeholder="例如 TSLA、MSFT、QQQ、00700.HK、600519.SH"
+                placeholder="例如 TSLA、BABA、BRK、SPY、00700.HK、600519.SH"
                 autoCapitalize="none"
                 autoFocus
               />
@@ -281,7 +317,7 @@ export function MarketPulseBoard({
           <View style={[styles.subPanel, { backgroundColor: color.surface, borderColor: color.line }]}>
             <Stack gap="xs">
               <Text variant="caption" tone="muted">
-                默认已开启「免 Key 全球行情直连」（自动拉取标普 500、纳指 100、道指、恒指、沪深 300、BTC 与美元汇率，并自动同步至持仓估值）。如需接入 Finnhub 专属实时流，可在下方填入 API Key：
+                默认已开启「免 Key 多源实时直连 + 真实日内分时曲线」（自动聚合美股/港A股秒级行情与分钟线、Binance 24H WebSocket 毫秒级流、Yahoo Finance 5m 图表与汇率，并自动同步至持仓估值）。如需额外叠加 Finnhub 专属流，可在下方填入 API Key：
               </Text>
               <TextField
                 label="FINNHUB API KEY（选填）"

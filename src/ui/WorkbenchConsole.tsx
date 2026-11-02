@@ -678,10 +678,6 @@ export function WorkbenchCommandPalette({
   const filtered = filterWorkbenchCommands(manifest.contributions.commands, query);
 
   useEffect(() => {
-    setActiveIndex(0);
-  }, [query, visible]);
-
-  useEffect(() => {
     if (!visible || Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'ArrowDown') {
@@ -698,6 +694,7 @@ export function WorkbenchCommandPalette({
           event.preventDefault();
           onExecuteCommand(selected);
           setQuery('');
+          setActiveIndex(0);
         }
       }
     };
@@ -745,7 +742,10 @@ export function WorkbenchCommandPalette({
             </View>
             <TextInput
               value={query}
-              onChangeText={setQuery}
+              onChangeText={(text) => {
+                setQuery(text);
+                setActiveIndex(0);
+              }}
               placeholder="输入指令名称或快捷键过滤（支持 ↑/↓ 选择，Enter 执行）…"
               placeholderTextColor={color.muted}
               autoFocus={Platform.OS === 'web'}

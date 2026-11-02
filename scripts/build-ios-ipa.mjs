@@ -166,6 +166,24 @@ final class LocalSchemeHandler: NSObject, WKURLSchemeHandler {
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
         guard let url = urlSchemeTask.request.url else { return }
         var relPath = url.path
+        if relPath == "/__market__/yahoo",
+           let comps = URLComponents(url: url, resolvingAgainstBaseURL: false),
+           let symbol = comps.queryItems?.first(where: { $0.name == "symbol" })?.value,
+           let encoded = symbol.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+           let remoteURL = URL(string: "https://query1.finance.yahoo.com/v8/finance/chart/\\(encoded)?interval=5m&range=1d") {
+            var req = URLRequest(url: remoteURL)
+            req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
+            req.timeoutInterval = 4.0
+            URLSession.shared.dataTask(with: req) { data, _, _ in
+                let payload = data ?? Data("{}".utf8)
+                if let resp = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*"]) {
+                    urlSchemeTask.didReceive(resp)
+                    urlSchemeTask.didReceive(payload)
+                    urlSchemeTask.didFinish()
+                }
+            }.resume()
+            return
+        }
         if relPath.isEmpty || relPath == "/" { relPath = "/index.html" }
         let cleanRel = String(relPath.dropFirst())
         var target = webRoot.appendingPathComponent(cleanRel)

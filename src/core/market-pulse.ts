@@ -7,6 +7,8 @@ export type MarketInstrument = {
   name: string;
   category: MarketCategory;
   tencentCode?: string;
+  tencentMinuteCode?: string;
+  yahooSymbol?: string;
   finnhubSymbol?: string;
   currency: string;
   decimals: number;
@@ -34,6 +36,8 @@ export const DEFAULT_MARKET_INSTRUMENTS: readonly MarketInstrument[] = [
     name: '标普 500',
     category: 'us',
     tencentCode: 's_usINX',
+    tencentMinuteCode: 'us.INX',
+    yahooSymbol: '^GSPC',
     finnhubSymbol: 'SPY',
     currency: 'PTS',
     decimals: 2,
@@ -43,6 +47,8 @@ export const DEFAULT_MARKET_INSTRUMENTS: readonly MarketInstrument[] = [
     name: '纳斯达克 100',
     category: 'us',
     tencentCode: 's_usNDX',
+    tencentMinuteCode: 'us.NDX',
+    yahooSymbol: '^NDX',
     finnhubSymbol: 'QQQ',
     currency: 'PTS',
     decimals: 2,
@@ -52,6 +58,8 @@ export const DEFAULT_MARKET_INSTRUMENTS: readonly MarketInstrument[] = [
     name: '道琼斯工业',
     category: 'us',
     tencentCode: 's_usDJI',
+    tencentMinuteCode: 'us.DJI',
+    yahooSymbol: '^DJI',
     finnhubSymbol: 'DIA',
     currency: 'PTS',
     decimals: 2,
@@ -61,6 +69,8 @@ export const DEFAULT_MARKET_INSTRUMENTS: readonly MarketInstrument[] = [
     name: '恒生指数',
     category: 'apac',
     tencentCode: 's_hkHSI',
+    tencentMinuteCode: 'hkHSI',
+    yahooSymbol: '^HSI',
     currency: 'PTS',
     decimals: 2,
   },
@@ -69,6 +79,8 @@ export const DEFAULT_MARKET_INSTRUMENTS: readonly MarketInstrument[] = [
     name: '沪深 300',
     category: 'apac',
     tencentCode: 's_sh000300',
+    tencentMinuteCode: 'sh000300',
+    yahooSymbol: '000300.SS',
     currency: 'PTS',
     decimals: 2,
   },
@@ -76,6 +88,7 @@ export const DEFAULT_MARKET_INSTRUMENTS: readonly MarketInstrument[] = [
     symbol: 'BTC',
     name: '比特币 BTC',
     category: 'macro',
+    yahooSymbol: 'BTC-USD',
     currency: 'USD',
     decimals: 0,
   },
@@ -83,6 +96,7 @@ export const DEFAULT_MARKET_INSTRUMENTS: readonly MarketInstrument[] = [
     symbol: 'USD/CNY',
     name: '美元/人民币',
     category: 'macro',
+    yahooSymbol: 'USDCNY=X',
     currency: 'CNY',
     decimals: 4,
   },
@@ -90,6 +104,7 @@ export const DEFAULT_MARKET_INSTRUMENTS: readonly MarketInstrument[] = [
     symbol: 'USD/SGD',
     name: '美元/新币',
     category: 'macro',
+    yahooSymbol: 'USDSGD=X',
     currency: 'SGD',
     decimals: 4,
   },
@@ -98,6 +113,8 @@ export const DEFAULT_MARKET_INSTRUMENTS: readonly MarketInstrument[] = [
     name: 'NVIDIA',
     category: 'equity',
     tencentCode: 's_usNVDA.OQ',
+    tencentMinuteCode: 'usNVDA.OQ',
+    yahooSymbol: 'NVDA',
     finnhubSymbol: 'NVDA',
     currency: 'USD',
     decimals: 2,
@@ -107,6 +124,8 @@ export const DEFAULT_MARKET_INSTRUMENTS: readonly MarketInstrument[] = [
     name: 'Apple',
     category: 'equity',
     tencentCode: 's_usAAPL.OQ',
+    tencentMinuteCode: 'usAAPL.OQ',
+    yahooSymbol: 'AAPL',
     finnhubSymbol: 'AAPL',
     currency: 'USD',
     decimals: 2,
@@ -203,11 +222,35 @@ const KNOWN_NASD_ETFS = new Set([
   'COIN',
   'MSTR',
   'PLTR',
+  'ASML',
+  'ARM',
+  'CRWD',
+  'PANW',
+  'SNPS',
+  'CDNS',
+]);
+
+const KNOWN_AMEX_ETFS = new Set([
+  'SPY',
+  'VOO',
+  'IVV',
+  'DIA',
+  'IWM',
+  'GLD',
+  'SLV',
+  'TLT',
+  'KWEB',
+  'FXI',
+  'VTI',
+  'ARKK',
+  'XLF',
+  'XLK',
+  'XLE',
 ]);
 
 /**
  * Converts a user symbol (`NVDA`, `SPY`, `00700.HK`, `600519.SH`, `BABA`)
- * into a Tencent Finance brief quote code (`s_usNVDA.OQ`, `s_usSPY.AM`, `s_hk00700`, `s_sh600519`).
+ * into a primary Tencent Finance brief quote code (`s_usNVDA.OQ`, `s_usSPY.AM`, `s_hk00700`, `s_sh600519`).
  */
 export function toTencentSymbolCode(rawSymbol: string): string {
   const clean = rawSymbol.trim().toUpperCase();
@@ -233,13 +276,72 @@ export function toTencentSymbolCode(rawSymbol: string): string {
   if (/^[03]\d{5}$/.test(clean)) {
     return `s_sz${clean}`;
   }
-  if (['SPY', 'VOO', 'IVV', 'DIA', 'IWM', 'GLD', 'TLT', 'KWEB', 'FXI'].includes(clean)) {
+  if (clean.endsWith('.OQ') || clean.endsWith('.N') || clean.endsWith('.AM')) {
+    return `s_us${clean}`;
+  }
+  if (KNOWN_AMEX_ETFS.has(clean)) {
     return `s_us${clean}.AM`;
   }
   if (KNOWN_NASD_ETFS.has(clean)) {
     return `s_us${clean}.OQ`;
   }
   return `s_us${clean}.N`;
+}
+
+/**
+ * Returns all candidate Tencent quote codes to probe simultaneously so any US stock/ETF
+ * resolves automatically whether it is listed on NASDAQ (`.OQ`), NYSE (`.N`), or AMEX (`.AM`).
+ */
+export function toTencentCandidateCodes(rawSymbol: string): string[] {
+  const clean = rawSymbol.trim().toUpperCase();
+  const primary = toTencentSymbolCode(clean);
+  if (!primary.startsWith('s_us') || clean === 'SPX' || clean === 'NDX' || clean === 'DJI') {
+    return [primary];
+  }
+  if (clean.endsWith('.OQ') || clean.endsWith('.N') || clean.endsWith('.AM')) {
+    return [primary];
+  }
+  const all = [`s_us${clean}.OQ`, `s_us${clean}.N`, `s_us${clean}.AM`];
+  return [primary, ...all.filter((c) => c !== primary)];
+}
+
+/**
+ * Converts a resolved Tencent quote code (`s_usNVDA.OQ`, `s_usINX`, `s_hk00700`, `s_sh000300`)
+ * into a Tencent minute-chart code (`usNVDA.OQ`, `us.INX`, `hk00700`, `sh000300`).
+ */
+export function toTencentMinuteCode(tencentQuoteCode: string): string {
+  const raw = tencentQuoteCode.startsWith('s_') ? tencentQuoteCode.slice(2) : tencentQuoteCode;
+  if (raw === 'usINX') return 'us.INX';
+  if (raw === 'usNDX') return 'us.NDX';
+  if (raw === 'usDJI') return 'us.DJI';
+  return raw;
+}
+
+/**
+ * Maps a user symbol into a Yahoo Finance `v8/finance/chart` symbol (`^GSPC`, `0700.HK`, `600519.SS`, `USDCNY=X`).
+ */
+export function toYahooChartSymbol(rawSymbol: string): string {
+  const clean = rawSymbol.trim().toUpperCase();
+  const preset = DEFAULT_MARKET_INSTRUMENTS.find((item) => item.symbol === clean);
+  if (preset?.yahooSymbol) return preset.yahooSymbol;
+
+  if (clean.endsWith('.HK')) {
+    const num = clean.slice(0, -3).replace(/^0+/, '').padStart(4, '0');
+    return `${num}.HK`;
+  }
+  if (/^\d{5}$/.test(clean)) {
+    return `${clean.slice(1)}.HK`;
+  }
+  if (clean.endsWith('.SH')) {
+    return `${clean.slice(0, 6)}.SS`;
+  }
+  if (/^6\d{5}$/.test(clean)) {
+    return `${clean}.SS`;
+  }
+  if (/^[03]\d{5}$/.test(clean)) {
+    return `${clean}.SZ`;
+  }
+  return clean.replace(/\.(OQ|N|AM)$/, '');
 }
 
 export function buildCustomInstrument(rawSymbol: string): MarketInstrument {
@@ -249,12 +351,15 @@ export function buildCustomInstrument(rawSymbol: string): MarketInstrument {
 
   const isHk = clean.endsWith('.HK') || /^\d{5}$/.test(clean);
   const isCn = clean.endsWith('.SH') || clean.endsWith('.SZ') || /^\d{6}$/.test(clean);
+  const tencentCode = toTencentSymbolCode(clean);
   return {
     symbol: clean,
     name: clean,
     category: isHk || isCn ? 'apac' : 'equity',
-    tencentCode: toTencentSymbolCode(clean),
-    finnhubSymbol: isHk || isCn ? undefined : clean,
+    tencentCode,
+    tencentMinuteCode: toTencentMinuteCode(tencentCode),
+    yahooSymbol: toYahooChartSymbol(clean),
+    finnhubSymbol: isHk || isCn ? undefined : clean.replace(/\.(OQ|N|AM)$/, ''),
     currency: isHk ? 'HKD' : isCn ? 'CNY' : 'USD',
     decimals: 2,
   };
@@ -288,6 +393,97 @@ export function parseTencentQuoteLine(line: string): {
     price,
     change: Number.isFinite(change) ? change : 0,
     changePct: Number.isFinite(changePct) ? changePct : 0,
+  };
+}
+
+/**
+ * Downsamples a high-frequency intraday price array to `maxPoints` evenly spaced points,
+ * preserving the opening and latest tick.
+ */
+export function downsampleSeries(points: readonly number[], maxPoints = 24): number[] {
+  const valid = points.filter((n) => Number.isFinite(n) && n > 0);
+  if (valid.length <= maxPoints) return [...valid];
+  const sampled: number[] = [];
+  for (let i = 0; i < maxPoints - 1; i += 1) {
+    const idx = Math.floor((i * (valid.length - 1)) / (maxPoints - 1));
+    sampled.push(valid[idx]!);
+  }
+  sampled.push(valid[valid.length - 1]!);
+  return sampled;
+}
+
+/**
+ * Parses Tencent `ifzq.gtimg.cn/appstock/app/minute/query` JSON payload
+ * into a downsampled real intraday sparkline array.
+ */
+export function parseTencentMinuteSeries(
+  payload: unknown,
+  minuteCode: string,
+  maxPoints = 24,
+): number[] {
+  if (!payload || typeof payload !== 'object') return [];
+  const dataRoot = (payload as { data?: Record<string, unknown> }).data;
+  if (!dataRoot || typeof dataRoot !== 'object') return [];
+  const entry = dataRoot[minuteCode] as { data?: { data?: unknown[] } } | undefined;
+  const rawLines = entry?.data?.data;
+  if (!Array.isArray(rawLines) || rawLines.length === 0) return [];
+
+  const prices: number[] = [];
+  for (const item of rawLines) {
+    if (typeof item !== 'string') continue;
+    const parts = item.trim().split(/\s+/);
+    const price = Number.parseFloat(parts[1] ?? '');
+    if (Number.isFinite(price) && price > 0) {
+      prices.push(price);
+    }
+  }
+  return downsampleSeries(prices, maxPoints);
+}
+
+/**
+ * Parses Yahoo Finance `v8/finance/chart/<symbol>?interval=5m&range=1d` JSON payload
+ * into `{ price, change, changePct, sparkline }`.
+ */
+export function parseYahooChartPayload(
+  payload: unknown,
+  maxPoints = 24,
+): {
+  price: number;
+  change: number;
+  changePct: number;
+  sparkline: number[];
+} | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const result = (
+    payload as {
+      chart?: {
+        result?: {
+          meta?: { regularMarketPrice?: number; chartPreviousClose?: number; previousClose?: number };
+          indicators?: { quote?: { close?: (number | null)[] }[] };
+        }[];
+      };
+    }
+  ).chart?.result?.[0];
+  if (!result?.meta) return null;
+
+  const price = Number(result.meta.regularMarketPrice);
+  if (!Number.isFinite(price) || price <= 0) return null;
+  const prevClose = Number(result.meta.chartPreviousClose ?? result.meta.previousClose ?? price);
+  const change = Number.isFinite(prevClose) && prevClose > 0 ? price - prevClose : 0;
+  const changePct = Number.isFinite(prevClose) && prevClose > 0 ? (change / prevClose) * 100 : 0;
+
+  const closes = result.indicators?.quote?.[0]?.close ?? [];
+  const validCloses = closes.filter((v): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0);
+  const sparkline =
+    validCloses.length >= 4
+      ? downsampleSeries([...validCloses, price], maxPoints)
+      : synthesizeSparkline(price, change);
+
+  return {
+    price,
+    change: Number(change.toFixed(4)),
+    changePct: Number(changePct.toFixed(2)),
+    sparkline,
   };
 }
 
@@ -325,7 +521,7 @@ export function synthesizeSparkline(
   existing?: readonly number[],
 ): number[] {
   if (existing && existing.length >= 6) {
-    const next = [...existing.slice(-7), price];
+    const next = [...existing.slice(-23), price];
     return next;
   }
   const prevClose = price - change;
