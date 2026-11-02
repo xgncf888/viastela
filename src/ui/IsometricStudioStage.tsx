@@ -3100,6 +3100,33 @@ export function IsometricStudioStage({
                     {t('✓ 习惯 +¥25', '✓ Habit +¥25')}
                   </Text>
                 </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="老婆协同组队打卡加心愿金"
+                  onPress={() => {
+                    const v = recordPledgeReward('👩‍❤️‍👨 老婆双人组队协同打卡', localDay, 25);
+                    setVault(v);
+                    triggerStageBurst('wishes', t('💗 老婆组队 +¥25 ✦', '💗 Co-Op +¥25 ✦'), '#f472b6', 'reward');
+                    showToast({
+                      text: t(
+                        '👩‍❤️‍👨 已记录「我 & 老婆」双人组队协同打卡 · 共同心愿池 +¥25',
+                        '👩‍❤️‍👨 Logged Couple Co-Op Check-In · Joint Wish Pool +¥25',
+                      ),
+                    });
+                  }}
+                  style={({ pressed }) => [
+                    styles.hudMicroBtn,
+                    {
+                      backgroundColor: 'rgba(244, 114, 182, 0.20)',
+                      borderColor: '#f472b6',
+                      transform: [{ scale: pressed ? 0.92 : 1 }],
+                    },
+                  ]}
+                >
+                  <Text variant="caption" style={{ fontSize: 10, fontWeight: '700', color: '#f472b6' }}>
+                    {t('💗 老婆组队', '💗 Co-Op')}
+                  </Text>
+                </Pressable>
                 {vault.wishBalanceCny >= stageState.wishTargetCny ? (
                   <Pressable
                     accessibilityRole="button"
@@ -3120,7 +3147,7 @@ export function IsometricStudioStage({
                   </Pressable>
                 ) : null}
                 <Pressable
-                  onPress={() => selectIslandAndSync('wishes')}
+                  onPress={() => setPerspective('ledger')}
                   style={({ pressed }) => [
                     styles.hudMicroBtn,
                     {
@@ -3131,7 +3158,7 @@ export function IsometricStudioStage({
                   ]}
                 >
                   <Text variant="caption" style={{ fontSize: 10, color: pal.sub }}>
-                    {t('纪念日与OKR', 'Milestones')}
+                    {t('📈 财富曲线', '📈 Wealth')}
                   </Text>
                 </Pressable>
               </View>

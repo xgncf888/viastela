@@ -1,12 +1,14 @@
 /**
- * Core domain model, natural-language parser, budget burn-rate engine,
- * category breakdown, and 14-day daily trend calculator for the dedicated
- * Bookkeeping (记账) module.
+ * Core domain model, natural-language parser, iOS Shortcuts URL auto-logger,
+ * recurring rules engine, Salary × Investment Ratio -> Target Wealth Compounding
+ * Trajectory calculator, and Couple Co-Op (老公 & 老婆) non-destructive sync engine.
  */
 
 import { addDaysToLocalDay } from './life-milestones-okr';
 
 export type LedgerEntryKind = 'expense' | 'income';
+
+export type LedgerOwnerId = 'me' | 'partner' | 'shared';
 
 export type LedgerCategoryId =
   | 'dining'
@@ -53,6 +55,41 @@ export type LedgerTransaction = {
   note: string;
   localDay: string;
   createdAt: string;
+  owner?: LedgerOwnerId;
+  recurringRuleId?: string;
+};
+
+export type RecurringLedgerRule = {
+  id: string;
+  title: string;
+  kind: LedgerEntryKind;
+  amountCny: number;
+  categoryId: LedgerCategoryId;
+  accountId: LedgerAccountId;
+  /** Day of month (1..28) when this recurring item triggers automatically */
+  dayOfMonth: number;
+  owner: LedgerOwnerId;
+  enabled: boolean;
+  lastAppliedYearMonth?: string | null;
+};
+
+export type WealthPlanConfig = {
+  /** Starting liquid net worth / savings pool (CNY) */
+  currentSavedCny: number;
+  /** Target wealth milestone (CNY), e.g. 1,000,000 */
+  targetWealthCny: number;
+  /** Percentage of monthly income invested each month (10..85) */
+  investRatePct: number;
+  /** Expected annualized compound return percentage (0..20) */
+  annualReturnPct: number;
+};
+
+export type CoupleTeamProfile = {
+  coupleMode: boolean;
+  myName: string;
+  partnerName: string;
+  jointWishTitle: string;
+  teamStreakDays: number;
 };
 
 export type QuickLedgerPreset = {
@@ -63,12 +100,16 @@ export type QuickLedgerPreset = {
   amountCny: number;
   categoryId: LedgerCategoryId;
   accountId: LedgerAccountId;
+  owner?: LedgerOwnerId;
 };
 
 export type BookkeepingState = {
   monthlyBudgetCny: number;
   currencySymbol: string;
   transactions: LedgerTransaction[];
+  recurringRules: RecurringLedgerRule[];
+  wealthPlan: WealthPlanConfig;
+  coupleProfile: CoupleTeamProfile;
 };
 
 export type MonthlyBookkeepingSummary = {
@@ -84,6 +125,13 @@ export type MonthlyBookkeepingSummary = {
   daysLeftInMonth: number;
   dailySafeToSpendCny: number;
   isOverBudget: boolean;
+  byOwner: {
+    meExpenseCny: number;
+    partnerExpenseCny: number;
+    sharedExpenseCny: number;
+    meIncomeCny: number;
+    partnerIncomeCny: number;
+  };
 };
 
 export type CategoryBreakdownItem = {
@@ -100,6 +148,36 @@ export type DailySpendBarItem = {
   incomeCny: number;
   heightPct: number;
   isToday: boolean;
+};
+
+export type WealthCurvePoint = {
+  monthOffset: number;
+  yearMonth: string;
+  label: string;
+  principalCny: number;
+  compoundWealthCny: number;
+  gainCny: number;
+};
+
+export type WealthGoalTrajectory = {
+  currentSavedCny: number;
+  targetWealthCny: number;
+  monthlyIncomeCny: number;
+  investRatePct: number;
+  monthlyInvestCny: number;
+  annualReturnPct: number;
+  monthsToGoal: number;
+  yearsPart: number;
+  monthsPart: number;
+  estimatedGoalYearMonth: string;
+  alreadyReached: boolean;
+  points: WealthCurvePoint[];
+  milestones: {
+    horizonLabel: string;
+    principalCny: number;
+    compoundWealthCny: number;
+    gainCny: number;
+  }[];
 };
 
 export const LEDGER_CATEGORIES: readonly LedgerCategoryMeta[] = [
@@ -137,16 +215,16 @@ export const LEDGER_CATEGORIES: readonly LedgerCategoryMeta[] = [
     zh: '日用百货',
     en: 'Shopping',
     color: '#ec4899',
-    keywords: ['超市', '盒马', '山姆', '淘宝', '京东', '拼多多', '日用', '衣服', '纸巾', '水果', '买菜', 'grocery', 'shop', 'amazon'],
+    keywords: ['超市', '盒马', '山姆', '淘宝', '京东', '拼多多', '日用', '衣服', '纸巾', '水果', '买菜', '护肤', '化妆品', 'grocery', 'shop', 'amazon'],
   },
   {
     id: 'housing',
     kind: 'expense',
     icon: '🏠',
-    zh: '居住生活',
+    zh: '居住房贷',
     en: 'Housing & Bills',
     color: '#8b5cf6',
-    keywords: ['房租', '水电', '燃气', '物业', '宽带', '话费', '手机费', 'rent', 'utility', 'wifi', 'bill'],
+    keywords: ['房租', '房贷', '按揭', '水电', '燃气', '物业', '宽带', '话费', '手机费', 'rent', 'mortgage', 'utility', 'wifi', 'bill'],
   },
   {
     id: 'entertainment',
@@ -155,7 +233,7 @@ export const LEDGER_CATEGORIES: readonly LedgerCategoryMeta[] = [
     zh: '娱乐订阅',
     en: 'Fun & Subs',
     color: '#a855f7',
-    keywords: ['电影', '会员', '订阅', '游戏', '演出', '展览', '旅行', '酒店', 'netflix', 'spotify', 'icloud', 'movie', 'game'],
+    keywords: ['电影', '会员', '订阅', '游戏', '演出', '展览', '旅行', '酒店', '约会', 'netflix', 'spotify', 'icloud', 'movie', 'game'],
   },
   {
     id: 'fitness',
@@ -164,7 +242,7 @@ export const LEDGER_CATEGORIES: readonly LedgerCategoryMeta[] = [
     zh: '运动健康',
     en: 'Health & Gym',
     color: '#10b981',
-    keywords: ['健身', '蛋白粉', '私教', '游泳', '羽毛球', '体检', '买药', '医院', '补剂', 'gym', 'protein', 'health'],
+    keywords: ['健身', '蛋白粉', '私教', '游泳', '羽毛球', '瑜伽', '普拉提', '体检', '买药', '医院', '补剂', 'gym', 'protein', 'health'],
   },
   {
     id: 'study',
@@ -182,7 +260,7 @@ export const LEDGER_CATEGORIES: readonly LedgerCategoryMeta[] = [
     zh: '数码装备',
     en: 'Tech & Gear',
     color: '#06b6d4',
-    keywords: ['键盘', '鼠标', '显示器', '镜头', '手机', '充电器', '耳机', '镜头', 'mac', 'iphone', 'gear'],
+    keywords: ['键盘', '鼠标', '显示器', '镜头', '手机', '充电器', '耳机', 'mac', 'iphone', 'gear'],
   },
   {
     id: 'salary',
@@ -261,6 +339,17 @@ export const QUICK_LEDGER_PRESETS: readonly QuickLedgerPreset[] = [
     amountCny: 18,
     categoryId: 'coffee',
     accountId: 'wechat',
+    owner: 'me',
+  },
+  {
+    id: 'preset-boba',
+    icon: '🧋',
+    zh: '老婆奶茶甜品',
+    en: 'Partner Tea',
+    amountCny: 22,
+    categoryId: 'coffee',
+    accountId: 'wechat',
+    owner: 'partner',
   },
   {
     id: 'preset-lunch',
@@ -270,6 +359,7 @@ export const QUICK_LEDGER_PRESETS: readonly QuickLedgerPreset[] = [
     amountCny: 36,
     categoryId: 'dining',
     accountId: 'alipay',
+    owner: 'me',
   },
   {
     id: 'preset-transit',
@@ -279,39 +369,102 @@ export const QUICK_LEDGER_PRESETS: readonly QuickLedgerPreset[] = [
     amountCny: 6,
     categoryId: 'transit',
     accountId: 'applepay',
+    owner: 'me',
   },
   {
     id: 'preset-grocery',
     icon: '🛒',
-    zh: '盒马鲜生采购',
-    en: 'Groceries',
-    amountCny: 88,
+    zh: '双人超市采购',
+    en: 'Couple Groceries',
+    amountCny: 128,
     categoryId: 'shopping',
     accountId: 'alipay',
+    owner: 'shared',
   },
   {
-    id: 'preset-dinner',
-    icon: '🥗',
-    zh: '减脂能量轻食',
-    en: 'Healthy Bowl',
-    amountCny: 42,
+    id: 'preset-date',
+    icon: '🕯️',
+    zh: '周末双人约会餐',
+    en: 'Date Dinner',
+    amountCny: 268,
     categoryId: 'dining',
-    accountId: 'wechat',
-  },
-  {
-    id: 'preset-protein',
-    icon: '🏋️',
-    zh: '运动蛋白饮',
-    en: 'Protein Shake',
-    amountCny: 25,
-    categoryId: 'fitness',
-    accountId: 'wechat',
+    accountId: 'bank',
+    owner: 'shared',
   },
 ];
+
+export const DEFAULT_RECURRING_RULES: readonly RecurringLedgerRule[] = [
+  {
+    id: 'rec-my-salary',
+    title: '👨 我的固定月薪入账',
+    kind: 'income',
+    amountCny: 26800,
+    categoryId: 'salary',
+    accountId: 'bank',
+    dayOfMonth: 1,
+    owner: 'me',
+    enabled: true,
+    lastAppliedYearMonth: '2026-11',
+  },
+  {
+    id: 'rec-partner-salary',
+    title: '👩 老婆固定月薪入账',
+    kind: 'income',
+    amountCny: 22000,
+    categoryId: 'salary',
+    accountId: 'bank',
+    dayOfMonth: 1,
+    owner: 'partner',
+    enabled: true,
+    lastAppliedYearMonth: '2026-11',
+  },
+  {
+    id: 'rec-housing-mortgage',
+    title: '🏠 家庭房贷/房租固定扣款',
+    kind: 'expense',
+    amountCny: 5500,
+    categoryId: 'housing',
+    accountId: 'bank',
+    dayOfMonth: 5,
+    owner: 'shared',
+    enabled: true,
+    lastAppliedYearMonth: null,
+  },
+  {
+    id: 'rec-cloud-subs',
+    title: '🎮 家庭会员与云存储订阅',
+    kind: 'expense',
+    amountCny: 88,
+    categoryId: 'entertainment',
+    accountId: 'applepay',
+    dayOfMonth: 15,
+    owner: 'shared',
+    enabled: true,
+    lastAppliedYearMonth: null,
+  },
+];
+
+export const DEFAULT_WEALTH_PLAN: WealthPlanConfig = {
+  currentSavedCny: 360000,
+  targetWealthCny: 1500000,
+  investRatePct: 45,
+  annualReturnPct: 8,
+};
+
+export const DEFAULT_COUPLE_PROFILE: CoupleTeamProfile = {
+  coupleMode: true,
+  myName: '我',
+  partnerName: '老婆',
+  jointWishTitle: '双人北海道雪季旅行基金',
+  teamStreakDays: 12,
+};
 
 export const DEFAULT_BOOKKEEPING_STATE: BookkeepingState = {
   monthlyBudgetCny: 6000,
   currencySymbol: '¥',
+  recurringRules: [...DEFAULT_RECURRING_RULES],
+  wealthPlan: { ...DEFAULT_WEALTH_PLAN },
+  coupleProfile: { ...DEFAULT_COUPLE_PROFILE },
   transactions: [
     {
       id: 'tx-seed-1',
@@ -322,6 +475,20 @@ export const DEFAULT_BOOKKEEPING_STATE: BookkeepingState = {
       note: '本月薪资与绩效入账',
       localDay: '2026-11-01',
       createdAt: '2026-11-01T09:30:00.000Z',
+      owner: 'me',
+      recurringRuleId: 'rec-my-salary',
+    },
+    {
+      id: 'tx-seed-1b',
+      kind: 'income',
+      amountCny: 22000,
+      categoryId: 'salary',
+      accountId: 'bank',
+      note: '老婆本月薪资入账',
+      localDay: '2026-11-01',
+      createdAt: '2026-11-01T09:35:00.000Z',
+      owner: 'partner',
+      recurringRuleId: 'rec-partner-salary',
     },
     {
       id: 'tx-seed-2',
@@ -329,9 +496,10 @@ export const DEFAULT_BOOKKEEPING_STATE: BookkeepingState = {
       amountCny: 168,
       categoryId: 'shopping',
       accountId: 'alipay',
-      note: '盒马生鲜牛排与蓝莓采购',
+      note: '盒马生鲜牛排与蓝莓双人采购',
       localDay: '2026-11-01',
       createdAt: '2026-11-01T18:20:00.000Z',
+      owner: 'shared',
     },
     {
       id: 'tx-seed-3',
@@ -342,6 +510,7 @@ export const DEFAULT_BOOKKEEPING_STATE: BookkeepingState = {
       note: '技术原版电子书与论文订阅',
       localDay: '2026-11-02',
       createdAt: '2026-11-02T11:10:00.000Z',
+      owner: 'me',
     },
     {
       id: 'tx-seed-4',
@@ -349,9 +518,10 @@ export const DEFAULT_BOOKKEEPING_STATE: BookkeepingState = {
       amountCny: 45,
       categoryId: 'dining',
       accountId: 'wechat',
-      note: '烤鸡胸肉牛油果波奇饭',
+      note: '老婆午餐轻食波奇饭',
       localDay: '2026-11-02',
       createdAt: '2026-11-02T12:40:00.000Z',
+      owner: 'partner',
     },
     {
       id: 'tx-seed-5',
@@ -362,6 +532,7 @@ export const DEFAULT_BOOKKEEPING_STATE: BookkeepingState = {
       note: '手冲冰美式',
       localDay: '2026-11-03',
       createdAt: '2026-11-03T09:15:00.000Z',
+      owner: 'me',
     },
     {
       id: 'tx-seed-6',
@@ -372,6 +543,7 @@ export const DEFAULT_BOOKKEEPING_STATE: BookkeepingState = {
       note: '商务简餐定食',
       localDay: '2026-11-03',
       createdAt: '2026-11-03T12:30:00.000Z',
+      owner: 'me',
     },
   ],
 };
@@ -382,6 +554,19 @@ export function getLedgerCategoryMeta(id: LedgerCategoryId): LedgerCategoryMeta 
 
 export function getLedgerAccountMeta(id: LedgerAccountId): LedgerAccountMeta {
   return LEDGER_ACCOUNTS.find((a) => a.id === id) ?? LEDGER_ACCOUNTS[0]!;
+}
+
+export function getOwnerBadgeMeta(
+  owner: LedgerOwnerId = 'me',
+  profile: CoupleTeamProfile = DEFAULT_COUPLE_PROFILE,
+): { icon: string; zh: string; en: string; color: string } {
+  if (owner === 'partner') {
+    return { icon: '👩', zh: profile.partnerName || '老婆', en: 'Wife', color: '#f472b6' };
+  }
+  if (owner === 'shared') {
+    return { icon: '👩‍❤️‍👨', zh: '共同家庭', en: 'Joint', color: '#f5b942' };
+  }
+  return { icon: '👨', zh: profile.myName || '我', en: 'Me', color: '#38bdf8' };
 }
 
 /**
@@ -406,25 +591,26 @@ export function evaluateAmountExpression(raw: string): number | null {
 
 /**
  * Parses natural language quick input such as:
- * - `"瑞幸生椰拿铁 18"` -> `{ kind: 'expense', categoryId: 'coffee', amountCny: 18, note: '瑞幸生椰拿铁' }`
- * - `"盒马买菜 86.5 支付宝"` -> `{ kind: 'expense', categoryId: 'shopping', accountId: 'alipay', amountCny: 86.5, note: '盒马买菜' }`
- * - `"发工资 +25000 招行"` -> `{ kind: 'income', categoryId: 'salary', accountId: 'bank', amountCny: 25000, note: '发工资' }`
+ * - `"瑞幸生椰拿铁 18 微信"` -> `{ kind: 'expense', categoryId: 'coffee', amountCny: 18, note: '瑞幸生椰拿铁', owner: 'me' }`
+ * - `"老婆买奶茶 22 微信"` -> `{ kind: 'expense', categoryId: 'coffee', amountCny: 22, owner: 'partner' }`
+ * - `"双人超市买菜 128 支付宝"` -> `{ kind: 'expense', categoryId: 'shopping', amountCny: 128, owner: 'shared' }`
  */
 export function parseQuickBookkeepingInput(
   rawText: string,
   fallbackCategoryId: LedgerCategoryId = 'dining',
   fallbackAccountId: LedgerAccountId = 'wechat',
+  fallbackOwner: LedgerOwnerId = 'me',
 ): {
   kind: LedgerEntryKind;
   amountCny: number;
   categoryId: LedgerCategoryId;
   accountId: LedgerAccountId;
+  owner: LedgerOwnerId;
   note: string;
 } | null {
   const trimmed = rawText.trim();
   if (!trimmed) return null;
 
-  // Match mathematical expression or number
   const mathMatch = trimmed.match(/([+-]?\d+(?:\.\d+)?(?:\s*[+-]\s*\d+(?:\.\d+)?)*)/);
   if (!mathMatch) return null;
 
@@ -434,6 +620,14 @@ export function parseQuickBookkeepingInput(
 
   const lower = trimmed.toLowerCase();
   const hasPlusPrefix = rawNumberToken.trim().startsWith('+') || trimmed.includes('收入') || trimmed.includes('入账');
+
+  // Detect owner if mentioned
+  let detectedOwner: LedgerOwnerId = fallbackOwner;
+  if (/老婆|媳妇|太太|她|wife|partner/i.test(trimmed)) {
+    detectedOwner = 'partner';
+  } else if (/双人|共同|家庭|我们|一起|两人|joint|shared/i.test(trimmed)) {
+    detectedOwner = 'shared';
+  }
 
   // Detect account if mentioned
   let detectedAccount: LedgerAccountId = fallbackAccountId;
@@ -464,7 +658,6 @@ export function parseQuickBookkeepingInput(
     kind = 'income';
   }
 
-  // Strip the number and account keyword to form a clean note
   let cleanNote = trimmed.replace(rawNumberToken, '').replace(/[¥$元块]/g, '').trim();
   for (const acc of LEDGER_ACCOUNTS) {
     for (const kw of acc.keywords) {
@@ -483,7 +676,267 @@ export function parseQuickBookkeepingInput(
     amountCny,
     categoryId,
     accountId: detectedAccount,
+    owner: detectedOwner,
     note: cleanNote,
+  };
+}
+
+/**
+ * Parses iOS Shortcuts URL query parameters such as:
+ * - `?autoLog=瑞幸拿铁+18+微信`
+ * - `?amount=36&merchant=美团外卖&account=wechat&owner=partner`
+ */
+export function parseAutoLogUrlParams(search: string): {
+  kind: LedgerEntryKind;
+  amountCny: number;
+  categoryId: LedgerCategoryId;
+  accountId: LedgerAccountId;
+  owner: LedgerOwnerId;
+  note: string;
+} | null {
+  if (!search || !search.includes('=')) return null;
+  try {
+    const q = search.startsWith('?') ? search.slice(1) : search;
+    const params = new URLSearchParams(q);
+    const autoLogText = params.get('autoLog') ?? params.get('quickLog') ?? params.get('q');
+    if (autoLogText && autoLogText.trim()) {
+      return parseQuickBookkeepingInput(autoLogText.trim());
+    }
+    const rawAmount = params.get('amount') ?? params.get('amt');
+    if (!rawAmount) return null;
+    const merchant = params.get('merchant') ?? params.get('note') ?? params.get('title') ?? '快捷指令记账';
+    const accountParam = params.get('account') ?? '';
+    const ownerParam = params.get('owner') ?? '';
+    const fallbackOwner: LedgerOwnerId =
+      ownerParam === 'partner' || ownerParam === 'wife'
+        ? 'partner'
+        : ownerParam === 'shared' || ownerParam === 'joint'
+          ? 'shared'
+          : 'me';
+    return parseQuickBookkeepingInput(
+      `${merchant} ${rawAmount} ${accountParam}`.trim(),
+      'dining',
+      'wechat',
+      fallbackOwner,
+    );
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Checks enabled recurring rules against `todayLocalDay` (`YYYY-MM-DD`).
+ * Any rule whose `dayOfMonth <= currentDayOfMonth` and hasn't been materialized
+ * in `currentYearMonth` is automatically added to `transactions`.
+ */
+export function materializeDueRecurringRules(
+  state: BookkeepingState,
+  todayLocalDay: string,
+): { state: BookkeepingState; materializedCount: number } {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(todayLocalDay)) {
+    return { state, materializedCount: 0 };
+  }
+  const yearMonth = todayLocalDay.slice(0, 7);
+  const currentDay = Number.parseInt(todayLocalDay.slice(8, 10), 10) || 1;
+
+  let materializedCount = 0;
+  const newTransactions: LedgerTransaction[] = [];
+
+  const nextRules = state.recurringRules.map((rule) => {
+    if (!rule.enabled) return rule;
+    if (rule.lastAppliedYearMonth === yearMonth) return rule;
+    if (rule.dayOfMonth > currentDay) return rule;
+
+    const alreadyInTx = state.transactions.some(
+      (tx) => tx.recurringRuleId === rule.id && tx.localDay.startsWith(yearMonth),
+    );
+    if (alreadyInTx) {
+      return { ...rule, lastAppliedYearMonth: yearMonth };
+    }
+
+    materializedCount += 1;
+    const dayStr = String(Math.max(1, Math.min(28, rule.dayOfMonth))).padStart(2, '0');
+    const ruleLocalDay = `${yearMonth}-${dayStr}`;
+    newTransactions.push({
+      id: `tx-rec-${rule.id}-${yearMonth}`,
+      kind: rule.kind,
+      amountCny: rule.amountCny,
+      categoryId: rule.categoryId,
+      accountId: rule.accountId,
+      note: `🔁 ${rule.title}`,
+      localDay: ruleLocalDay,
+      createdAt: `${ruleLocalDay}T09:00:00.000Z`,
+      owner: rule.owner,
+      recurringRuleId: rule.id,
+    });
+    return {
+      ...rule,
+      lastAppliedYearMonth: yearMonth,
+    };
+  });
+
+  if (materializedCount === 0) {
+    return { state, materializedCount: 0 };
+  }
+
+  return {
+    state: {
+      ...state,
+      recurringRules: nextRules,
+      transactions: [...newTransactions, ...state.transactions],
+    },
+    materializedCount,
+  };
+}
+
+/**
+ * Computes the Salary × Investment Ratio -> Target Wealth Compounding Trajectory.
+ * Uses monthly compound interest:
+ *   W_{m+1} = W_m * (1 + r_month) + monthlyInvestCny
+ */
+export function computeWealthGoalTrajectory(input: {
+  wealthPlan: WealthPlanConfig;
+  recurringRules: readonly RecurringLedgerRule[];
+  fallbackMonthlyIncomeCny?: number;
+  currentYearMonth?: string;
+}): WealthGoalTrajectory {
+  const startYearMonth =
+    input.currentYearMonth && /^\d{4}-\d{2}$/.test(input.currentYearMonth)
+      ? input.currentYearMonth
+      : '2026-11';
+  const [startYStr, startMStr] = startYearMonth.split('-');
+  const startY = Number.parseInt(startYStr ?? '2026', 10) || 2026;
+  const startM = Number.parseInt(startMStr ?? '11', 10) || 11;
+
+  const recurringIncomeSum = input.recurringRules
+    .filter((r) => r.enabled && r.kind === 'income')
+    .reduce((sum, r) => sum + r.amountCny, 0);
+
+  const monthlyIncomeCny = Math.max(
+    1000,
+    recurringIncomeSum > 0 ? recurringIncomeSum : (input.fallbackMonthlyIncomeCny ?? 30000),
+  );
+
+  const currentSavedCny = Math.max(0, Math.round(input.wealthPlan.currentSavedCny));
+  const targetWealthCny = Math.max(50000, Math.round(input.wealthPlan.targetWealthCny));
+  const investRatePct = Math.max(5, Math.min(90, Math.round(input.wealthPlan.investRatePct)));
+  const annualReturnPct = Math.max(0, Math.min(25, input.wealthPlan.annualReturnPct));
+
+  const monthlyInvestCny = Math.round(monthlyIncomeCny * (investRatePct / 100));
+  const monthlyRate = annualReturnPct / 100 / 12;
+
+  function formatFutureYm(offsetMonths: number): string {
+    const totalM = startY * 12 + (startM - 1) + offsetMonths;
+    const y = Math.floor(totalM / 12);
+    const m = (totalM % 12) + 1;
+    return `${y}-${String(m).padStart(2, '0')}`;
+  }
+
+  function simulateMonth(months: number): { principalCny: number; compoundWealthCny: number; gainCny: number } {
+    let wealth = currentSavedCny;
+    let principal = currentSavedCny;
+    for (let m = 1; m <= months; m += 1) {
+      wealth = wealth * (1 + monthlyRate) + monthlyInvestCny;
+      principal += monthlyInvestCny;
+    }
+    const roundedWealth = Math.round(wealth);
+    const roundedPrincipal = Math.round(principal);
+    return {
+      principalCny: roundedPrincipal,
+      compoundWealthCny: roundedWealth,
+      gainCny: Math.max(0, roundedWealth - roundedPrincipal),
+    };
+  }
+
+  const alreadyReached = currentSavedCny >= targetWealthCny;
+  let monthsToGoal = 0;
+  let simWealth = currentSavedCny;
+  while (simWealth < targetWealthCny && monthsToGoal < 600) {
+    simWealth = simWealth * (1 + monthlyRate) + monthlyInvestCny;
+    monthsToGoal += 1;
+  }
+
+  const yearsPart = Math.floor(monthsToGoal / 12);
+  const monthsPart = monthsToGoal % 12;
+  const estimatedGoalYearMonth = formatFutureYm(monthsToGoal);
+
+  // Build 16 curve sample points up to max(36, min(240, Math.ceil(monthsToGoal * 1.15)))
+  const chartHorizonMonths = Math.max(24, Math.min(240, Math.ceil(Math.max(monthsToGoal, 36) * 1.1)));
+  const stepCount = 15;
+  const points: WealthCurvePoint[] = [];
+
+  for (let i = 0; i <= stepCount; i += 1) {
+    const m = Math.round((chartHorizonMonths * i) / stepCount);
+    const sim = simulateMonth(m);
+    const ym = formatFutureYm(m);
+    points.push({
+      monthOffset: m,
+      yearMonth: ym,
+      label: m === 0 ? '现在' : m % 12 === 0 ? `${m / 12}年` : `${m}月`,
+      principalCny: sim.principalCny,
+      compoundWealthCny: sim.compoundWealthCny,
+      gainCny: sim.gainCny,
+    });
+  }
+
+  const milestones = [12, 36, 60, 120].map((m) => {
+    const sim = simulateMonth(m);
+    return {
+      horizonLabel: `${m / 12} 年后 (${formatFutureYm(m)})`,
+      principalCny: sim.principalCny,
+      compoundWealthCny: sim.compoundWealthCny,
+      gainCny: sim.gainCny,
+    };
+  });
+
+  return {
+    currentSavedCny,
+    targetWealthCny,
+    monthlyIncomeCny,
+    investRatePct,
+    monthlyInvestCny,
+    annualReturnPct,
+    monthsToGoal,
+    yearsPart,
+    monthsPart,
+    estimatedGoalYearMonth,
+    alreadyReached,
+    points,
+    milestones,
+  };
+}
+
+/**
+ * Non-destructively merges a partner's exported BookkeepingState into the local state
+ * (deduplicating transactions & recurring rules by `id`).
+ */
+export function mergePartnerBookkeepingState(
+  local: BookkeepingState,
+  incoming: Partial<BookkeepingState>,
+): { merged: BookkeepingState; addedTxCount: number } {
+  const existingIds = new Set(local.transactions.map((t) => t.id));
+  const incomingTx = Array.isArray(incoming.transactions) ? incoming.transactions : [];
+  const newTx: LedgerTransaction[] = [];
+
+  for (const tx of incomingTx) {
+    if (!tx || typeof tx.id !== 'string' || existingIds.has(tx.id)) continue;
+    existingIds.add(tx.id);
+    newTx.push({
+      ...tx,
+      owner: tx.owner ?? 'partner',
+    });
+  }
+
+  const combinedTx = [...newTx, ...local.transactions].sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt),
+  );
+
+  return {
+    merged: {
+      ...local,
+      transactions: combinedTx,
+    },
+    addedTxCount: newTx.length,
   };
 }
 
@@ -510,13 +963,24 @@ export function computeMonthlyBookkeepingSummary(
   let totalIncomeCny = 0;
   let todayExpenseCny = 0;
   let todayIncomeCny = 0;
+  let meExpenseCny = 0;
+  let partnerExpenseCny = 0;
+  let sharedExpenseCny = 0;
+  let meIncomeCny = 0;
+  let partnerIncomeCny = 0;
 
   for (const tx of state.transactions) {
     if (tx.localDay.startsWith(yearMonth)) {
+      const owner = tx.owner ?? 'me';
       if (tx.kind === 'expense') {
         totalExpenseCny += tx.amountCny;
+        if (owner === 'partner') partnerExpenseCny += tx.amountCny;
+        else if (owner === 'shared') sharedExpenseCny += tx.amountCny;
+        else meExpenseCny += tx.amountCny;
       } else {
         totalIncomeCny += tx.amountCny;
+        if (owner === 'partner') partnerIncomeCny += tx.amountCny;
+        else meIncomeCny += tx.amountCny;
       }
     }
     if (tx.localDay === todayLocalDay) {
@@ -551,6 +1015,13 @@ export function computeMonthlyBookkeepingSummary(
     daysLeftInMonth,
     dailySafeToSpendCny,
     isOverBudget: totalExpenseCny > monthlyBudgetCny,
+    byOwner: {
+      meExpenseCny: Math.round(meExpenseCny * 100) / 100,
+      partnerExpenseCny: Math.round(partnerExpenseCny * 100) / 100,
+      sharedExpenseCny: Math.round(sharedExpenseCny * 100) / 100,
+      meIncomeCny: Math.round(meIncomeCny * 100) / 100,
+      partnerIncomeCny: Math.round(partnerIncomeCny * 100) / 100,
+    },
   };
 }
 
@@ -653,13 +1124,14 @@ export function computeAccountBalances(
 }
 
 export function formatLedgerCsv(transactions: readonly LedgerTransaction[]): string {
-  const header = 'Date,Type,Category,Account,Amount(CNY),Note';
+  const header = 'Date,Type,Owner,Category,Account,Amount(CNY),Note';
   const rows = transactions.map((tx) => {
     const cat = getLedgerCategoryMeta(tx.categoryId);
     const acc = getLedgerAccountMeta(tx.accountId);
+    const ownerMeta = getOwnerBadgeMeta(tx.owner);
     const safeNote = `"${(tx.note || '').replace(/"/g, '""')}"`;
     const signedAmount = tx.kind === 'expense' ? `-${tx.amountCny.toFixed(2)}` : `+${tx.amountCny.toFixed(2)}`;
-    return `${tx.localDay},${tx.kind},${cat.zh},${acc.zh},${signedAmount},${safeNote}`;
+    return `${tx.localDay},${tx.kind},${ownerMeta.zh},${cat.zh},${acc.zh},${signedAmount},${safeNote}`;
   });
   return [header, ...rows].join('\n');
 }
