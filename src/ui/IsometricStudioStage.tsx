@@ -1,8 +1,22 @@
 import { createElement, useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, TextInput, View, type ViewStyle } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  useWindowDimensions,
+  View,
+  type ViewStyle,
+} from 'react-native';
 
 import { type RuntimeHostMode } from '@/core/charioteer-plugin';
-import { buildLifeHeatmapGrid, type HeatmapCell, type PledgeVaultState } from '@/core/life-gamification';
+import {
+  buildLifeHeatmapGrid,
+  type HeatmapCell,
+  type PledgeVaultState,
+  type SanctuaryStageState,
+} from '@/core/life-gamification';
 import {
   addDaysToLocalDay,
   computeKrProgressPct,
@@ -24,8 +38,11 @@ import {
 } from '@/core/time-block-tracker';
 import {
   readPledgeVault,
+  readSanctuaryStageState,
   recordPledgeReward,
+  redeemCustomStageWish,
   subscribeLifeGamificationStore,
+  updateSanctuaryStageState,
 } from '@/data/life-gamification';
 import {
   addKeyResultToObjective,
@@ -1385,6 +1402,8 @@ export function IsometricStudioStage({
 }) {
   const { color, scheme } = useTheme();
   const { t } = useI18n();
+  const { width: viewportWidth } = useWindowDimensions();
+  const isCompactMobile = viewportWidth > 0 && viewportWidth < 680;
   const isDark = scheme === 'dark';
 
   const [perspective, setPerspective] = useState<SanctuaryPerspective>('diorama');
@@ -1402,14 +1421,20 @@ export function IsometricStudioStage({
   const [hoveredHeatIdx, setHoveredHeatIdx] = useState<number | null>(null);
   const [bursts, setBursts] = useState<StageBurstFx[]>([]);
 
-  // 60fps Animated Book Page-Curl & Articulated Fitness Character States
-  const [bookPageCount, setBookPageCount] = useState<number>(() => Math.max(0, studyMinutes));
+  // Persisted Sanctuary Stage Toy & Custom Book/Wish States
+  const [stageState, setStageState] = useState<SanctuaryStageState>(() => readSanctuaryStageState());
+  const bookPageCount = Math.max(0, stageState.bookPage - 12);
+  const workoutPose: WorkoutPoseId = stageState.workoutPose;
+  const workoutReps = stageState.workoutReps;
   const [bookAnimPhase, setBookAnimPhase] = useState<number>(0);
   const [autoReading, setAutoReading] = useState<boolean>(false);
-  const [workoutPose, setWorkoutPose] = useState<WorkoutPoseId>('squat');
   const [workoutAnimPhase, setWorkoutAnimPhase] = useState<number>(0);
-  const [workoutReps, setWorkoutReps] = useState<number>(() => trainingSetsCount * 10);
   const [autoWorkoutLeft, setAutoWorkoutLeft] = useState<number>(0);
+  const [editingBook, setEditingBook] = useState(false);
+  const [bookDraft, setBookDraft] = useState(stageState.bookTitle);
+  const [editingWish, setEditingWish] = useState(false);
+  const [wishDraft, setWishDraft] = useState(stageState.wishTitle);
+  const [wishTargetDraft, setWishTargetDraft] = useState(String(stageState.wishTargetCny));
 
   // Inline 1-minute scrubber state for 'day' mode inside Left Bento Card
   const [dayScrubRange, setDayScrubRange] = useState<{ startMinute: number; endMinute: number }>(() => {
@@ -1481,7 +1506,10 @@ export function IsometricStudioStage({
 
   useEffect(() => {
     ensureStageFxKeyframes();
-    const u1 = subscribeLifeGamificationStore(() => setVault(readPledgeVault()));
+    const u1 = subscribeLifeGamificationStore(() => {
+      setVault(readPledgeVault());
+      setStageState(readSanctuaryStageState());
+    });
     const u2 = subscribeLifeOkrStore(() => {
       setMilestones(readLifeMilestones());
       setObjectives(readOkrObjectives());
@@ -1756,12 +1784,26 @@ export function IsometricStudioStage({
     window.requestAnimationFrame(step);
   }
 
-  // Interactive Book Toy on Island 1: Tap to curl-flip page & accumulate +1m (or +5m) reading time
+  // Interactive Book Toy on Island 1: Tap to curl-flip page & accumulate +1m (or -1m undo)
   function handleFlipStudyBook(deltaMinutes = 1) {
     runBookCurlAnimation();
-    const nextPages = bookPageCount + deltaMinutes;
-    setBookPageCount(nextPages);
-    const bookTitle = t('沉浸翻书共读', 'Immersive Reading');
+    if (deltaMinutes < 0) {
+      const nextPage = Math.max(1, stageState.bookPage + deltaMinutes);
+      const nextState = updateSanctuaryStageState({ bookPage: nextPage });
+      setStageState(nextState);
+      triggerStageBurst(
+        'focus',
+        t(`↺ 撤回至 P.${nextState.bookPage}`, `↺ Undo to P.${nextState.bookPage}`),
+        pal.sub,
+        'tick',
+      );
+      return;
+    }
+    const nextPage = stageState.bookPage + deltaMinutes;
+    const nextState = updateSanctuaryStageState({ bookPage: nextPage });
+    setStageState(nextState);
+    const nextPages = Math.max(0, nextState.bookPage - 12);
+    const bookTitle = nextState.bookTitle || t('沉浸翻书共读', 'Immersive Reading');
     setTimeBlocks(
       incrementOrAddTimeBlock({
         localDay,
@@ -1771,30 +1813,30 @@ export function IsometricStudioStage({
         goalId: 'goal-ai-infra',
       }),
     );
-    if (nextPages % 5 === 0 || deltaMinutes >= 5) {
+    if (nextPages > 0 && (nextPages % 5 === 0 || deltaMinutes >= 5)) {
       onInstantSaveStudy?.({
         subject: bookTitle,
         durationMinutes: Math.max(5, deltaMinutes),
-        note: `P.${12 + nextPages}`,
+        note: `P.${nextState.bookPage}`,
       });
-      const v = recordPledgeReward(`沉浸翻书 P.${12 + nextPages} (+${deltaMinutes}m)`, localDay);
+      const v = recordPledgeReward(`沉浸翻书 ${bookTitle} P.${nextState.bookPage}`, localDay);
       setVault(v);
       triggerStageBurst(
         'focus',
-        t(`📖 P.${12 + nextPages} · 连读 +¥${v.config.checkInRewardCny} ✦`, `📖 P.${12 + nextPages} · +¥${v.config.checkInRewardCny} ✦`),
+        t(`📖 P.${nextState.bookPage} · 连读 +¥${v.config.checkInRewardCny} ✦`, `📖 P.${nextState.bookPage} · +¥${v.config.checkInRewardCny} ✦`),
         pal.goldAccent,
         'reward',
       );
       showToast({
         text: t(
-          `📖 已翻至 P.${12 + nextPages} · 累计阅读 +${deltaMinutes}m · 心愿金库 +¥${v.config.checkInRewardCny}`,
-          `📖 Flipped to P.${12 + nextPages} · +${deltaMinutes}m · Wish Vault +¥${v.config.checkInRewardCny}`,
+          `📖 ${bookTitle} 已读至 P.${nextState.bookPage} · +${deltaMinutes}m · 心愿金库 +¥${v.config.checkInRewardCny}`,
+          `📖 ${bookTitle} P.${nextState.bookPage} · +${deltaMinutes}m · Wish Vault +¥${v.config.checkInRewardCny}`,
         ),
       });
     } else {
       triggerStageBurst(
         'focus',
-        t(`📖 翻页 P.${12 + nextPages} · +${deltaMinutes}m ✦`, `📖 Page P.${12 + nextPages} · +${deltaMinutes}m ✦`),
+        t(`📖 翻页 P.${nextState.bookPage} · +${deltaMinutes}m ✦`, `📖 Page P.${nextState.bookPage} · +${deltaMinutes}m ✦`),
         pal.terracottaAccent,
         'page',
       );
@@ -1811,13 +1853,26 @@ export function IsometricStudioStage({
     jump: { zh: '开合跳', en: 'Jump Jack', icon: '🔥', weightKg: null },
   };
 
-  // Interactive Fitness Character on Island 2: Tap to animate full 60fps rep cycle & increment rep
+  // Interactive Fitness Character on Island 2: Tap to animate full 60fps rep cycle & increment/undo rep
   function handleTapWorkoutCharacter(repDelta = 1) {
     runAthleteRepAnimation();
     const meta = WORKOUT_POSE_META[workoutPose];
-    const nextReps = workoutReps + repDelta;
-    setWorkoutReps(nextReps);
     const exerciseName = t(meta.zh, meta.en);
+    if (repDelta < 0) {
+      const nextReps = Math.max(0, workoutReps + repDelta);
+      const nextState = updateSanctuaryStageState({ workoutReps: nextReps });
+      setStageState(nextState);
+      triggerStageBurst(
+        'vitality',
+        t(`↺ ${exerciseName} x${nextReps}`, `↺ ${exerciseName} x${nextReps}`),
+        pal.sub,
+        'tick',
+      );
+      return;
+    }
+    const nextReps = workoutReps + repDelta;
+    const nextState = updateSanctuaryStageState({ workoutReps: nextReps });
+    setStageState(nextState);
     setTimeBlocks(
       incrementOrAddTimeBlock({
         localDay,
@@ -1827,7 +1882,7 @@ export function IsometricStudioStage({
         goalId: null,
       }),
     );
-    if (nextReps % 5 === 0) {
+    if (nextReps > 0 && nextReps % 5 === 0) {
       onInstantSaveWorkout?.({
         exercise: exerciseName,
         reps: 5,
@@ -1860,7 +1915,8 @@ export function IsometricStudioStage({
   function handleCycleWorkoutPose(targetPose?: WorkoutPoseId) {
     const order: WorkoutPoseId[] = ['squat', 'pushup', 'press', 'jump'];
     const nextPose = targetPose ?? order[(order.indexOf(workoutPose) + 1) % order.length] ?? 'squat';
-    setWorkoutPose(nextPose);
+    const nextState = updateSanctuaryStageState({ workoutPose: nextPose });
+    setStageState(nextState);
     runAthleteRepAnimation();
     const meta = WORKOUT_POSE_META[nextPose];
     triggerStageBurst(
@@ -1869,6 +1925,48 @@ export function IsometricStudioStage({
       pal.goldAccent,
       'chime',
     );
+  }
+
+  function handleSaveCustomBookTitle() {
+    const clean = bookDraft.trim() || '《深入理解计算机系统》';
+    const nextState = updateSanctuaryStageState({ bookTitle: clean });
+    setStageState(nextState);
+    setBookDraft(clean);
+    setEditingBook(false);
+    triggerStageBurst('focus', `📖 ${clean.slice(0, 8)}`, pal.goldAccent, 'tick');
+  }
+
+  function handleSaveCustomWish() {
+    const cleanTitle = wishDraft.trim() || '纪念日双人晚宴';
+    const numTarget = Number.parseInt(wishTargetDraft, 10);
+    const cleanTarget = Number.isFinite(numTarget) && numTarget >= 25 ? numTarget : 500;
+    const nextState = updateSanctuaryStageState({
+      wishTitle: cleanTitle,
+      wishTargetCny: cleanTarget,
+    });
+    setStageState(nextState);
+    setWishDraft(cleanTitle);
+    setWishTargetDraft(String(cleanTarget));
+    setEditingWish(false);
+    triggerStageBurst('wishes', `🎁 ${cleanTitle.slice(0, 6)} ¥${cleanTarget}`, pal.goldAccent, 'tick');
+  }
+
+  function handleRedeemStageWish() {
+    if (vault.wishBalanceCny < stageState.wishTargetCny) return;
+    const v = redeemCustomStageWish(stageState.wishTitle, stageState.wishTargetCny, localDay);
+    setVault(v);
+    triggerStageBurst(
+      'wishes',
+      `🎉 兑换「${stageState.wishTitle.slice(0, 5)}」-¥${stageState.wishTargetCny}`,
+      pal.emeraldAccent,
+      'reward',
+    );
+    showToast({
+      text: t(
+        `🎉 恭喜解锁并兑换心愿「${stageState.wishTitle}」（¥${stageState.wishTargetCny}）！`,
+        `🎉 Redeemed wish "${stageState.wishTitle}" (¥${stageState.wishTargetCny})!`,
+      ),
+    });
   }
 
   // Continuous Auto-Read & Auto-Set Combo Loops
@@ -2301,15 +2399,26 @@ export function IsometricStudioStage({
       {/* Perspective 1: Interactive Spatial Stage + Split Bento Workspace */}
       {perspective === 'diorama' ? (
         <View style={[styles.dioramaStageWrap, { backgroundColor: pal.stageBg }]}>
-          {/* Upper Stage: 3 Directly Interactive Zones with Inline Micro-Controls */}
+          {/* Upper Stage: 3 Directly Interactive Zones (Horizontal Swipe on Compact Mobile, 3-Across on Desktop) */}
           <View style={[styles.stageGridBg, { backgroundColor: pal.stageBg }]}>
-            <Golden24HourRibbonBridgesSvg timerRunning={timer.isRunning} isDark={isDark} />
+            {!isCompactMobile ? (
+              <Golden24HourRibbonBridgesSvg timerRunning={timer.isRunning} isDark={isDark} />
+            ) : null}
 
-            <View style={styles.isoCanvas}>
+            <ScrollView
+              horizontal={isCompactMobile}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={
+                isCompactMobile
+                  ? { paddingHorizontal: 10, paddingVertical: 6, gap: 12, alignItems: 'center' }
+                  : styles.isoCanvas
+              }
+            >
               {/* Zone 1: 心流书房 (Directly Interactive Timer & Study) */}
               <View
                 style={[
                   styles.isoIslandSlot,
+                  isCompactMobile ? { width: 272, minWidth: 272 } : null,
                   selectedZone === 'focus' ? styles.isoNodeSelected : null,
                 ]}
               >
@@ -2400,7 +2509,7 @@ export function IsometricStudioStage({
                         : `· ${trackedMinsToday}m (${displayMasteryHours}h)`}
                     </Text>
                     <Text variant="caption" style={[styles.hudSubText, { color: pal.muted }]}>
-                      {`· 📖 P.${12 + bookPageCount} · ¥${vault.wishBalanceCny.toLocaleString('en-US')}`}
+                      {`· 📖 P.${stageState.bookPage} · ¥${vault.wishBalanceCny.toLocaleString('en-US')}`}
                     </Text>
                   </View>
                 </View>
@@ -2410,6 +2519,7 @@ export function IsometricStudioStage({
               <View
                 style={[
                   styles.isoIslandSlot,
+                  isCompactMobile ? { width: 272, minWidth: 272 } : null,
                   selectedZone === 'vitality' ? styles.isoNodeSelected : null,
                 ]}
               >
@@ -2498,6 +2608,7 @@ export function IsometricStudioStage({
               <View
                 style={[
                   styles.isoIslandSlot,
+                  isCompactMobile ? { width: 272, minWidth: 272 } : null,
                   selectedZone === 'wishes' ? styles.isoNodeSelected : null,
                 ]}
               >
@@ -2580,12 +2691,12 @@ export function IsometricStudioStage({
                   </View>
                 </View>
               </View>
-            </View>
+            </ScrollView>
           </View>
 
           {/* 3-Column Aligned Micro-Play Dock (1-to-1 Under Each Island, Zero Overlap with 24H Ribbon Bridges) */}
           <View style={styles.interactivePlayDeck}>
-            {/* Column 1: Under 心流书房 — Book Page-Curl & Focus Timer */}
+            {/* Column 1: Under 心流书房 — Book Page-Curl, Custom Book Title & Undo */}
             <View
               style={[
                 styles.playDeckSection,
@@ -2595,25 +2706,69 @@ export function IsometricStudioStage({
                 },
               ]}
             >
-              <View style={styles.playDeckLabelCluster}>
-                <Text variant="caption" style={{ color: pal.goldText, fontWeight: '700', fontSize: 10.5 }}>
-                  {t(`📖 P.${12 + bookPageCount}`, `📖 P.${12 + bookPageCount}`)}
-                </Text>
-                <View style={[styles.comboMiniTrack, { backgroundColor: pal.inputBg }]}>
-                  <View
+              {editingBook ? (
+                <View style={styles.playDeckLabelCluster}>
+                  <TextInput
+                    value={bookDraft}
+                    onChangeText={setBookDraft}
+                    onSubmitEditing={handleSaveCustomBookTitle}
+                    placeholder={t('输入在读书名…', 'Book title…')}
+                    placeholderTextColor={pal.muted}
                     style={[
-                      styles.comboMiniFill,
+                      styles.studioTaskInput,
                       {
-                        width: `${((bookPageCount % 5) / 5) * 100 || 14}%`,
-                        backgroundColor: pal.terracottaAccent,
+                        height: 24,
+                        minWidth: 110,
+                        maxWidth: 150,
+                        paddingHorizontal: 7,
+                        fontSize: 10.5,
+                        backgroundColor: pal.inputBg,
+                        borderColor: pal.terracottaAccent,
+                        color: pal.ink,
                       },
                     ]}
                   />
+                  <Pressable
+                    onPress={handleSaveCustomBookTitle}
+                    style={[
+                      styles.hudMicroBtn,
+                      { backgroundColor: pal.pillActiveBg, borderColor: pal.terracottaAccent },
+                    ]}
+                  >
+                    <Text variant="caption" style={{ fontSize: 9.5, fontWeight: '700', color: pal.goldText }}>
+                      ✓
+                    </Text>
+                  </Pressable>
                 </View>
-                <Text variant="caption" style={{ color: pal.muted, fontSize: 9.5 }}>
-                  {`${bookPageCount % 5}/5`}
-                </Text>
-              </View>
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="自定义在读书名"
+                  onPress={() => {
+                    setBookDraft(stageState.bookTitle);
+                    setEditingBook(true);
+                  }}
+                  style={styles.playDeckLabelCluster}
+                >
+                  <Text variant="caption" style={{ color: pal.goldText, fontWeight: '700', fontSize: 10.5 }}>
+                    {`📖 ${stageState.bookTitle.slice(0, 9)} P.${stageState.bookPage} ✎`}
+                  </Text>
+                  <View style={[styles.comboMiniTrack, { backgroundColor: pal.inputBg }]}>
+                    <View
+                      style={[
+                        styles.comboMiniFill,
+                        {
+                          width: `${((bookPageCount % 5) / 5) * 100 || 14}%`,
+                          backgroundColor: pal.terracottaAccent,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text variant="caption" style={{ color: pal.muted, fontSize: 9.5 }}>
+                    {`${bookPageCount % 5}/5`}
+                  </Text>
+                </Pressable>
+              )}
               <View style={styles.hudMicroActionRow}>
                 <Pressable
                   accessibilityRole="button"
@@ -2632,6 +2787,25 @@ export function IsometricStudioStage({
                     {t('📖 翻页 +1m', '📖 Flip +1m')}
                   </Text>
                 </Pressable>
+                {stageState.bookPage > 1 ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="撤回上一页"
+                    onPress={() => handleFlipStudyBook(-1)}
+                    style={({ pressed }) => [
+                      styles.hudMicroBtn,
+                      {
+                        backgroundColor: pal.pillBg,
+                        borderColor: pal.bentoBorder,
+                        transform: [{ scale: pressed ? 0.92 : 1 }],
+                      },
+                    ]}
+                  >
+                    <Text variant="caption" style={{ fontSize: 9.5, color: pal.muted }}>
+                      {t('↺ -1', '↺ -1')}
+                    </Text>
+                  </Pressable>
+                ) : null}
                 <Pressable
                   onPress={() => setAutoReading((prev) => !prev)}
                   style={({ pressed }) => [
@@ -2655,7 +2829,7 @@ export function IsometricStudioStage({
                   </Text>
                 </Pressable>
                 <Pressable
-                  onPress={() => handleToggleFocusTimer()}
+                  onPress={() => handleToggleFocusTimer(stageState.bookTitle)}
                   style={({ pressed }) => [
                     styles.hudMicroBtn,
                     {
@@ -2679,7 +2853,7 @@ export function IsometricStudioStage({
               </View>
             </View>
 
-            {/* Column 2: Under 活力体态 — Articulated Athlete Pose Switcher, Rep & Weight */}
+            {/* Column 2: Under 活力体态 — Articulated Athlete Pose Switcher, Rep, Undo & Weight */}
             <View
               style={[
                 styles.playDeckSection,
@@ -2738,6 +2912,25 @@ export function IsometricStudioStage({
                     {t(`⚡ 动一下 +1 (${workoutReps % 5}/5)`, `⚡ Rep +1 (${workoutReps % 5}/5)`)}
                   </Text>
                 </Pressable>
+                {workoutReps > 0 ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="撤回一次健身动作"
+                    onPress={() => handleTapWorkoutCharacter(-1)}
+                    style={({ pressed }) => [
+                      styles.hudMicroBtn,
+                      {
+                        backgroundColor: pal.pillBg,
+                        borderColor: pal.bentoBorder,
+                        transform: [{ scale: pressed ? 0.92 : 1 }],
+                      },
+                    ]}
+                  >
+                    <Text variant="caption" style={{ fontSize: 9.5, color: pal.muted }}>
+                      {t('↺ -1', '↺ -1')}
+                    </Text>
+                  </Pressable>
+                ) : null}
                 <Pressable
                   onPress={() => {
                     if (autoWorkoutLeft > 0) {
@@ -2789,7 +2982,7 @@ export function IsometricStudioStage({
               </View>
             </View>
 
-            {/* Column 3: Under 星愿纪念台 — Habit Check-In & Wish Vault */}
+            {/* Column 3: Under 星愿纪念台 — Custom Wish Target, Redeem & Habit Check-In */}
             <View
               style={[
                 styles.playDeckSection,
@@ -2799,17 +2992,75 @@ export function IsometricStudioStage({
                 },
               ]}
             >
-              <View style={styles.playDeckLabelCluster}>
-                <Text variant="caption" style={{ color: pal.goldText, fontWeight: '700', fontSize: 10.5 }}>
-                  {`🎁 ¥${vault.wishBalanceCny.toLocaleString('en-US')}`}
-                </Text>
-                <Text variant="caption" style={{ color: pal.muted, fontSize: 9.5 }}>
-                  {t(
-                    `已打卡 ${habits.filter((h) => h.completedDays.includes(localDay)).length}/${habits.length}`,
-                    `Habits ${habits.filter((h) => h.completedDays.includes(localDay)).length}/${habits.length}`,
-                  )}
-                </Text>
-              </View>
+              {editingWish ? (
+                <View style={styles.playDeckLabelCluster}>
+                  <TextInput
+                    value={wishDraft}
+                    onChangeText={setWishDraft}
+                    placeholder={t('心愿名称…', 'Wish title…')}
+                    placeholderTextColor={pal.muted}
+                    style={[
+                      styles.studioTaskInput,
+                      {
+                        height: 24,
+                        minWidth: 92,
+                        maxWidth: 120,
+                        paddingHorizontal: 6,
+                        fontSize: 10,
+                        backgroundColor: pal.inputBg,
+                        borderColor: pal.goldAccent,
+                        color: pal.ink,
+                      },
+                    ]}
+                  />
+                  <TextInput
+                    value={wishTargetDraft}
+                    onChangeText={setWishTargetDraft}
+                    onSubmitEditing={handleSaveCustomWish}
+                    placeholder="¥500"
+                    placeholderTextColor={pal.muted}
+                    style={[
+                      styles.studioTaskInput,
+                      {
+                        height: 24,
+                        width: 52,
+                        minWidth: 52,
+                        paddingHorizontal: 5,
+                        fontSize: 10,
+                        backgroundColor: pal.inputBg,
+                        borderColor: pal.goldAccent,
+                        color: pal.goldText,
+                      },
+                    ]}
+                  />
+                  <Pressable
+                    onPress={handleSaveCustomWish}
+                    style={[
+                      styles.hudMicroBtn,
+                      { backgroundColor: pal.pillActiveBg, borderColor: pal.goldAccent },
+                    ]}
+                  >
+                    <Text variant="caption" style={{ fontSize: 9.5, fontWeight: '700', color: pal.goldText }}>
+                      ✓
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="自定义心愿名称与目标金额"
+                  onPress={() => {
+                    setWishDraft(stageState.wishTitle);
+                    setWishTargetDraft(String(stageState.wishTargetCny));
+                    setEditingWish(true);
+                  }}
+                  style={styles.playDeckLabelCluster}
+                >
+                  <Text variant="caption" style={{ color: pal.goldText, fontWeight: '700', fontSize: 10.5 }}>
+                    {`🎁 ${stageState.wishTitle.slice(0, 7)} · ¥${vault.wishBalanceCny}/${stageState.wishTargetCny} ✎`}
+                  </Text>
+                </Pressable>
+              )}
               <View style={styles.hudMicroActionRow}>
                 <Pressable
                   onPress={handleQuickHabitCheckIn}
@@ -2826,6 +3077,25 @@ export function IsometricStudioStage({
                     {t('✓ 习惯 +¥25', '✓ Habit +¥25')}
                   </Text>
                 </Pressable>
+                {vault.wishBalanceCny >= stageState.wishTargetCny ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="兑换已达标的心愿奖励"
+                    onPress={handleRedeemStageWish}
+                    style={({ pressed }) => [
+                      styles.hudMicroBtn,
+                      {
+                        backgroundColor: `${pal.emeraldAccent}28`,
+                        borderColor: pal.emeraldAccent,
+                        transform: [{ scale: pressed ? 0.92 : 1 }],
+                      },
+                    ]}
+                  >
+                    <Text variant="caption" style={{ fontSize: 10, fontWeight: '700', color: pal.emeraldAccent }}>
+                      {t('🎉 兑换心愿', '🎉 Redeem')}
+                    </Text>
+                  </Pressable>
+                ) : null}
                 <Pressable
                   onPress={() => selectIslandAndSync('wishes')}
                   style={({ pressed }) => [

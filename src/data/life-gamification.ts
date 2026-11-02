@@ -1,12 +1,15 @@
 import {
   DEFAULT_PLEDGE_VAULT,
+  DEFAULT_SANCTUARY_STAGE_STATE,
   DEFAULT_TIME_CAPSULES,
   type PledgeVaultState,
+  type SanctuaryStageState,
   type TimeCapsuleItem,
 } from '@/core/life-gamification';
 
 const PLEDGE_VAULT_KEY = 'viastela.pledge_vault.v1';
 const TIME_CAPSULES_KEY = 'viastela.time_capsules.v1';
+const SANCTUARY_STAGE_KEY = 'viastela.sanctuary_stage.v1';
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -20,6 +23,85 @@ export function subscribeLifeGamificationStore(listener: Listener): () => void {
   return () => {
     listeners.delete(listener);
   };
+}
+
+export function readSanctuaryStageState(): SanctuaryStageState {
+  try {
+    if (typeof localStorage === 'undefined') return { ...DEFAULT_SANCTUARY_STAGE_STATE };
+    const raw = localStorage.getItem(SANCTUARY_STAGE_KEY);
+    if (!raw) return { ...DEFAULT_SANCTUARY_STAGE_STATE };
+    const parsed = JSON.parse(raw) as Partial<SanctuaryStageState>;
+    if (!parsed || typeof parsed !== 'object') return { ...DEFAULT_SANCTUARY_STAGE_STATE };
+    const validPose =
+      parsed.workoutPose === 'squat' ||
+      parsed.workoutPose === 'pushup' ||
+      parsed.workoutPose === 'press' ||
+      parsed.workoutPose === 'jump'
+        ? parsed.workoutPose
+        : DEFAULT_SANCTUARY_STAGE_STATE.workoutPose;
+    return {
+      bookTitle:
+        typeof parsed.bookTitle === 'string' && parsed.bookTitle.trim()
+          ? parsed.bookTitle.trim()
+          : DEFAULT_SANCTUARY_STAGE_STATE.bookTitle,
+      bookPage:
+        typeof parsed.bookPage === 'number' && Number.isFinite(parsed.bookPage) && parsed.bookPage >= 1
+          ? Math.round(parsed.bookPage)
+          : DEFAULT_SANCTUARY_STAGE_STATE.bookPage,
+      bookTotalPages:
+        typeof parsed.bookTotalPages === 'number' &&
+        Number.isFinite(parsed.bookTotalPages) &&
+        parsed.bookTotalPages >= 10
+          ? Math.round(parsed.bookTotalPages)
+          : DEFAULT_SANCTUARY_STAGE_STATE.bookTotalPages,
+      workoutPose: validPose,
+      workoutReps:
+        typeof parsed.workoutReps === 'number' &&
+        Number.isFinite(parsed.workoutReps) &&
+        parsed.workoutReps >= 0
+          ? Math.round(parsed.workoutReps)
+          : DEFAULT_SANCTUARY_STAGE_STATE.workoutReps,
+      wishTitle:
+        typeof parsed.wishTitle === 'string' && parsed.wishTitle.trim()
+          ? parsed.wishTitle.trim()
+          : DEFAULT_SANCTUARY_STAGE_STATE.wishTitle,
+      wishTargetCny:
+        typeof parsed.wishTargetCny === 'number' &&
+        Number.isFinite(parsed.wishTargetCny) &&
+        parsed.wishTargetCny >= 25
+          ? Math.round(parsed.wishTargetCny)
+          : DEFAULT_SANCTUARY_STAGE_STATE.wishTargetCny,
+    };
+  } catch {
+    return { ...DEFAULT_SANCTUARY_STAGE_STATE };
+  }
+}
+
+export function writeSanctuaryStageState(state: SanctuaryStageState): SanctuaryStageState {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(SANCTUARY_STAGE_KEY, JSON.stringify(state));
+    }
+    emitChange();
+  } catch {
+    // Ignore storage error
+  }
+  return state;
+}
+
+export function updateSanctuaryStageState(
+  patch: Partial<SanctuaryStageState>,
+): SanctuaryStageState {
+  const cur = readSanctuaryStageState();
+  const next: SanctuaryStageState = {
+    ...cur,
+    ...patch,
+    bookPage: Math.max(1, Math.round(patch.bookPage ?? cur.bookPage)),
+    bookTotalPages: Math.max(10, Math.round(patch.bookTotalPages ?? cur.bookTotalPages)),
+    workoutReps: Math.max(0, Math.round(patch.workoutReps ?? cur.workoutReps)),
+    wishTargetCny: Math.max(25, Math.round(patch.wishTargetCny ?? cur.wishTargetCny)),
+  };
+  return writeSanctuaryStageState(next);
 }
 
 export function readPledgeVault(): PledgeVaultState {
@@ -64,10 +146,10 @@ export function writePledgeVault(state: PledgeVaultState): void {
 export function recordPledgeReward(reason: string, localDay: string, customAmountCny?: number): PledgeVaultState {
   const cur = readPledgeVault();
   const amount = customAmountCny ?? cur.config.checkInRewardCny;
-  const nextWishBalance = cur.wishBalanceCny + amount;
+  const nextWishBalance = Math.max(0, cur.wishBalanceCny + amount);
 
   // Auto-allocate reward to the first unredeemed wish item that hasn't reached targetCny
-  let remainingToAllocate = amount;
+  let remainingToAllocate = Math.max(0, amount);
   const nextWishes = cur.wishes.map((w) => {
     if (w.redeemed || remainingToAllocate <= 0 || w.allocatedCny >= w.targetCny) return w;
     const gap = w.targetCny - w.allocatedCny;
@@ -87,9 +169,36 @@ export function recordPledgeReward(reason: string, localDay: string, customAmoun
       {
         id: `pledge-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
         localDay,
-        kind: 'reward',
-        amountCny: amount,
+        kind: amount >= 0 ? 'reward' : 'redeem',
+        amountCny: Math.abs(amount),
         reason,
+        createdAt: new Date().toISOString(),
+      },
+      ...cur.ledger.slice(0, 29),
+    ],
+  };
+  writePledgeVault(nextState);
+  return nextState;
+}
+
+export function redeemCustomStageWish(
+  wishTitle: string,
+  targetCny: number,
+  localDay: string,
+): PledgeVaultState {
+  const cur = readPledgeVault();
+  const cost = Math.max(25, Math.round(targetCny));
+  if (cur.wishBalanceCny < cost) return cur;
+  const nextState: PledgeVaultState = {
+    ...cur,
+    wishBalanceCny: Math.max(0, cur.wishBalanceCny - cost),
+    ledger: [
+      {
+        id: `pledge-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+        localDay,
+        kind: 'redeem',
+        amountCny: cost,
+        reason: `🎉 兑换心愿奖励：${wishTitle}`,
         createdAt: new Date().toISOString(),
       },
       ...cur.ledger.slice(0, 29),

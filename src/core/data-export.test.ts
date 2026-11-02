@@ -1,6 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { backupFilename, buildPersonalDataBackup } from './data-export';
+import {
+  backupFilename,
+  buildPersonalDataBackup,
+  parsePersonalDataBackup,
+} from './data-export';
 
 describe('data-export', () => {
   it('builds a sorted personal data backup payload with counts', () => {
@@ -33,6 +37,32 @@ describe('data-export', () => {
     expect(backup.version).toBe(1);
     expect(backup.counts).toEqual({ weights: 2, trainingSets: 0, studyRecords: 0 });
     expect(backup.weights.map((item) => item.id)).toEqual(['w-1', 'w-2']);
+  });
+
+  it('round-trips full sanctuary snapshot via parsePersonalDataBackup', () => {
+    const backup = buildPersonalDataBackup({
+      exportedAt: new Date('2026-11-03T01:00:00.000Z'),
+      timeZone: 'Asia/Singapore',
+      daySwitch: '04:00',
+      weights: [],
+      trainingSets: [],
+      studyRecords: [],
+      sanctuary: {
+        stageState: {
+          bookTitle: '《DDIA》',
+          bookPage: 88,
+          bookTotalPages: 500,
+          workoutPose: 'squat',
+          workoutReps: 35,
+          wishTitle: '买新镜头',
+          wishTargetCny: 1200,
+        },
+      },
+    });
+    const parsed = parsePersonalDataBackup(JSON.stringify(backup));
+    expect(parsed.sanctuary?.stageState?.bookTitle).toBe('《DDIA》');
+    expect(parsed.sanctuary?.stageState?.bookPage).toBe(88);
+    expect(parsed.sanctuary?.stageState?.wishTargetCny).toBe(1200);
   });
 
   it('formats a clean backup filename from localDay', () => {

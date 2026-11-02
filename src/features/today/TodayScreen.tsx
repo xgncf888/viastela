@@ -82,11 +82,12 @@ export function TodayScreen() {
   const study = useStudy();
   const inset = useShellInset();
   const layout = useLayoutClass();
-  const { color } = useTheme();
-  const { t } = useI18n();
+  const { color, scheme, toggleTheme } = useTheme();
+  const { locale, toggleLocale, t } = useI18n();
   const [now, setNow] = useState(() => new Date());
   const [trainingDetail, setTrainingDetail] = useState(false);
   const [studyOpen, setStudyOpen] = useState(false);
+  const [showClassicLedger, setShowClassicLedger] = useState(() => Platform.OS !== 'web');
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [activeModuleFilter, setActiveModuleFilter] = useState<SpatialModuleFilter>('all');
   const weightGate = useLoadGate(!ready, loadAttempt);
@@ -168,7 +169,19 @@ export function TodayScreen() {
           title={`${formatMonthDay(accounting)} ${shortWeekday(accounting)}`}
           trailing={
             layout === 'compact' ? (
-              <BrandMark />
+              <Row gap="xs" align="center">
+                <CockpitPillButton
+                  label={scheme === 'dark' ? '✦' : '☀'}
+                  accessibilityLabel={t('切换主题', 'Toggle theme')}
+                  onPress={toggleTheme}
+                />
+                <CockpitPillButton
+                  label={locale === 'zh' ? 'EN' : '中'}
+                  accessibilityLabel={t('切换语言', 'Switch language')}
+                  onPress={toggleLocale}
+                />
+                <BrandMark />
+              </Row>
             ) : (
               <CockpitHeaderBar
                 mode={hostMode}
@@ -246,16 +259,63 @@ export function TodayScreen() {
 
           <MonthEndNotice timeZone={timeZone} />
 
-          {/* 2. Sleek 7-Day Average & Today's Records Cockpit Card */}
-          <AverageBlock
-            records={counted}
-            endDay={accounting}
-            ready={ready}
-            failed={loadError !== null}
-            showSkeleton={weightGate.showSkeleton}
-            timedOut={weightGate.timedOut}
-            lastWeightKg={last?.weightKg}
-          />
+          {/* Collapsible Classic Ledger Drawer Toggle so First Screen has Zero Duplicate Tables */}
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: theme.space.xs,
+              paddingHorizontal: theme.space.sm,
+              paddingVertical: theme.space.xs,
+              borderRadius: theme.radius.sm,
+              borderWidth: theme.border.width,
+              borderColor: color.lineSoft,
+              backgroundColor: color.surface,
+            }}
+          >
+            <Row gap="sm" align="center" wrap>
+              <Text variant="caption" style={{ fontWeight: theme.fontWeight.semibold }}>
+                {t('📋 传统明细账本（7日均重 · 今日记录 · 周节律）', '📋 Classic Ledger (7D EMA · Logs · Weekly Rhythm)')}
+              </Text>
+              <TagChip
+                label={
+                  last
+                    ? `${formatKg(last.weightKg)} kg · ${t(`已记 ${loggedCount}/3`, `${loggedCount}/3 logged`)}`
+                    : t(`已记 ${loggedCount}/3`, `${loggedCount}/3 logged`)
+                }
+                tone={allLogged ? 'exec' : 'pod'}
+              />
+            </Row>
+            <Row gap="xs" align="center">
+              <CockpitPillButton
+                label={t('＋ 记一笔', '＋ Quick Log')}
+                shortcut="⌘K"
+                accessibilityLabel="打开快速记录面板"
+                onPress={() => openRecordSheet(last?.weightKg)}
+              />
+              <CockpitPillButton
+                label={showClassicLedger ? t('收起明细 ▲', 'Hide Ledger ▲') : t('展开明细 ▼', 'Show Ledger ▼')}
+                active={showClassicLedger}
+                accessibilityLabel={t('展开或收起传统明细账本', 'Toggle classic ledger details')}
+                onPress={() => setShowClassicLedger((prev) => !prev)}
+              />
+            </Row>
+          </View>
+
+          {showClassicLedger ? (
+            <Stack gap="md">
+              {/* 2. Sleek 7-Day Average & Today's Records Cockpit Card */}
+              <AverageBlock
+                records={counted}
+                endDay={accounting}
+                ready={ready}
+                failed={loadError !== null}
+                showSkeleton={weightGate.showSkeleton}
+                timedOut={weightGate.timedOut}
+                lastWeightKg={last?.weightKg}
+              />
 
           <LoadingRegion
               name="今日"
@@ -420,118 +480,118 @@ export function TodayScreen() {
                 ) : null}
               </Stack>
             </LoadingRegion>
+
+            <CardRow>
+              <WeightColumn
+                ready={ready}
+                failed={loadError !== null}
+                showSkeleton={weightGate.showSkeleton}
+                timedOut={weightGate.timedOut}
+                recorded={visibleToday.length > 0}
+                summary={visibleToday[0] ? `${formatKg(visibleToday[0].weightKg)} kg` : t('未记录', 'Not logged')}
+                hint={visibleToday[0] ? formatClock(visibleToday[0].recordedAt, visibleToday[0].tz) : undefined}
+              />
+              <Stack gap="sm">
+                <Text variant="heading">{trainingTitle}</Text>
+                <LoadingRegion
+                  name="训练记录"
+                  loading={!training.ready}
+                  error={training.loadError !== null}
+                  onRetry={() => void training.reload()}
+                  skeleton={
+                    <Card>
+                      <SkeletonText lines={2} />
+                    </Card>
+                  }
+                >
+                  {trainingToday.length === 0 ? (
+                    <StatusCard
+                      summary={t('未记录', 'Not logged')}
+                      actionLabel={t('记一笔', 'Log')}
+                      onAction={() => openRecordSheet(undefined, 'training')}
+                    />
+                  ) : (
+                    <StatusCard
+                      summary={trainingDaySummary(trainingToday)}
+                      hint={trainingDetail ? t('收起', 'Hide') : t('查看每组', 'View sets')}
+                      onPress={() => setTrainingDetail((open) => !open)}
+                    />
+                  )}
+                </LoadingRegion>
+              </Stack>
+              <Stack gap="sm">
+                <Text variant="heading">{studyTitle}</Text>
+                <LoadingRegion
+                  name="学习记录"
+                  loading={!study.ready}
+                  error={study.loadError !== null}
+                  onRetry={() => void study.reload()}
+                  skeleton={
+                    <Card>
+                      <SkeletonText lines={2} />
+                    </Card>
+                  }
+                >
+                  {studyToday.length === 0 ? (
+                    <StatusCard
+                      summary={t('未记录', 'Not logged')}
+                      actionLabel={t('记一笔', 'Log')}
+                      onAction={() => openRecordSheet(undefined, 'study')}
+                    />
+                  ) : (
+                    <StatusCard
+                      summary={studyDaySummary(studyToday)}
+                      hint={studyOpen ? t('收起', 'Hide') : t('查看记录', 'View logs')}
+                      onPress={() => setStudyOpen((open) => !open)}
+                    />
+                  )}
+                </LoadingRegion>
+              </Stack>
+            </CardRow>
+
+            {trainingDetail
+              ? trainingToday.map((set) => {
+                  const failed = training.failedIds.has(set.id);
+                  return (
+                    <SetRow
+                      key={set.id}
+                      title={set.exercise}
+                      detail={`${set.reps} 次 · ${formatTrainingLoad(set)}`}
+                      onDelete={failed ? undefined : () => training.scheduleDelete(set.id)}
+                    >
+                      {failed ? (
+                        <FailedSaveRow
+                          onRetry={() => void training.retry(set.id)}
+                          onDismiss={() => training.dismiss(set.id)}
+                        />
+                      ) : null}
+                    </SetRow>
+                  );
+                })
+              : null}
+            {studyOpen
+              ? studyToday.map((record) => {
+                  const failed = study.failedIds.has(record.id);
+                  return (
+                    <SetRow
+                      key={record.id}
+                      title={record.topic}
+                      detail={studyDetail(record)}
+                      onDelete={failed ? undefined : () => study.scheduleDelete(record.id)}
+                    >
+                      {failed ? (
+                        <FailedSaveRow
+                          onRetry={() => void study.retry(record.id)}
+                          onDismiss={() => study.dismiss(record.id)}
+                        />
+                      ) : null}
+                    </SetRow>
+                  );
+                })
+              : null}
+            </Stack>
+          ) : null}
         </Stack>
-
-        <CardRow>
-            <WeightColumn
-              ready={ready}
-              failed={loadError !== null}
-              showSkeleton={weightGate.showSkeleton}
-              timedOut={weightGate.timedOut}
-              recorded={visibleToday.length > 0}
-              summary={visibleToday[0] ? `${formatKg(visibleToday[0].weightKg)} kg` : t('未记录', 'Not logged')}
-              hint={visibleToday[0] ? formatClock(visibleToday[0].recordedAt, visibleToday[0].tz) : undefined}
-            />
-            <Stack gap="sm">
-              <Text variant="heading">{trainingTitle}</Text>
-              <LoadingRegion
-                name="训练记录"
-                loading={!training.ready}
-                error={training.loadError !== null}
-                onRetry={() => void training.reload()}
-                skeleton={
-                  <Card>
-                    <SkeletonText lines={2} />
-                  </Card>
-                }
-              >
-                {trainingToday.length === 0 ? (
-                  <StatusCard
-                    summary={t('未记录', 'Not logged')}
-                    actionLabel={t('记一笔', 'Log')}
-                    onAction={() => openRecordSheet(undefined, 'training')}
-                  />
-                ) : (
-                  <StatusCard
-                    summary={trainingDaySummary(trainingToday)}
-                    hint={trainingDetail ? t('收起', 'Hide') : t('查看每组', 'View sets')}
-                    onPress={() => setTrainingDetail((open) => !open)}
-                  />
-                )}
-              </LoadingRegion>
-            </Stack>
-            <Stack gap="sm">
-              <Text variant="heading">{studyTitle}</Text>
-              <LoadingRegion
-                name="学习记录"
-                loading={!study.ready}
-                error={study.loadError !== null}
-                onRetry={() => void study.reload()}
-                skeleton={
-                  <Card>
-                    <SkeletonText lines={2} />
-                  </Card>
-                }
-              >
-                {studyToday.length === 0 ? (
-                  <StatusCard
-                    summary={t('未记录', 'Not logged')}
-                    actionLabel={t('记一笔', 'Log')}
-                    onAction={() => openRecordSheet(undefined, 'study')}
-                  />
-                ) : (
-                  <StatusCard
-                    summary={studyDaySummary(studyToday)}
-                    hint={studyOpen ? t('收起', 'Hide') : t('查看记录', 'View logs')}
-                    onPress={() => setStudyOpen((open) => !open)}
-                  />
-                )}
-              </LoadingRegion>
-            </Stack>
-          </CardRow>
-
-        {trainingDetail
-          ? trainingToday.map((set) => {
-              const failed = training.failedIds.has(set.id);
-              return (
-                <SetRow
-                  key={set.id}
-                  title={set.exercise}
-                  detail={`${set.reps} 次 · ${formatTrainingLoad(set)}`}
-                  onDelete={failed ? undefined : () => training.scheduleDelete(set.id)}
-                >
-                  {failed ? (
-                    <FailedSaveRow
-                      onRetry={() => void training.retry(set.id)}
-                      onDismiss={() => training.dismiss(set.id)}
-                    />
-                  ) : null}
-                </SetRow>
-              );
-            })
-          : null}
-        {studyOpen
-          ? studyToday.map((record) => {
-              const failed = study.failedIds.has(record.id);
-              return (
-                <SetRow
-                  key={record.id}
-                  title={record.topic}
-                  detail={studyDetail(record)}
-                  onDelete={failed ? undefined : () => study.scheduleDelete(record.id)}
-                >
-                  {failed ? (
-                    <FailedSaveRow
-                      onRetry={() => void study.retry(record.id)}
-                      onDismiss={() => study.dismiss(record.id)}
-                    />
-                  ) : null}
-                </SetRow>
-              );
-            })
-          : null}
-
-
 
         {activeModuleFilter === 'focus' ? (
           <TimeBlockMasteryHub

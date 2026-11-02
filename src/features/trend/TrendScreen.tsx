@@ -6,6 +6,8 @@ import { formatKg, summarizeWindow } from '@/core/weight-stats';
 import { useRefreshOnFocus } from '@/data/refresh-on-focus';
 import { openRecordSheet } from '@/features/record/record-sheet-store';
 import { useShellInset } from '@/features/shell/AppShell';
+import { useOptionalStudy } from '@/features/study/StudyProvider';
+import { useOptionalTraining } from '@/features/training/TrainingProvider';
 import { AverageHeadline } from '@/features/weight/WeightSummary';
 import { excludePending, LOADING_TEXT, weighInLabel } from '@/features/weight/weight-copy';
 import { useWeight } from '@/features/weight/WeightProvider';
@@ -15,6 +17,7 @@ import { weightAxis } from '@/ui/chart-ticks';
 import { useLayoutClass } from '@/ui/chrome';
 import { Content } from '@/ui/Content';
 import { EmptyState } from '@/ui/EmptyState';
+import { useI18n } from '@/ui/use-i18n';
 import { LineChart } from '@/ui/LineChart';
 import { Callout, Columns, Divider, Row, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
@@ -36,9 +39,12 @@ function shortWeekday(localDay: string): string {
 
 export function TrendScreen() {
   const { ready, loadError, records, pendingDeleteIds, daySwitch, timeZone, reload, refreshing, refreshError } = useWeight();
+  const training = useOptionalTraining();
+  const study = useOptionalStudy();
   const inset = useShellInset();
   const layout = useLayoutClass();
   const { color } = useTheme();
+  const { t } = useI18n();
   const [now, setNow] = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
@@ -51,6 +57,9 @@ export function TrendScreen() {
 
   const endDay = computeLocalDay(now, timeZone, daySwitch);
   const counted = excludePending(records, pendingDeleteIds);
+  const countedTraining = excludePending(training?.sets ?? [], training?.pendingDeleteIds ?? new Set());
+  const countedStudy = excludePending(study?.records ?? [], study?.pendingDeleteIds ?? new Set());
+  const totalStudyMins = countedStudy.reduce((sum, item) => sum + item.durationMinutes, 0);
   const days = [...summarizeWindow(counted, endDay)].reverse();
   const series = chartSeries(counted, endDay);
   const startLabel = formatMonthDay(series.startDay);
@@ -94,8 +103,8 @@ export function TrendScreen() {
     <Screen>
       <Content width="wide" inset={inset}>
         <ScreenHeader
-          kicker="趋势"
-          title="近 7 日"
+          kicker={t('趋势', 'Trends')}
+          title={t('近 7 日', 'Last 7 Days')}
           trailing={
             layout !== 'compact' ? (
               <CockpitHeaderBar
@@ -113,14 +122,43 @@ export function TrendScreen() {
           subtitle={{
             failed: refreshError,
             refreshing,
-            description: '均重用每天最早的一笔。同一天更晚的记录是复测，不进均重。',
+            description: t(
+              '均重用每天最早的一笔。同一天更晚的记录是复测，不进均重。',
+              'Rolling average uses the earliest weigh-in of each day; later entries are re-checks.',
+            ),
             timeZone,
             onRetry: () => void reload(),
           }}
         />
         {loadError ? (
-          <Callout message={loadError} action={<Button label="重试" variant="secondary" onPress={() => void reload()} />} />
+          <Callout
+            message={loadError}
+            action={<Button label={t('重试', 'Retry')} variant="secondary" onPress={() => void reload()} />}
+          />
         ) : null}
+
+        {/* Multi-Metric Body × Mind Synergy Strip */}
+        <Card>
+          <Row justify="between" align="center" gap="sm" wrap>
+            <Row gap="sm" align="center" wrap>
+              <Text variant="label" style={{ fontWeight: theme.fontWeight.semibold }}>
+                {t('✦ 身心节律三维联动（晨重 × 训练 × 专注）', '✦ Body × Mind Synergy (Weight × Workout × Focus)')}
+              </Text>
+              <TagChip
+                label={t(
+                  `采样 ${counted.length} 笔 · 训练 ${countedTraining.length} 组 · 专注 ${totalStudyMins} 分钟`,
+                  `${counted.length} weigh-ins · ${countedTraining.length} sets · ${totalStudyMins}m focus`,
+                )}
+                tone="exec"
+              />
+            </Row>
+            <CockpitPillButton
+              label={t('＋ 记一笔', '＋ Quick Log')}
+              onPress={() => openRecordSheet()}
+            />
+          </Row>
+        </Card>
+
         <Columns
           main={
             <Stack gap="md">
@@ -128,7 +166,7 @@ export function TrendScreen() {
               <Card>
                 <Row justify="between" align="center" gap="sm" wrap>
                   <Row gap="sm" align="center" wrap>
-                    <Text variant="heading">近 28 天走势</Text>
+                    <Text variant="heading">{t('近 28 天走势', '28-Day Trajectory')}</Text>
                     <TagChip label={`${startLabel} — ${endLabel}`} tone="pod" />
                   </Row>
                   {series.points.length > 1 ? (
@@ -173,9 +211,12 @@ export function TrendScreen() {
                 {!ready ? <Text variant="muted">{LOADING_TEXT}</Text> : null}
                 {ready && series.points.length === 0 ? (
                   <EmptyState
-                    title="还没有体重"
-                    description="记下体重后，这里会画出每天最早的体重，以及一条平滑趋势。"
-                    action={<Button label="记录" variant="secondary" onPress={() => openRecordSheet()} />}
+                    title={t('还没有体重', 'No weight entries yet')}
+                    description={t(
+                      '记下体重后，这里会画出每天最早的体重，以及一条平滑趋势。',
+                      'Log your weight to plot daily morning weigh-ins alongside an EMA trend curve.',
+                    )}
+                    action={<Button label={t('记录', 'Log')} variant="secondary" onPress={() => openRecordSheet()} />}
                   />
                 ) : null}
                 {ready && series.points.length > 0 ? (
@@ -196,8 +237,8 @@ export function TrendScreen() {
                         height={chartHeight}
                         startLabel={startLabel}
                         endLabel={endLabel}
-                        rawLabel="每日晨重"
-                        trendLabel="平滑趋势"
+                        rawLabel={t('每日晨重', 'Morning Weight')}
+                        trendLabel={t('平滑趋势', 'EMA Trend')}
                         activePointId={activePoint?.id ?? null}
                         onSelectPointId={(id) => setSelectedDay(id)}
                         accessibilityLabel={`近 28 天走势，${startLabel}至${endLabel}。圆点是每天最早的体重，虚线是平滑趋势，不是均重。`}
@@ -218,18 +259,29 @@ export function TrendScreen() {
                           <Row gap="xs" align="center" wrap>
                             <TagChip label={formatMonthDay(activePoint.id)} tone="owner" />
                             <Text variant="caption">
-                              {`晨重 ${formatKg(activePoint.raw)} kg · 趋势 ${formatKg(activePoint.trend)} kg`}
+                              {t(
+                                `晨重 ${formatKg(activePoint.raw)} kg · 趋势 ${formatKg(activePoint.trend)} kg`,
+                                `Raw ${formatKg(activePoint.raw)} kg · Trend ${formatKg(activePoint.trend)} kg`,
+                              )}
                             </Text>
                           </Row>
                           {meanRaw !== null && minRaw !== null && maxRaw !== null ? (
                             <Text variant="caption">
-                              {`28D 均值 ${formatKg(meanRaw)} kg · 极值 ${formatKg(minRaw)}–${formatKg(maxRaw)} kg`}
+                              {t(
+                                `28D 均值 ${formatKg(meanRaw)} kg · 极值 ${formatKg(minRaw)}–${formatKg(maxRaw)} kg`,
+                                `28D Mean ${formatKg(meanRaw)} kg · Range ${formatKg(minRaw)}–${formatKg(maxRaw)} kg`,
+                              )}
                             </Text>
                           ) : null}
                         </Row>
                       </View>
                     ) : null}
-                    <Text variant="muted">圆点是每天最早的体重。虚线是指数平滑，不是另一条均重。</Text>
+                    <Text variant="muted">
+                      {t(
+                        '圆点是每天最早的体重。虚线是指数平滑，不是另一条均重。',
+                        'Dots represent the earliest weigh-in of each day; the dashed line is exponential smoothing.',
+                      )}
+                    </Text>
                   </Stack>
                 ) : null}
               </Card>
@@ -238,8 +290,8 @@ export function TrendScreen() {
           aside={
             <Card>
               <Row justify="between" align="center">
-                <Text variant="heading">近 7 日明细</Text>
-                <TagChip label="按记账日倒序" tone="pod" />
+                <Text variant="heading">{t('近 7 日明细', '7-Day Breakdown')}</Text>
+                <TagChip label={t('按记账日倒序', 'Reverse Chronological')} tone="pod" />
               </Row>
               <Divider />
               {days.map((day, index) => {
@@ -274,7 +326,7 @@ export function TrendScreen() {
                               {formatClock(day.primary.recordedAt, day.primary.tz)}
                             </Text>
                           ) : (
-                            <Text variant="muted">无记录</Text>
+                            <Text variant="muted">{t('无记录', 'No entry')}</Text>
                           )}
                         </Row>
                         {day.notes.map((note, noteIndex) => (
@@ -298,6 +350,8 @@ export function TrendScreen() {
         <LifeMilestonesOkrHub
           localDay={endDay}
           latestWeightKg={activePoint?.raw ?? null}
+          totalWorkoutSets={countedTraining.length}
+          totalStudyHours={totalStudyMins / 60}
         />
       </Content>
     </Screen>

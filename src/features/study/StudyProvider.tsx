@@ -379,3 +379,8 @@ export function useStudy(): StudyContextValue {
   if (!value) throw new Error('useStudy must be used inside StudyProvider');
   return value;
 }
+
+export function useOptionalStudy(): StudyContextValue | null {
+  return useContext(StudyContext);
+}
+

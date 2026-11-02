@@ -382,3 +382,8 @@ export function useTraining(): TrainingContextValue {
   if (!value) throw new Error('useTraining must be used inside TrainingProvider');
   return value;
 }
+
+export function useOptionalTraining(): TrainingContextValue | null {
+  return useContext(TrainingContext);
+}
+

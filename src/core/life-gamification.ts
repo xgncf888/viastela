@@ -345,6 +345,28 @@ export function computeBodyFocusCorrelation(input: {
   };
 }
 
+export type SanctuaryWorkoutPoseId = 'squat' | 'pushup' | 'press' | 'jump';
+
+export type SanctuaryStageState = {
+  bookTitle: string;
+  bookPage: number;
+  bookTotalPages: number;
+  workoutPose: SanctuaryWorkoutPoseId;
+  workoutReps: number;
+  wishTitle: string;
+  wishTargetCny: number;
+};
+
+export const DEFAULT_SANCTUARY_STAGE_STATE: SanctuaryStageState = {
+  bookTitle: '《深入理解计算机系统》',
+  bookPage: 12,
+  bookTotalPages: 320,
+  workoutPose: 'squat',
+  workoutReps: 0,
+  wishTitle: '纪念日双人晚宴',
+  wishTargetCny: 500,
+};
+
 export function formatMenuBarCapsuleTitle(input: {
   timerRunning: boolean;
   timerTitle: string;
@@ -380,3 +402,4 @@ export function formatMenuBarCapsuleTitle(input: {
 
   return parts.join(' · ');
 }
+
