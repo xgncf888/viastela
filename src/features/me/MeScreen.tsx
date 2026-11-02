@@ -150,7 +150,14 @@ export function MeScreen() {
         <Card>
           <Stack gap="md">
             <Text variant="heading">账户与记账偏好</Text>
-            <Field label="邮箱" value={session?.email ?? '未登录'} />
+            <Field
+              label="账户 / 存储模式"
+              value={
+                session?.email === 'local@device.offline'
+                  ? '本地离线存储（免登录模式 · 数据保存在本机）'
+                  : (session?.email ?? '未登录')
+              }
+            />
             <Field
               label="当前时区"
               value={timeZone}

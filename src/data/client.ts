@@ -7,6 +7,10 @@ import type { Database } from './database.types';
 
 let client: SupabaseClient<Database> | null = null;
 
+export function resetSupabaseClient(): void {
+  client = null;
+}
+
 export function getSupabase(): SupabaseClient<Database> {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured');

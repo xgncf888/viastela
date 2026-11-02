@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { Platform } from 'react-native';
 
 import { brand } from '@/config/brand';
-import { isSupabaseConfigured } from '@/config/env';
+import { isSupabaseConfigured, readCustomSupabaseConfig } from '@/config/env';
 import {
   OTP_RESEND_SECONDS,
   classifyOtpFailure,
@@ -20,7 +20,13 @@ import {
   type OtpFailureDecision,
 } from '@/core/email-otp';
 import { showProviderSignIn } from '@/core/provider-sign-in';
-import { requestEmailOtp, signInWithProvider, verifyEmailOtp } from '@/data/auth';
+import {
+  applyCustomSupabaseConfig,
+  enterLocalMode,
+  requestEmailOtp,
+  signInWithProvider,
+  verifyEmailOtp,
+} from '@/data/auth';
 import { captureOAuthFailure, clearOAuthFailureMessage, type OAuthProvider } from '@/data/oauth';
 import { BrandMark } from '@/ui/BrandMark';
 import { Button } from '@/ui/Button';
@@ -31,6 +37,7 @@ import { Callout, LabeledDivider, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { TextField } from '@/ui/TextField';
+import { showToast } from '@/ui/toast';
 
 const savedEmailKey = 'login-email';
 const notConfiguredMessage = '尚未配置 Supabase';
@@ -72,6 +79,9 @@ export function LoginScreen() {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [action, setAction] = useState<'send' | 'verify' | null>(null);
   const [provider, setProvider] = useState<OAuthProvider | null>(null);
+  const [showCloudConfig, setShowCloudConfig] = useState(false);
+  const [customUrl, setCustomUrl] = useState(() => readCustomSupabaseConfig()?.url ?? '');
+  const [customKey, setCustomKey] = useState(() => readCustomSupabaseConfig()?.anonKey ?? '');
   const verifying = useRef(false);
   const sending = useRef(false);
   const busy = action !== null || provider !== null;
@@ -212,6 +222,20 @@ export function LoginScreen() {
     }
   }
 
+  function onEnterLocalOnly() {
+    enterLocalMode();
+    showToast({ text: '已进入本地离线存储模式' });
+    router.replace('/');
+  }
+
+  function onSaveCloudConfig() {
+    applyCustomSupabaseConfig(customUrl, customKey);
+    setShowCloudConfig(false);
+    showToast({
+      text: customUrl.trim() && customKey.trim() ? '已保存云端 Supabase 配置' : '已恢复默认配置',
+    });
+  }
+
   return (
     <Screen keyboard edges={['top', 'right', 'bottom', 'left']}>
       <Content align="center" gap="md" measure="auth">
@@ -310,6 +334,45 @@ export function LoginScreen() {
               <Button label="换个邮箱" variant="ghost" fill onPress={useAnotherEmail} disabled={busy} />
             </Stack>
           )}
+        </Card>
+        <Card>
+          <Stack gap="sm">
+            <Text variant="heading">免登录 · 本地存储模式</Text>
+            <Text variant="muted">
+              无需配置云端或登录账号，所有体重、训练、学习、日记与资产数据直接保存在当前设备本地，随时可导出 JSON 备份。
+            </Text>
+            <Button
+              label="免登录直接进入（仅本地存储）"
+              variant="secondary"
+              fill
+              onPress={onEnterLocalOnly}
+            />
+            <Button
+              label={showCloudConfig ? '收起云端连接配置' : '配置云端 Supabase 地址与 Key'}
+              variant="ghost"
+              fill
+              onPress={() => setShowCloudConfig((prev) => !prev)}
+            />
+            {showCloudConfig ? (
+              <Stack gap="sm">
+                <TextField
+                  label="SUPABASE URL"
+                  value={customUrl}
+                  onChangeText={setCustomUrl}
+                  placeholder="https://your-project.supabase.co"
+                  autoCapitalize="none"
+                />
+                <TextField
+                  label="SUPABASE ANON KEY"
+                  value={customKey}
+                  onChangeText={setCustomKey}
+                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+                  autoCapitalize="none"
+                />
+                <Button label="保存云端配置" fill onPress={onSaveCloudConfig} />
+              </Stack>
+            ) : null}
+          </Stack>
         </Card>
         <Button label="隐私政策" variant="ghost" fill onPress={() => router.push('/privacy')} />
       </Content>
