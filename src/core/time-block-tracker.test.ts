@@ -2,10 +2,14 @@ import { describe, expect, it } from '@jest/globals';
 
 import {
   build24HourMatrix,
+  build60MinuteLoupeCells,
   computeMasteryProgress,
+  computeMinuteFromPointerRatio,
   DEFAULT_MASTERY_GOALS,
   formatMinuteOfDay,
   formatTimerClock,
+  normalizeDragMinuteRange,
+  nudgeMinuteRange,
   parseClockToMinute,
   type TimeBlockItem,
 } from './time-block-tracker';
@@ -19,6 +23,63 @@ describe('time-block-tracker core', () => {
     expect(parseClockToMinute('24:00')).toBe(1440);
     expect(parseClockToMinute('25:00')).toBeNull();
     expect(formatTimerClock(3665)).toBe('01:01:05');
+  });
+
+  it('computes 1-minute and snapped minutes from pointer ratios and normalizes drag ranges', () => {
+    // 09:00 + 23/60 => 09:23 (563)
+    expect(computeMinuteFromPointerRatio(9, 23 / 60, 1)).toBe(9 * 60 + 23);
+    // 5-minute snap: 23 rounds to 25 => 09:25
+    expect(computeMinuteFromPointerRatio(9, 23 / 60, 5)).toBe(9 * 60 + 25);
+    // Reverse drag (dragging right-to-left) normalizes cleanly
+    const reversed = normalizeDragMinuteRange(10 * 60 + 42, 9 * 60 + 13, 1);
+    expect(reversed).toEqual({
+      startMinute: 9 * 60 + 13,
+      endMinute: 10 * 60 + 42,
+      durationMinutes: 89,
+    });
+    // Zero-length tap expands to 1-minute minimum span
+    const singleMin = normalizeDragMinuteRange(540, 540, 1);
+    expect(singleMin).toEqual({
+      startMinute: 540,
+      endMinute: 541,
+      durationMinutes: 1,
+    });
+  });
+
+  it('nudges start, end, and whole range with 1-minute mobile steppers', () => {
+    const startNudged = nudgeMinuteRange(540, 600, 'start', -7);
+    expect(startNudged).toEqual({
+      startMinute: 533,
+      endMinute: 600,
+      durationMinutes: 67,
+    });
+    const endNudged = nudgeMinuteRange(533, 600, 'end', 12);
+    expect(endNudged).toEqual({
+      startMinute: 533,
+      endMinute: 612,
+      durationMinutes: 79,
+    });
+    const shifted = nudgeMinuteRange(533, 612, 'both', 15);
+    expect(shifted).toEqual({
+      startMinute: 548,
+      endMinute: 627,
+      durationMinutes: 79,
+    });
+  });
+
+  it('builds 60 individual 1-minute loupe cells for an hour with selection markers', () => {
+    const cells = build60MinuteLoupeCells(9, [], {
+      startMinute: 9 * 60 + 7,
+      endMinute: 9 * 60 + 43,
+    });
+    expect(cells).toHaveLength(60);
+    expect(cells[7]?.clockLabel).toBe('09:07');
+    expect(cells[7]?.isSelected).toBe(true);
+    expect(cells[7]?.isSelectionStart).toBe(true);
+    expect(cells[42]?.clockLabel).toBe('09:42');
+    expect(cells[42]?.isSelected).toBe(true);
+    expect(cells[42]?.isSelectionEnd).toBe(true);
+    expect(cells[43]?.isSelected).toBe(false);
   });
 
   it('slices cross-hour time blocks into 24 exact hourly minute rows', () => {

@@ -1,14 +1,26 @@
-import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import {
+  type GestureResponderEvent,
+  Platform,
+  Pressable,
+  StyleSheet,
+  View,
+  type LayoutChangeEvent,
+} from 'react-native';
 
 import {
   type ActiveTimerSession,
   build24HourMatrix,
+  build60MinuteLoupeCells,
   computeMasteryProgress,
+  computeMinuteFromPointerRatio,
   formatMinuteOfDay,
   formatTimerClock,
   type MasteryGoal,
+  normalizeDragMinuteRange,
+  nudgeMinuteRange,
   parseClockToMinute,
+  type SnapGranularity,
   TIME_BLOCK_CATEGORIES,
   type TimeBlockCategory,
   type TimeBlockItem,
@@ -37,6 +49,8 @@ import { useTheme } from './ThemeProvider';
 import { showToast } from './toast';
 import { CockpitPillButton, TagChip } from './WorkbenchConsole';
 
+const QUICK_SPAN_PRESETS = [15, 25, 45, 60, 90, 120] as const;
+
 export function TimeBlockMasteryHub({
   localDay,
   onSyncStudyRecord,
@@ -53,18 +67,33 @@ export function TimeBlockMasteryHub({
   }) => Promise<unknown>;
   onSyncTimelineBlock?: (body: string) => Promise<unknown>;
 }) {
-  const { color } = useTheme();
+  const { color, scheme } = useTheme();
+  const isDark = scheme === 'dark';
   const [blocks, setBlocks] = useState<TimeBlockItem[]>(readTimeBlocks);
   const [goals, setGoals] = useState<MasteryGoal[]>(readMasteryGoals);
   const [timer, setTimer] = useState<ActiveTimerSession>(readActiveTimer);
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [selectedHour, setSelectedHour] = useState<number | null>(null);
+  const [selectedHour, setSelectedHour] = useState<number | null>(9);
   const [compact24h, setCompact24h] = useState(true);
 
-  // Manual Time Block Form
+  // 1-Minute Drag & Mobile Touch Selection State
+  const [snapGranularity, setSnapGranularity] = useState<SnapGranularity>(1);
+  const [selectionRange, setSelectionRange] = useState<{
+    startMinute: number;
+    endMinute: number;
+  }>({
+    startMinute: 9 * 60, // 09:00
+    endMinute: 9 * 60 + 45, // 09:45
+  });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragAnchorMinuteRef = useRef<number | null>(null);
+  const [mobileTapAnchor, setMobileTapAnchor] = useState<number | null>(null);
+  const trackWidthsRef = useRef<Record<number, number>>({});
+
+  // Manual / Drag Time Block Form
   const [manualOpen, setManualOpen] = useState(false);
   const [startClock, setStartClock] = useState('09:00');
-  const [endClock, setEndClock] = useState('10:30');
+  const [endClock, setEndClock] = useState('09:45');
   const [manualCategory, setManualCategory] = useState<TimeBlockCategory>('study');
   const [manualTitle, setManualTitle] = useState('');
   const [manualGoalId, setManualGoalId] = useState<string | null>('goal-ai-infra');
@@ -83,6 +112,89 @@ export function TimeBlockMasteryHub({
     }, 1000);
     return () => clearInterval(interval);
   }, [timer.isRunning]);
+
+  // Global mouseup listener on Web so dragging across hour rows releases cleanly anywhere
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+    const onGlobalMouseUp = () => {
+      if (dragAnchorMinuteRef.current !== null) {
+        dragAnchorMinuteRef.current = null;
+        setIsDragging(false);
+      }
+    };
+    window.addEventListener('mouseup', onGlobalMouseUp);
+    return () => window.removeEventListener('mouseup', onGlobalMouseUp);
+  }, []);
+
+  function syncClocksFromRange(startMinute: number, endMinute: number) {
+    setSelectionRange({ startMinute, endMinute });
+    setStartClock(formatMinuteOfDay(startMinute));
+    setEndClock(formatMinuteOfDay(endMinute));
+  }
+
+  function resolveMinuteFromResponderEvent(hour: number, evt: GestureResponderEvent): number {
+    const locationX = evt.nativeEvent.locationX ?? 0;
+    const width = trackWidthsRef.current[hour] || 360;
+    const ratio = Math.max(0, Math.min(1, locationX / Math.max(1, width)));
+    return computeMinuteFromPointerRatio(hour, ratio, snapGranularity);
+  }
+
+  function handleTrackPressIn(hour: number, evt: GestureResponderEvent) {
+    const minute = resolveMinuteFromResponderEvent(hour, evt);
+    setSelectedHour(hour);
+    dragAnchorMinuteRef.current = minute;
+    setIsDragging(true);
+    const next = normalizeDragMinuteRange(minute, minute + Math.max(1, snapGranularity), 1);
+    syncClocksFromRange(next.startMinute, next.endMinute);
+  }
+
+  function handleTrackMove(hour: number, evt: GestureResponderEvent) {
+    if (dragAnchorMinuteRef.current === null) return;
+    const currentMinute = resolveMinuteFromResponderEvent(hour, evt);
+    const next = normalizeDragMinuteRange(dragAnchorMinuteRef.current, currentMinute, 1);
+    syncClocksFromRange(next.startMinute, next.endMinute);
+  }
+
+  function handleTrackRelease() {
+    if (dragAnchorMinuteRef.current !== null) {
+      dragAnchorMinuteRef.current = null;
+      setIsDragging(false);
+    }
+  }
+
+  function handleLoupeMinutePress(minuteOfDay: number) {
+    // Mobile-friendly two-tap or instant range selection on the 60-minute loupe
+    if (mobileTapAnchor === null) {
+      setMobileTapAnchor(minuteOfDay);
+      const next = normalizeDragMinuteRange(minuteOfDay, minuteOfDay + 1, 1);
+      syncClocksFromRange(next.startMinute, next.endMinute);
+    } else {
+      const next = normalizeDragMinuteRange(
+        mobileTapAnchor,
+        minuteOfDay >= mobileTapAnchor ? minuteOfDay + 1 : minuteOfDay,
+        1,
+      );
+      syncClocksFromRange(next.startMinute, next.endMinute);
+      setMobileTapAnchor(null);
+    }
+  }
+
+  function handleNudge(edge: 'start' | 'end' | 'both', deltaMinutes: number) {
+    const next = nudgeMinuteRange(
+      selectionRange.startMinute,
+      selectionRange.endMinute,
+      edge,
+      deltaMinutes,
+    );
+    syncClocksFromRange(next.startMinute, next.endMinute);
+    setSelectedHour(Math.min(23, Math.floor(next.startMinute / 60)));
+  }
+
+  function handleQuickSpanPreset(spanMins: number) {
+    const start = selectionRange.startMinute;
+    const end = Math.min(1440, start + spanMins);
+    syncClocksFromRange(start, Math.max(start + 1, end));
+  }
 
   const elapsedSeconds =
     timer.isRunning && timer.startedAtMs
@@ -204,11 +316,14 @@ export function TimeBlockMasteryHub({
     });
   }
 
-  async function onAddManualTimeBlock() {
-    const startMin = parseClockToMinute(startClock);
-    const endMin = parseClockToMinute(endClock);
+  async function onCommitSelectedRange(customStartMin?: number, customEndMin?: number) {
+    const startMin = customStartMin ?? parseClockToMinute(startClock) ?? selectionRange.startMinute;
+    const endMin = customEndMin ?? parseClockToMinute(endClock) ?? selectionRange.endMinute;
     if (startMin === null || endMin === null || endMin <= startMin) {
-      showToast({ text: '请输入有效的起止时间（例如 09:00 至 10:30，结束时间需晚于开始时间）', tone: 'error' });
+      showToast({
+        text: '请框选或输入有效的起止分钟（结束时间需晚于开始时间，最小粒度 1 分钟）',
+        tone: 'error',
+      });
       return;
     }
     const matchedGoal = goals.find((g) => g.id === manualGoalId);
@@ -243,8 +358,9 @@ export function TimeBlockMasteryHub({
 
     setManualOpen(false);
     setManualTitle('');
+    setMobileTapAnchor(null);
     showToast({
-      text: `已添加时间块 ${formatMinuteOfDay(startMin)}–${formatMinuteOfDay(endMin)} ${title} (${durationMin} min)`,
+      text: `已切入 1m 级时间块：${formatMinuteOfDay(startMin)}–${formatMinuteOfDay(endMin)} ${title} (${durationMin} min)`,
     });
   }
 
@@ -282,8 +398,11 @@ export function TimeBlockMasteryHub({
   const visibleHourRows = compact24h
     ? hourMatrix.filter((row) => row.hour >= 6 || row.occupiedMinutes > 0)
     : hourMatrix;
-  const inspectedHourRow =
-    selectedHour !== null ? hourMatrix.find((r) => r.hour === selectedHour) ?? null : null;
+
+  const activeLoupeHour = selectedHour ?? Math.min(23, Math.floor(selectionRange.startMinute / 60));
+  const inspectedHourRow = hourMatrix.find((r) => r.hour === activeLoupeHour) ?? null;
+  const loupeCells = build60MinuteLoupeCells(activeLoupeHour, todayBlocks, selectionRange);
+  const selectedSpanMins = Math.max(1, selectionRange.endMinute - selectionRange.startMinute);
 
   return (
     <Card>
@@ -291,7 +410,7 @@ export function TimeBlockMasteryHub({
         {/* Header */}
         <Row justify="between" align="center" gap="sm" wrap>
           <Row gap="sm" align="center" wrap>
-            <Text variant="heading">24H 分钟级时间块 · 实时计时器 · 10,000 小时定律</Text>
+            <Text variant="heading">24H 1分钟级拖拽时间轴 · 实时计时器 · 10,000 小时定律</Text>
             <TagChip
               label={
                 timer.isRunning
@@ -303,7 +422,7 @@ export function TimeBlockMasteryHub({
           </Row>
           <Row gap="xs" align="center" wrap>
             <CockpitPillButton
-              label="+ 补录时间块"
+              label="+ 手动输入起止"
               accessibilityLabel="手动按起止分钟补录时间块"
               onPress={() => setManualOpen((prev) => !prev)}
             />
@@ -379,7 +498,7 @@ export function TimeBlockMasteryHub({
           <Row gap="sm" align="center" wrap>
             <View style={{ flex: 1, minWidth: 220 }}>
               <TextField
-                label="当前正在做的事（精确到分钟）"
+                label="当前正在做的事（精确到 1 分钟）"
                 value={timer.title}
                 onChangeText={(text) => updateTimerState({ ...timer, title: text })}
                 placeholder="例如：AI Infra 论文精读 / 哑铃肩推力量训练 / 核心代码重构"
@@ -416,22 +535,34 @@ export function TimeBlockMasteryHub({
         {manualOpen ? (
           <View style={[styles.subPanel, { backgroundColor: color.surface, borderColor: color.line }]}>
             <Stack gap="xs">
-              <Text variant="label">按起止分钟补录时间块（00:00 – 24:00）</Text>
+              <Text variant="label">按起止分钟精确补录时间块（00:00 – 24:00，最小粒度 1 分钟）</Text>
               <Row gap="sm" wrap>
                 <View style={{ flex: 1, minWidth: 110 }}>
                   <TextField
                     label="开始时间 (HH:MM)"
                     value={startClock}
-                    onChangeText={setStartClock}
-                    placeholder="09:00"
+                    onChangeText={(val) => {
+                      setStartClock(val);
+                      const parsed = parseClockToMinute(val);
+                      if (parsed !== null && parsed < selectionRange.endMinute) {
+                        setSelectionRange((prev) => ({ ...prev, startMinute: parsed }));
+                      }
+                    }}
+                    placeholder="09:07"
                   />
                 </View>
                 <View style={{ flex: 1, minWidth: 110 }}>
                   <TextField
                     label="结束时间 (HH:MM)"
                     value={endClock}
-                    onChangeText={setEndClock}
-                    placeholder="10:30"
+                    onChangeText={(val) => {
+                      setEndClock(val);
+                      const parsed = parseClockToMinute(val);
+                      if (parsed !== null && parsed > selectionRange.startMinute) {
+                        setSelectionRange((prev) => ({ ...prev, endMinute: parsed }));
+                      }
+                    }}
+                    placeholder="09:53"
                   />
                 </View>
                 <View style={{ flex: 2, minWidth: 200 }}>
@@ -443,32 +574,8 @@ export function TimeBlockMasteryHub({
                   />
                 </View>
               </Row>
-              <ChipGroup>
-                {TIME_BLOCK_CATEGORIES.map((cat) => (
-                  <Chip
-                    key={cat.id}
-                    label={cat.label}
-                    selected={manualCategory === cat.id}
-                    onPress={() => setManualCategory(cat.id)}
-                  />
-                ))}
-              </ChipGroup>
-              <ChipGroup>
-                {goals.map((g) => (
-                  <Chip
-                    key={g.id}
-                    label={`关联: ${g.title}`}
-                    selected={manualGoalId === g.id}
-                    onPress={() => {
-                      setManualGoalId(g.id);
-                      if (!manualTitle) setManualTitle(g.title);
-                      setManualCategory(g.category);
-                    }}
-                  />
-                ))}
-              </ChipGroup>
               <Row gap="sm" align="center">
-                <Button label="写入 24H 时间轴" onPress={() => void onAddManualTimeBlock()} />
+                <Button label="写入 24H 时间轴" onPress={() => void onCommitSelectedRange()} />
                 <Button label="取消" variant="ghost" onPress={() => setManualOpen(false)} />
               </Row>
             </Stack>
@@ -531,7 +638,7 @@ export function TimeBlockMasteryHub({
           <Row justify="between" align="center" wrap>
             <Text variant="label">10,000 小时定律长期精进 &amp; 今日目标打卡</Text>
             <Text variant="caption" tone="muted">
-              每一次计时或一键打卡都会自动累计进入你的 10,000 小时里程碑
+              每一次计时、拖拽框选或一键打卡都会自动累计进入你的 10,000 小时里程碑
             </Text>
           </Row>
           <View style={styles.goalsGrid}>
@@ -619,27 +726,37 @@ export function TimeBlockMasteryHub({
 
         <Divider />
 
-        {/* 3. 24-Hour Minute-by-Minute Visual Matrix */}
+        {/* 3. Interactive 1-Minute Drag-to-Select 24H Matrix + Mobile-Friendly 60-Min Loupe & Micro-Steppers */}
         <Stack gap="xs">
-          <Row justify="between" align="center" wrap>
+          <Row justify="between" align="center" gap="sm" wrap>
             <Row gap="xs" align="center" wrap>
-              <Text variant="label">今日 24 小时分钟级时间块矩阵（每格 = 60 分钟，点击任意小时检视每一分钟明细）</Text>
+              <Text variant="label">
+                24H 1分钟级拖拽时间轴（支持按住直接拖动框选 · 移动端支持 60 格放大尺与 ±1m 微调）
+              </Text>
+              <TagChip
+                label={`当前选区 ${formatMinuteOfDay(selectionRange.startMinute)}–${formatMinuteOfDay(selectionRange.endMinute)} (${selectedSpanMins} min)`}
+                tone="owner"
+              />
             </Row>
-            <Row gap="sm" align="center" wrap>
-              {TIME_BLOCK_CATEGORIES.map((cat) => {
-                const v = categoryVisual(cat.id);
-                return (
-                  <Row key={cat.id} gap="xs" align="center">
-                    <View style={[styles.legendDot, { backgroundColor: v.bg }]} />
-                    <Text variant="caption" tone="muted">
-                      {cat.shortLabel}
-                    </Text>
-                  </Row>
-                );
-              })}
+
+            {/* Snap Granularity Selector (1m / 5m / 15m) */}
+            <Row gap="xs" align="center" wrap>
+              <Text variant="caption" tone="muted">
+                拖动粒度:
+              </Text>
+              {([1, 5, 15] as const).map((snap) => (
+                <CockpitPillButton
+                  key={snap}
+                  label={snap === 1 ? '1m 逐分精调' : `${snap}m 磁吸`}
+                  active={snapGranularity === snap}
+                  accessibilityLabel={`切换拖动粒度为 ${snap} 分钟`}
+                  onPress={() => setSnapGranularity(snap)}
+                />
+              ))}
             </Row>
           </Row>
 
+          {/* Interactive 24-Hour Track Matrix with Live Drag Range Overlay */}
           <View
             style={[
               styles.matrixContainer,
@@ -647,13 +764,20 @@ export function TimeBlockMasteryHub({
             ]}
           >
             {visibleHourRows.map((row) => {
-              const isSelected = selectedHour === row.hour;
+              const isSelected = activeLoupeHour === row.hour;
+              const hourStart = row.hour * 60;
+              const hourEnd = (row.hour + 1) * 60;
+              const selOverlapStart = Math.max(hourStart, selectionRange.startMinute);
+              const selOverlapEnd = Math.min(hourEnd, selectionRange.endMinute);
+              const hasSelInRow = selOverlapEnd > selOverlapStart;
+              const selLeftPct = hasSelInRow ? ((selOverlapStart - hourStart) / 60) * 100 : 0;
+              const selWidthPct = hasSelInRow
+                ? Math.max(1.6, ((selOverlapEnd - selOverlapStart) / 60) * 100)
+                : 0;
+
               return (
-                <Pressable
+                <View
                   key={`hour-${row.hour}`}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${row.label} 已记录 ${row.occupiedMinutes} 分钟`}
-                  onPress={() => setSelectedHour(isSelected ? null : row.hour)}
                   style={[
                     styles.hourRow,
                     {
@@ -662,19 +786,109 @@ export function TimeBlockMasteryHub({
                     },
                   ]}
                 >
-                  <Text variant="caption" style={styles.hourLabel}>
-                    {row.label}
-                  </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`聚焦 ${row.label} 60分钟放大滑尺`}
+                    onPress={() => setSelectedHour(row.hour)}
+                    style={styles.hourLabelBtn}
+                  >
+                    <Text variant="caption" style={styles.hourLabel}>
+                      {row.label}
+                    </Text>
+                  </Pressable>
 
-                  <View style={[styles.hourTrack, { backgroundColor: color.pill }]}>
-                    {/* 15m / 30m / 45m subtle quarter-hour ticks */}
-                    <View style={[styles.quarterTick, { left: '25%', backgroundColor: color.line }]} />
-                    <View style={[styles.quarterTick, { left: '50%', backgroundColor: color.line }]} />
-                    <View style={[styles.quarterTick, { left: '75%', backgroundColor: color.line }]} />
+                  {/* Drag-Enabled 60-Minute Track */}
+                  <View
+                    onLayout={(e: LayoutChangeEvent) => {
+                      trackWidthsRef.current[row.hour] = e.nativeEvent.layout.width;
+                    }}
+                    onStartShouldSetResponder={() => true}
+                    onMoveShouldSetResponder={() => true}
+                    onResponderGrant={(evt) => handleTrackPressIn(row.hour, evt)}
+                    onResponderMove={(evt) => handleTrackMove(row.hour, evt)}
+                    onResponderRelease={handleTrackRelease}
+                    onResponderTerminate={handleTrackRelease}
+                    {...(Platform.OS === 'web'
+                      ? {
+                          onMouseEnter: (evt: unknown) => {
+                            const mouseEvt = evt as {
+                              buttons?: number;
+                              nativeEvent?: { offsetX?: number };
+                            };
+                            if (mouseEvt.buttons === 1 && dragAnchorMinuteRef.current !== null) {
+                              const offsetX = mouseEvt.nativeEvent?.offsetX ?? 0;
+                              const width = trackWidthsRef.current[row.hour] || 360;
+                              const ratio = Math.max(0, Math.min(1, offsetX / Math.max(1, width)));
+                              const curMin = computeMinuteFromPointerRatio(
+                                row.hour,
+                                ratio,
+                                snapGranularity,
+                              );
+                              const next = normalizeDragMinuteRange(
+                                dragAnchorMinuteRef.current,
+                                curMin,
+                                1,
+                              );
+                              syncClocksFromRange(next.startMinute, next.endMinute);
+                            }
+                          },
+                          onMouseMove: (evt: unknown) => {
+                            const mouseEvt = evt as {
+                              buttons?: number;
+                              nativeEvent?: { offsetX?: number };
+                            };
+                            if (mouseEvt.buttons === 1 && dragAnchorMinuteRef.current !== null) {
+                              const offsetX = mouseEvt.nativeEvent?.offsetX ?? 0;
+                              const width = trackWidthsRef.current[row.hour] || 360;
+                              const ratio = Math.max(0, Math.min(1, offsetX / Math.max(1, width)));
+                              const curMin = computeMinuteFromPointerRatio(
+                                row.hour,
+                                ratio,
+                                snapGranularity,
+                              );
+                              const next = normalizeDragMinuteRange(
+                                dragAnchorMinuteRef.current,
+                                curMin,
+                                1,
+                              );
+                              syncClocksFromRange(next.startMinute, next.endMinute);
+                            }
+                          },
+                        }
+                      : {})}
+                    style={[
+                      styles.hourTrack,
+                      {
+                        backgroundColor: color.pill,
+                        cursor: Platform.OS === 'web' ? 'ew-resize' : undefined,
+                      } as unknown as object,
+                    ]}
+                  >
+                    {/* 5-minute minor ticks + 15m/30m/45m quarter-hour ticks */}
+                    {Array.from({ length: 11 }, (_, idx) => {
+                      const minMark = (idx + 1) * 5;
+                      const isQuarter = minMark % 15 === 0;
+                      return (
+                        <View
+                          key={minMark}
+                          style={[
+                            isQuarter ? styles.quarterTick : styles.fiveMinTick,
+                            {
+                              left: `${(minMark / 60) * 100}%`,
+                              backgroundColor: isQuarter ? color.line : color.lineSoft,
+                            },
+                          ]}
+                        />
+                      );
+                    })}
 
+                    {/* Committed TimeBlock Segments */}
                     {row.segments.map((seg, idx) => {
                       const leftPct = (seg.startMinInHour / 60) * 100;
-                      const widthPct = Math.max(2, ((seg.endMinInHour - seg.startMinInHour) / 60) * 100);
+                      const widthPct = Math.max(
+                        1.6,
+                        ((seg.endMinInHour - seg.startMinInHour) / 60) * 100,
+                      );
                       const vis = categoryVisual(seg.block.category);
                       return (
                         <View
@@ -688,7 +902,7 @@ export function TimeBlockMasteryHub({
                             },
                           ]}
                         >
-                          {seg.endMinInHour - seg.startMinInHour >= 12 ? (
+                          {seg.endMinInHour - seg.startMinInHour >= 10 ? (
                             <Text
                               variant="caption"
                               numberOfLines={1}
@@ -700,43 +914,272 @@ export function TimeBlockMasteryHub({
                         </View>
                       );
                     })}
+
+                    {/* Live 1-Minute Drag Selection Range Highlight */}
+                    {hasSelInRow ? (
+                      <View
+                        pointerEvents="none"
+                        style={[
+                          styles.liveSelectionOverlay,
+                          {
+                            left: `${selLeftPct}%`,
+                            width: `${selWidthPct}%`,
+                            borderColor: isDark ? '#FDE68A' : color.accent,
+                            backgroundColor: isDark
+                              ? 'rgba(245, 185, 66, 0.28)'
+                              : 'rgba(204, 120, 92, 0.25)',
+                          },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.selectionHandleLeft,
+                            { backgroundColor: isDark ? '#FDE68A' : color.accent },
+                          ]}
+                        />
+                        {selOverlapEnd - selOverlapStart >= 8 ? (
+                          <Text
+                            variant="caption"
+                            numberOfLines={1}
+                            style={[
+                              styles.liveSelectionText,
+                              { color: isDark ? '#FEF08A' : color.ink },
+                            ]}
+                          >
+                            {`${formatMinuteOfDay(selOverlapStart)}–${formatMinuteOfDay(selOverlapEnd)} (${selOverlapEnd - selOverlapStart}m)`}
+                          </Text>
+                        ) : null}
+                        <View
+                          style={[
+                            styles.selectionHandleRight,
+                            { backgroundColor: isDark ? '#FDE68A' : color.accent },
+                          ]}
+                        />
+                      </View>
+                    ) : null}
                   </View>
 
                   <Text variant="caption" tone="muted" style={styles.hourMinsText}>
                     {row.occupiedMinutes > 0 ? `${row.occupiedMinutes}m` : '—'}
                   </Text>
-                </Pressable>
+                </View>
               );
             })}
           </View>
 
-          {inspectedHourRow ? (
-            <View
-              style={[
-                styles.subPanel,
-                { backgroundColor: color.surface, borderColor: color.line },
-              ]}
-            >
-              <Stack gap="xs">
-                <Row justify="between" align="center">
-                  <Text variant="label">
-                    {`${inspectedHourRow.label} – ${String(inspectedHourRow.hour).padStart(2, '0')}:59 分钟级明细（共占用 ${inspectedHourRow.occupiedMinutes} / 60 分钟）`}
+          {/* 4. Mobile & Desktop 1-Minute Magnifier Loupe + Dual-Edge Fine-Tune Command Dock */}
+          <View
+            style={[
+              styles.loupeDock,
+              cardSurfaceStyle(color.surface, color.line),
+              { borderColor: isDragging ? color.accent : color.line },
+            ]}
+          >
+            <Stack gap="xs">
+              <Row justify="between" align="center" gap="sm" wrap>
+                <Row gap="xs" align="center" wrap>
+                  <TagChip
+                    label={`🔍 ${String(activeLoupeHour).padStart(2, '0')}:00 – ${String(activeLoupeHour).padStart(2, '0')}:59 · 60格×1分钟精调放大镜`}
+                    tone="owner"
+                  />
+                  <Text variant="caption" tone="muted">
+                    {mobileTapAnchor !== null
+                      ? `已锚定起点 ${formatMinuteOfDay(mobileTapAnchor)}，请再点选结束分钟格`
+                      : '桌面端可按住横条拖动；移动端可点选任意两格设起止，或用下方 ±1m 步进器单手微调'}
                   </Text>
+                </Row>
+
+                {/* Quick Hour Switcher for Mobile */}
+                <Row gap="xs" align="center">
                   <CockpitPillButton
-                    label={`在此小时补录 (${inspectedHourRow.label})`}
-                    onPress={() => {
-                      setStartClock(inspectedHourRow.label);
-                      setEndClock(`${String(Math.min(24, inspectedHourRow.hour + 1)).padStart(2, '0')}:00`);
-                      setManualOpen(true);
-                    }}
+                    label="◀ 上一小时"
+                    accessibilityLabel="切换到上一小时放大镜"
+                    onPress={() => setSelectedHour(Math.max(0, activeLoupeHour - 1))}
+                  />
+                  <CockpitPillButton
+                    label="下一小时 ▶"
+                    accessibilityLabel="切换到下一小时放大镜"
+                    onPress={() => setSelectedHour(Math.min(23, activeLoupeHour + 1))}
                   />
                 </Row>
-                {inspectedHourRow.segments.length === 0 ? (
-                  <Text variant="caption" tone="muted">
-                    该小时段暂未记录时间块，点击右侧「在此小时补录」可精确填入。
+              </Row>
+
+              {/* 60 Individual 1-Minute Cells (6 rows × 10 minutes or responsive wrap) */}
+              <View style={styles.loupeGrid}>
+                {loupeCells.map((cell) => {
+                  const isAnchor = mobileTapAnchor === cell.minuteOfDay;
+                  const isFiveMark = cell.minuteOfHour % 5 === 0;
+                  return (
+                    <Pressable
+                      key={cell.minuteOfDay}
+                      accessibilityRole="button"
+                      accessibilityLabel={`选择分钟 ${cell.clockLabel}`}
+                      onPress={() => handleLoupeMinutePress(cell.minuteOfDay)}
+                      style={[
+                        styles.loupeMinuteCell,
+                        {
+                          backgroundColor: cell.isSelected
+                            ? isDark
+                              ? 'rgba(245, 185, 66, 0.28)'
+                              : color.accentSoft
+                            : cell.occupiedBlock
+                              ? color.greenSoft
+                              : color.card,
+                          borderColor:
+                            cell.isSelectionStart || cell.isSelectionEnd || isAnchor
+                              ? color.accent
+                              : isFiveMark
+                                ? color.line
+                                : color.lineSoft,
+                        },
+                      ]}
+                    >
+                      <Text
+                        variant="caption"
+                        style={[
+                          styles.loupeCellText,
+                          {
+                            color: cell.isSelected
+                              ? color.accent
+                              : cell.occupiedBlock
+                                ? color.green
+                                : isFiveMark
+                                  ? color.ink
+                                  : color.muted,
+                            fontWeight:
+                              cell.isSelected || isFiveMark
+                                ? theme.fontWeight.semibold
+                                : theme.fontWeight.regular,
+                          },
+                        ]}
+                      >
+                        {`:${String(cell.minuteOfHour).padStart(2, '0')}`}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Divider />
+
+              {/* Mobile-Ergonomic Dual-Edge Steppers (Start ±1m/±5m & End ±1m/±5m + Quick Duration Presets) */}
+              <Row justify="between" align="center" gap="sm" wrap>
+                <View style={styles.stepperGroup}>
+                  <Text variant="caption" style={styles.stepperTitle}>
+                    {`起点 ${formatMinuteOfDay(selectionRange.startMinute)}`}
                   </Text>
-                ) : (
-                  inspectedHourRow.segments.map((seg) => (
+                  <Row gap="xs" align="center" wrap>
+                    <CockpitPillButton label="-15m" onPress={() => handleNudge('start', -15)} />
+                    <CockpitPillButton label="-5m" onPress={() => handleNudge('start', -5)} />
+                    <CockpitPillButton label="-1m" active onPress={() => handleNudge('start', -1)} />
+                    <CockpitPillButton label="+1m" active onPress={() => handleNudge('start', 1)} />
+                    <CockpitPillButton label="+5m" onPress={() => handleNudge('start', 5)} />
+                    <CockpitPillButton label="+15m" onPress={() => handleNudge('start', 15)} />
+                  </Row>
+                </View>
+
+                <View style={styles.stepperGroup}>
+                  <Text variant="caption" style={styles.stepperTitle}>
+                    {`终点 ${formatMinuteOfDay(selectionRange.endMinute)}（共 ${selectedSpanMins} 分钟）`}
+                  </Text>
+                  <Row gap="xs" align="center" wrap>
+                    <CockpitPillButton label="-15m" onPress={() => handleNudge('end', -15)} />
+                    <CockpitPillButton label="-5m" onPress={() => handleNudge('end', -5)} />
+                    <CockpitPillButton label="-1m" active onPress={() => handleNudge('end', -1)} />
+                    <CockpitPillButton label="+1m" active onPress={() => handleNudge('end', 1)} />
+                    <CockpitPillButton label="+5m" onPress={() => handleNudge('end', 5)} />
+                    <CockpitPillButton label="+15m" onPress={() => handleNudge('end', 15)} />
+                  </Row>
+                </View>
+              </Row>
+
+              {/* Quick Duration Capsules + Whole-Block Shift */}
+              <Row justify="between" align="center" gap="sm" wrap>
+                <Row gap="xs" align="center" wrap>
+                  <Text variant="caption" tone="muted">
+                    快捷时长:
+                  </Text>
+                  {QUICK_SPAN_PRESETS.map((mins) => (
+                    <CockpitPillButton
+                      key={mins}
+                      label={mins === 25 ? '25m 番茄' : `${mins}m`}
+                      active={selectedSpanMins === mins}
+                      onPress={() => handleQuickSpanPreset(mins)}
+                    />
+                  ))}
+                </Row>
+
+                <Row gap="xs" align="center">
+                  <Text variant="caption" tone="muted">
+                    整体平移:
+                  </Text>
+                  <CockpitPillButton label="◀ -5m" onPress={() => handleNudge('both', -5)} />
+                  <CockpitPillButton label="◀ -1m" onPress={() => handleNudge('both', -1)} />
+                  <CockpitPillButton label="+1m ▶" onPress={() => handleNudge('both', 1)} />
+                  <CockpitPillButton label="+5m ▶" onPress={() => handleNudge('both', 5)} />
+                </Row>
+              </Row>
+
+              <Divider />
+
+              {/* Instant 1-Click Commit Bar */}
+              <Row justify="between" align="center" gap="sm" wrap>
+                <View style={{ flex: 1, minWidth: 200 }}>
+                  <Stack gap="xs">
+                    <ChipGroup>
+                      {TIME_BLOCK_CATEGORIES.map((cat) => (
+                        <Chip
+                          key={cat.id}
+                          label={cat.shortLabel}
+                          selected={manualCategory === cat.id}
+                          onPress={() => setManualCategory(cat.id)}
+                        />
+                      ))}
+                    </ChipGroup>
+                    <ChipGroup>
+                      {goals.map((g) => (
+                        <Chip
+                          key={g.id}
+                          label={g.title}
+                          selected={manualGoalId === g.id}
+                          onPress={() => {
+                            setManualGoalId(g.id);
+                            setManualCategory(g.category);
+                            if (!manualTitle) setManualTitle(g.title);
+                          }}
+                        />
+                      ))}
+                    </ChipGroup>
+                  </Stack>
+                </View>
+
+                <View style={{ flex: 1, minWidth: 200 }}>
+                  <TextField
+                    label="时间块标题（可选，默认关联目标名）"
+                    value={manualTitle}
+                    onChangeText={setManualTitle}
+                    placeholder="例如：深度架构设计 / 核心训练"
+                  />
+                </View>
+
+                <CockpitPillButton
+                  label={`✦ 写入时间块 ${formatMinuteOfDay(selectionRange.startMinute)}–${formatMinuteOfDay(selectionRange.endMinute)} (${selectedSpanMins}m)`}
+                  active
+                  accessibilityLabel="将当前选中的分钟区间写入24小时时间轴"
+                  onPress={() =>
+                    void onCommitSelectedRange(selectionRange.startMinute, selectionRange.endMinute)
+                  }
+                />
+              </Row>
+
+              {/* Existing Segments in Inspected Hour */}
+              {inspectedHourRow && inspectedHourRow.segments.length > 0 ? (
+                <Stack gap="xs">
+                  <Divider />
+                  <Text variant="caption" tone="muted">
+                    {`${inspectedHourRow.label} 已记录的时间块明细（共 ${inspectedHourRow.occupiedMinutes} 分钟）：`}
+                  </Text>
+                  {inspectedHourRow.segments.map((seg) => (
                     <Row key={seg.block.id} justify="between" align="center" gap="sm">
                       <Row gap="xs" align="center">
                         <TagChip
@@ -748,17 +1191,16 @@ export function TimeBlockMasteryHub({
                           {`(${seg.block.durationMinutes} 分钟)`}
                         </Text>
                       </Row>
-                      <Button
-                        label="删除"
-                        variant="ghost"
+                      <CockpitPillButton
+                        label="× 删除"
                         onPress={() => setBlocks(removeTimeBlock(seg.block.id))}
                       />
                     </Row>
-                  ))
-                )}
-              </Stack>
-            </View>
-          ) : null}
+                  ))}
+                </Stack>
+              ) : null}
+            </Stack>
+          </View>
         </Stack>
       </Stack>
     </Card>
@@ -768,22 +1210,22 @@ export function TimeBlockMasteryHub({
 const styles = StyleSheet.create({
   timerConsole: {
     padding: 14,
-    borderRadius: 10,
+    borderRadius: theme.radius.card,
     borderWidth: theme.border.width,
     gap: 10,
   },
   timerLeft: {
     gap: 4,
+    flex: 1,
+    minWidth: 220,
   },
   timerReadout: {
     fontFamily: theme.fontFamily.mono,
-    fontSize: 32,
-    lineHeight: 38,
-    fontWeight: theme.fontWeight.semibold,
     fontVariant: ['tabular-nums'],
+    letterSpacing: 1,
   },
   subPanel: {
-    padding: theme.space.ms,
+    padding: 12,
     borderRadius: theme.radius.sm,
     borderWidth: theme.border.width,
   },
@@ -793,55 +1235,47 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   goalCard: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 260,
-    minWidth: 240,
+    flex: 1,
+    minWidth: 260,
     padding: 12,
-    borderRadius: 9,
+    borderRadius: theme.radius.card,
     borderWidth: theme.border.width,
     gap: 8,
   },
   monoMetric: {
     fontFamily: theme.fontFamily.mono,
-    fontSize: 16,
-    lineHeight: 22,
-    fontWeight: theme.fontWeight.semibold,
     fontVariant: ['tabular-nums'],
   },
   removeBtn: {
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-  },
-  legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: theme.radius.pill,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
   matrixContainer: {
-    borderRadius: 9,
+    borderRadius: theme.radius.sm,
     borderWidth: theme.border.width,
     overflow: 'hidden',
   },
   hourRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    height: 28,
+    height: 30,
+    paddingHorizontal: 8,
     borderBottomWidth: theme.border.width,
     gap: 8,
   },
-  hourLabel: {
+  hourLabelBtn: {
     width: 44,
+    height: '100%',
+    justifyContent: 'center',
+  },
+  hourLabel: {
     fontFamily: theme.fontFamily.mono,
     fontSize: 11,
-    lineHeight: 15,
-    fontVariant: ['tabular-nums'],
   },
   hourTrack: {
     flex: 1,
-    height: 18,
-    borderRadius: 4,
+    height: 20,
+    borderRadius: 5,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -850,28 +1284,88 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 1,
-    opacity: 0.35,
+  },
+  fiveMinTick: {
+    position: 'absolute',
+    top: 5,
+    bottom: 5,
+    width: 1,
+    opacity: 0.45,
   },
   segmentBar: {
     position: 'absolute',
     top: 1,
     bottom: 1,
     borderRadius: 3,
-    paddingHorizontal: 5,
+    paddingHorizontal: 4,
     justifyContent: 'center',
     overflow: 'hidden',
   },
   segmentText: {
-    fontSize: 10,
-    lineHeight: 13,
+    fontSize: 9.5,
+    lineHeight: 12,
     fontWeight: theme.fontWeight.semibold,
   },
+  liveSelectionOverlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    borderWidth: 1.5,
+    borderRadius: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    overflow: 'hidden',
+  },
+  selectionHandleLeft: {
+    width: 4,
+    height: '100%',
+  },
+  selectionHandleRight: {
+    width: 4,
+    height: '100%',
+  },
+  liveSelectionText: {
+    fontSize: 9.5,
+    lineHeight: 12,
+    fontFamily: theme.fontFamily.mono,
+    fontWeight: theme.fontWeight.semibold,
+    paddingHorizontal: 4,
+  },
   hourMinsText: {
-    width: 34,
+    width: 38,
     textAlign: 'right',
     fontFamily: theme.fontFamily.mono,
     fontSize: 10.5,
-    lineHeight: 14,
-    fontVariant: ['tabular-nums'],
+  },
+  loupeDock: {
+    padding: 14,
+    borderRadius: theme.radius.card,
+    borderWidth: theme.border.width,
+  },
+  loupeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+  },
+  loupeMinuteCell: {
+    width: 42,
+    height: 26,
+    borderRadius: 6,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loupeCellText: {
+    fontFamily: theme.fontFamily.mono,
+    fontSize: 10,
+    lineHeight: 13,
+  },
+  stepperGroup: {
+    gap: 4,
+  },
+  stepperTitle: {
+    fontFamily: theme.fontFamily.mono,
+    fontWeight: theme.fontWeight.semibold,
   },
 });

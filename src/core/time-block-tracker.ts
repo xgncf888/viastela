@@ -45,6 +45,18 @@ export type HourRowModel = {
   segments: HourSliceSegment[];
 };
 
+export type MinuteCellModel = {
+  minuteOfHour: number; // 0 .. 59
+  minuteOfDay: number; // 0 .. 1439
+  clockLabel: string; // "09:07"
+  occupiedBlock: TimeBlockItem | null;
+  isSelected: boolean;
+  isSelectionStart: boolean;
+  isSelectionEnd: boolean;
+};
+
+export type SnapGranularity = 1 | 5 | 15;
+
 export type MasteryTier = {
   level: string;
   title: string;
@@ -120,6 +132,130 @@ export function formatTimerClock(totalSeconds: number): string {
   const m = Math.floor((safe % 3600) / 60);
   const s = safe % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+/**
+ * Converts a normalized horizontal pointer ratio `[0, 1]` inside a given hour row (`0..23`)
+ * into an exact minute of the day (`0..1440`), supporting 1-minute exact precision by default
+ * or optional 5m / 15m magnetic snapping.
+ */
+export function computeMinuteFromPointerRatio(
+  hour: number,
+  ratio0To1: number,
+  snap: SnapGranularity = 1,
+): number {
+  const safeHour = Math.max(0, Math.min(23, Math.floor(hour)));
+  const clampedRatio = Math.max(0, Math.min(1, Number.isFinite(ratio0To1) ? ratio0To1 : 0));
+  const rawMinInHour = clampedRatio * 60;
+  const snappedMinInHour = Math.min(60, Math.max(0, Math.round(rawMinInHour / snap) * snap));
+  return Math.max(0, Math.min(1440, safeHour * 60 + snappedMinInHour));
+}
+
+/**
+ * Normalizes a drag gesture or two-tap selection between `anchorMinute` and `currentMinute`
+ * into a sorted `{ startMinute, endMinute, durationMinutes }` range with a minimum span (default 1 min).
+ */
+export function normalizeDragMinuteRange(
+  anchorMinute: number,
+  currentMinute: number,
+  minSpanMinutes: number = 1,
+): {
+  startMinute: number;
+  endMinute: number;
+  durationMinutes: number;
+} {
+  const minSpan = Math.max(1, Math.round(minSpanMinutes));
+  const a = Math.max(0, Math.min(1440, Math.round(anchorMinute)));
+  const b = Math.max(0, Math.min(1440, Math.round(currentMinute)));
+  let startMinute = Math.min(a, b);
+  let endMinute = Math.max(a, b);
+
+  if (endMinute - startMinute < minSpan) {
+    if (startMinute + minSpan <= 1440) {
+      endMinute = startMinute + minSpan;
+    } else {
+      endMinute = 1440;
+      startMinute = Math.max(0, 1440 - minSpan);
+    }
+  }
+
+  return {
+    startMinute,
+    endMinute,
+    durationMinutes: endMinute - startMinute,
+  };
+}
+
+/**
+ * Mobile-ergonomic precision nudging: shifts `start`, `end`, or `both` edges of a minute range
+ * by `deltaMinutes` (e.g. -5, -1, +1, +5, +15) while keeping at least 1 minute of duration
+ * and clamping cleanly within `00:00..24:00` (`0..1440`).
+ */
+export function nudgeMinuteRange(
+  startMinute: number,
+  endMinute: number,
+  edge: 'start' | 'end' | 'both',
+  deltaMinutes: number,
+): {
+  startMinute: number;
+  endMinute: number;
+  durationMinutes: number;
+} {
+  const delta = Math.round(deltaMinutes);
+  let start = Math.max(0, Math.min(1439, Math.round(startMinute)));
+  let end = Math.max(start + 1, Math.min(1440, Math.round(endMinute)));
+
+  if (edge === 'start') {
+    start = Math.max(0, Math.min(end - 1, start + delta));
+  } else if (edge === 'end') {
+    end = Math.max(start + 1, Math.min(1440, end + delta));
+  } else {
+    const duration = end - start;
+    start = Math.max(0, Math.min(1440 - duration, start + delta));
+    end = start + duration;
+  }
+
+  return {
+    startMinute: start,
+    endMinute: end,
+    durationMinutes: end - start,
+  };
+}
+
+/**
+ * Builds 60 individual 1-minute cells (`:00` .. `:59`) for the 1-Minute Magnifier Loupe,
+ * allowing 1-minute drag scrubbing and two-tap mobile selection within a focused hour.
+ */
+export function build60MinuteLoupeCells(
+  hour: number,
+  blocks: readonly TimeBlockItem[],
+  selection: { startMinute: number; endMinute: number } | null,
+): MinuteCellModel[] {
+  const safeHour = Math.max(0, Math.min(23, Math.floor(hour)));
+  const cells: MinuteCellModel[] = [];
+
+  for (let m = 0; m < 60; m += 1) {
+    const minuteOfDay = safeHour * 60 + m;
+    const occupiedBlock =
+      blocks.find((b) => minuteOfDay >= b.startMinute && minuteOfDay < b.endMinute) ?? null;
+    const isSelected = Boolean(
+      selection && minuteOfDay >= selection.startMinute && minuteOfDay < selection.endMinute,
+    );
+    const isSelectionStart = Boolean(selection && minuteOfDay === selection.startMinute);
+    const isSelectionEnd = Boolean(selection && minuteOfDay === selection.endMinute - 1);
+
+    cells.push({
+      minuteOfHour: m,
+      minuteOfDay,
+      clockLabel: formatMinuteOfDay(minuteOfDay),
+      occupiedBlock,
+      isSelected,
+      isSelectionStart,
+      isSelectionEnd,
+    });
+  }
+
+  return cells;
 }
 
 /**

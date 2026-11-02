@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Platform, View } from 'react-native';
+import { type GestureResponderEvent, type LayoutChangeEvent, Platform, View } from 'react-native';
 
 import { createId } from '@/core/id';
 import { computeLocalDay, currentTimeZone, sheetAccountingHint } from '@/core/local-day';
@@ -9,6 +9,12 @@ import {
   STUDY_MINUTE_CHOICES,
   type StudyField,
 } from '@/core/study';
+import {
+  computeMinuteFromPointerRatio,
+  formatMinuteOfDay,
+  normalizeDragMinuteRange,
+  nudgeMinuteRange,
+} from '@/core/time-block-tracker';
 import { timelineSaveNotice } from '@/core/timeline-errors';
 import { MOOD_LABELS, normalizeJournalDraft, validateJournal } from '@/core/timeline-journal';
 import {
@@ -42,8 +48,10 @@ import { SetRow } from '@/ui/SetRow';
 import { Sheet } from '@/ui/Sheet';
 import { Text } from '@/ui/Text';
 import { TextField } from '@/ui/TextField';
+import { theme } from '@/ui/theme';
+import { useTheme } from '@/ui/ThemeProvider';
 import { showToast } from '@/ui/toast';
-import { TagChip } from '@/ui/WorkbenchConsole';
+import { CockpitPillButton, TagChip } from '@/ui/WorkbenchConsole';
 
 import { closeRecordSheet, getRecordSheetSnapshot, subscribeRecordSheet } from './record-sheet-store';
 
@@ -67,6 +75,7 @@ export function RecordSheet() {
 }
 
 function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; initialType: TypeId }) {
+  const { color } = useTheme();
   const { records, daySwitch, saveWeight } = useWeight();
   const {
     sets,
@@ -100,6 +109,17 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
   const [blockMood, setBlockMood] = useState<number | null>(null);
   const [blockError, setBlockError] = useState<string | null>(null);
   const [blockSaving, setBlockSaving] = useState(false);
+
+  // 1-Minute Granularity Range State for Quick Time-Block Sheet
+  const [blockRange, setBlockRange] = useState<{ startMinute: number; endMinute: number }>(() => {
+    const now = new Date();
+    const endMin = Math.max(1, Math.min(1440, now.getHours() * 60 + now.getMinutes()));
+    const startMin = Math.max(0, endMin - 30);
+    return { startMinute: startMin, endMinute: endMin };
+  });
+  const blockTrackWidthRef = useRef<number>(300);
+  const blockDragAnchorRef = useRef<number | null>(null);
+
   const draftId = useRef<string | null>(null);
   const trainingId = useRef<string | null>(null);
   const studyId = useRef<string | null>(null);
@@ -268,6 +288,21 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
     closeRecordSheet();
   }
 
+  function handleBlockScrub(evt: GestureResponderEvent, isStart: boolean) {
+    const activeHour = Math.min(23, Math.floor(blockRange.startMinute / 60));
+    const locX = evt.nativeEvent.locationX ?? 0;
+    const ratio = Math.max(0, Math.min(1, locX / Math.max(1, blockTrackWidthRef.current)));
+    const minute = computeMinuteFromPointerRatio(activeHour, ratio, 1);
+    if (isStart) {
+      blockDragAnchorRef.current = minute;
+      const next = normalizeDragMinuteRange(minute, minute + 15, 1);
+      setBlockRange({ startMinute: next.startMinute, endMinute: next.endMinute });
+    } else if (blockDragAnchorRef.current !== null) {
+      const next = normalizeDragMinuteRange(blockDragAnchorRef.current, minute, 1);
+      setBlockRange({ startMinute: next.startMinute, endMinute: next.endMinute });
+    }
+  }
+
   async function onSaveBlock() {
     const tz = currentTimeZone();
     const today = computeLocalDay(new Date(), tz, daySwitch);
@@ -290,19 +325,18 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
         mood: normalized.mood,
         tags: [...normalized.tags],
       });
-      const now = new Date();
-      const endMin = now.getHours() * 60 + now.getMinutes();
-      const startMin = Math.max(0, endMin - 30);
       addTimeBlock({
         localDay: normalized.entryDay,
-        startMinute: startMin,
-        endMinute: Math.max(startMin + 1, endMin),
+        startMinute: blockRange.startMinute,
+        endMinute: Math.max(blockRange.startMinute + 1, blockRange.endMinute),
         category: 'deep-work',
         title: normalized.body,
         goalId: null,
         note: null,
       });
-      showToast({ text: '已记下并切入 24H 时间块' });
+      showToast({
+        text: `已切入 1m 时间块：${formatMinuteOfDay(blockRange.startMinute)}–${formatMinuteOfDay(blockRange.endMinute)} (${blockRange.endMinute - blockRange.startMinute}m)`,
+      });
       closeRecordSheet();
     } catch (saveError) {
       const notice = timelineSaveNotice(saveError);
@@ -311,6 +345,12 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
       setBlockSaving(false);
     }
   }
+
+  const blockSpanMins = Math.max(1, blockRange.endMinute - blockRange.startMinute);
+  const activeSheetHour = Math.min(23, Math.floor(blockRange.startMinute / 60));
+  const hourStartMin = activeSheetHour * 60;
+  const selLeftPct = Math.max(0, Math.min(100, ((blockRange.startMinute - hourStartMin) / 60) * 100));
+  const selWidthPct = Math.max(3, Math.min(100 - selLeftPct, (blockSpanMins / 60) * 100));
 
   // Note: `closeRecordSheet(page)` in E2E tests resolves `recordSheetHeading(page).locator('xpath=..').getByRole('button', { name: '关闭', exact: true })`,
   // so `记录` heading and `关闭` button MUST remain direct siblings inside this top `<Row>`.
@@ -609,13 +649,164 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
         </Stack>
       ) : (
         <Stack gap="ms">
-          <Row justify="between" align="center">
+          <Row justify="between" align="center" wrap>
             <Text variant="heading">即将推出</Text>
-            <TagChip label="TIME BLOCK · JOURNAL" tone="owner" />
+            <TagChip
+              label={`${formatMinuteOfDay(blockRange.startMinute)}–${formatMinuteOfDay(blockRange.endMinute)} (${blockSpanMins}m · 1m粒度)`}
+              tone="owner"
+            />
           </Row>
           <Text variant="caption" tone="muted">
-            完整时间块排程即将推出，现在可以直接记下时间块或随手记并同步到时间线。
+            完整时间块排程即将推出，现在可以直接按 1 分钟粒度拖动选择或单手微调起止时间，并同步到 24H 时间轴与时间线。
           </Text>
+
+          {/* 1-Minute Drag Scrubber + Mobile Steppers inside Quick Sheet */}
+          <View
+            style={{
+              padding: theme.space.sm,
+              borderRadius: theme.radius.sm,
+              borderWidth: theme.border.width,
+              borderColor: color.line,
+              backgroundColor: color.surface,
+              gap: theme.space.xs,
+            }}
+          >
+            <Row justify="between" align="center" wrap>
+              <Text variant="caption" style={{ fontFamily: theme.fontFamily.mono }}>
+                {`当前小时轨 ${String(activeSheetHour).padStart(2, '0')}:00–${String(activeSheetHour).padStart(2, '0')}:59（按住横条左右拖动精确到 1m）`}
+              </Text>
+              <Row gap="xs" align="center">
+                <CockpitPillButton
+                  label="◀ -1h"
+                  onPress={() =>
+                    setBlockRange((prev) =>
+                      nudgeMinuteRange(prev.startMinute, prev.endMinute, 'both', -60),
+                    )
+                  }
+                />
+                <CockpitPillButton
+                  label="+1h ▶"
+                  onPress={() =>
+                    setBlockRange((prev) =>
+                      nudgeMinuteRange(prev.startMinute, prev.endMinute, 'both', 60),
+                    )
+                  }
+                />
+              </Row>
+            </Row>
+
+            <View
+              onLayout={(e: LayoutChangeEvent) => {
+                blockTrackWidthRef.current = e.nativeEvent.layout.width;
+              }}
+              onStartShouldSetResponder={() => true}
+              onMoveShouldSetResponder={() => true}
+              onResponderGrant={(evt) => handleBlockScrub(evt, true)}
+              onResponderMove={(evt) => handleBlockScrub(evt, false)}
+              onResponderRelease={() => {
+                blockDragAnchorRef.current = null;
+              }}
+              style={{
+                height: theme.layout.controlMini,
+                borderRadius: theme.radius.sm,
+                backgroundColor: color.pill,
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+            >
+              <View
+                pointerEvents="none"
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  bottom: 0,
+                  left: `${selLeftPct}%`,
+                  width: `${selWidthPct}%`,
+                  backgroundColor: color.accentSoft,
+                  borderWidth: theme.border.width,
+                  borderColor: color.accent,
+                  borderRadius: theme.radius.sm,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Text
+                  variant="caption"
+                  style={{ fontFamily: theme.fontFamily.mono, color: color.accent }}
+                >
+                  {`${formatMinuteOfDay(blockRange.startMinute)}–${formatMinuteOfDay(blockRange.endMinute)}`}
+                </Text>
+              </View>
+            </View>
+
+            {/* Mobile-Friendly ±1m / ±5m Steppers */}
+            <Row justify="between" align="center" gap="xs" wrap>
+              <Row gap="xs" align="center" wrap>
+                <Text variant="caption" tone="muted">
+                  起点:
+                </Text>
+                <CockpitPillButton
+                  label="-5m"
+                  onPress={() =>
+                    setBlockRange((p) => nudgeMinuteRange(p.startMinute, p.endMinute, 'start', -5))
+                  }
+                />
+                <CockpitPillButton
+                  label="-1m"
+                  active
+                  onPress={() =>
+                    setBlockRange((p) => nudgeMinuteRange(p.startMinute, p.endMinute, 'start', -1))
+                  }
+                />
+                <CockpitPillButton
+                  label="+1m"
+                  active
+                  onPress={() =>
+                    setBlockRange((p) => nudgeMinuteRange(p.startMinute, p.endMinute, 'start', 1))
+                  }
+                />
+                <CockpitPillButton
+                  label="+5m"
+                  onPress={() =>
+                    setBlockRange((p) => nudgeMinuteRange(p.startMinute, p.endMinute, 'start', 5))
+                  }
+                />
+              </Row>
+
+              <Row gap="xs" align="center" wrap>
+                <Text variant="caption" tone="muted">
+                  终点:
+                </Text>
+                <CockpitPillButton
+                  label="-5m"
+                  onPress={() =>
+                    setBlockRange((p) => nudgeMinuteRange(p.startMinute, p.endMinute, 'end', -5))
+                  }
+                />
+                <CockpitPillButton
+                  label="-1m"
+                  active
+                  onPress={() =>
+                    setBlockRange((p) => nudgeMinuteRange(p.startMinute, p.endMinute, 'end', -1))
+                  }
+                />
+                <CockpitPillButton
+                  label="+1m"
+                  active
+                  onPress={() =>
+                    setBlockRange((p) => nudgeMinuteRange(p.startMinute, p.endMinute, 'end', 1))
+                  }
+                />
+                <CockpitPillButton
+                  label="+5m"
+                  onPress={() =>
+                    setBlockRange((p) => nudgeMinuteRange(p.startMinute, p.endMinute, 'end', 5))
+                  }
+                />
+              </Row>
+            </Row>
+          </View>
+
           <TextField
             label="内容"
             value={blockBody}
