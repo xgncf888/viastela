@@ -36,6 +36,7 @@ function sha256File(filePath) {
 function copySignedApp(srcApp, destApp) {
   rmSync(destApp, { recursive: true, force: true });
   execFileSync('ditto', [srcApp, destApp], { stdio: 'inherit' });
+  try { execFileSync('xattr', ['-cr', destApp], { stdio: 'ignore' }); } catch {}
   try {
     execFileSync('codesign', ['--force', '--deep', '--sign', '-', destApp], { stdio: 'pipe' });
   } catch {

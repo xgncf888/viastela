@@ -32,7 +32,7 @@ const INFO_PLIST = `<?xml version="1.0" encoding="UTF-8"?>
   <key>CFBundleExecutable</key>
   <string>${EXEC_NAME}</string>
   <key>CFBundleIconFile</key>
-  <string>AppIcon.png</string>
+  <string>AppIcon.icns</string>
   <key>CFBundleIdentifier</key>
   <string>com.viastela.app.mac</string>
   <key>CFBundleName</key>
@@ -676,7 +676,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
             window.toolbarStyle = .unifiedCompact
             window.titlebarSeparatorStyle = .none
         }
-        window.isMovableByWindowBackground = false
+        // Prevent EXC_BAD_ACCESS zombie window when closing and reopening from Dock or MenuBar
+        window.isReleasedWhenClosed = false
+        window.isMovableByWindowBackground = true
         window.backgroundColor = NSColor(calibratedRed: 0.969, green: 0.957, blue: 0.925, alpha: 1.0)
         window.minSize = NSSize(width: 390, height: 640)
         window.delegate = self
@@ -726,6 +728,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         } else {
             webView.load(URLRequest(url: URL(string: "http://127.0.0.1:4173")!))
         }
+    }
+
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        loadAppBundle()
     }
 
     func setupMainMenu() {
@@ -971,6 +977,14 @@ function main() {
   try {
     writeFileSync(iconSwiftFile, ICON_SWIFT, 'utf8');
     execFileSync('swift', [iconSwiftFile, iconOutPath], { stdio: 'inherit' });
+    try {
+      const iconsetDir = path.join(tmpDir, 'AppIcon.iconset');
+      mkdirSync(iconsetDir, { recursive: true });
+      for (const [sz, name] of [[16,'icon_16x16.png'],[32,'icon_16x16@2x.png'],[32,'icon_32x32.png'],[64,'icon_32x32@2x.png'],[128,'icon_128x128.png'],[256,'icon_128x128@2x.png'],[256,'icon_256x256.png'],[512,'icon_256x256@2x.png'],[512,'icon_512x512.png'],[1024,'icon_512x512@2x.png']]) {
+        execFileSync('sips', ['-z', String(sz), String(sz), iconOutPath, '--out', path.join(iconsetDir, name)], { stdio: 'ignore' });
+      }
+      execFileSync('iconutil', ['-c', 'icns', iconsetDir, '-o', path.join(RESOURCES_DIR, 'AppIcon.icns')], { stdio: 'ignore' });
+    } catch {}
     const assetTargets = [
       path.join(ROOT, 'assets', 'icon.png'),
       path.join(ROOT, 'assets', 'splash-icon.png'),
@@ -988,6 +1002,8 @@ function main() {
     execFileSync('swiftc', ['-O', swiftFile, '-framework', 'Cocoa', '-framework', 'WebKit', '-o', binPath], {
       stdio: 'inherit',
     });
+    execFileSync('chmod', ['+x', binPath]);
+    try { execFileSync('xattr', ['-cr', APP_BUNDLE], { stdio: 'ignore' }); } catch {}
     execFileSync('codesign', ['--force', '--deep', '--sign', '-', APP_BUNDLE], { stdio: 'inherit' });
   } finally {
     rmSync(tmpDir, { recursive: true, force: true });
