@@ -79,6 +79,49 @@ export function removeTimeBlock(id: string): TimeBlockItem[] {
   return next;
 }
 
+export function incrementOrAddTimeBlock(input: {
+  localDay: string;
+  deltaMinutes: number;
+  category: TimeBlockCategory;
+  title: string;
+  goalId: string | null;
+}): TimeBlockItem[] {
+  const delta = Math.max(1, Math.round(input.deltaMinutes));
+  const current = readTimeBlocks();
+  const cleanTitle = input.title.trim() || '专注时间块';
+  const existingIdx = current.findIndex(
+    (b) => b.localDay === input.localDay && b.category === input.category && b.title === cleanTitle,
+  );
+  if (existingIdx >= 0) {
+    const target = current[existingIdx]!;
+    const nextDuration = Math.min(720, target.durationMinutes + delta);
+    const nextEnd = Math.min(1440, target.startMinute + nextDuration);
+    const nextStart = Math.max(0, nextEnd - nextDuration);
+    const updated: TimeBlockItem = {
+      ...target,
+      startMinute: nextStart,
+      endMinute: nextEnd,
+      durationMinutes: nextDuration,
+      recordedAt: new Date().toISOString(),
+    };
+    const next = [...current];
+    next[existingIdx] = updated;
+    writeTimeBlocks(next);
+    return next;
+  }
+  const now = new Date();
+  const nowMin = Math.max(15, Math.min(1440, now.getHours() * 60 + now.getMinutes()));
+  const startMin = Math.max(0, nowMin - delta);
+  return addTimeBlock({
+    localDay: input.localDay,
+    startMinute: startMin,
+    endMinute: Math.max(startMin + 1, nowMin),
+    category: input.category,
+    title: cleanTitle,
+    goalId: input.goalId,
+  });
+}
+
 export function readMasteryGoals(): MasteryGoal[] {
   try {
     if (typeof localStorage === 'undefined') return [...DEFAULT_MASTERY_GOALS];

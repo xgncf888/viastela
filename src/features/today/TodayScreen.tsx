@@ -214,6 +214,21 @@ export function TodayScreen() {
               onQuickJournal={() => openRecordSheet(undefined, 'block')}
               onOpenScope={() => openDesktopBridge('scope')}
               onInstantSaveWeight={(kg) => void saveWeight(kg)}
+              onInstantSaveStudy={(input) =>
+                study.saveRecord({
+                  topic: input.subject,
+                  durationMinutes: input.durationMinutes,
+                  note: input.note,
+                })
+              }
+              onInstantSaveWorkout={(input) =>
+                void training.saveSet({
+                  exercise: input.exercise,
+                  reps: input.reps,
+                  weightKg: input.weightKg,
+                  bandLevel: null,
+                })
+              }
             />
           ) : (
             <OneTapSmartFlowCard

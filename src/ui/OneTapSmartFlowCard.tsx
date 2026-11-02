@@ -293,7 +293,40 @@ export function OneTapSmartFlowCard({
 
         {activeStage === 'focus' ? (
           <>
-            {ONE_TAP_FOCUS_PRESETS.slice(0, 3).map((preset) => (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('点一下翻书加一分钟', 'Tap book to flip page +1m')}
+              onPress={() =>
+                handleInstantFocusTap({
+                  id: 'book-flip-1m',
+                  topicZh: '📖 沉浸翻书',
+                  topicEn: '📖 Book Flip',
+                  durationMinutes: 1,
+                  category: 'study',
+                  isPrimary: true,
+                })
+              }
+              style={({ pressed }) => [
+                styles.actionPill,
+                {
+                  backgroundColor: pal.primaryBtnBg,
+                  borderColor: pal.primaryBtnBorder,
+                  transform: [{ scale: pressed ? 0.93 : 1 }],
+                },
+              ]}
+            >
+              <Text
+                variant="caption"
+                style={{
+                  color: pal.primaryBtnText,
+                  fontWeight: '700',
+                  fontSize: 11.5,
+                }}
+              >
+                {t('📖 翻一页 +1m', '📖 Flip +1m')}
+              </Text>
+            </Pressable>
+            {ONE_TAP_FOCUS_PRESETS.slice(0, 2).map((preset) => (
               <Pressable
                 key={preset.id}
                 accessibilityRole="button"
@@ -302,8 +335,8 @@ export function OneTapSmartFlowCard({
                 style={({ pressed }) => [
                   styles.actionPill,
                   {
-                    backgroundColor: preset.isPrimary ? pal.primaryBtnBg : pal.secondaryBtnBg,
-                    borderColor: preset.isPrimary ? pal.primaryBtnBorder : pal.secondaryBtnBorder,
+                    backgroundColor: pal.secondaryBtnBg,
+                    borderColor: pal.secondaryBtnBorder,
                     opacity: pressed ? 0.8 : 1,
                   },
                 ]}
@@ -311,12 +344,12 @@ export function OneTapSmartFlowCard({
                 <Text
                   variant="caption"
                   style={{
-                    color: preset.isPrimary ? pal.primaryBtnText : pal.ink,
-                    fontWeight: preset.isPrimary ? '700' : '600',
+                    color: pal.ink,
+                    fontWeight: '600',
                     fontSize: 11.5,
                   }}
                 >
-                  {`${preset.isPrimary ? '⚡ ' : ''}${t(preset.topicZh, preset.topicEn)} ${preset.durationMinutes}m`}
+                  {`${t(preset.topicZh, preset.topicEn)} ${preset.durationMinutes}m`}
                 </Text>
               </Pressable>
             ))}
@@ -329,7 +362,43 @@ export function OneTapSmartFlowCard({
 
         {activeStage === 'training' ? (
           <>
-            {ONE_TAP_WORKOUT_PRESETS.slice(0, 3).map((preset) => (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('点一下健身小人动一下加一次', 'Tap fitness character +1 rep')}
+              onPress={() =>
+                void handleInstantWorkoutTap({
+                  id: 'mini-avatar-rep',
+                  labelZh: '⚡ 动一下 +1',
+                  labelEn: '⚡ Rep +1',
+                  exerciseZh: '深蹲',
+                  exerciseEn: 'Squat',
+                  reps: 1,
+                  weightKg: 60,
+                  bandLevel: null,
+                  isPrimary: true,
+                })
+              }
+              style={({ pressed }) => [
+                styles.actionPill,
+                {
+                  backgroundColor: pal.primaryBtnBg,
+                  borderColor: pal.primaryBtnBorder,
+                  transform: [{ scale: pressed ? 0.93 : 1 }],
+                },
+              ]}
+            >
+              <Text
+                variant="caption"
+                style={{
+                  color: pal.primaryBtnText,
+                  fontWeight: '700',
+                  fontSize: 11.5,
+                }}
+              >
+                {t('🏋️ 动一下 +1次', '🏋️ Rep +1')}
+              </Text>
+            </Pressable>
+            {ONE_TAP_WORKOUT_PRESETS.slice(0, 2).map((preset) => (
               <Pressable
                 key={preset.id}
                 accessibilityRole="button"
@@ -338,8 +407,8 @@ export function OneTapSmartFlowCard({
                 style={({ pressed }) => [
                   styles.actionPill,
                   {
-                    backgroundColor: preset.isPrimary ? pal.primaryBtnBg : pal.secondaryBtnBg,
-                    borderColor: preset.isPrimary ? pal.primaryBtnBorder : pal.secondaryBtnBorder,
+                    backgroundColor: pal.secondaryBtnBg,
+                    borderColor: pal.secondaryBtnBorder,
                     opacity: pressed ? 0.8 : 1,
                   },
                 ]}
@@ -347,8 +416,8 @@ export function OneTapSmartFlowCard({
                 <Text
                   variant="caption"
                   style={{
-                    color: preset.isPrimary ? pal.primaryBtnText : pal.ink,
-                    fontWeight: preset.isPrimary ? '700' : '600',
+                    color: pal.ink,
+                    fontWeight: '600',
                     fontSize: 11.5,
                   }}
                 >

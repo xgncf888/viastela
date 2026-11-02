@@ -38,6 +38,7 @@ import {
 } from '@/data/life-milestones-okr';
 import {
   addTimeBlock,
+  incrementOrAddTimeBlock,
   readActiveTimer,
   readMasteryGoals,
   readTimeBlocks,
@@ -55,12 +56,19 @@ import { showToast } from './toast';
 export type SanctuaryPerspective = 'diorama' | 'daycycle' | 'summary';
 export type LifeZoneKey = 'focus' | 'vitality' | 'wishes';
 export type SpatialModuleFilter = 'all' | 'focus' | 'vitality' | 'wishes';
+export type WorkoutPoseId = 'squat' | 'pushup' | 'press' | 'jump';
 
 interface StageBurstFx {
   id: string;
   target: string;
   text: string;
   color: string;
+}
+
+let stageBurstSequence = 0;
+function createStageBurstId(target: string): string {
+  stageBurstSequence += 1;
+  return `${target}-${stageBurstSequence}`;
 }
 
 let stageFxKeyframesInjected = false;
@@ -99,7 +107,7 @@ function ensureStageFxKeyframes() {
  * Synthesizes a subtle, zero-asset crystalline tactile click/chime via Web Audio API.
  * Wrapped in try/catch so Jest/SSR environments remain completely unaffected.
  */
-function playStageTactileTick(kind: 'tick' | 'reward' | 'chime' = 'tick') {
+function playStageTactileTick(kind: 'tick' | 'reward' | 'chime' | 'page' | 'rep' = 'tick') {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return;
   try {
     const AudioCtx =
@@ -111,7 +119,7 @@ function playStageTactileTick(kind: 'tick' | 'reward' | 'chime' = 'tick') {
     const now = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.type = kind === 'tick' ? 'triangle' : 'sine';
+    osc.type = kind === 'tick' || kind === 'page' ? 'triangle' : 'sine';
     if (kind === 'reward') {
       osc.frequency.setValueAtTime(587.33, now); // D5
       osc.frequency.exponentialRampToValueAtTime(880, now + 0.085); // A5
@@ -121,6 +129,24 @@ function playStageTactileTick(kind: 'tick' | 'reward' | 'chime' = 'tick') {
       gain.connect(ctx.destination);
       osc.start(now);
       osc.stop(now + 0.165);
+    } else if (kind === 'page') {
+      osc.frequency.setValueAtTime(660, now);
+      osc.frequency.exponentialRampToValueAtTime(990, now + 0.055);
+      gain.gain.setValueAtTime(0.032, now);
+      gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.08);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.085);
+    } else if (kind === 'rep') {
+      osc.frequency.setValueAtTime(330, now);
+      osc.frequency.exponentialRampToValueAtTime(523.25, now + 0.065);
+      gain.gain.setValueAtTime(0.04, now);
+      gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.1);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.105);
     } else if (kind === 'chime') {
       osc.frequency.setValueAtTime(523.25, now); // C5
       osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.07); // E5
@@ -158,6 +184,10 @@ function IsometricLifeZoneSvg({
   burstActive = false,
   isDark,
   weightText,
+  bookPageCount = 0,
+  workoutPose = 'squat',
+  workoutFrame = 0,
+  workoutReps = 0,
 }: {
   zone: LifeZoneKey;
   active: boolean;
@@ -165,6 +195,10 @@ function IsometricLifeZoneSvg({
   burstActive?: boolean;
   isDark: boolean;
   weightText: string;
+  bookPageCount?: number;
+  workoutPose?: WorkoutPoseId;
+  workoutFrame?: number;
+  workoutReps?: number;
 }) {
   const rimColor =
     zone === 'focus'
@@ -441,20 +475,55 @@ function IsometricLifeZoneSvg({
             ry: 16,
             fill: `url(#${lampConeId})`,
           }),
+          // Interactive Open Book on Desk (Flips page & glows on click)
           createElement('polygon', {
-            points: '104,92 120,85 110,80 94,87',
+            points: '92,94 118,83 106,76 80,87',
             fill: '#fffbeb',
             stroke: '#d97706',
-            strokeWidth: 0.8,
+            strokeWidth: 1.1,
           }),
           createElement('polygon', {
-            points: '120,85 136,79 126,74 110,80',
+            points: '118,83 144,72 132,65 106,76',
             fill: '#fef3c7',
             stroke: '#d97706',
-            strokeWidth: 0.8,
+            strokeWidth: 1.1,
           }),
-          createElement('line', { x1: 100, y1: 87, x2: 112, y2: 82, stroke: '#92400e', strokeWidth: 0.7 }),
-          createElement('line', { x1: 116, y1: 80, x2: 128, y2: 76, stroke: '#92400e', strokeWidth: 0.7 }),
+          // Dynamic Flipping Page Leaf (alternates angle with bookPageCount)
+          createElement('polygon', {
+            points:
+              bookPageCount % 2 === 1
+                ? '118,83 136,62 122,56 106,76'
+                : '118,83 102,65 90,72 106,76',
+            fill: '#ffffff',
+            stroke: '#f59e0b',
+            strokeWidth: 1.1,
+          }),
+          createElement('line', { x1: 93, y1: 86, x2: 109, y2: 79, stroke: '#92400e', strokeWidth: 0.8 }),
+          createElement('line', { x1: 116, y1: 77, x2: 132, y2: 70, stroke: '#92400e', strokeWidth: 0.8 }),
+          // Floating Book Page Badge above the Open Book
+          createElement('rect', {
+            x: 84,
+            y: 44,
+            width: 34,
+            height: 13,
+            rx: 6.5,
+            fill: isDark ? 'rgba(24,20,16,0.92)' : 'rgba(255,251,235,0.94)',
+            stroke: '#f59e0b',
+            strokeWidth: 1,
+          }),
+          createElement(
+            'text',
+            {
+              x: 101,
+              y: 53,
+              textAnchor: 'middle',
+              fill: isDark ? '#fde68a' : '#b45309',
+              fontSize: '7.5',
+              fontWeight: '700',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            },
+            `📖P.${12 + bookPageCount}`,
+          ),
           createElement('polygon', {
             points: '146,84 164,76 152,71 134,79',
             fill: '#c25e3c',
@@ -500,7 +569,7 @@ function IsometricLifeZoneSvg({
         )
       : null,
 
-    // ================= ISLAND 2: 活力体态 =================
+    // ================= ISLAND 2: 活力体态 (With Interactive Multi-Pose Fitness Character) =================
     zone === 'vitality'
       ? createElement(
           'g',
@@ -538,24 +607,258 @@ function IsometricLifeZoneSvg({
             stroke: '#f3a683',
             strokeWidth: 1.2,
           }),
-          createElement('line', {
-            x1: 96,
-            y1: 98,
-            x2: 108,
-            y2: 104,
-            stroke: `url(#${goldMetalId})`,
-            strokeWidth: 3.5,
-            strokeLinecap: 'round',
+
+          // Interactive Articulated Fitness Character (健身小人) on the Yoga Mat
+          workoutPose === 'squat'
+            ? createElement(
+                'g',
+                null,
+                // Shadow under character
+                createElement('ellipse', { cx: 108, cy: 96, rx: 14, ry: 6, fill: 'rgba(0,0,0,0.35)' }),
+                // Legs (bent in frame 1 deep squat, straight in frame 0)
+                createElement('polyline', {
+                  points: workoutFrame === 1 ? '102,94 95,84 104,78' : '102,94 103,80 105,70',
+                  fill: 'none',
+                  stroke: '#34d399',
+                  strokeWidth: 3.2,
+                  strokeLinecap: 'round',
+                  strokeLinejoin: 'round',
+                }),
+                createElement('polyline', {
+                  points: workoutFrame === 1 ? '114,94 121,84 112,78' : '114,94 113,80 111,70',
+                  fill: 'none',
+                  stroke: '#34d399',
+                  strokeWidth: 3.2,
+                  strokeLinecap: 'round',
+                  strokeLinejoin: 'round',
+                }),
+                // Torso
+                createElement('line', {
+                  x1: 108,
+                  y1: workoutFrame === 1 ? 79 : 71,
+                  x2: 108,
+                  y2: workoutFrame === 1 ? 63 : 54,
+                  stroke: '#fde68a',
+                  strokeWidth: 4.5,
+                  strokeLinecap: 'round',
+                }),
+                // Head
+                createElement('circle', {
+                  cx: 108,
+                  cy: workoutFrame === 1 ? 56 : 47,
+                  r: 5.5,
+                  fill: '#fef08a',
+                  stroke: '#d97706',
+                  strokeWidth: 1.2,
+                }),
+                // Golden Barbell across shoulders
+                createElement('line', {
+                  x1: 86,
+                  y1: workoutFrame === 1 ? 64 : 55,
+                  x2: 130,
+                  y2: workoutFrame === 1 ? 64 : 55,
+                  stroke: `url(#${goldMetalId})`,
+                  strokeWidth: 2.8,
+                  strokeLinecap: 'round',
+                }),
+                createElement('circle', {
+                  cx: 88,
+                  cy: workoutFrame === 1 ? 64 : 55,
+                  r: 5,
+                  fill: '#b45309',
+                  stroke: '#fde68a',
+                  strokeWidth: 1.1,
+                }),
+                createElement('circle', {
+                  cx: 128,
+                  cy: workoutFrame === 1 ? 64 : 55,
+                  r: 5,
+                  fill: '#b45309',
+                  stroke: '#fde68a',
+                  strokeWidth: 1.1,
+                }),
+              )
+            : workoutPose === 'pushup'
+              ? createElement(
+                  'g',
+                  null,
+                  createElement('ellipse', { cx: 108, cy: 96, rx: 18, ry: 6, fill: 'rgba(0,0,0,0.35)' }),
+                  // Plank Body (lowers toward mat in frame 1)
+                  createElement('line', {
+                    x1: 90,
+                    y1: 93,
+                    x2: 118,
+                    y2: workoutFrame === 1 ? 86 : 77,
+                    stroke: '#34d399',
+                    strokeWidth: 4.2,
+                    strokeLinecap: 'round',
+                  }),
+                  // Push-up Arms
+                  createElement('polyline', {
+                    points: workoutFrame === 1 ? '115,86 122,90 118,95' : '115,78 118,87 118,95',
+                    fill: 'none',
+                    stroke: '#fde68a',
+                    strokeWidth: 3,
+                    strokeLinecap: 'round',
+                    strokeLinejoin: 'round',
+                  }),
+                  // Head
+                  createElement('circle', {
+                    cx: 124,
+                    cy: workoutFrame === 1 ? 84 : 74,
+                    r: 5.2,
+                    fill: '#fef08a',
+                    stroke: '#d97706',
+                    strokeWidth: 1.2,
+                  }),
+                )
+              : workoutPose === 'press'
+                ? createElement(
+                    'g',
+                    null,
+                    createElement('ellipse', { cx: 108, cy: 96, rx: 13, ry: 5.5, fill: 'rgba(0,0,0,0.35)' }),
+                    // Legs
+                    createElement('line', { x1: 104, y1: 94, x2: 106, y2: 73, stroke: '#34d399', strokeWidth: 3.2, strokeLinecap: 'round' }),
+                    createElement('line', { x1: 112, y1: 94, x2: 110, y2: 73, stroke: '#34d399', strokeWidth: 3.2, strokeLinecap: 'round' }),
+                    // Torso
+                    createElement('line', { x1: 108, y1: 73, x2: 108, y2: 55, stroke: '#fde68a', strokeWidth: 4.5, strokeLinecap: 'round' }),
+                    // Head
+                    createElement('circle', { cx: 108, cy: 48, r: 5.5, fill: '#fef08a', stroke: '#d97706', strokeWidth: 1.2 }),
+                    // Arms + Twin Dumbbells (Overhead in frame 1, at shoulders in frame 0)
+                    createElement('polyline', {
+                      points: workoutFrame === 1 ? '108,58 96,46 96,35' : '108,58 96,62 96,52',
+                      fill: 'none',
+                      stroke: '#34d399',
+                      strokeWidth: 2.8,
+                      strokeLinecap: 'round',
+                    }),
+                    createElement('polyline', {
+                      points: workoutFrame === 1 ? '108,58 120,46 120,35' : '108,58 120,62 120,52',
+                      fill: 'none',
+                      stroke: '#34d399',
+                      strokeWidth: 2.8,
+                      strokeLinecap: 'round',
+                    }),
+                    createElement('rect', {
+                      x: 91,
+                      y: workoutFrame === 1 ? 32 : 49,
+                      width: 10,
+                      height: 4,
+                      rx: 1.5,
+                      fill: '#f5b942',
+                    }),
+                    createElement('rect', {
+                      x: 115,
+                      y: workoutFrame === 1 ? 32 : 49,
+                      width: 10,
+                      height: 4,
+                      rx: 1.5,
+                      fill: '#f5b942',
+                    }),
+                  )
+                : createElement(
+                    'g',
+                    null,
+                    createElement('ellipse', {
+                      cx: 108,
+                      cy: 96,
+                      rx: workoutFrame === 1 ? 9 : 13,
+                      ry: 5,
+                      fill: 'rgba(0,0,0,0.35)',
+                    }),
+                    // Jumping Jack Legs (Wide in air on frame 1, together on frame 0)
+                    createElement('line', {
+                      x1: 108,
+                      y1: workoutFrame === 1 ? 67 : 74,
+                      x2: workoutFrame === 1 ? 95 : 104,
+                      y2: workoutFrame === 1 ? 87 : 94,
+                      stroke: '#34d399',
+                      strokeWidth: 3.2,
+                      strokeLinecap: 'round',
+                    }),
+                    createElement('line', {
+                      x1: 108,
+                      y1: workoutFrame === 1 ? 67 : 74,
+                      x2: workoutFrame === 1 ? 121 : 112,
+                      y2: workoutFrame === 1 ? 87 : 94,
+                      stroke: '#34d399',
+                      strokeWidth: 3.2,
+                      strokeLinecap: 'round',
+                    }),
+                    // Torso
+                    createElement('line', {
+                      x1: 108,
+                      y1: workoutFrame === 1 ? 67 : 74,
+                      x2: 108,
+                      y2: workoutFrame === 1 ? 50 : 57,
+                      stroke: '#fde68a',
+                      strokeWidth: 4.4,
+                      strokeLinecap: 'round',
+                    }),
+                    // Jumping Jack Arms (High V-shape on frame 1)
+                    createElement('line', {
+                      x1: 108,
+                      y1: workoutFrame === 1 ? 54 : 60,
+                      x2: workoutFrame === 1 ? 93 : 98,
+                      y2: workoutFrame === 1 ? 37 : 72,
+                      stroke: '#34d399',
+                      strokeWidth: 2.8,
+                      strokeLinecap: 'round',
+                    }),
+                    createElement('line', {
+                      x1: 108,
+                      y1: workoutFrame === 1 ? 54 : 60,
+                      x2: workoutFrame === 1 ? 123 : 118,
+                      y2: workoutFrame === 1 ? 37 : 72,
+                      stroke: '#34d399',
+                      strokeWidth: 2.8,
+                      strokeLinecap: 'round',
+                    }),
+                    // Head
+                    createElement('circle', {
+                      cx: 108,
+                      cy: workoutFrame === 1 ? 43 : 50,
+                      r: 5.5,
+                      fill: '#fef08a',
+                      stroke: '#059669',
+                      strokeWidth: 1.2,
+                    }),
+                  ),
+
+          // Live Rep Counter Badge above Fitness Character
+          createElement('rect', {
+            x: 88,
+            y: 20,
+            width: 40,
+            height: 13,
+            rx: 6.5,
+            fill: isDark ? 'rgba(12,28,22,0.92)' : 'rgba(236,253,245,0.95)',
+            stroke: '#34d399',
+            strokeWidth: 1,
           }),
+          createElement(
+            'text',
+            {
+              x: 108,
+              y: 29,
+              textAnchor: 'middle',
+              fill: isDark ? '#6ee7b7' : '#065f46',
+              fontSize: '7.5',
+              fontWeight: '700',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            },
+            `⚡x${workoutReps}`,
+          ),
+
           createElement('circle', {
-            cx: 135,
+            cx: 139,
             cy: 84,
-            r: 9.5,
+            r: 8.5,
             fill: '#34d399',
             stroke: '#059669',
             strokeWidth: 1,
           }),
-          createElement('circle', { cx: 132, cy: 81, r: 2.8, fill: '#a7f3d0' }),
+          createElement('circle', { cx: 136, cy: 81, r: 2.5, fill: '#a7f3d0' }),
           createElement('polygon', {
             points: '158,128 212,105 176,90 122,113',
             fill: isDark ? '#2e343b' : '#475569',
@@ -880,6 +1183,8 @@ export function IsometricStudioStage({
   onQuickStudy,
   onQuickJournal,
   onInstantSaveWeight,
+  onInstantSaveStudy,
+  onInstantSaveWorkout,
 }: {
   mode?: RuntimeHostMode;
   localDay: string;
@@ -898,6 +1203,8 @@ export function IsometricStudioStage({
   onQuickJournal: () => void;
   onOpenScope?: () => void;
   onInstantSaveWeight?: (kg: number) => void;
+  onInstantSaveStudy?: (input: { subject: string; durationMinutes: number; note: string | null }) => void;
+  onInstantSaveWorkout?: (input: { exercise: string; reps: number; weightKg: number | null }) => void;
 }) {
   const { color, scheme } = useTheme();
   const { t } = useI18n();
@@ -918,6 +1225,12 @@ export function IsometricStudioStage({
   const [hoveredHeatIdx, setHoveredHeatIdx] = useState<number | null>(null);
   const [bursts, setBursts] = useState<StageBurstFx[]>([]);
 
+  // Interactive Book Flip (+1m per tap) & Fitness Mini-Character Pose/Rep States
+  const [bookPageCount, setBookPageCount] = useState<number>(() => Math.max(0, studyMinutes));
+  const [workoutPose, setWorkoutPose] = useState<WorkoutPoseId>('squat');
+  const [workoutFrame, setWorkoutFrame] = useState<number>(0);
+  const [workoutReps, setWorkoutReps] = useState<number>(() => trainingSetsCount * 10);
+
   // Inline 1-minute scrubber state for 'day' mode inside Left Bento Card
   const [dayScrubRange, setDayScrubRange] = useState<{ startMinute: number; endMinute: number }>(() => {
     const now = new Date();
@@ -934,11 +1247,11 @@ export function IsometricStudioStage({
     target: string,
     text: string,
     accentColor: string,
-    sound: 'tick' | 'reward' | 'chime' = 'tick',
+    sound: 'tick' | 'reward' | 'chime' | 'page' | 'rep' = 'tick',
   ) {
     ensureStageFxKeyframes();
     playStageTactileTick(sound);
-    const id = `${target}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const id = createStageBurstId(target);
     setBursts((prev) => [...prev.filter((b) => b.target !== target), { id, target, text, color: accentColor }]);
     setTimeout(() => {
       setBursts((prev) => prev.filter((b) => b.id !== id));
@@ -1176,7 +1489,7 @@ export function IsometricStudioStage({
     } else {
       const nextTimer: ActiveTimerSession = {
         isRunning: true,
-        startedAtMs: Date.now(),
+        startedAtMs: nowMs,
         accumulatedSeconds: 0,
         category: 'deep-work',
         title: customTitle || t('深度架构与论文精读', 'Deep Architecture & Reading'),
@@ -1223,6 +1536,120 @@ export function IsometricStudioStage({
       triggerStageBurst('vitality', t('⚖ 记录体重', '⚖ Log Weight'), pal.emeraldAccent, 'tick');
       onQuickWeight();
     }
+  }
+
+  // Interactive Book Toy on Island 1: Tap to flip page & accumulate +1m (or +5m) reading time
+  function handleFlipStudyBook(deltaMinutes = 1) {
+    const nextPages = bookPageCount + deltaMinutes;
+    setBookPageCount(nextPages);
+    const bookTitle = t('沉浸翻书共读', 'Immersive Reading');
+    setTimeBlocks(
+      incrementOrAddTimeBlock({
+        localDay,
+        deltaMinutes,
+        category: 'study',
+        title: bookTitle,
+        goalId: 'goal-ai-infra',
+      }),
+    );
+    if (nextPages % 5 === 0 || deltaMinutes >= 5) {
+      onInstantSaveStudy?.({
+        subject: bookTitle,
+        durationMinutes: Math.max(5, deltaMinutes),
+        note: `P.${12 + nextPages}`,
+      });
+      const v = recordPledgeReward(`沉浸翻书 P.${12 + nextPages} (+${deltaMinutes}m)`, localDay);
+      setVault(v);
+      triggerStageBurst(
+        'focus',
+        t(`📖 P.${12 + nextPages} · 连读 +¥${v.config.checkInRewardCny} ✦`, `📖 P.${12 + nextPages} · +¥${v.config.checkInRewardCny} ✦`),
+        pal.goldAccent,
+        'reward',
+      );
+      showToast({
+        text: t(
+          `📖 已翻至 P.${12 + nextPages} · 累计阅读 +${deltaMinutes}m · 心愿金库 +¥${v.config.checkInRewardCny}`,
+          `📖 Flipped to P.${12 + nextPages} · +${deltaMinutes}m · Wish Vault +¥${v.config.checkInRewardCny}`,
+        ),
+      });
+    } else {
+      triggerStageBurst(
+        'focus',
+        t(`📖 翻页 P.${12 + nextPages} · +${deltaMinutes}m ✦`, `📖 Page P.${12 + nextPages} · +${deltaMinutes}m ✦`),
+        pal.terracottaAccent,
+        'page',
+      );
+    }
+  }
+
+  const WORKOUT_POSE_META: Record<
+    WorkoutPoseId,
+    { zh: string; en: string; icon: string; weightKg: number | null }
+  > = {
+    squat: { zh: '深蹲', en: 'Squat', icon: '🏋️', weightKg: 60 },
+    pushup: { zh: '俯卧撑', en: 'Push-Up', icon: '💪', weightKg: null },
+    press: { zh: '推举', en: 'DB Press', icon: '🔔', weightKg: 20 },
+    jump: { zh: '开合跳', en: 'Jump Jack', icon: '🔥', weightKg: null },
+  };
+
+  // Interactive Fitness Character on Island 2: Tap to animate pose & increment rep
+  function handleTapWorkoutCharacter(repDelta = 1) {
+    const meta = WORKOUT_POSE_META[workoutPose];
+    const nextReps = workoutReps + repDelta;
+    setWorkoutFrame((prev) => (prev === 0 ? 1 : 0));
+    setWorkoutReps(nextReps);
+    const exerciseName = t(meta.zh, meta.en);
+    setTimeBlocks(
+      incrementOrAddTimeBlock({
+        localDay,
+        deltaMinutes: 1,
+        category: 'fitness',
+        title: `${meta.icon} ${exerciseName}`,
+        goalId: null,
+      }),
+    );
+    if (nextReps % 5 === 0) {
+      onInstantSaveWorkout?.({
+        exercise: exerciseName,
+        reps: 5,
+        weightKg: meta.weightKg,
+      });
+      const v = recordPledgeReward(`完成 ${exerciseName} x${nextReps}`, localDay);
+      setVault(v);
+      triggerStageBurst(
+        'vitality',
+        `${meta.icon} ${exerciseName} x${nextReps} · +¥${v.config.checkInRewardCny} 🔥`,
+        pal.emeraldAccent,
+        'reward',
+      );
+      showToast({
+        text: t(
+          `🏆 ${exerciseName}累计 ${nextReps} 次（已自动记入 1 组）· 心愿金库 +¥${v.config.checkInRewardCny}`,
+          `🏆 ${exerciseName} x${nextReps} (1 set logged) · Wish Vault +¥${v.config.checkInRewardCny}`,
+        ),
+      });
+    } else {
+      triggerStageBurst(
+        'vitality',
+        `${meta.icon} ${exerciseName} x${nextReps} · +${repDelta}次 ⚡`,
+        pal.emeraldAccent,
+        'rep',
+      );
+    }
+  }
+
+  function handleCycleWorkoutPose() {
+    const order: WorkoutPoseId[] = ['squat', 'pushup', 'press', 'jump'];
+    const nextPose = order[(order.indexOf(workoutPose) + 1) % order.length] ?? 'squat';
+    setWorkoutPose(nextPose);
+    setWorkoutFrame(0);
+    const meta = WORKOUT_POSE_META[nextPose];
+    triggerStageBurst(
+      'vitality',
+      t(`⇄ 切换动作：${meta.icon} ${meta.zh}`, `⇄ Pose: ${meta.icon} ${meta.en}`),
+      pal.goldAccent,
+      'chime',
+    );
   }
 
   // Direct Island 3 Interactive Action: 1-Click Habit & Wish Check-In
@@ -1674,9 +2101,9 @@ export function IsometricStudioStage({
                     accessibilityLabel="心流书房与一万小时精进"
                     onHoverIn={() => setHoveredZone('focus')}
                     onHoverOut={() => setHoveredZone((prev) => (prev === 'focus' ? null : prev))}
-                    onPress={() => selectIslandAndSync('focus')}
+                    onPress={() => handleFlipStudyBook(1)}
                     style={({ pressed }) => [
-                      pressed ? { transform: [{ scale: 0.96 }] } : null,
+                      pressed ? { transform: [{ scale: 0.95 }] } : null,
                     ]}
                   >
                     <IsometricLifeZoneSvg
@@ -1686,6 +2113,7 @@ export function IsometricStudioStage({
                       burstActive={bursts.some((b) => b.target === 'focus')}
                       isDark={isDark}
                       weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
+                      bookPageCount={bookPageCount}
                     />
                   </Pressable>
                   <View
@@ -1731,12 +2159,38 @@ export function IsometricStudioStage({
                     <Text variant="caption" style={[styles.hudMetricText, { color: pal.sub }]}>
                       {timer.isRunning
                         ? `· ${t('计时', 'Timer')} ${formatTimerClock(timerElapsedSeconds)}`
-                        : `· ${displayMasteryHours.toLocaleString('en-US')} /`}
+                        : `· 📖 P.${12 + bookPageCount} · ${trackedMinsToday}m (${displayMasteryHours}h)`}
                     </Text>
                     <Text variant="caption" style={[styles.hudSubText, { color: pal.muted }]}>
-                      {timer.isRunning ? `  ${timer.title}` : `  10,000h (${trackedMinsToday}m)`}
+                      {timer.isRunning
+                        ? `  ${timer.title}`
+                        : t('  点书本翻页 +1m · 满 5 页奖 ¥25', '  Tap book +1m · 5p = +¥25')}
                     </Text>
                     <View style={styles.hudMicroActionRow}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="点一下翻书加一分钟"
+                        onPress={() => handleFlipStudyBook(1)}
+                        style={({ pressed }) => [
+                          styles.hudMicroBtn,
+                          {
+                            backgroundColor: pal.pillActiveBg,
+                            borderColor: pal.terracottaAccent,
+                            transform: [{ scale: pressed ? 0.91 : 1 }],
+                          },
+                        ]}
+                      >
+                        <Text
+                          variant="caption"
+                          style={{
+                            fontSize: 10,
+                            fontWeight: '700',
+                            color: pal.goldText,
+                          }}
+                        >
+                          {t('📖 翻页 +1m', '📖 Flip +1m')}
+                        </Text>
+                      </Pressable>
                       <Pressable
                         onPress={() => handleToggleFocusTimer()}
                         style={({ pressed }) => [
@@ -1753,28 +2207,10 @@ export function IsometricStudioStage({
                           style={{
                             fontSize: 10,
                             fontWeight: '700',
-                            color: timer.isRunning ? pal.emeraldAccent : pal.goldText,
+                            color: timer.isRunning ? pal.emeraldAccent : pal.sub,
                           }}
                         >
-                          {timer.isRunning ? t('⏸ 完成入账', '⏸ Finish') : t('▶ 专注计时', '▶ Timer')}
-                        </Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => {
-                          triggerStageBurst('focus', t('📚 记学习 ✦', '📚 Log Study ✦'), pal.terracottaAccent, 'tick');
-                          onQuickStudy();
-                        }}
-                        style={({ pressed }) => [
-                          styles.hudMicroBtn,
-                          {
-                            backgroundColor: pal.pillBg,
-                            borderColor: pal.bentoBorder,
-                            transform: [{ scale: pressed ? 0.93 : 1 }],
-                          },
-                        ]}
-                      >
-                        <Text variant="caption" style={{ fontSize: 10, color: pal.sub }}>
-                          {t('＋ 记学习', '＋ Study')}
+                          {timer.isRunning ? t('⏸ 结算', '⏸ Done') : t('▶ 计时', '▶ Timer')}
                         </Text>
                       </Pressable>
                     </View>
@@ -1782,7 +2218,7 @@ export function IsometricStudioStage({
                 </View>
               </View>
 
-              {/* Zone 2: 活力体态 (Directly Interactive Weight & Workout) */}
+              {/* Zone 2: 活力体态 (Interactive Multi-Pose Fitness Character + Weight) */}
               <View
                 style={[
                   styles.isoIslandSlot,
@@ -1814,9 +2250,9 @@ export function IsometricStudioStage({
                     accessibilityLabel="活力体态与蓝牙体脂秤"
                     onHoverIn={() => setHoveredZone('vitality')}
                     onHoverOut={() => setHoveredZone((prev) => (prev === 'vitality' ? null : prev))}
-                    onPress={() => selectIslandAndSync('vitality')}
+                    onPress={() => handleTapWorkoutCharacter(1)}
                     style={({ pressed }) => [
-                      pressed ? { transform: [{ scale: 0.96 }] } : null,
+                      pressed ? { transform: [{ scale: 0.95 }] } : null,
                     ]}
                   >
                     <IsometricLifeZoneSvg
@@ -1826,6 +2262,9 @@ export function IsometricStudioStage({
                       burstActive={bursts.some((b) => b.target === 'vitality')}
                       isDark={isDark}
                       weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
+                      workoutPose={workoutPose}
+                      workoutFrame={workoutFrame}
+                      workoutReps={workoutReps}
                     />
                   </Pressable>
                   <View
@@ -1849,58 +2288,57 @@ export function IsometricStudioStage({
                       </Pressable>
                       <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel="快速确认今日体重"
-                        onPress={() => handleQuickWeightNudge(0)}
+                        accessibilityLabel="切换健身小人动作"
+                        onPress={handleCycleWorkoutPose}
                       >
-                        <Text variant="caption" style={{ color: pal.emeraldAccent, fontSize: 12, fontWeight: '700' }}>
-                          ↻
+                        <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700' }}>
+                          {`${WORKOUT_POSE_META[workoutPose].icon} ⇄`}
                         </Text>
                       </Pressable>
                     </View>
                     <Text variant="caption" style={[styles.hudMetricText, { color: pal.sub }]}>
-                      {`· ${latestWeightKg ? `${latestWeightKg.toFixed(1)} kg` : '72.4 kg'}`}
+                      {`· ${WORKOUT_POSE_META[workoutPose].icon} ${t(WORKOUT_POSE_META[workoutPose].zh, WORKOUT_POSE_META[workoutPose].en)} x${workoutReps}`}
                     </Text>
                     <Text variant="caption" style={[styles.hudSubText, { color: pal.muted }]}>
-                      {trainingSetsCount > 0
-                        ? t(`· 已训练 ${trainingSetsCount} 组`, `· ${trainingSetsCount} Sets Logged`)
-                        : t('· 已同步', '· Synced')}
+                      {`  ${latestWeightKg ? `${latestWeightKg.toFixed(1)}kg` : '72.4kg'} · ${t('点小人动一下 +1', 'Tap character +1')}`}
                     </Text>
                     <View style={styles.hudMicroActionRow}>
                       <Pressable
-                        onPress={() => handleQuickWeightNudge(-0.1)}
+                        accessibilityRole="button"
+                        accessibilityLabel="点一下健身小人动一下加一次"
+                        onPress={() => handleTapWorkoutCharacter(1)}
                         style={({ pressed }) => [
                           styles.hudMicroBtn,
                           {
-                            backgroundColor: pal.pillBg,
-                            borderColor: pal.bentoBorder,
-                            transform: [{ scale: pressed ? 0.92 : 1 }],
-                          },
-                        ]}
-                      >
-                        <Text variant="caption" style={{ fontSize: 10, color: pal.sub }}>
-                          -0.1
-                        </Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => handleQuickWeightNudge(0)}
-                        style={({ pressed }) => [
-                          styles.hudMicroBtn,
-                          {
-                            backgroundColor: `${pal.emeraldAccent}22`,
+                            backgroundColor: `${pal.emeraldAccent}24`,
                             borderColor: pal.emeraldAccent,
-                            transform: [{ scale: pressed ? 0.92 : 1 }],
+                            transform: [{ scale: pressed ? 0.91 : 1 }],
                           },
                         ]}
                       >
                         <Text variant="caption" style={{ fontSize: 10, fontWeight: '700', color: pal.emeraldAccent }}>
-                          {t('✓ 记体重', '✓ Log Kg')}
+                          {t('⚡ 动一下 +1', '⚡ Rep +1')}
                         </Text>
                       </Pressable>
                       <Pressable
-                        onPress={() => {
-                          triggerStageBurst('vitality', t('💪 记训练 ✦', '💪 Workout ✦'), pal.emeraldAccent, 'tick');
-                          onQuickTraining();
-                        }}
+                        onPress={handleCycleWorkoutPose}
+                        style={({ pressed }) => [
+                          styles.hudMicroBtn,
+                          {
+                            backgroundColor: pal.pillBg,
+                            borderColor: pal.bentoBorder,
+                            transform: [{ scale: pressed ? 0.92 : 1 }],
+                          },
+                        ]}
+                      >
+                        <Text variant="caption" style={{ fontSize: 10, color: pal.goldText }}>
+                          {t('⇄ 换动作', '⇄ Pose')}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="快速确认今日体重"
+                        onPress={() => handleQuickWeightNudge(0)}
                         style={({ pressed }) => [
                           styles.hudMicroBtn,
                           {
@@ -1911,7 +2349,7 @@ export function IsometricStudioStage({
                         ]}
                       >
                         <Text variant="caption" style={{ fontSize: 10, color: pal.sub }}>
-                          {t('＋ 训练', '＋ Set')}
+                          {t('✓ 晨重', '✓ Kg')}
                         </Text>
                       </Pressable>
                     </View>
