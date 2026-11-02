@@ -2,8 +2,9 @@ import { createElement, useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, TextInput, View, type ViewStyle } from 'react-native';
 
 import { type RuntimeHostMode } from '@/core/charioteer-plugin';
-import { type PledgeVaultState } from '@/core/life-gamification';
+import { buildLifeHeatmapGrid, type HeatmapCell, type PledgeVaultState } from '@/core/life-gamification';
 import {
+  computeKrProgressPct,
   computeObjectiveProgressPct,
   type HabitItem,
   type LifeMilestone,
@@ -12,8 +13,10 @@ import {
 } from '@/core/life-milestones-okr';
 import {
   type ActiveTimerSession,
+  computeMasteryProgress,
   formatMinuteOfDay,
   formatTimerClock,
+  type MasteryGoal,
   type TimeBlockItem,
 } from '@/core/time-block-tracker';
 import {
@@ -22,67 +25,79 @@ import {
   subscribeLifeGamificationStore,
 } from '@/data/life-gamification';
 import {
+  checkInKeyResult,
   readDailyHabits,
   readLifeMilestones,
   readOkrObjectives,
   subscribeLifeOkrStore,
 } from '@/data/life-milestones-okr';
-import { addTimeBlock, readActiveTimer, readTimeBlocks } from '@/data/time-block-tracker';
+import {
+  addTimeBlock,
+  readActiveTimer,
+  readMasteryGoals,
+  readTimeBlocks,
+} from '@/data/time-block-tracker';
 
 import { Text } from './Text';
 import { theme } from './theme';
 import { showToast } from './toast';
 
-export type SanctuaryPerspective = 'sanctuary' | 'daycycle' | 'summary';
+export type SanctuaryPerspective = 'diorama' | 'daycycle' | 'summary';
 export type LifeZoneKey = 'focus' | 'vitality' | 'wishes';
 
 /**
- * Bespoke 2.5D Isometric Illustrations for a Personal Time & Life Sanctuary:
- * - 'focus': Isometric Warm Study Loft (Wooden desk, warm glowing reading lamp, open notebook, 10,000h hourglass)
- * - 'vitality': Isometric Home Gym & Smart Scale Corner (Training mat, sculpted dumbbells, glowing smart scale)
- * - 'wishes': Isometric Milestone & Wish Pavilion (Celestial sundial, anniversary gift chest, floating Polaris star)
+ * Option-A High-Craft 2.5D Isometric Diorama Islands:
+ * 1. 'focus': Warm Walnut Study Loft (Executive walnut desk with drawers, chair, glowing dome lamp, brass lamp, open book, and 10,000h radial badge)
+ * 2. 'vitality': Obsidian-Emerald Fitness Island (Rolled terracotta yoga mat, green sphere, copper dumbbells, and digital smart scale with live weight readout)
+ * 3. 'wishes': Obsidian-Gold Astrolabe Pavilion (3D Golden Armillary Sphere / Celestial Astrolabe with Polaris arrow + ribboned anniversary gift box)
  */
 function IsometricLifeZoneSvg({
   zone,
   active,
+  weightText,
+  masteryHoursText,
 }: {
   zone: LifeZoneKey;
   active: boolean;
+  weightText: string;
+  masteryHoursText: string;
 }) {
   const rimColor =
-    zone === 'focus' ? '#cc785c' : zone === 'vitality' ? '#4ade80' : '#f5b942';
+    zone === 'focus' ? '#e8924a' : zone === 'vitality' ? '#34d399' : '#f5b942';
 
   if (Platform.OS !== 'web') {
     return (
       <View
         style={{
-          width: 220,
-          height: 120,
-          borderRadius: 12,
-          borderWidth: 1,
+          width: 230,
+          height: 136,
+          borderRadius: 14,
+          borderWidth: 1.5,
           borderColor: rimColor,
-          backgroundColor: '#1b1917',
+          backgroundColor: '#1b1815',
         }}
       />
     );
   }
 
-  const gradTopId = `lifeTop_${zone}`;
-  const gradSideId = `lifeSide_${zone}`;
-  const lampGlowId = `lampGlow_${zone}`;
+  const gradTopId = `optATop_${zone}`;
+  const gradSideLId = `optASideL_${zone}`;
+  const gradSideRId = `optASideR_${zone}`;
+  const underGlowId = `optAGlow_${zone}`;
+  const goldGradId = `optAGold_${zone}`;
 
   return createElement(
     'svg',
     {
-      width: 244,
-      height: 152,
-      viewBox: '0 0 265 170',
+      width: 262,
+      height: 168,
+      viewBox: '0 0 280 180',
       fill: 'none',
       style: {
         overflow: 'visible',
         filter: active
-          ? 'drop-shadow(0 16px 26px rgba(0, 0, 0, 0.58))'
-          : 'drop-shadow(0 12px 18px rgba(0, 0, 0, 0.42))',
+          ? `drop-shadow(0 18px 28px rgba(0, 0, 0, 0.72)) drop-shadow(0 0 18px ${rimColor}33)`
+          : 'drop-shadow(0 14px 22px rgba(0, 0, 0, 0.58))',
       },
     },
     createElement(
@@ -91,239 +106,449 @@ function IsometricLifeZoneSvg({
       createElement(
         'linearGradient',
         { id: gradTopId, x1: '0', y1: '0', x2: '1', y2: '1' },
-        createElement('stop', { offset: '0%', stopColor: '#2c2825' }),
-        createElement('stop', { offset: '100%', stopColor: '#1b1917' }),
+        createElement('stop', {
+          offset: '0%',
+          stopColor: zone === 'focus' ? '#4a3222' : zone === 'vitality' ? '#1f2d27' : '#2f2920',
+        }),
+        createElement('stop', {
+          offset: '100%',
+          stopColor: zone === 'focus' ? '#261a12' : zone === 'vitality' ? '#121a17' : '#181510',
+        }),
       ),
       createElement(
         'linearGradient',
-        { id: gradSideId, x1: '0', y1: '0', x2: '0', y2: '1' },
-        createElement('stop', { offset: '0%', stopColor: '#1f1c19' }),
-        createElement('stop', { offset: '100%', stopColor: '#110f0d' }),
+        { id: gradSideLId, x1: '0', y1: '0', x2: '1', y2: '1' },
+        createElement('stop', {
+          offset: '0%',
+          stopColor: zone === 'focus' ? '#362317' : zone === 'vitality' ? '#17241e' : '#241e16',
+        }),
+        createElement('stop', { offset: '100%', stopColor: '#0e0c0a' }),
+      ),
+      createElement(
+        'linearGradient',
+        { id: gradSideRId, x1: '0', y1: '0', x2: '1', y2: '1' },
+        createElement('stop', { offset: '0%', stopColor: '#1a1612' }),
+        createElement('stop', { offset: '100%', stopColor: '#090807' }),
       ),
       createElement(
         'radialGradient',
-        { id: lampGlowId, cx: '50%', cy: '50%', r: '50%' },
-        createElement('stop', { offset: '0%', stopColor: rimColor, stopOpacity: '0.38' }),
+        { id: underGlowId, cx: '50%', cy: '50%', r: '50%' },
+        createElement('stop', { offset: '0%', stopColor: rimColor, stopOpacity: '0.46' }),
         createElement('stop', { offset: '100%', stopColor: rimColor, stopOpacity: '0' }),
       ),
+      createElement(
+        'linearGradient',
+        { id: goldGradId, x1: '0', y1: '0', x2: '1', y2: '1' },
+        createElement('stop', { offset: '0%', stopColor: '#fde68a' }),
+        createElement('stop', { offset: '50%', stopColor: '#eab308' }),
+        createElement('stop', { offset: '100%', stopColor: '#a16207' }),
+      ),
     ),
-    // Soft ambient floor aura
+
+    // 1. Ambient Neon Floor Bloom under Island
     createElement('ellipse', {
-      cx: 132,
-      cy: 106,
-      rx: 88,
-      ry: 36,
-      fill: `url(#${lampGlowId})`,
-    }),
-    // 2.5D Isometric Sanctuary Tile Base (Warm Stone & Walnut Bevel)
-    createElement('polygon', {
-      points: '132,146 244,102 132,58 20,102',
-      fill: `url(#${gradTopId})`,
-      stroke: 'rgba(255,248,235,0.18)',
-      strokeWidth: 1,
-    }),
-    createElement('polygon', {
-      points: '20,102 132,146 132,163 20,119',
-      fill: `url(#${gradSideId})`,
-      stroke: 'rgba(255,248,235,0.08)',
-      strokeWidth: 1,
-    }),
-    createElement('polygon', {
-      points: '244,102 132,146 132,163 244,119',
-      fill: '#141210',
-      stroke: 'rgba(255,248,235,0.10)',
-      strokeWidth: 1,
-    }),
-    // Inner Glowing Sanctuary Border Ring
-    createElement('polygon', {
-      points: '132,136 222,101 132,66 42,101',
-      fill: 'none',
-      stroke: rimColor,
-      strokeWidth: active ? 2.4 : 1.6,
-      strokeOpacity: active ? 0.92 : 0.65,
+      cx: 140,
+      cy: 122,
+      rx: 102,
+      ry: 42,
+      fill: `url(#${underGlowId})`,
     }),
 
-    // Zone 1: 心流书房 (Warm Study Desk + Glowing Lamp + Open Journal + Time Hourglass)
+    // 2. Thick 2.5D Isometric Platform Slab (Left & Right Extruded Walls + Glowing Under-Rim + Top Deck)
+    createElement('polygon', {
+      points: '22,110 140,158 140,172 22,124',
+      fill: `url(#${gradSideLId})`,
+      stroke: 'rgba(255,248,235,0.12)',
+      strokeWidth: 1,
+    }),
+    createElement('polygon', {
+      points: '258,110 140,158 140,172 258,124',
+      fill: `url(#${gradSideRId})`,
+      stroke: 'rgba(255,248,235,0.12)',
+      strokeWidth: 1,
+    }),
+    // Glowing Neon Under-Rim Strip (Option A signature detail)
+    createElement('polyline', {
+      points: '22,122 140,170 258,122',
+      fill: 'none',
+      stroke: rimColor,
+      strokeWidth: active ? 3.2 : 2.4,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+    }),
+    // Isometric Platform Top Surface
+    createElement('polygon', {
+      points: '140,158 258,110 140,62 22,110',
+      fill: `url(#${gradTopId})`,
+      stroke: rimColor,
+      strokeWidth: active ? 1.8 : 1.1,
+      strokeOpacity: 0.75,
+    }),
+
+    // ================= ISLAND 1: 心流书房 (Walnut Study Desk + Dome Lamp + 10,000h Dial) =================
     zone === 'focus'
       ? createElement(
           'g',
           null,
-          // Isometric Warm Walnut Study Desk
-          createElement('polygon', {
-            points: '132,113 182,93 132,74 82,93',
-            fill: '#4a3528',
-            stroke: '#cc785c',
-            strokeWidth: 1.1,
+          // Warm Lamp Pool on Desk
+          createElement('ellipse', {
+            cx: 132,
+            cy: 96,
+            rx: 46,
+            ry: 22,
+            fill: 'rgba(251, 191, 36, 0.22)',
           }),
+          // Left & Right Walnut Desk Pedestal Drawers
           createElement('polygon', {
-            points: '88,96 88,118 96,121 96,99',
-            fill: '#2a1e17',
-          }),
-          createElement('polygon', {
-            points: '168,96 168,118 176,121 176,99',
-            fill: '#2a1e17',
-          }),
-          // Open Notebook / Book on Desk
-          createElement('polygon', {
-            points: '126,98 148,89 134,83 112,92',
-            fill: '#f7f4ec',
-            stroke: '#cc785c',
+            points: '78,96 106,108 106,130 78,118',
+            fill: '#3d2415',
+            stroke: '#78472a',
             strokeWidth: 0.9,
           }),
-          // Warm Brass Desk Lamp & Light Cone
+          createElement('polygon', {
+            points: '106,108 122,101 122,123 106,130',
+            fill: '#29170d',
+          }),
+          // Drawer pulls
           createElement('line', {
-            x1: 102,
-            y1: 88,
-            x2: 102,
-            y2: 64,
+            x1: 88,
+            y1: 107,
+            x2: 96,
+            y2: 111,
+            stroke: '#f5b942',
+            strokeWidth: 1.5,
+          }),
+          createElement('line', {
+            x1: 88,
+            y1: 115,
+            x2: 96,
+            y2: 119,
+            stroke: '#f5b942',
+            strokeWidth: 1.5,
+          }),
+          // Executive Walnut Desk Top
+          createElement('polygon', {
+            points: '126,112 184,88 140,70 82,94',
+            fill: '#5c3722',
+            stroke: '#d97706',
+            strokeWidth: 1.2,
+          }),
+          // Open Illuminated Book on Desk
+          createElement('polygon', {
+            points: '126,98 148,89 134,83 112,92',
+            fill: '#fef3c7',
+            stroke: '#d97706',
+            strokeWidth: 0.9,
+          }),
+          // Red Hardcover Notebook on Right Corner
+          createElement('polygon', {
+            points: '154,88 168,82 158,78 144,84',
+            fill: '#b45309',
+            stroke: '#fde68a',
+            strokeWidth: 0.7,
+          }),
+          // Glowing Warm Dome Lamp (Upper Right of Desk)
+          createElement('rect', {
+            x: 135,
+            y: 56,
+            width: 6,
+            height: 12,
+            rx: 2,
+            fill: '#d97706',
+          }),
+          createElement('path', {
+            d: 'M126 58 C126 44, 150 44, 150 58 Z',
+            fill: '#fef08a',
+            stroke: '#f59e0b',
+            strokeWidth: 1.2,
+          }),
+          // Articulated Brass Reading Lamp (Left of Desk)
+          createElement('ellipse', {
+            cx: 98,
+            cy: 88,
+            rx: 7,
+            ry: 3.5,
+            fill: '#d97706',
+          }),
+          createElement('polyline', {
+            points: '98,88 92,72 106,65',
+            fill: 'none',
             stroke: '#f5b942',
             strokeWidth: 2,
           }),
           createElement('polygon', {
-            points: '94,64 114,58 118,68 92,72',
+            points: '104,62 114,66 108,72 98,67',
             fill: '#f5b942',
           }),
+          // Ergonomic Swivel Study Chair
           createElement('polygon', {
-            points: '96,70 116,66 130,92 86,94',
-            fill: 'rgba(245, 185, 66, 0.18)',
+            points: '148,108 168,99 168,116 148,125',
+            fill: '#292018',
+            stroke: '#78472a',
+            strokeWidth: 1,
           }),
-          // 10,000-Hour Floating Time Sundial Ring
+          // Floating 10,000-Hour Golden Radial Dial Badge (Option A signature element)
           createElement('circle', {
-            cx: 158,
-            cy: 66,
-            r: 12,
-            fill: '#1b1917',
-            stroke: '#cc785c',
-            strokeWidth: 1.6,
+            cx: 214,
+            cy: 64,
+            r: 25,
+            fill: '#181512',
+            stroke: 'rgba(245, 185, 66, 0.45)',
+            strokeWidth: 1.5,
           }),
-          createElement('path', {
-            d: 'M158 60 L158 66 L163 69',
-            stroke: '#fde68a',
-            strokeWidth: 1.6,
-            strokeLinecap: 'round',
+          createElement('circle', {
+            cx: 214,
+            cy: 64,
+            r: 20,
+            fill: 'none',
+            stroke: '#f5b942',
+            strokeWidth: 2.5,
+            strokeDasharray: '4 2.5',
           }),
+          createElement(
+            'text',
+            {
+              x: 214,
+              y: 63,
+              textAnchor: 'middle',
+              fill: '#fde68a',
+              fontSize: '8.5',
+              fontWeight: '700',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            },
+            masteryHoursText,
+          ),
+          createElement(
+            'text',
+            {
+              x: 214,
+              y: 73,
+              textAnchor: 'middle',
+              fill: '#a8a29e',
+              fontSize: '7',
+            },
+            '10,000h',
+          ),
         )
       : null,
 
-    // Zone 2: 活力健身角 (Isometric Yoga/Training Mat + Smart Scale + Dumbbells)
+    // ================= ISLAND 2: 活力体态 (Rolled Terracotta Yoga Mat + Dumbbells + Digital Scale) =================
     zone === 'vitality'
       ? createElement(
           'g',
           null,
-          // Isometric Training Mat
+          // Unrolled Terracotta Yoga Mat Base
           createElement('polygon', {
-            points: '118,122 184,96 154,83 88,109',
-            fill: '#1f3a2e',
-            stroke: '#4ade80',
-            strokeWidth: 1.2,
+            points: '88,112 162,82 134,70 60,100',
+            fill: '#b56345',
+            stroke: '#e8924a',
+            strokeWidth: 1,
           }),
-          // Isometric Glass Smart Scale (左侧晨重秤)
+          // Rolled Yoga Mat Cylinder at Upper Left
           createElement('polygon', {
-            points: '92,100 124,87 104,78 72,91',
-            fill: '#162026',
-            stroke: '#4ade80',
-            strokeWidth: 1.4,
+            points: '56,96 130,66 138,76 64,106',
+            fill: '#cc785c',
+            stroke: '#f5b942',
+            strokeWidth: 0.9,
           }),
-          // Digital Readout Bar on Smart Scale
-          createElement('line', {
-            x1: 93,
-            y1: 87,
-            x2: 105,
-            y2: 82,
-            stroke: '#4ade80',
-            strokeWidth: 2.2,
-            strokeLinecap: 'round',
+          createElement('ellipse', {
+            cx: 60,
+            cy: 101,
+            rx: 6,
+            ry: 8,
+            fill: '#7c3f29',
+            stroke: '#e8924a',
+            strokeWidth: 1,
           }),
-          // Sculpted Pair of Dumbbells on Mat
-          createElement('circle', { cx: 142, cy: 98, r: 4.5, fill: '#9ca3af' }),
-          createElement('line', {
-            x1: 142,
-            y1: 98,
-            x2: 156,
-            y2: 92,
-            stroke: '#e5e7eb',
-            strokeWidth: 2.4,
-          }),
-          createElement('circle', { cx: 156, cy: 92, r: 4.5, fill: '#9ca3af' }),
-          // Floating Heart / Vitality Pulse Badge
+          // Green Mobility / Kettle Sphere
           createElement('circle', {
-            cx: 132,
-            cy: 64,
-            r: 12,
-            fill: '#14241b',
-            stroke: '#4ade80',
+            cx: 138,
+            cy: 86,
+            r: 9,
+            fill: '#34d399',
+            stroke: '#065f46',
+            strokeWidth: 1,
+          }),
+          // Sleek Glass Digital Smart Scale on Right Side of Island
+          createElement('polygon', {
+            points: '164,124 212,104 180,90 132,110',
+            fill: '#272a30',
+            stroke: '#9ca3af',
             strokeWidth: 1.5,
           }),
-          createElement('path', {
-            d: 'M124 64 L129 64 L131 58 L134 70 L137 64 L140 64',
-            stroke: '#4ade80',
-            strokeWidth: 1.6,
-            strokeLinecap: 'round',
-            strokeLinejoin: 'round',
+          // LED Weight Display Screen on Smart Scale
+          createElement('polygon', {
+            points: '166,105 184,97 176,93 158,101',
+            fill: '#0b0f14',
+            stroke: '#34d399',
+            strokeWidth: 0.9,
           }),
+          createElement(
+            'text',
+            {
+              x: 171,
+              y: 100,
+              textAnchor: 'middle',
+              fill: '#4ade80',
+              fontSize: '7.5',
+              fontWeight: '700',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            },
+            weightText,
+          ),
+          // Pair of Sculpted Copper Dumbbells in Foreground
+          createElement('circle', { cx: 116, cy: 122, r: 4.5, fill: '#b45309' }),
+          createElement('line', {
+            x1: 116,
+            y1: 122,
+            x2: 130,
+            y2: 116,
+            stroke: '#fde68a',
+            strokeWidth: 2.5,
+          }),
+          createElement('circle', { cx: 130, cy: 116, r: 4.5, fill: '#b45309' }),
+          createElement('circle', { cx: 132, cy: 130, r: 4.5, fill: '#b45309' }),
+          createElement('line', {
+            x1: 132,
+            y1: 130,
+            x2: 146,
+            y2: 124,
+            stroke: '#fde68a',
+            strokeWidth: 2.5,
+          }),
+          createElement('circle', { cx: 146, cy: 124, r: 4.5, fill: '#b45309' }),
         )
       : null,
 
-    // Zone 3: 星愿纪念台 (Celestial Astrolabe Sundial + Wish Treasure Box + Polaris Star)
+    // ================= ISLAND 3: 星愿纪念台 (3D Golden Armillary Sphere Astrolabe + Ribboned Gift Box) =================
     zone === 'wishes'
       ? createElement(
           'g',
           null,
-          // Isometric Pedestal & Wish Vault Chest
-          createElement('polygon', {
-            points: '132,115 170,100 132,85 94,100',
-            fill: '#3b2d1d',
-            stroke: '#f5b942',
-            strokeWidth: 1.3,
-          }),
-          createElement('polygon', {
-            points: '94,100 132,115 132,127 94,112',
-            fill: '#291f13',
-            stroke: '#f5b942',
-            strokeWidth: 0.9,
-          }),
-          createElement('polygon', {
-            points: '170,100 132,115 132,127 170,112',
-            fill: '#1f170e',
-            stroke: '#f5b942',
-            strokeWidth: 0.9,
-          }),
-          // Celestial Astrolabe Ring & Floating Polaris Star
+          // Sculpted Graduated Golden Astrolabe Pedestal Base
           createElement('ellipse', {
-            cx: 132,
-            cy: 72,
-            rx: 24,
+            cx: 130,
+            cy: 112,
+            rx: 38,
+            ry: 16,
+            fill: '#292014',
+            stroke: `url(#${goldGradId})`,
+            strokeWidth: 2,
+          }),
+          createElement('ellipse', {
+            cx: 130,
+            cy: 108,
+            rx: 28,
             ry: 11,
+            fill: '#42321b',
+            stroke: '#fde68a',
+            strokeWidth: 1.2,
+          }),
+          // Support Pillar
+          createElement('rect', {
+            x: 126,
+            y: 92,
+            width: 8,
+            height: 16,
+            fill: `url(#${goldGradId})`,
+          }),
+          // Outer Meridian Golden Ring of Armillary Sphere
+          createElement('circle', {
+            cx: 130,
+            cy: 64,
+            r: 32,
             fill: 'none',
-            stroke: '#f5b942',
-            strokeWidth: 1.3,
-            strokeDasharray: '3 3',
+            stroke: `url(#${goldGradId})`,
+            strokeWidth: 5,
           }),
-          createElement('path', {
-            d: 'M132 52 L135 61 L144 64 L135 67 L132 76 L129 67 L120 64 L129 61 Z',
-            fill: '#fde68a',
+          createElement('circle', {
+            cx: 130,
+            cy: 64,
+            r: 29,
+            fill: 'none',
+            stroke: '#fef08a',
+            strokeWidth: 0.9,
+            strokeDasharray: '2 3',
           }),
+          // Tilted Ecliptic Equatorial Ring 1
+          createElement('ellipse', {
+            cx: 130,
+            cy: 64,
+            rx: 30,
+            ry: 11,
+            transform: 'rotate(-28 130 64)',
+            fill: 'none',
+            stroke: `url(#${goldGradId})`,
+            strokeWidth: 3.5,
+          }),
+          // Tilted Ecliptic Equatorial Ring 2
+          createElement('ellipse', {
+            cx: 130,
+            cy: 64,
+            rx: 26,
+            ry: 10,
+            transform: 'rotate(32 130 64)',
+            fill: 'none',
+            stroke: '#eab308',
+            strokeWidth: 2.4,
+          }),
+          // Diagonal Celestial Arrow Axis pointing Upper-Left to Polaris
+          createElement('line', {
+            x1: 158,
+            y1: 92,
+            x2: 96,
+            y2: 30,
+            stroke: '#fef08a',
+            strokeWidth: 2.4,
+          }),
+          createElement('polygon', {
+            points: '92,26 103,29 96,36',
+            fill: '#fef08a',
+          }),
+          // Central Golden Sun Core
+          createElement('circle', {
+            cx: 130,
+            cy: 64,
+            r: 4.5,
+            fill: '#fef08a',
+          }),
+          // Isometric Anniversary Gift Box with Golden Ribbon on Right Corner
+          createElement('polygon', {
+            points: '190,114 214,104 196,96 172,106',
+            fill: '#cc785c',
+            stroke: '#fde68a',
+            strokeWidth: 1,
+          }),
+          createElement('polygon', {
+            points: '172,106 190,114 190,130 172,122',
+            fill: '#9a4e34',
+            stroke: '#fde68a',
+            strokeWidth: 0.8,
+          }),
+          createElement('polygon', {
+            points: '214,104 190,114 190,130 214,120',
+            fill: '#783924',
+            stroke: '#fde68a',
+            strokeWidth: 0.8,
+          }),
+          // Golden Ribbon Bow on Gift Box
+          createElement('circle', { cx: 191, cy: 102, r: 3.5, fill: '#fde68a' }),
+          createElement('circle', { cx: 196, cy: 102, r: 3.5, fill: '#f5b942' }),
         )
       : null,
   );
 }
 
 /**
- * Flowing 24-Hour Time Stream connecting Focus Loft <-> Vitality Corner <-> Wish Pavilion
+ * Option-A Curved 3D Golden Ribbon Bridges with Circular `(24)` Medallions and Sparkling Particles
  */
-function TimeStreamBridgesSvg({
-  summaryLabel,
-  timerRunning,
-}: {
-  summaryLabel: string;
-  timerRunning: boolean;
-}) {
+function Golden24HourRibbonBridgesSvg({ timerRunning }: { timerRunning: boolean }) {
   if (Platform.OS !== 'web') return null;
 
   return createElement(
     'svg',
     {
-      viewBox: '0 0 1000 340',
+      viewBox: '0 0 1000 250',
       preserveAspectRatio: 'none',
       style: {
         position: 'absolute',
@@ -342,59 +567,93 @@ function TimeStreamBridgesSvg({
       null,
       createElement(
         'linearGradient',
-        { id: 'vsTimeStreamGrad', x1: '0', y1: '0', x2: '1', y2: '0' },
-        createElement('stop', { offset: '0%', stopColor: '#cc785c', stopOpacity: '0.88' }),
-        createElement('stop', { offset: '50%', stopColor: '#4ade80', stopOpacity: '0.92' }),
-        createElement('stop', { offset: '100%', stopColor: '#f5b942', stopOpacity: '0.88' }),
+        { id: 'optARibbonGrad', x1: '0', y1: '0', x2: '1', y2: '0' },
+        createElement('stop', { offset: '0%', stopColor: '#d97706', stopOpacity: '0.9' }),
+        createElement('stop', { offset: '50%', stopColor: '#fde68a', stopOpacity: '1' }),
+        createElement('stop', { offset: '100%', stopColor: '#34d399', stopOpacity: '0.9' }),
+      ),
+      createElement(
+        'linearGradient',
+        { id: 'optARibbonGrad2', x1: '0', y1: '0', x2: '1', y2: '0' },
+        createElement('stop', { offset: '0%', stopColor: '#34d399', stopOpacity: '0.9' }),
+        createElement('stop', { offset: '50%', stopColor: '#fde68a', stopOpacity: '1' }),
+        createElement('stop', { offset: '100%', stopColor: '#f5b942', stopOpacity: '0.95' }),
       ),
     ),
+    // Bridge 1 (Focus Loft -> Vitality Island)
     createElement('path', {
-      d: 'M 210 218 C 310 260, 400 260, 500 215',
+      d: 'M 250 175 C 315 218, 375 218, 440 175',
       fill: 'none',
-      stroke: 'rgba(204, 120, 92, 0.16)',
-      strokeWidth: 5,
+      stroke: 'rgba(245, 185, 66, 0.22)',
+      strokeWidth: 12,
+      strokeLinecap: 'round',
     }),
     createElement('path', {
-      d: 'M 210 218 C 310 260, 400 260, 500 215',
+      d: 'M 250 175 C 315 218, 375 218, 440 175',
       fill: 'none',
-      stroke: 'url(#vsTimeStreamGrad)',
+      stroke: 'url(#optARibbonGrad)',
+      strokeWidth: 4,
+      strokeDasharray: timerRunning ? '6 6' : '10 6',
+    }),
+    // Medallion (24) #1
+    createElement('circle', {
+      cx: 345,
+      cy: 204,
+      r: 14,
+      fill: '#292014',
+      stroke: '#f5b942',
       strokeWidth: 2,
-      strokeDasharray: timerRunning ? '6 6' : '8 8',
-    }),
-    createElement('path', {
-      d: 'M 500 215 C 600 260, 690 260, 790 218',
-      fill: 'none',
-      stroke: 'rgba(245, 185, 66, 0.16)',
-      strokeWidth: 5,
-    }),
-    createElement('path', {
-      d: 'M 500 215 C 600 260, 690 260, 790 218',
-      fill: 'none',
-      stroke: 'url(#vsTimeStreamGrad)',
-      strokeWidth: 2,
-      strokeDasharray: '8 8',
-    }),
-    createElement('rect', {
-      x: 370,
-      y: 236,
-      width: 260,
-      height: 24,
-      rx: 12,
-      fill: '#1c1917',
-      stroke: 'rgba(245, 185, 66, 0.45)',
-      strokeWidth: 1,
     }),
     createElement(
       'text',
       {
-        x: 500,
-        y: 252,
+        x: 345,
+        y: 208,
         textAnchor: 'middle',
-        fill: '#f5f5f4',
+        fill: '#fde68a',
         fontSize: '10.5',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
+        fontWeight: '700',
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
       },
-      summaryLabel,
+      '24',
+    ),
+
+    // Bridge 2 (Vitality Island -> Wish Astrolabe Pavilion)
+    createElement('path', {
+      d: 'M 560 175 C 625 218, 685 218, 750 175',
+      fill: 'none',
+      stroke: 'rgba(245, 185, 66, 0.22)',
+      strokeWidth: 12,
+      strokeLinecap: 'round',
+    }),
+    createElement('path', {
+      d: 'M 560 175 C 625 218, 685 218, 750 175',
+      fill: 'none',
+      stroke: 'url(#optARibbonGrad2)',
+      strokeWidth: 4,
+      strokeDasharray: '10 6',
+    }),
+    // Medallion (24) #2
+    createElement('circle', {
+      cx: 655,
+      cy: 204,
+      r: 14,
+      fill: '#292014',
+      stroke: '#f5b942',
+      strokeWidth: 2,
+    }),
+    createElement(
+      'text',
+      {
+        x: 655,
+        y: 208,
+        textAnchor: 'middle',
+        fill: '#fde68a',
+        fontSize: '10.5',
+        fontWeight: '700',
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+      },
+      '24',
     ),
   );
 }
@@ -430,9 +689,10 @@ export function IsometricStudioStage({
   onQuickJournal: () => void;
   onOpenScope?: () => void;
 }) {
-  const [perspective, setPerspective] = useState<SanctuaryPerspective>('sanctuary');
+  const [perspective, setPerspective] = useState<SanctuaryPerspective>('diorama');
   const [selectedZone, setSelectedZone] = useState<LifeZoneKey>('focus');
   const [quickInput, setQuickInput] = useState('');
+  const [selectedHeatmapCell, setSelectedHeatmapCell] = useState<HeatmapCell | null>(null);
 
   // Live personal stores
   const [vault, setVault] = useState<PledgeVaultState>(readPledgeVault);
@@ -440,6 +700,7 @@ export function IsometricStudioStage({
   const [objectives, setObjectives] = useState<OkrObjective[]>(readOkrObjectives);
   const [habits, setHabits] = useState<HabitItem[]>(readDailyHabits);
   const [timeBlocks, setTimeBlocks] = useState<TimeBlockItem[]>(readTimeBlocks);
+  const [masteryGoals, setMasteryGoals] = useState<MasteryGoal[]>(readMasteryGoals);
   const [timer, setTimer] = useState<ActiveTimerSession>(readActiveTimer);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -452,6 +713,7 @@ export function IsometricStudioStage({
     });
     const poll = setInterval(() => {
       setTimeBlocks(readTimeBlocks());
+      setMasteryGoals(readMasteryGoals());
       setTimer(readActiveTimer());
       setNowMs(Date.now());
     }, 1500);
@@ -471,6 +733,11 @@ export function IsometricStudioStage({
   const trackedMinsToday =
     todayBlocks.reduce((acc, b) => acc + b.durationMinutes, 0) + studyMinutes;
 
+  const totalMasteryHours = masteryGoals.reduce((sum, g) => {
+    const stat = computeMasteryProgress(g, timeBlocks, localDay);
+    return sum + stat.totalHours;
+  }, 0);
+
   const sortedMilestones = sortMilestonesByUrgency(milestones, localDay);
   const nearestMs = sortedMilestones[0] ?? null;
 
@@ -483,70 +750,52 @@ export function IsometricStudioStage({
       : 0;
   const habitsDoneToday = habits.filter((h) => h.completedDays.includes(localDay)).length;
 
-  const rhythmBars: {
-    key: LifeZoneKey;
-    title: string;
-    badge: string;
-    pct: number;
-    tone: 'terracotta' | 'emerald' | 'amber';
-    summaryTitle: string;
-    highlights: string[];
-  }[] = [
-    {
-      key: 'focus',
-      title: '心流书房 · 24H 时间块',
-      badge: timer.isRunning
-        ? `计时中 ${formatTimerClock(timerElapsedSeconds)}`
-        : `${trackedMinsToday} / 240 min`,
-      pct: Math.min(100, Math.round((trackedMinsToday / 240) * 100)),
-      tone: 'terracotta',
-      summaryTitle: '心流书房 · 今日时间块与一万小时精进',
-      highlights: [
-        timer.isRunning
-          ? `⏱ 正在专注：「${timer.title}」，已持续 ${formatTimerClock(timerElapsedSeconds)}`
-          : `✦ 今日已记录 ${todayBlocks.length} 个专注时间块，累计投入 ${trackedMinsToday} 分钟（占全天 1440 分钟的 ${Math.round((trackedMinsToday / 1440) * 100)}%）`,
-        todayBlocks.length > 0
-          ? `✦ 最近切入时段：${todayBlocks
-              .slice(-2)
-              .map((b) => `${formatMinuteOfDay(b.startMinute)}–${formatMinuteOfDay(b.endMinute)} ${b.title}`)
-              .join(' · ')}`
-          : '✦ 可以在上方输入框随手记一段专注（例如「系统设计 45m」），或下滑启动 24H 计时器',
-      ],
-    },
-    {
-      key: 'vitality',
-      title: '活力健身角 · 晨重与训练',
-      badge: `${latestWeightKg ? `${latestWeightKg.toFixed(1)} kg` : '待称重'} · ${trainingSetsCount} 组`,
-      pct: Math.min(100, Math.round(((activeWeightDays / 7) * 50) + (Math.min(1, trainingSetsCount / 4) * 50))),
-      tone: 'emerald',
-      summaryTitle: '活力健身角 · 身体节律与运动负荷',
-      highlights: [
-        latestWeightKg
-          ? `✦ 最新晨起体重 ${latestWeightKg.toFixed(1)} kg · 近 7 天已坚持记录 ${activeWeightDays}/7 天`
-          : `✦ 近 7 天已记录晨重 ${activeWeightDays}/7 天 · 踏上蓝牙体脂秤或点击下方「＋ 晨重」即可记录今日体重`,
-        trainingSetsCount > 0
-          ? `✦ 今日已完成 ${trainingSetsCount} 组力量/有氧训练，累计训练容量 ${Math.round(trainingVolumeKg)} kg`
-          : '✦ 今日尚未记录训练组，运动 30 分钟可显著激活专注心流',
-      ],
-    },
-    {
-      key: 'wishes',
-      title: '星愿纪念台 · OKR 与心愿池',
-      badge: `OKR ${avgOkrPct}% · ¥${vault.wishBalanceCny}`,
-      pct: Math.min(100, Math.max(avgOkrPct, Math.round((habitsDoneToday / Math.max(1, habits.length)) * 100))),
-      tone: 'amber',
-      summaryTitle: '星愿纪念台 · 纪念日提醒、OKR 与自律心愿金库',
-      highlights: [
-        nearestMs
-          ? `✦ 近期重要节点：「${nearestMs.item.title}」${nearestMs.badgeText}（${nearestMs.subtitleText}）`
-          : '✦ 纪念日雷达运转中，不错过每一个周年与百日里程碑',
-        `✦ 今日微习惯已打卡 ${habitsDoneToday}/${habits.length} 项 · 季度 OKR 总进度 ${avgOkrPct}% · 心愿奖励金库已攒 ¥${vault.wishBalanceCny}`,
-      ],
-    },
-  ];
+  // Flatten top 4 Key Results across objectives for the Option-A 2x2 OKR Progress Bento
+  const flattenedKrs = objectives
+    .flatMap((obj) =>
+      obj.keyResults.map((kr) => ({
+        objectiveId: obj.id,
+        objectiveTitle: obj.title,
+        kr,
+        pct: computeKrProgressPct(kr),
+      })),
+    )
+    .slice(0, 4);
 
-  const activeZoneDetail =
-    rhythmBars.find((b) => b.key === selectedZone) ?? rhythmBars[0]!;
+  // Build Option-A 365-day style Heatmap Grid (140 cells = 20 columns x 7 rows for compact crispness)
+  const habitCountByDay = new Map<string, number>();
+  habits.forEach((h) => {
+    h.completedDays.forEach((d) => {
+      habitCountByDay.set(d, (habitCountByDay.get(d) ?? 0) + 1);
+    });
+  });
+  const studyMinutesByDay = new Map<string, number>();
+  timeBlocks.forEach((b) => {
+    studyMinutesByDay.set(b.localDay, (studyMinutesByDay.get(b.localDay) ?? 0) + b.durationMinutes);
+  });
+  const weightDaysSet = new Set<string>([localDay]);
+
+  const heatmap = buildLifeHeatmapGrid({
+    endDay: localDay,
+    totalDays: 140,
+    weightDays: weightDaysSet,
+    trainingCountByDay: new Map([[localDay, trainingSetsCount]]),
+    studyMinutesByDay,
+    habitCountByDay,
+  });
+
+  function optionAHeatCellColor(cell: HeatmapCell, idx: number): string {
+    if (cell.level === 4) return '#34d399'; // Emerald high
+    if (cell.level === 3) return '#10b981'; // Emerald mid
+    if (cell.level === 2) return '#eab308'; // Molten gold
+    if (cell.level === 1) return '#cc785c'; // Terracotta
+    // Subtle deterministic warm pattern for historical visual texture when unlogged, while keeping real score inspectable
+    const ring = (idx * 7 + 3) % 11;
+    if (ring === 0) return 'rgba(52, 211, 153, 0.28)';
+    if (ring === 3) return 'rgba(234, 179, 8, 0.24)';
+    if (ring === 6) return 'rgba(204, 120, 92, 0.24)';
+    return '#23262e';
+  }
 
   function onQuickAddTimeNote() {
     const raw = quickInput.trim();
@@ -559,7 +808,7 @@ export function IsometricStudioStage({
     const now = new Date();
     const endMin = now.getHours() * 60 + now.getMinutes();
     const startMin = Math.max(0, endMin - mins);
-    const cleanTitle = (minMatch ? raw.replace(minMatch[0], '') : raw).trim() || '专注时间块';
+    const cleanTitle = (minMatch ? raw.replace(minMatch[0], '') : raw).trim() || '深度专注';
 
     setTimeBlocks(
       addTimeBlock({
@@ -576,24 +825,69 @@ export function IsometricStudioStage({
     setQuickInput('');
     setSelectedZone('focus');
     showToast({
-      text: `已切入今日 24H 时间块：${cleanTitle} (${mins} 分钟) · 心愿金库 +¥${v.config.checkInRewardCny}`,
+      text: `已切入 24H 时间块矩阵：${cleanTitle} (${mins} 分钟) · 心愿金库 +¥${v.config.checkInRewardCny}`,
     });
   }
 
+  // Build Option-A Time-Block Matrix visual blocks (combining real blocks + default structured slots)
+  const displayMatrixBlocks =
+    todayBlocks.length > 0
+      ? todayBlocks.slice(-5).map((b, idx) => ({
+          id: b.id,
+          title: b.title,
+          timeRange: `${formatMinuteOfDay(b.startMinute)} – ${formatMinuteOfDay(b.endMinute)}`,
+          durationText: `${b.durationMinutes} min`,
+          tone:
+            b.category === 'fitness'
+              ? ('emerald' as const)
+              : idx % 2 === 0
+                ? ('terracotta' as const)
+                : ('golden' as const),
+        }))
+      : [
+          {
+            id: 'slot-morning',
+            title: '晨间唤醒 · 空腹晨重与日计划校准',
+            timeRange: '08:00 – 09:00',
+            durationText: latestWeightKg ? `已记 ${latestWeightKg.toFixed(1)} kg` : '待称重打卡',
+            tone: 'terracotta' as const,
+          },
+          {
+            id: 'slot-deepwork',
+            title: '核心心流 · 10,000 小时深度架构/学习',
+            timeRange: '09:30 – 12:00',
+            durationText: studyMinutes > 0 ? `今日已记 ${studyMinutes}m` : '点击右侧 + 切入时间块',
+            tone: 'golden' as const,
+          },
+          {
+            id: 'slot-workout',
+            title: '晚间活力 · 力量训练与有氧代谢',
+            timeRange: '18:30 – 20:00',
+            durationText: trainingSetsCount > 0 ? `已完成 ${trainingSetsCount} 组` : 'Keep / BLE 同步就绪',
+            tone: 'emerald' as const,
+          },
+        ];
+
+  const currentClockStr = (() => {
+    const dt = new Date(nowMs);
+    return `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+  })();
+
   return (
     <View style={styles.stageCard}>
-      {/* Top Bar: Personal Life Sanctuary Perspective Switcher + Natural Time-Block Quick Input */}
+      {/* Top Bar: Option-A Walnut & Obsidian Header */}
       <View style={styles.studioTopbar}>
         <View style={styles.topbarLeft}>
+          <View style={styles.brandDot} />
           <Text variant="label" style={styles.studioTitle}>
-            2.5D 个人时间与生活空间
+            星途 · 2.5D 个人时间与心愿沙盘
           </Text>
           <View style={styles.perspBar}>
             {(
               [
-                { id: 'sanctuary', label: '2.5D 生活三境沙盘' },
+                { id: 'diorama', label: '2.5D 沙盘全览' },
                 { id: 'daycycle', label: '24H 昼夜节律环' },
-                { id: 'summary', label: '今日精要看板' },
+                { id: 'summary', label: '今日五维精要' },
               ] as const
             ).map((tab) => {
               const active = perspective === tab.id;
@@ -622,7 +916,7 @@ export function IsometricStudioStage({
             value={quickInput}
             onChangeText={setQuickInput}
             onSubmitEditing={onQuickAddTimeNote}
-            placeholder="随手记下此刻在做什么 (例如: 系统设计精读 45m / 有氧慢跑 30m)…"
+            placeholder="快速切入时间块 (如: 系统架构精读 60m / 肩背训练 45m)…"
             placeholderTextColor="#a8a29e"
             style={[
               styles.studioTaskInput,
@@ -631,7 +925,7 @@ export function IsometricStudioStage({
           />
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="记入时间块"
+            accessibilityLabel="Add Block 切入时间块"
             onPress={onQuickAddTimeNote}
             style={({ pressed }) => [
               styles.dispatchBtn,
@@ -639,187 +933,375 @@ export function IsometricStudioStage({
             ]}
           >
             <Text variant="caption" style={styles.dispatchBtnText}>
-              记入时间块 →
+              ＋ Add Block
             </Text>
           </Pressable>
         </View>
       </View>
 
-      {/* Perspective 1: 2.5D Personal Life Sanctuary (心流书房 · 活力健身角 · 星愿纪念台) */}
-      {perspective === 'sanctuary' ? (
-        <View style={styles.stageGridBg}>
-          <TimeStreamBridgesSvg
-            summaryLabel={`今日已记 ${loggedCount}/3 · 专注 ${trackedMinsToday}m · 心愿池 ¥${vault.wishBalanceCny}`}
-            timerRunning={timer.isRunning}
-          />
+      {/* Perspective 1: Option-A 2.5D Isometric Diorama + Split Bento Workspace */}
+      {perspective === 'diorama' ? (
+        <View style={styles.dioramaStageWrap}>
+          {/* Upper Stage: 3 Floating 2.5D Isometric Islands + Floating Glass HUD Badges + Golden 24H Ribbon Bridges */}
+          <View style={styles.stageGridBg}>
+            <Golden24HourRibbonBridgesSvg timerRunning={timer.isRunning} />
 
-          <View style={styles.isoCanvas}>
-            {/* Zone 1: 心流书房 (Focus & 10,000h Study Loft) */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="心流书房与 24H 时间块"
-              onPress={() => setSelectedZone('focus')}
-              style={[
-                styles.isoNodeColumn,
-                selectedZone === 'focus' ? styles.isoNodeSelected : null,
-              ]}
-            >
-              <View
+            <View style={styles.isoCanvas}>
+              {/* Island 1: 心流书房 (Walnut Study Desk + 10,000h Badge) */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="心流书房与一万小时精进"
+                onPress={() => setSelectedZone('focus')}
                 style={[
-                  styles.isoHudCard,
-                  selectedZone === 'focus' ? styles.isoHudCardFocus : null,
+                  styles.isoNodeColumn,
+                  selectedZone === 'focus' ? styles.isoNodeSelected : null,
                 ]}
               >
-                <View style={styles.isoHudHead}>
-                  <Text variant="caption" style={styles.isoHudNodeTag}>
-                    第一境 · 心流书房与 10,000 小时
+                <View
+                  style={[
+                    styles.floatingGlassHud,
+                    selectedZone === 'focus' ? styles.hudFocusActive : null,
+                  ]}
+                >
+                  <View style={styles.hudTitleRow}>
+                    <Text variant="label" style={styles.hudTitleText}>
+                      心流书房
+                    </Text>
+                    <View style={[styles.hudRingDot, { borderColor: '#f5b942' }]} />
+                  </View>
+                  <Text variant="caption" style={styles.hudMetricText}>
+                    {timer.isRunning
+                      ? `⏱ 正在专注 ${formatTimerClock(timerElapsedSeconds)}`
+                      : `· ${Math.round(totalMasteryHours).toLocaleString('en-US')} / 10,000h`}
                   </Text>
-                  <View
-                    style={[
-                      styles.isoStatusPill,
-                      timer.isRunning ? styles.pillRunning : styles.pillWarm,
-                    ]}
-                  >
-                    <Text
-                      variant="caption"
-                      style={[
-                        styles.isoStatusText,
-                        { color: timer.isRunning ? '#4ade80' : '#f5b942' },
-                      ]}
-                    >
-                      {timer.isRunning
-                        ? `● 专注中 ${formatTimerClock(timerElapsedSeconds)}`
-                        : `● 今日 ${trackedMinsToday} 分钟`}
+                  <Text variant="caption" style={styles.hudSubText}>
+                    {`· 今日已切入 ${trackedMinsToday} 分钟时间块`}
+                  </Text>
+                </View>
+
+                <IsometricLifeZoneSvg
+                  zone="focus"
+                  active={selectedZone === 'focus'}
+                  weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
+                  masteryHoursText={`${Math.round(totalMasteryHours)}h`}
+                />
+              </Pressable>
+
+              {/* Island 2: 活力体态 (Yoga Mat + Dumbbells + Smart Scale) */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="活力体态与蓝牙体脂秤"
+                onPress={() => setSelectedZone('vitality')}
+                style={[
+                  styles.isoNodeColumn,
+                  selectedZone === 'vitality' ? styles.isoNodeSelected : null,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.floatingGlassHud,
+                    selectedZone === 'vitality' ? styles.hudVitalityActive : null,
+                  ]}
+                >
+                  <View style={styles.hudTitleRow}>
+                    <Text variant="label" style={styles.hudTitleText}>
+                      活力体态
+                    </Text>
+                    <Text variant="caption" style={{ color: '#34d399', fontSize: 11 }}>
+                      ↻
+                    </Text>
+                  </View>
+                  <Text variant="caption" style={styles.hudMetricText}>
+                    {`· ${latestWeightKg ? `${latestWeightKg.toFixed(1)} kg` : '待称重'} · 近7日 ${activeWeightDays}/7`}
+                  </Text>
+                  <Text variant="caption" style={styles.hudSubText}>
+                    {trainingSetsCount > 0
+                      ? `· 今日已训练 ${trainingSetsCount} 组 (${Math.round(trainingVolumeKg)} kg)`
+                      : '· BLE 体脂秤与运动手环就绪'}
+                  </Text>
+                </View>
+
+                <IsometricLifeZoneSvg
+                  zone="vitality"
+                  active={selectedZone === 'vitality'}
+                  weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
+                  masteryHoursText={`${Math.round(totalMasteryHours)}h`}
+                />
+              </Pressable>
+
+              {/* Island 3: 星愿纪念台 (3D Golden Astrolabe + Anniversary Gift Box) */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="星愿纪念台与心愿金库"
+                onPress={() => setSelectedZone('wishes')}
+                style={[
+                  styles.isoNodeColumn,
+                  selectedZone === 'wishes' ? styles.isoNodeSelected : null,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.floatingGlassHud,
+                    selectedZone === 'wishes' ? styles.hudWishesActive : null,
+                  ]}
+                >
+                  <View style={styles.hudTitleRow}>
+                    <Text variant="label" style={styles.hudTitleText}>
+                      星愿纪念台
+                    </Text>
+                    <Text variant="caption" style={{ color: '#f5b942', fontSize: 11 }}>
+                      ✦
+                    </Text>
+                  </View>
+                  <Text variant="caption" style={styles.hudMetricText}>
+                    {nearestMs
+                      ? `· ${nearestMs.item.title} (${nearestMs.badgeText})`
+                      : `· 季度 OKR 进度 ${avgOkrPct}%`}
+                  </Text>
+                  <Text variant="caption" style={styles.hudSubText}>
+                    {`· 心愿金库 ¥${vault.wishBalanceCny.toLocaleString('en-US')} · 习惯 ${habitsDoneToday}/${habits.length}`}
+                  </Text>
+                </View>
+
+                <IsometricLifeZoneSvg
+                  zone="wishes"
+                  active={selectedZone === 'wishes'}
+                  weightText={latestWeightKg ? latestWeightKg.toFixed(1) : '72.4'}
+                  masteryHoursText={`${Math.round(totalMasteryHours)}h`}
+                />
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Lower Stage: Option-A Split Bento Workspace (Left: 24H Time-Block Matrix | Right: OKR Progress + 365-Day Heatmap) */}
+          <View style={styles.bentoSplitRow}>
+            {/* Left Bento Card: 24H 时间块矩阵 (Time-Block Matrix) */}
+            <View style={styles.bentoLeftCard}>
+              <View style={styles.bentoHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text variant="label" style={styles.bentoTitle}>
+                    24H 时间块矩阵
+                  </Text>
+                  <View style={styles.nowBadge}>
+                    <Text variant="caption" style={styles.nowBadgeText}>
+                      {`Now ${currentClockStr}`}
                     </Text>
                   </View>
                 </View>
-                <Text variant="label" style={styles.isoHudFile} numberOfLines={1}>
-                  {timer.isRunning
-                    ? `正在投入：${timer.title}`
-                    : `今日已切入 ${todayBlocks.length} 个时间块 · 学习 ${studyCount} 项`}
-                </Text>
-                <View style={styles.isoHudSubBox}>
-                  <Text variant="caption" style={styles.isoHudSubText} numberOfLines={1}>
-                    {`全天 1440 分钟已点亮 ${Math.round((trackedMinsToday / 1440) * 100)}% · 点击检视明细`}
+                <Pressable onPress={onQuickJournal} style={styles.addBlockPill}>
+                  <Text variant="caption" style={styles.addBlockPillText}>
+                    ＋ Add Block
                   </Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.matrixGridWrap}>
+                {/* Subtle red 'Now' timeline indicator */}
+                <View style={styles.nowRedLineRow}>
+                  <Text variant="caption" style={styles.nowRedClock}>
+                    {currentClockStr}
+                  </Text>
+                  <View style={styles.nowRedDot} />
+                  <View style={styles.nowRedLine} />
+                </View>
+
+                <View style={styles.matrixColumnsWrap}>
+                  {displayMatrixBlocks.map((blk) => {
+                    const palette =
+                      blk.tone === 'terracotta'
+                        ? {
+                            bg: 'rgba(204, 120, 92, 0.24)',
+                            border: 'rgba(224, 138, 108, 0.68)',
+                            titleColor: '#fde8e0',
+                            subColor: '#f3bfa9',
+                          }
+                        : blk.tone === 'emerald'
+                          ? {
+                              bg: 'rgba(52, 211, 153, 0.20)',
+                              border: 'rgba(52, 211, 153, 0.65)',
+                              titleColor: '#d1fae5',
+                              subColor: '#6ee7b7',
+                            }
+                          : {
+                              bg: 'rgba(234, 179, 8, 0.20)',
+                              border: 'rgba(245, 185, 66, 0.65)',
+                              titleColor: '#fef3c7',
+                              subColor: '#fde68a',
+                            };
+                    return (
+                      <Pressable
+                        key={blk.id}
+                        onPress={() => {
+                          if (blk.tone === 'emerald') onQuickTraining();
+                          else onQuickStudy();
+                        }}
+                        style={[
+                          styles.matrixBlockCard,
+                          {
+                            backgroundColor: palette.bg,
+                            borderColor: palette.border,
+                          },
+                        ]}
+                      >
+                        <View style={styles.matrixBlockHead}>
+                          <Text
+                            variant="caption"
+                            style={[styles.matrixBlockTitle, { color: palette.titleColor }]}
+                            numberOfLines={1}
+                          >
+                            {blk.title}
+                          </Text>
+                          <Text
+                            variant="caption"
+                            style={[styles.matrixBlockMeta, { color: palette.subColor }]}
+                          >
+                            {blk.durationText}
+                          </Text>
+                        </View>
+                        <Text
+                          variant="caption"
+                          style={[styles.matrixBlockTime, { color: palette.subColor }]}
+                        >
+                          {blk.timeRange}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+
+            {/* Right Bento Stack: OKR 目标进度 (Top) + 365 天人生星图热力矩阵 (Bottom) */}
+            <View style={styles.bentoRightStack}>
+              {/* Right Top Card: OKR 目标进度 */}
+              <View style={styles.bentoRightCard}>
+                <View style={styles.bentoHeader}>
+                  <Text variant="label" style={styles.bentoTitle}>
+                    OKR 目标进度 🎯
+                  </Text>
+                  <Text variant="caption" style={{ color: '#a8a29e', fontSize: 11 }}>
+                    {`总进度 ${avgOkrPct}% · 点击卡片直接打卡推进`}
+                  </Text>
+                </View>
+
+                <View style={styles.okrMiniGrid}>
+                  {flattenedKrs.map((item, idx) => {
+                    const isEmerald = idx % 2 === 1;
+                    const barColor = isEmerald ? '#34d399' : '#f5b942';
+                    const cardBg = isEmerald
+                      ? 'rgba(16, 42, 33, 0.55)'
+                      : 'rgba(46, 35, 22, 0.55)';
+                    const cardBorder = isEmerald
+                      ? 'rgba(52, 211, 153, 0.28)'
+                      : 'rgba(245, 185, 66, 0.28)';
+                    return (
+                      <Pressable
+                        key={item.kr.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={`推进关键结果 ${item.kr.title}`}
+                        onPress={() => {
+                          checkInKeyResult(
+                            item.objectiveId,
+                            item.kr.id,
+                            item.kr.stepDelta,
+                            localDay,
+                          );
+                          const v = recordPledgeReward(`OKR 推进：${item.kr.title}`, localDay);
+                          setVault(v);
+                          showToast({
+                            text: `已推进「${item.kr.title}」· 心愿金库 +¥${v.config.checkInRewardCny}`,
+                          });
+                        }}
+                        style={[
+                          styles.okrMiniCard,
+                          { backgroundColor: cardBg, borderColor: cardBorder },
+                        ]}
+                      >
+                        <View style={styles.okrMiniTop}>
+                          <Text
+                            variant="caption"
+                            style={styles.okrMiniLabel}
+                            numberOfLines={1}
+                          >
+                            {item.kr.title.replace(/^KR\d+\s*·\s*/, '')}
+                          </Text>
+                          <Text
+                            variant="caption"
+                            style={[styles.okrMiniPct, { color: barColor }]}
+                          >
+                            {`${item.pct}%`}
+                          </Text>
+                        </View>
+                        <View style={styles.okrGlowTrack}>
+                          <View
+                            style={[
+                              styles.okrGlowFill,
+                              {
+                                width: `${Math.max(8, item.pct)}%`,
+                                backgroundColor: barColor,
+                              },
+                            ]}
+                          />
+                        </View>
+                      </Pressable>
+                    );
+                  })}
                 </View>
               </View>
 
-              <IsometricLifeZoneSvg zone="focus" active={selectedZone === 'focus'} />
-
-              <Text variant="caption" style={styles.isoCaption}>
-                心流书房 · 24H 时间块与一万小时定律
-              </Text>
-            </Pressable>
-
-            {/* Zone 2: 活力健身角 (Vitality, Weight & Smart Scale Corner) */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="活力健身角与晨重管理"
-              onPress={() => setSelectedZone('vitality')}
-              style={[
-                styles.isoNodeColumn,
-                selectedZone === 'vitality' ? styles.isoNodeSelected : null,
-              ]}
-            >
-              <View
-                style={[
-                  styles.isoHudCard,
-                  selectedZone === 'vitality' ? styles.isoHudCardVitality : null,
-                ]}
-              >
-                <View style={styles.isoHudHead}>
-                  <Text variant="caption" style={styles.isoHudNodeTag}>
-                    第二境 · 活力体态与硬件同步
+              {/* Right Bottom Card: 365 天人生星图热力矩阵 */}
+              <View style={styles.bentoRightCard}>
+                <View style={styles.bentoHeader}>
+                  <Text variant="label" style={styles.bentoTitle}>
+                    365 天人生星图热力矩阵
                   </Text>
-                  <View
-                    style={[
-                      styles.isoStatusPill,
-                      latestWeightKg ? styles.pillRunning : styles.pillIdle,
-                    ]}
-                  >
-                    <Text
-                      variant="caption"
-                      style={[
-                        styles.isoStatusText,
-                        { color: latestWeightKg ? '#4ade80' : '#d6d3d1' },
-                      ]}
-                    >
-                      {latestWeightKg ? `● ${latestWeightKg.toFixed(1)} kg` : '● 待称重'}
-                    </Text>
+                  <Text variant="caption" style={{ color: '#a8a29e', fontSize: 10.5 }}>
+                    {selectedHeatmapCell
+                      ? `${selectedHeatmapCell.localDay} · 热力 Lv.${selectedHeatmapCell.level}/4 · 专注 ${selectedHeatmapCell.studyMinutes}m`
+                      : `活跃 ${heatmap.activeDaysCount} 天 · 点击色块检视`}
+                  </Text>
+                </View>
+
+                <View style={styles.miniHeatmapWrap}>
+                  {heatmap.cells.map((cell, idx) => {
+                    const isSelected = selectedHeatmapCell?.localDay === cell.localDay;
+                    return (
+                      <Pressable
+                        key={cell.localDay}
+                        onPress={() => setSelectedHeatmapCell(cell)}
+                        style={[
+                          styles.miniHeatCell,
+                          {
+                            backgroundColor: optionAHeatCellColor(cell, idx),
+                            borderColor: isSelected ? '#ffffff' : 'transparent',
+                            borderWidth: isSelected ? 1 : 0,
+                          },
+                        ]}
+                      />
+                    );
+                  })}
+                </View>
+
+                <View style={styles.miniHeatmapFooter}>
+                  <Text variant="caption" style={{ color: '#78716c', fontSize: 10 }}>
+                    365 day habit &amp; focus matrix
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    {['#23262e', '#cc785c', '#eab308', '#10b981', '#34d399'].map((c) => (
+                      <View
+                        key={c}
+                        style={[styles.legendDot, { backgroundColor: c }]}
+                      />
+                    ))}
                   </View>
                 </View>
-                <Text variant="label" style={styles.isoHudFile} numberOfLines={1}>
-                  {`近 7 日晨重 ${activeWeightDays}/7 天 · 今日训练 ${trainingSetsCount} 组`}
-                </Text>
-                <View style={styles.isoHudSubBox}>
-                  <Text variant="caption" style={styles.isoHudSubText} numberOfLines={1}>
-                    {trainingVolumeKg > 0
-                      ? `今日训练总负荷 ${Math.round(trainingVolumeKg)} kg · 蓝牙体脂秤/手环就绪`
-                      : '支持蓝牙体脂秤自动称重与 Keep 手环运动同步'}
-                  </Text>
-                </View>
               </View>
-
-              <IsometricLifeZoneSvg zone="vitality" active={selectedZone === 'vitality'} />
-
-              <Text variant="caption" style={styles.isoCaption}>
-                活力健身角 · 晨重趋势与运动负荷
-              </Text>
-            </Pressable>
-
-            {/* Zone 3: 星愿纪念台 (Milestones, OKR & Wish Vault Pavilion) */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="星愿纪念台与 OKR 心愿金库"
-              onPress={() => setSelectedZone('wishes')}
-              style={[
-                styles.isoNodeColumn,
-                selectedZone === 'wishes' ? styles.isoNodeSelected : null,
-              ]}
-            >
-              <View
-                style={[
-                  styles.isoHudCard,
-                  selectedZone === 'wishes' ? styles.isoHudCardWishes : null,
-                ]}
-              >
-                <View style={styles.isoHudHead}>
-                  <Text variant="caption" style={styles.isoHudNodeTag}>
-                    第三境 · 纪念日雷达与 OKR 心愿台
-                  </Text>
-                  <View style={[styles.isoStatusPill, styles.pillWarm]}>
-                    <Text
-                      variant="caption"
-                      style={[styles.isoStatusText, { color: '#fde68a' }]}
-                    >
-                      {`● 心愿池 ¥${vault.wishBalanceCny}`}
-                    </Text>
-                  </View>
-                </View>
-                <Text variant="label" style={styles.isoHudFile} numberOfLines={1}>
-                  {nearestMs
-                    ? `${nearestMs.item.title} · ${nearestMs.badgeText}`
-                    : `季度 OKR 总进度 ${avgOkrPct}%`}
-                </Text>
-                <View style={styles.isoHudSubBox}>
-                  <Text variant="caption" style={styles.isoHudSubText} numberOfLines={1}>
-                    {`季度 OKR 完成 ${avgOkrPct}% · 今日习惯打卡 ${habitsDoneToday}/${habits.length}`}
-                  </Text>
-                </View>
-              </View>
-
-              <IsometricLifeZoneSvg zone="wishes" active={selectedZone === 'wishes'} />
-
-              <Text variant="caption" style={styles.isoCaption}>
-                星愿纪念台 · 纪念日、OKR 与对赌心愿池
-              </Text>
-            </Pressable>
+            </View>
           </View>
         </View>
       ) : null}
 
-      {/* Perspective 2: 24H 昼夜节律环 (Morning -> Daytime -> Evening -> Night) */}
+      {/* Perspective 2: 24H 昼夜节律环 */}
       {perspective === 'daycycle' ? (
         <View style={styles.stageGridBg}>
           <View style={styles.dayCycleGrid}>
@@ -829,14 +1311,14 @@ export function IsometricStudioStage({
                 title: '空腹晨重 & 目标校准',
                 status: latestWeightKg ? `已记晨重 ${latestWeightKg.toFixed(1)} kg` : '待记录今日晨重',
                 detail: '早起空腹称重最能反映真实体脂趋势，完成后自动点亮今日第一块基石。',
-                accent: '#4ade80',
+                accent: '#34d399',
               },
               {
                 phase: '09:00 – 18:00 · 日间心流',
                 title: '深度专注 & 一万小时积累',
                 status: `今日已投入 ${trackedMinsToday} 分钟`,
                 detail: '将高难度学习与创造放在精力峰值时段，每一分钟都会沉淀进 10,000 小时定律。',
-                accent: '#cc785c',
+                accent: '#e8924a',
               },
               {
                 phase: '18:00 – 21:00 · 晚间活力',
@@ -879,14 +1361,14 @@ export function IsometricStudioStage({
         </View>
       ) : null}
 
-      {/* Perspective 3: 今日精要看板 (5-Column Personal Summary) */}
+      {/* Perspective 3: 今日五维精要 */}
       {perspective === 'summary' ? (
         <View style={styles.ledgerGrid}>
           <View style={styles.ledgerCol}>
             <Text variant="caption" style={styles.ledgerKey}>
               今日三件事
             </Text>
-            <Text variant="heading" style={{ color: loggedCount === 3 ? '#4ade80' : '#cc785c' }}>
+            <Text variant="heading" style={{ color: loggedCount === 3 ? '#34d399' : '#e8924a' }}>
               {`${loggedCount} / 3 已记`}
             </Text>
             <Text variant="caption" style={styles.ledgerSub}>
@@ -940,84 +1422,6 @@ export function IsometricStudioStage({
         </View>
       ) : null}
 
-      {/* Bottom Life Rhythm Dock: Personal Progress Bars + Warm Life Companion Insight */}
-      <View style={styles.studioAuxDock}>
-        <View style={styles.studioAuxPane}>
-          <View style={styles.studioAuxHead}>
-            <Text variant="caption" style={styles.auxHeadTitle}>
-              今日三境节律进度（点击切换检视）
-            </Text>
-            <Text variant="caption" style={styles.auxHeadMeta}>
-              {`全天已点亮 ${Math.round((trackedMinsToday / 1440) * 100)}% 时间`}
-            </Text>
-          </View>
-          <View style={{ gap: 6 }}>
-            {rhythmBars.map((bar) => {
-              const isSelected = bar.key === selectedZone;
-              const barColor =
-                bar.tone === 'emerald'
-                  ? '#2e9e73'
-                  : bar.tone === 'terracotta'
-                    ? '#cc785c'
-                    : '#d99b32';
-              return (
-                <Pressable
-                  key={bar.key}
-                  accessibilityRole="button"
-                  accessibilityLabel={`检视 ${bar.title}`}
-                  onPress={() => setSelectedZone(bar.key)}
-                  style={[styles.wfRow, isSelected ? styles.wfRowSelected : null]}
-                >
-                  <Text variant="caption" style={styles.wfActor} numberOfLines={1}>
-                    {bar.title}
-                  </Text>
-                  <View style={styles.wfTrack}>
-                    <View
-                      style={[
-                        styles.wfBar,
-                        {
-                          left: '0%',
-                          width: `${Math.max(18, bar.pct)}%`,
-                          backgroundColor: barColor,
-                        },
-                      ]}
-                    >
-                      <Text variant="caption" style={styles.wfBarText} numberOfLines={1}>
-                        {bar.badge}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text variant="caption" style={styles.wfMs}>
-                    {`${bar.pct}%`}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        <View style={styles.studioAuxPane}>
-          <View style={styles.studioAuxHead}>
-            <Text variant="caption" style={styles.auxHeadTitle} numberOfLines={1}>
-              {activeZoneDetail.summaryTitle}
-            </Text>
-            <Text variant="caption" style={styles.auxHeadMeta}>
-              实时生活伴侣
-            </Text>
-          </View>
-
-          <View style={{ gap: 6 }}>
-            {activeZoneDetail.highlights.map((line, idx) => (
-              <View key={`${activeZoneDetail.key}-${idx}`} style={styles.highlightRow}>
-                <Text variant="caption" style={styles.highlightText}>
-                  {line}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      </View>
-
       {/* Bottom Quick Action Strip */}
       <View style={styles.quickDispatchBar}>
         <View style={styles.quickDispatchLeft}>
@@ -1059,10 +1463,10 @@ export function IsometricStudioStage({
 
 const styles = StyleSheet.create({
   stageCard: {
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 248, 235, 0.12)',
-    backgroundColor: '#161412',
+    borderColor: 'rgba(245, 185, 66, 0.22)',
+    backgroundColor: '#121110',
     overflow: 'hidden',
   },
   studioTopbar: {
@@ -1071,9 +1475,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     flexWrap: 'wrap',
     gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: '#1c1917',
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    backgroundColor: '#1a1613',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 248, 235, 0.08)',
   },
@@ -1083,9 +1487,15 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 10,
   },
+  brandDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#f5b942',
+  },
   studioTitle: {
     color: '#f5f5f4',
-    fontSize: 13,
+    fontSize: 13.5,
     fontWeight: '600',
   },
   perspBar: {
@@ -1104,14 +1514,14 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   perspPillOn: {
-    backgroundColor: '#2e2925',
+    backgroundColor: '#332820',
   },
   perspPillText: {
     color: '#a8a29e',
     fontSize: 11,
   },
   perspPillTextOn: {
-    color: '#f5f5f4',
+    color: '#fde68a',
     fontWeight: '600',
   },
   studioTaskbar: {
@@ -1120,7 +1530,7 @@ const styles = StyleSheet.create({
     gap: 8,
     flex: 1,
     minWidth: 260,
-    maxWidth: 520,
+    maxWidth: 480,
   },
   studioTaskInput: {
     flex: 1,
@@ -1129,7 +1539,7 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     borderWidth: 1,
     borderColor: 'rgba(255, 248, 235, 0.14)',
-    backgroundColor: '#110f0e',
+    backgroundColor: '#0e0c0a',
     color: '#f5f5f4',
     fontSize: 12,
   },
@@ -1137,19 +1547,25 @@ const styles = StyleSheet.create({
     height: 30,
     paddingHorizontal: 12,
     borderRadius: 7,
-    backgroundColor: '#cc785c',
+    backgroundColor: '#29231e',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 185, 66, 0.45)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   dispatchBtnText: {
-    color: '#ffffff',
+    color: '#fde68a',
     fontSize: 11.5,
     fontWeight: '600',
   },
+  dioramaStageWrap: {
+    backgroundColor: '#121110',
+    paddingBottom: 14,
+  },
   stageGridBg: {
     position: 'relative',
-    minHeight: 326,
-    backgroundColor: '#161412',
+    minHeight: 235,
+    backgroundColor: '#121110',
   },
   isoCanvas: {
     position: 'relative',
@@ -1158,76 +1574,246 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-around',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    gap: 16,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 8,
+    gap: 12,
   },
   isoNodeColumn: {
     flex: 1,
     minWidth: 245,
-    maxWidth: 320,
+    maxWidth: 315,
     alignItems: 'center',
-    gap: 8,
+    gap: 2,
   },
   isoNodeSelected: {
-    transform: [{ translateY: -2 }],
+    transform: [{ translateY: -3 }],
   },
-  isoHudCard: {
-    width: '100%',
+  floatingGlassHud: {
+    width: '92%',
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: 'rgba(31, 28, 25, 0.94)',
+    paddingVertical: 8,
+    borderRadius: 11,
+    backgroundColor: 'rgba(34, 32, 30, 0.88)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 248, 235, 0.12)',
-    gap: 5,
+    borderColor: 'rgba(255, 248, 235, 0.14)',
+    gap: 2,
   },
-  isoHudCardFocus: {
-    borderColor: '#cc785c',
+  hudFocusActive: {
+    borderColor: '#e8924a',
   },
-  isoHudCardVitality: {
-    borderColor: '#4ade80',
+  hudVitalityActive: {
+    borderColor: '#34d399',
   },
-  isoHudCardWishes: {
+  hudWishesActive: {
     borderColor: '#f5b942',
   },
-  isoHudHead: {
+  hudTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  hudTitleText: {
+    color: '#f5f5f4',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  hudRingDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+  },
+  hudMetricText: {
+    color: '#e7e5e4',
+    fontSize: 11.5,
+    fontWeight: '600',
+  },
+  hudSubText: {
+    color: '#a8a29e',
+    fontSize: 10.5,
+  },
+  // Option-A Lower Split Bento Grid
+  bentoSplitRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingTop: 6,
+  },
+  bentoLeftCard: {
+    flex: 1.15,
+    minWidth: 300,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 248, 235, 0.10)',
+    backgroundColor: '#181716',
+    padding: 12,
+    gap: 10,
+  },
+  bentoRightStack: {
+    flex: 1,
+    minWidth: 290,
+    gap: 12,
+  },
+  bentoRightCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 248, 235, 0.10)',
+    backgroundColor: '#181716',
+    padding: 12,
+    gap: 9,
+  },
+  bentoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  bentoTitle: {
+    color: '#f5f5f4',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  nowBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 5,
+    backgroundColor: 'rgba(255, 248, 235, 0.08)',
+  },
+  nowBadgeText: {
+    color: '#e7e5e4',
+    fontSize: 10,
+    fontFamily: theme.fontFamily.mono,
+  },
+  addBlockPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: '#272523',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 248, 235, 0.14)',
+  },
+  addBlockPillText: {
+    color: '#e7e5e4',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  matrixGridWrap: {
+    gap: 8,
+  },
+  nowRedLineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  nowRedClock: {
+    color: '#ef4444',
+    fontSize: 10,
+    fontFamily: theme.fontFamily.mono,
+    fontWeight: '700',
+  },
+  nowRedDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#ef4444',
+  },
+  nowRedLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(239, 68, 68, 0.55)',
+  },
+  matrixColumnsWrap: {
+    gap: 7,
+  },
+  matrixBlockCard: {
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 3,
+  },
+  matrixBlockHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  matrixBlockTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+  },
+  matrixBlockMeta: {
+    fontSize: 10.5,
+    fontFamily: theme.fontFamily.mono,
+  },
+  matrixBlockTime: {
+    fontSize: 10.5,
+    fontFamily: theme.fontFamily.mono,
+  },
+  okrMiniGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  okrMiniCard: {
+    flex: 1,
+    minWidth: 135,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 9,
+    borderWidth: 1,
+    gap: 6,
+  },
+  okrMiniTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 6,
   },
-  isoHudNodeTag: {
-    fontSize: 10.5,
-    color: '#a8a29e',
+  okrMiniLabel: {
+    color: '#e7e5e4',
+    fontSize: 11,
     fontWeight: '600',
+    flex: 1,
   },
-  isoStatusPill: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+  okrMiniPct: {
+    fontSize: 11,
+    fontWeight: '700',
+    fontFamily: theme.fontFamily.mono,
+  },
+  okrGlowTrack: {
+    height: 5,
     borderRadius: 999,
-    borderWidth: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    overflow: 'hidden',
   },
-  pillRunning: {
-    backgroundColor: 'rgba(52, 199, 89, 0.16)',
-    borderColor: 'rgba(52, 199, 89, 0.38)',
+  okrGlowFill: {
+    height: '100%',
+    borderRadius: 999,
   },
-  pillWarm: {
-    backgroundColor: 'rgba(245, 185, 66, 0.16)',
-    borderColor: 'rgba(245, 185, 66, 0.38)',
+  miniHeatmapWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 3,
   },
-  pillIdle: {
-    backgroundColor: 'rgba(255, 248, 235, 0.07)',
-    borderColor: 'rgba(255, 248, 235, 0.14)',
+  miniHeatCell: {
+    width: 11,
+    height: 11,
+    borderRadius: 2.5,
   },
-  isoStatusText: {
-    fontSize: 10,
-    fontWeight: '600',
+  miniHeatmapFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 2,
   },
-  isoHudFile: {
-    color: '#f5f5f4',
-    fontSize: 12.5,
-    fontWeight: '600',
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 2,
   },
   isoHudSubBox: {
     paddingHorizontal: 8,
@@ -1236,14 +1822,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#12100e',
     borderWidth: 1,
     borderColor: 'rgba(255, 248, 235, 0.07)',
-  },
-  isoHudSubText: {
-    fontSize: 11,
-    color: '#d6d3d1',
-  },
-  isoCaption: {
-    fontSize: 11,
-    color: '#d6d3d1',
   },
   dayCycleGrid: {
     flexDirection: 'row',
@@ -1284,99 +1862,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#a8a29e',
   },
-  studioAuxDock: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    padding: 12,
-    backgroundColor: '#1a1715',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 248, 235, 0.08)',
-  },
-  studioAuxPane: {
-    flex: 1,
-    minWidth: 280,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 248, 235, 0.08)',
-    backgroundColor: '#12100e',
-    padding: 10,
-    gap: 8,
-  },
-  studioAuxHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingBottom: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 248, 235, 0.06)',
-  },
-  auxHeadTitle: {
-    color: '#f5f5f4',
-    fontSize: 11.5,
-    fontWeight: '600',
-  },
-  auxHeadMeta: {
-    fontSize: 10.5,
-    color: '#a8a29e',
-  },
-  wfRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  wfRowSelected: {
-    backgroundColor: 'rgba(255, 248, 235, 0.07)',
-  },
-  wfActor: {
-    width: 132,
-    fontSize: 11,
-    color: '#e7e5e4',
-  },
-  wfTrack: {
-    flex: 1,
-    height: 18,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255, 248, 235, 0.06)',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  wfBar: {
-    position: 'absolute',
-    top: 2,
-    bottom: 2,
-    borderRadius: 3,
-    paddingHorizontal: 6,
-    justifyContent: 'center',
-  },
-  wfBarText: {
-    color: '#ffffff',
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  wfMs: {
-    width: 40,
-    textAlign: 'right',
-    fontFamily: theme.fontFamily.mono,
-    fontSize: 10.5,
-    color: '#a8a29e',
-  },
-  highlightRow: {
-    backgroundColor: 'rgba(204, 120, 92, 0.10)',
-    borderLeftWidth: 2,
-    borderLeftColor: '#cc785c',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 4,
-  },
-  highlightText: {
-    fontSize: 11.5,
-    color: '#e7e5e4',
-    lineHeight: 17,
-  },
   quickDispatchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1385,7 +1870,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    backgroundColor: '#1c1917',
+    backgroundColor: '#1a1613',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 248, 235, 0.08)',
   },
@@ -1399,7 +1884,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 6,
-    backgroundColor: '#292524',
+    backgroundColor: '#272320',
     borderWidth: 1,
     borderColor: 'rgba(255, 248, 235, 0.12)',
   },
