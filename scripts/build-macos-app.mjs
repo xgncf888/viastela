@@ -932,10 +932,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     }
 
     func loadAppBundle() {
-        if Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "web") != nil {
-            webView.load(URLRequest(url: URL(string: "app://localhost/")!))
-        } else {
-            webView.load(URLRequest(url: URL(string: "http://127.0.0.1:4173")!))
+        let cacheTypes: Set<String> = [
+            WKWebsiteDataTypeDiskCache,
+            WKWebsiteDataTypeMemoryCache,
+            WKWebsiteDataTypeOfflineWebApplicationCache,
+            WKWebsiteDataTypeServiceWorkerRegistrations
+        ]
+        WKWebsiteDataStore.default().removeData(ofTypes: cacheTypes, modifiedSince: .distantPast) { [weak self] in
+            guard let self = self else { return }
+            let ts = Int(Date().timeIntervalSince1970)
+            if Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "web") != nil {
+                var req = URLRequest(url: URL(string: "app://localhost/?v=\\(ts)")!)
+                req.cachePolicy = .reloadIgnoringLocalCacheData
+                self.webView.load(req)
+            } else {
+                var req = URLRequest(url: URL(string: "http://127.0.0.1:4173/?v=\\(ts)")!)
+                req.cachePolicy = .reloadIgnoringLocalCacheData
+                self.webView.load(req)
+            }
         }
     }
 
@@ -1119,7 +1133,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     }
 
     @objc func reloadWebView() {
-        webView.reload()
+        loadAppBundle()
     }
 
     func invokeBridge(_ js: String) {

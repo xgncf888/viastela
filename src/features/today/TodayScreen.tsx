@@ -279,10 +279,12 @@ export function TodayScreen() {
                 </Stack>
               </View>
 
-              {layout === 'expanded' ? (
+              {layout === 'expanded' || Platform.OS === 'web' ? (
                 <>
                   <WorkbenchConsoleCard
                     mode={hostMode}
+                    localDay={accounting}
+                    latestWeightKg={last?.weightKg ?? null}
                     loggedCount={loggedCount}
                     activeWeightDays={activeWeightDays}
                     trainingSetsCount={trainingToday.length}

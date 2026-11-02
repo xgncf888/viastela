@@ -74,6 +74,14 @@
             transform: translateY(0) scale(1);
           }
         }
+        @keyframes studioPulseDash {
+          to {
+            stroke-dashoffset: -48;
+          }
+        }
+        svg path[stroke-dasharray] {
+          animation: studioPulseDash 1.4s linear infinite;
+        }
         ::-webkit-scrollbar {
           width: 6px;
           height: 6px;
@@ -108,6 +116,19 @@
       proto === 'viastela-local:' ||
       host === 'appassets.androidplatform.net'
     );
+  }
+
+  if (isNativePackagedShell() && typeof window !== 'undefined') {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then((regs) => {
+        regs.forEach((r) => r.unregister());
+      }).catch(() => {});
+    }
+    if ('caches' in window) {
+      caches.keys().then((keys) => {
+        keys.forEach((k) => caches.delete(k));
+      }).catch(() => {});
+    }
   }
 
   function isLocalModeEnabled() {

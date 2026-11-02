@@ -11,6 +11,7 @@ import { cardSurfaceStyle } from './Card';
 import { Text } from './Text';
 import { theme } from './theme';
 import { useTheme } from './ThemeProvider';
+import { IsometricStudioStage } from './IsometricStudioStage';
 
 export type TagChipTone = 'owner' | 'exec' | 'rev' | 'neutral' | 'pod';
 
@@ -373,6 +374,8 @@ export function WorkbenchSidebarPanel({
  */
 export function WorkbenchConsoleCard({
   mode,
+  localDay = '2026-11-02',
+  latestWeightKg = null,
   loggedCount,
   activeWeightDays,
   trainingSetsCount,
@@ -386,6 +389,8 @@ export function WorkbenchConsoleCard({
   onOpenScope,
 }: {
   mode: RuntimeHostMode;
+  localDay?: string;
+  latestWeightKg?: number | null;
   loggedCount: number;
   activeWeightDays: number;
   trainingSetsCount: number;
@@ -398,121 +403,24 @@ export function WorkbenchConsoleCard({
   onQuickJournal: () => void;
   onOpenScope?: () => void;
 }) {
-  const { color } = useTheme();
   return (
     <View testID="today-workbench-console" style={styles.consoleStack}>
-      <View
-        style={[
-          styles.ledStrip,
-          cardSurfaceStyle(color.card, color.line),
-        ]}
-      >
-        <View style={[styles.ledBlk, { borderRightColor: color.lineSoft }]}>
-          <Text variant="caption" tone="muted" style={styles.ledKey}>
-            TODAY RHYTHM
-          </Text>
-          <Text
-            variant="metric"
-            style={[
-              styles.ledVal,
-              { color: loggedCount === 3 ? color.green : color.accent },
-            ]}
-          >
-            {`${loggedCount} / 3 已记`}
-          </Text>
-          <Text variant="caption" tone="muted" style={styles.ledSub}>
-            晨重 · 训练 · 学习
-          </Text>
-        </View>
-
-        <View style={[styles.ledBlk, { borderRightColor: color.lineSoft }]}>
-          <Text variant="caption" tone="muted" style={styles.ledKey}>
-            7D CONSISTENCY
-          </Text>
-          <Text variant="metric" style={styles.ledVal}>
-            {`${activeWeightDays} / 7 天`}
-          </Text>
-          <Text variant="caption" tone="muted" style={styles.ledSub}>
-            近 7 日有效早安称
-          </Text>
-        </View>
-
-        <View style={[styles.ledBlk, { borderRightColor: color.lineSoft }]}>
-          <Text variant="caption" tone="muted" style={styles.ledKey}>
-            TRAINING LOAD
-          </Text>
-          <Text variant="metric" style={styles.ledVal}>
-            {`${trainingSetsCount} 组`}
-          </Text>
-          <Text variant="caption" tone="muted" style={styles.ledSub}>
-            {trainingVolumeKg > 0 ? `累计负荷 ${Math.round(trainingVolumeKg)} kg` : '待记录训练组'}
-          </Text>
-        </View>
-
-        <View style={[styles.ledBlk, { borderRightColor: color.lineSoft }]}>
-          <Text variant="caption" tone="muted" style={styles.ledKey}>
-            FOCUS TIME
-          </Text>
-          <Text variant="metric" style={styles.ledVal}>
-            {`${studyMinutes} min`}
-          </Text>
-          <Text variant="caption" tone="muted" style={styles.ledSub}>
-            {studyCount > 0 ? `已完成 ${studyCount} 项主题` : '待记录专注时长'}
-          </Text>
-        </View>
-
-        <View style={styles.ledBlkLast}>
-          <Text variant="caption" tone="muted" style={styles.ledKey}>
-            RUNTIME HOST
-          </Text>
-          <Text variant="metric" style={[styles.ledVal, { color: color.green }]}>
-            {mode === 'charioteer-host' ? 'Mounted' : 'Local-First'}
-          </Text>
-          <Text variant="caption" tone="muted" style={styles.ledSub}>
-            @charioteer/viastela
-          </Text>
-        </View>
-      </View>
-
-      <View
-        style={[
-          styles.profilesBar,
-          cardSurfaceStyle(color.card, color.line),
-        ]}
-      >
-        <View style={styles.profilesLeft}>
-          <Text variant="caption" tone="muted" style={styles.profilesTitle}>
-            Quick Dispatch (工作台快记)
-          </Text>
-          <CockpitPillButton
-            label="＋ 晨重 ⌘K"
-            accessibilityLabel="快捷记晨重"
-            onPress={onQuickWeight}
-          />
-          <CockpitPillButton
-            label="＋ 训练 ⇧⌘T"
-            accessibilityLabel="快捷记训练"
-            onPress={onQuickTraining}
-          />
-          <CockpitPillButton
-            label="＋ 学习 ⇧⌘L"
-            accessibilityLabel="快捷记学习"
-            onPress={onQuickStudy}
-          />
-          <CockpitPillButton
-            label="＋ 时间块 ⇧⌘J"
-            accessibilityLabel="快捷记时间块"
-            onPress={onQuickJournal}
-          />
-        </View>
-        {onOpenScope ? (
-          <CockpitPillButton
-            label="Workspace Scope (⌘B) →"
-            accessibilityLabel="查看工作台作用域与插件协议"
-            onPress={onOpenScope}
-          />
-        ) : null}
-      </View>
+      <IsometricStudioStage
+        mode={mode}
+        localDay={localDay}
+        latestWeightKg={latestWeightKg}
+        loggedCount={loggedCount}
+        activeWeightDays={activeWeightDays}
+        trainingSetsCount={trainingSetsCount}
+        trainingVolumeKg={trainingVolumeKg}
+        studyMinutes={studyMinutes}
+        studyCount={studyCount}
+        onQuickWeight={onQuickWeight}
+        onQuickTraining={onQuickTraining}
+        onQuickStudy={onQuickStudy}
+        onQuickJournal={onQuickJournal}
+        onOpenScope={onOpenScope}
+      />
     </View>
   );
 }
