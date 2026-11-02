@@ -102,13 +102,7 @@ function main() {
     if (existsSync(macAppSrc)) {
       // Remove any legacy duplicate .app inside releases/ so only the unified root locations exist
       rmSync(path.join(RELEASES_DIR, appBundleName), { recursive: true, force: true });
-
       const repoRootApp = path.join(ROOT, appBundleName);
-      const workspaceRootApp = path.join(WORKSPACE_PARENT, appBundleName);
-      copySignedApp(macAppSrc, repoRootApp);
-      if (existsSync(path.join(WORKSPACE_PARENT, 'Charioteer.app')) || existsSync(workspaceRootApp)) {
-        copySignedApp(macAppSrc, workspaceRootApp);
-      }
 
       // Build single-file native macOS .pkg installer from repoRootApp
       const macPkgOut = path.join(RELEASES_DIR, 'viastela-macos.pkg');

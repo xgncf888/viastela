@@ -6,7 +6,7 @@
  * scripts and SPA routes load cleanly without a blank screen.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,6 +25,8 @@ const MACOS_DIR = path.join(CONTENTS, 'MacOS');
 const RESOURCES_DIR = path.join(CONTENTS, 'Resources');
 const WEB_DEST = path.join(RESOURCES_DIR, 'web');
 
+const BUILD_VERSION = `${Date.now()}`;
+
 const INFO_PLIST = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -34,7 +36,7 @@ const INFO_PLIST = `<?xml version="1.0" encoding="UTF-8"?>
   <key>CFBundleIconFile</key>
   <string>AppIcon.icns</string>
   <key>CFBundleIdentifier</key>
-  <string>com.viastela.app.mac</string>
+  <string>com.viastela.studio.mac</string>
   <key>CFBundleName</key>
   <string>${APP_TITLE}</string>
   <key>CFBundleDisplayName</key>
@@ -42,13 +44,13 @@ const INFO_PLIST = `<?xml version="1.0" encoding="UTF-8"?>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>2.0.0</string>
+  <string>2.2.0</string>
+  <key>CFBundleVersion</key>
+  <string>${BUILD_VERSION}</string>
   <key>LSMinimumSystemVersion</key>
   <string>12.0</string>
   <key>NSHighResolutionCapable</key>
   <true/>
-  <key>NSBluetoothAlwaysUsageDescription</key>
-  <string>${APP_TITLE} 需要访问蓝牙以连接智能体脂秤（BLE 0x181D/0x181B）与 Keep 运动手环（BLE 0x180D），实现自动称重与实时心率同步。</string>
   <key>NSAppTransportSecurity</key>
   <dict>
     <key>NSAllowsArbitraryLoads</key>
@@ -1259,27 +1261,48 @@ function main() {
     console.log('Note: hdiutil .dmg creation skipped in restricted environment; .app and .zip are ready.');
   }
 
-  // Sync to Repo Root and Workspace Parent Root (matching Charioteer TARGET_BUNDLES convention)
+  // Build and sign Repo Root and Workspace Parent Root directly from scratch (identical to Charioteer)
+  const compiledIconPng = path.join(RESOURCES_DIR, 'AppIcon.png');
+  const compiledIconIcns = path.join(RESOURCES_DIR, 'AppIcon.icns');
   const targetBundles = [
     path.join(ROOT, APP_NAME),
     path.resolve(ROOT, '..', APP_NAME),
   ];
-  for (const target of targetBundles) {
+  for (const bundlePath of targetBundles) {
     try {
-      rmSync(target, { recursive: true, force: true });
-      execFileSync('ditto', [APP_BUNDLE, target], { stdio: 'inherit' });
-      try { execFileSync('xattr', ['-cr', target], { stdio: 'ignore' }); } catch {}
-      execFileSync('codesign', ['--force', '--deep', '--sign', '-', target], { stdio: 'pipe' });
+      rmSync(bundlePath, { recursive: true, force: true });
+      const contentsDir = path.join(bundlePath, 'Contents');
+      const macosDir = path.join(contentsDir, 'MacOS');
+      const resDir = path.join(contentsDir, 'Resources');
+      const webDir = path.join(resDir, 'web');
+
+      mkdirSync(macosDir, { recursive: true });
+      mkdirSync(resDir, { recursive: true });
+      writeFileSync(path.join(contentsDir, 'Info.plist'), INFO_PLIST, 'utf8');
+
+      cpSync(binPath, path.join(macosDir, EXEC_NAME));
+      execFileSync('chmod', ['+x', path.join(macosDir, EXEC_NAME)]);
+      // Also provide fallback executable name in case LaunchServices cached the old displayName
+      cpSync(binPath, path.join(macosDir, `${EXEC_NAME} Personal OS`));
+      execFileSync('chmod', ['+x', path.join(macosDir, `${EXEC_NAME} Personal OS`)]);
+
+      if (existsSync(compiledIconPng)) {
+        cpSync(compiledIconPng, path.join(resDir, 'AppIcon.png'));
+      }
+      if (existsSync(compiledIconIcns)) {
+        cpSync(compiledIconIcns, path.join(resDir, 'AppIcon.icns'));
+      }
+      if (existsSync(distDir)) {
+        cpSync(distDir, webDir, { recursive: true });
+      }
+
+      try { execFileSync('xattr', ['-cr', bundlePath], { stdio: 'ignore' }); } catch {}
+      execFileSync('codesign', ['--force', '--deep', '--sign', '-', bundlePath], { stdio: 'inherit' });
+      console.log(`✓ Built & signed native macOS bundle: ${bundlePath}`);
     } catch {
       // Ignore if parent workspace is read-only in CI
     }
   }
-
-  console.log(`Built macOS packages in ${OUT_DIR} & synced root bundles:`);
-  console.log(`  - ${path.resolve(ROOT, '..', APP_NAME)}`);
-  console.log(`  - ${path.join(ROOT, APP_NAME)}`);
-  console.log(`  - ${zipPath}`);
-  if (existsSync(dmgPath)) console.log(`  - ${dmgPath}`);
 }
 
 main();
