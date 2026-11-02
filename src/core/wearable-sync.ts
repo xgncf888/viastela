@@ -1,8 +1,29 @@
-export type WearableSourceId = 'ble-hr' | 'keep' | 'apple-health' | 'health-connect';
+export type WearableSourceId =
+  | 'ble-scale'
+  | 'ble-hr'
+  | 'keep'
+  | 'apple-health'
+  | 'health-connect'
+  | 'intervals-icu'
+  | 'strava';
+
+export type WearableAuthGrant = {
+  provider: WearableSourceId;
+  title: string;
+  subtitle: string;
+  authorized: boolean;
+  autoSyncOnLaunch: boolean;
+  scopes: readonly string[];
+  athleteId?: string;
+  apiKey?: string;
+  accessToken?: string;
+  lastSyncedAt: string | null;
+};
 
 export type WearableTelemetry = {
   source: WearableSourceId;
   deviceName: string;
+  latestWeightKg: number | null;
   heartRateBpm: number | null;
   minHeartRateBpm: number | null;
   maxHeartRateBpm: number | null;
@@ -36,6 +57,54 @@ export type HeartRateZone = {
   label: string;
   tone: 'neutral' | 'exec' | 'rev' | 'owner';
 };
+
+export const DEFAULT_WEARABLE_GRANTS: readonly WearableAuthGrant[] = [
+  {
+    provider: 'apple-health',
+    title: 'Apple HealthKit（iOS 原生健康 · 自动同步体脂秤体重与 Keep 训练）',
+    subtitle: '授权读取 HKQuantityTypeBodyMass（体重）、心率、步数、动态千卡与训练，打开 App 自动入账',
+    authorized: false,
+    autoSyncOnLaunch: true,
+    scopes: ['体重 (BodyMass)', '实时心率 (HeartRate)', '动态千卡 (ActiveEnergy)', '步数 (Steps)', '训练 (Workouts)'],
+    lastSyncedAt: null,
+  },
+  {
+    provider: 'health-connect',
+    title: 'Android Health Connect（系统健康 · 自动同步 Keep/小米/华为体脂秤）',
+    subtitle: '授权读取系统健康中心的智能秤体重、手环心率与运动消耗，启动即自动同步',
+    authorized: false,
+    autoSyncOnLaunch: true,
+    scopes: ['WeightRecord (体重)', 'HeartRateRecord (心率)', 'ActiveCaloriesBurned', 'StepsRecord', 'ExerciseSession'],
+    lastSyncedAt: null,
+  },
+  {
+    provider: 'ble-scale',
+    title: '蓝牙智能体脂秤（BLE 0x181D Weight Scale / 0x181B Body Composition）',
+    subtitle: '上秤即连：支持 Keep 体脂秤、小米体脂秤、华为/香山等标准 BLE 广播秤，稳定后自动写入今日晨重',
+    authorized: false,
+    autoSyncOnLaunch: true,
+    scopes: ['GATT 0x181D Weight Scale', 'GATT 0x2A9D Weight Measurement', 'GATT 0x181B Body Composition'],
+    lastSyncedAt: null,
+  },
+  {
+    provider: 'ble-hr',
+    title: 'Keep 手环 / 运动手表（BLE 0x180D 心率广播）',
+    subtitle: '实时接收每秒运动心率并计算 Z1–Z5 燃脂区间，训练结束自动汇总时长与卡路里',
+    authorized: false,
+    autoSyncOnLaunch: false,
+    scopes: ['GATT 0x180D Heart Rate', 'GATT 0x2A37 Heart Rate Measurement'],
+    lastSyncedAt: null,
+  },
+  {
+    provider: 'intervals-icu',
+    title: 'Intervals.icu / Strava 跨端云桥接（Mac / 手机 / 手表全自动云同步）',
+    subtitle: '填入 Athlete ID 与 API Key 后，每次打开自动拉取云端最新称重（Wellness Weight）与运动记录',
+    authorized: false,
+    autoSyncOnLaunch: true,
+    scopes: ['WELLNESS:READ (每日体重/静息心率)', 'ACTIVITY:READ (训练/千卡/心率曲线)'],
+    lastSyncedAt: null,
+  },
+] as const;
 
 /**
  * Computes the standard 5-zone training heart rate zone based on current BPM and estimated max HR (default 190).
@@ -77,7 +146,108 @@ export function parseBleHeartRateMeasurement(bytes: readonly number[]): number |
 }
 
 /**
- * Parses Keep / Apple Health / Xiaomi / Zepp / Garmin exported JSON or CSV text
+ * Parses Bluetooth Low Energy (BLE) Smart Scale Weight Measurement frames:
+ * 1. Standard GATT Weight Measurement (`0x2A9D`):
+ *    - `flags = bytes[0]`
+ *    - `isImperial = (flags & 0x01) === 1`
+ *    - `raw = uint16LE(bytes[1], bytes[2])`
+ *    - SI resolution is `0.005 kg` (`raw * 0.005`), Imperial resolution is `0.01 lb` (`raw * 0.01 * 0.45359237`).
+ *    - Also supports Xiaomi Mi Scale / Keep Scale custom resolution (`0.005 kg` or `0.01 jin / 2`).
+ * 2. Standard GATT Body Composition Measurement (`0x2A9C`):
+ *    - If weight is included in flags or bytes[1..2], normalizes to `kg` rounded to 2 decimal places.
+ */
+export function parseBleWeightScaleMeasurement(bytes: readonly number[]): {
+  weightKg: number;
+  stabilized: boolean;
+} | null {
+  if (bytes.length < 3) return null;
+  const flags = bytes[0] ?? 0;
+  const isImperial = (flags & 0x01) === 1;
+  const isCattyOrJin = (flags & 0x10) !== 0;
+  // Bit 5 in Mi Scale / Keep Scale indicates stabilized measurement; standard 0x2A9D frames are emitted on stabilization
+  const stabilized = (flags & 0x20) !== 0 || (flags & 0x80) === 0;
+  const raw = (bytes[1] ?? 0) | ((bytes[2] ?? 0) << 8);
+  if (raw <= 0 || raw === 0xffff) return null;
+
+  let kg: number;
+  if (isImperial) {
+    kg = raw * 0.01 * 0.45359237;
+  } else if (isCattyOrJin) {
+    kg = (raw * 0.01) / 2;
+  } else {
+    kg = raw * 0.005;
+    // Fallback if scale reports in 0.01 kg units (e.g. raw = 7240 -> 72.40 kg)
+    if (kg < 25 && raw * 0.01 >= 25 && raw * 0.01 <= 250) {
+      kg = raw * 0.01;
+    }
+  }
+
+  if (!Number.isFinite(kg) || kg < 25 || kg > 250) return null;
+  return {
+    weightKg: Number(kg.toFixed(2)),
+    stabilized,
+  };
+}
+
+/**
+ * Parses URL Deep Link / iOS Shortcuts auto-sync query string:
+ * e.g. `?health_sync=1&weight=72.2&hr=142&kcal=510&steps=9200&workout=Keep%20HIIT&mins=25`
+ */
+export function parseHealthSyncUrlParams(search: string): HealthImportSummary | null {
+  if (!search || !search.includes('health_sync=1')) return null;
+  const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+  if (params.get('health_sync') !== '1') return null;
+
+  const summary: HealthImportSummary = {
+    weights: [],
+    workouts: [],
+    latestHeartRateBpm: null,
+    stepsToday: null,
+    activeCaloriesToday: null,
+  };
+
+  const nowIso = new Date().toISOString();
+  const weightKg = Number.parseFloat(params.get('weight') ?? '');
+  if (Number.isFinite(weightKg) && weightKg >= 25 && weightKg <= 250) {
+    summary.weights.push({ weightKg: Number(weightKg.toFixed(2)), recordedAt: nowIso });
+  }
+
+  const hr = Number.parseInt(params.get('hr') ?? '', 10);
+  if (Number.isFinite(hr) && hr >= 30 && hr <= 240) {
+    summary.latestHeartRateBpm = hr;
+  }
+
+  const kcal = Number.parseInt(params.get('kcal') ?? '', 10);
+  if (Number.isFinite(kcal) && kcal > 0) {
+    summary.activeCaloriesToday = kcal;
+  }
+
+  const steps = Number.parseInt(params.get('steps') ?? '', 10);
+  if (Number.isFinite(steps) && steps >= 0) {
+    summary.stepsToday = steps;
+  }
+
+  const workout = (params.get('workout') ?? '').trim();
+  if (workout) {
+    const mins = Math.max(1, Number.parseInt(params.get('mins') ?? '25', 10) || 25);
+    const loadKg = Number.parseFloat(params.get('load_kg') ?? '');
+    summary.workouts.push({
+      id: `deeplink-${Date.now()}`,
+      exercise: workout.startsWith('Keep') ? workout : `Keep · ${workout}`,
+      reps: mins,
+      weightKg: Number.isFinite(loadKg) && loadKg > 0 ? loadKg : null,
+      durationMinutes: mins,
+      caloriesKcal: summary.activeCaloriesToday,
+      avgHeartRateBpm: summary.latestHeartRateBpm,
+      recordedAt: nowIso,
+    });
+  }
+
+  return summary;
+}
+
+/**
+ * Parses Keep / Apple Health / Xiaomi / Zepp / Garmin / Intervals.icu / Strava exported JSON or CSV text
  * into structured weight records, training sets, and daily telemetry.
  */
 export function parseFitnessSyncPayload(rawText: string): HealthImportSummary {
@@ -91,23 +261,33 @@ export function parseFitnessSyncPayload(rawText: string): HealthImportSummary {
   };
   if (!trimmed) return summary;
 
-  // 1. Try JSON format (Keep export / Apple Health Shortcut JSON / custom backup)
+  // 1. Try JSON format (Keep export / Apple Health Shortcut JSON / Intervals.icu / Strava / custom backup)
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
     try {
       const parsed = JSON.parse(trimmed) as unknown;
       const items = Array.isArray(parsed)
         ? parsed
         : parsed && typeof parsed === 'object'
-          ? ((parsed as { records?: unknown[]; workouts?: unknown[]; data?: unknown[] }).records ??
+          ? ((parsed as { records?: unknown[]; workouts?: unknown[]; activities?: unknown[]; data?: unknown[] }).records ??
             (parsed as { workouts?: unknown[] }).workouts ??
+            (parsed as { activities?: unknown[] }).activities ??
             (parsed as { data?: unknown[] }).data ?? [parsed])
           : [];
 
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         const root = parsed as Record<string, unknown>;
         if (typeof root.heartRateBpm === 'number') summary.latestHeartRateBpm = root.heartRateBpm;
+        if (typeof root.restingHR === 'number' && !summary.latestHeartRateBpm) {
+          summary.latestHeartRateBpm = root.restingHR;
+        }
         if (typeof root.steps === 'number') summary.stepsToday = root.steps;
         if (typeof root.caloriesKcal === 'number') summary.activeCaloriesToday = root.caloriesKcal;
+        if (typeof root.weightKg === 'number' && root.weightKg >= 25 && root.weightKg <= 250) {
+          summary.weights.push({
+            weightKg: Number(root.weightKg.toFixed(2)),
+            recordedAt: String(root.recordedAt ?? root.syncedAt ?? new Date().toISOString()),
+          });
+        }
         if (Array.isArray(root.weights)) {
           for (const w of root.weights) {
             if (w && typeof w === 'object') {
@@ -125,30 +305,36 @@ export function parseFitnessSyncPayload(rawText: string): HealthImportSummary {
         if (!rawItem || typeof rawItem !== 'object') continue;
         const row = rawItem as Record<string, unknown>;
         const weightVal = Number(row.weightKg ?? row.weight_kg ?? row.bodyMassKg ?? row.weight);
-        if (Number.isFinite(weightVal) && weightVal >= 25 && weightVal <= 250 && !row.exercise && !row.workoutName && !row.type) {
+        if (Number.isFinite(weightVal) && weightVal >= 25 && weightVal <= 250 && !row.exercise && !row.workoutName && !row.type && !row.moving_time) {
           summary.weights.push({
             weightKg: Number(weightVal.toFixed(2)),
-            recordedAt: String(row.recordedAt ?? row.startDate ?? row.date ?? new Date().toISOString()),
+            recordedAt: String(row.recordedAt ?? row.startDate ?? row.id ?? row.date ?? new Date().toISOString()),
           });
           continue;
         }
 
         const exerciseName = String(
-          row.exercise ?? row.workoutName ?? row.name ?? row.title ?? row.sportType ?? '',
+          row.exercise ?? row.workoutName ?? row.name ?? row.title ?? row.sportType ?? row.type ?? '',
         ).trim();
         if (exerciseName) {
           const durationMin = Math.max(
             1,
-            Math.round(Number(row.durationMinutes ?? row.duration_min ?? Number(row.durationSeconds ?? 0) / 60) || 20),
+            Math.round(
+              Number(
+                row.durationMinutes ??
+                  row.duration_min ??
+                  Number(row.durationSeconds ?? row.moving_time ?? row.elapsed_time ?? 0) / 60,
+              ) || 20,
+            ),
           );
           const reps = Math.max(
             1,
             Math.round(Number(row.reps ?? row.count ?? durationMin)),
           );
           const loadKg = Number(row.weightKg ?? row.loadKg ?? row.resistanceKg);
-          const kcal = Number(row.caloriesKcal ?? row.calories ?? row.kcal);
-          const hr = Number(row.avgHeartRateBpm ?? row.heartRate ?? row.avgHr);
-          if (Number.isFinite(hr) && hr > 30) summary.latestHeartRateBpm = hr;
+          const kcal = Number(row.caloriesKcal ?? row.calories ?? row.kcal ?? (row.icu_joules ? Number(row.icu_joules) / 4184 : NaN));
+          const hr = Number(row.avgHeartRateBpm ?? row.heartRate ?? row.avgHr ?? row.average_heartrate);
+          if (Number.isFinite(hr) && hr > 30) summary.latestHeartRateBpm = Math.round(hr);
           if (Number.isFinite(kcal) && kcal > 0) {
             summary.activeCaloriesToday = (summary.activeCaloriesToday ?? 0) + Math.round(kcal);
           }
@@ -160,7 +346,7 @@ export function parseFitnessSyncPayload(rawText: string): HealthImportSummary {
             durationMinutes: durationMin,
             caloriesKcal: Number.isFinite(kcal) && kcal > 0 ? Math.round(kcal) : null,
             avgHeartRateBpm: Number.isFinite(hr) && hr > 30 ? Math.round(hr) : null,
-            recordedAt: String(row.recordedAt ?? row.startTime ?? row.date ?? new Date().toISOString()),
+            recordedAt: String(row.recordedAt ?? row.startTime ?? row.start_date_local ?? row.date ?? new Date().toISOString()),
           });
         }
       }

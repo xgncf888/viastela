@@ -2,8 +2,11 @@ import { describe, expect, it } from '@jest/globals';
 
 import {
   classifyHeartRateZone,
+  DEFAULT_WEARABLE_GRANTS,
   parseBleHeartRateMeasurement,
+  parseBleWeightScaleMeasurement,
   parseFitnessSyncPayload,
+  parseHealthSyncUrlParams,
 } from './wearable-sync';
 
 describe('wearable-sync core', () => {
@@ -13,13 +16,36 @@ describe('wearable-sync core', () => {
     expect(parseBleHeartRateMeasurement([0x00, 10])).toBeNull();
   });
 
-  it('classifies heart rate training zones', () => {
+  it('parses standard BLE 0x2A9D smart scale weight measurement frames in kg and lbs', () => {
+    // 72.40 kg in 0.005 kg units => 14480 => 0x3890 => [0x20, 0x90, 0x38]
+    const siFrame = parseBleWeightScaleMeasurement([0x20, 0x90, 0x38]);
+    expect(siFrame).toEqual({ weightKg: 72.4, stabilized: true });
+
+    // Imperial 160.00 lbs => 16000 => 0x3E80 => [0x01, 0x80, 0x3E] => ~72.57 kg
+    const lbFrame = parseBleWeightScaleMeasurement([0x01, 0x80, 0x3e]);
+    expect(lbFrame?.weightKg).toBeCloseTo(72.57, 2);
+  });
+
+  it('classifies heart rate training zones and exposes default authorization grants', () => {
     expect(classifyHeartRateZone(118, 190).zone).toBe(2);
     expect(classifyHeartRateZone(160, 190).zone).toBe(4);
     expect(classifyHeartRateZone(178, 190).zone).toBe(5);
+    expect(DEFAULT_WEARABLE_GRANTS).toHaveLength(5);
   });
 
-  it('parses Keep / Apple Health JSON and CSV fitness sync payloads', () => {
+  it('parses URL deep-link health_sync parameters for iOS Shortcuts / Android automation', () => {
+    const parsed = parseHealthSyncUrlParams(
+      '?health_sync=1&weight=72.2&hr=142&kcal=510&steps=9200&workout=HIIT&mins=25',
+    );
+    expect(parsed).not.toBeNull();
+    expect(parsed?.weights[0]?.weightKg).toBe(72.2);
+    expect(parsed?.latestHeartRateBpm).toBe(142);
+    expect(parsed?.activeCaloriesToday).toBe(510);
+    expect(parsed?.stepsToday).toBe(9200);
+    expect(parsed?.workouts[0]?.exercise).toBe('Keep · HIIT');
+  });
+
+  it('parses Keep / Apple Health / Intervals.icu JSON and CSV fitness sync payloads', () => {
     const jsonPayload = JSON.stringify({
       heartRateBpm: 136,
       steps: 8640,

@@ -407,6 +407,7 @@ export function TodayScreen() {
 
         <WearableSyncHub
           latestWeightKg={last?.weightKg}
+          localDay={accounting}
           onSyncWorkoutSet={(input) => training.saveSet(input)}
           onSyncWeightKg={(kg) => saveWeight(kg)}
         />
