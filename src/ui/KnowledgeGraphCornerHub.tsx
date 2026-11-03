@@ -42,29 +42,30 @@ import { useI18n } from './use-i18n';
 export type StudyWorkbenchSubView = 'lab' | 'graph' | 'packs';
 
 /**
- * 4-Step Progressive Disclosure Wizard Step inside each lesson:
- * 1 = 🌱 先听大白话比喻 (Zero-Jargon Analogy)
- * 2 = 🎬 动手玩交互动画 (Interactive Animation Sandbox)
- * 3 = 💡 3 句话核心规律 (3 Key Takeaways + Optional Formula Dictionary)
- * 4 = 🎯 1 道题闯关自测 (Single Quiz & Complete Lesson)
+ * 4 Book Pages per Chapter (每章四页纸书阅读体验):
+ * Page 1 = 第 1 页 · 开篇引子与直觉叙事 (Narrative Opening & Highlighted Quote)
+ * Page 2 = 第 2 页 · 书中活动插图 (Interactive Book Figure & Caption)
+ * Page 3 = 第 3 页 · 精读划线与书页脚注 (Underlined Key Passages & Footnotes)
+ * Page 4 = 第 4 页 · 掩卷思考与手札钤印 (Reflection, Margin Note & Red Seal Stamp)
  */
-export type LessonWizardStep = 1 | 2 | 3 | 4;
+export type BookPageNumber = 1 | 2 | 3 | 4;
 
 /**
- * Interactive Animated AI Learning Lab (AI 交互式动画实验台 · 极简聚焦版)
- * Highlights ONE obvious primary action button ("👉 点这里试试") so the user never feels lost!
+ * Interactive Book Figure (书中活动插图 · 像哈利波特魔法书/Distill绘本一样嵌在书页中央)
  */
 function AiInteractiveAnimationLab({
   kind,
+  figureCode,
   isDark,
   fullScreen = false,
 }: {
   kind: AiAnimationKind;
+  figureCode: string;
   isDark: boolean;
   fullScreen?: boolean;
 }) {
   const { t } = useI18n();
-  const [playing, setPlaying] = useState(false); // Default to manual step-by-step so it doesn't flash chaotically!
+  const [playing, setPlaying] = useState(false);
   const [tick, setTick] = useState(0);
 
   // L1-1: Token Next-Word Solitaire (AI-001)
@@ -84,7 +85,7 @@ function AiInteractiveAnimationLab({
 
   // L2: Self-Attention + Multi-Head + RoPE 2D Rotation (AI-101)
   const [focusTokenIdx, setFocusTokenIdx] = useState(5);
-  const [attnHeadIdx, setAttnHeadIdx] = useState(0);
+  const [attnHeadIdx] = useState(0);
   const [attnStepIdx, setAttnStepIdx] = useState(2);
   const [temperature, setTemperature] = useState(0.8);
 
@@ -101,7 +102,7 @@ function AiInteractiveAnimationLab({
   const [sharedPrefix, setSharedPrefix] = useState(true);
 
   // L4-2: Speculative Decoding (AI-301)
-  const [specGamma, setSpecGamma] = useState(4);
+  const [specGamma] = useState(4);
   const [specPhase, setSpecPhase] = useState(0);
 
   // L4-3: FlashAttention Tiling (AI-401)
@@ -109,12 +110,12 @@ function AiInteractiveAnimationLab({
 
   // L4-4: MoE Top-K Router (AI-501)
   const [moeTokenIdx, setMoeTokenIdx] = useState(0);
-  const [moeTopK, setMoeTopK] = useState(2);
-  const [moeLoadBalance, setMoeLoadBalance] = useState(true);
+  const [moeTopK] = useState(2);
+  const [moeLoadBalance] = useState(true);
 
   // L4-5: 3D Parallelism & ZeRO Sharding (AI-601)
   const [zeroStage, setZeroStage] = useState<0 | 1 | 2 | 3>(2);
-  const [microBatches, setMicroBatches] = useState(8);
+  const [microBatches] = useState(8);
 
   useEffect(() => {
     if (!playing) return undefined;
@@ -149,14 +150,13 @@ function AiInteractiveAnimationLab({
     return () => clearInterval(timer);
   }, [playing, kind]);
 
-  const boxBg = isDark ? '#12110f' : '#f8f5ec';
-  const borderCol = isDark ? 'rgba(245, 185, 66, 0.38)' : 'rgba(184, 130, 40, 0.36)';
-  const ink = isDark ? '#f8fafc' : '#26241f';
-  const sub = isDark ? '#cbd5e1' : '#524e46';
-  const gold = isDark ? '#fde68a' : '#92560c';
+  const boxBg = isDark ? '#14120f' : '#f5f0e4';
+  const borderCol = isDark ? 'rgba(217, 169, 78, 0.34)' : 'rgba(146, 104, 41, 0.28)';
+  const ink = isDark ? '#f3efe6' : '#26221b';
+  const sub = isDark ? '#c8c0b0' : '#574f42';
+  const gold = isDark ? '#fde68a' : '#8a5311';
   const emerald = isDark ? '#34d399' : '#1f5e4b';
-  const sky = isDark ? '#38bdf8' : '#0284c7';
-  const pink = isDark ? '#f472b6' : '#db2777';
+  const sky = isDark ? '#38bdf8' : '#0369a1';
   const svgHeight = fullScreen ? 184 : 142;
 
   // ==================== LAB AI-001: TOKEN NEXT-WORD SOLITAIRE ====================
@@ -166,30 +166,29 @@ function AiInteractiveAnimationLab({
       samplingMode,
     });
     return (
-      <View style={[styles.animContainer, { backgroundColor: boxBg, borderColor: borderCol }]}>
-        {/* Single Clear Action Bar */}
-        <View style={styles.animHeader}>
-          <Pressable
-            onPress={() => {
-              setPlaying(false);
-              setTokenStep((s) => (s + 1) % 4);
-            }}
-            style={[styles.primaryPlayBtn, { backgroundColor: '#34d399', borderColor: '#34d399' }]}
-          >
-            <Text variant="caption" style={{ color: '#0f172a', fontSize: 12, fontWeight: '700' }}>
-              {t(`👉 点这里：接龙生成下一个词 (${tokenStep + 1}/4)`, `👉 Click: Generate Next Token (${tokenStep + 1}/4)`)}
-            </Text>
-          </Pressable>
-
-          <View style={{ flexDirection: 'row', gap: 6 }}>
+      <View style={[styles.figurePlate, { backgroundColor: boxBg, borderColor: borderCol }]}>
+        <View style={styles.figureHeaderRow}>
+          <Text variant="caption" style={{ color: gold, fontSize: 11.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+            {`【书中插图 ${figureCode}】词语接龙与下一词概率分布演示`}
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+            <Pressable
+              onPress={() => {
+                setPlaying(false);
+                setTokenStep((s) => (s + 1) % 4);
+              }}
+              style={[styles.primaryPlayBtn, { backgroundColor: '#b88228', borderColor: '#b88228' }]}
+            >
+              <Text variant="caption" style={{ color: '#fffbeb', fontSize: 11.5, fontWeight: '700' }}>
+                {t(`👉 拨动插图：往后接龙第 ${tokenStep + 1}/4 个词`, `👉 Step Next Token (${tokenStep + 1}/4)`)}
+              </Text>
+            </Pressable>
             <Pressable
               onPress={() => setSamplingMode((m) => (m === 'greedy' ? 'top-p' : 'greedy'))}
-              style={[styles.microBtn, { borderColor: sky }]}
+              style={[styles.microBtn, { borderColor: borderCol }]}
             >
-              <Text variant="caption" style={{ color: sky, fontSize: 10.5, fontWeight: '700' }}>
-                {samplingMode === 'greedy'
-                  ? t('切换：当前为稳健选第 1 名', 'Mode: Greedy Top-1')
-                  : t('切换：当前为 Top-P 创意抽签', 'Mode: Top-P Creative')}
+              <Text variant="caption" style={{ color: sub, fontSize: 10.5 }}>
+                {samplingMode === 'greedy' ? '当前：稳健选第1名' : '当前：Top-P 灵动抽签'}
               </Text>
             </Pressable>
           </View>
@@ -197,8 +196,8 @@ function AiInteractiveAnimationLab({
 
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14, alignItems: 'flex-start' }}>
           <View style={{ flex: 1.3, minWidth: 260, gap: 8 }}>
-            <Text variant="caption" style={{ color: sub, fontSize: 11, fontWeight: '700' }}>
-              {t('① 积木切词与逐词接龙过程：', '① Token Blocks & Solitaire Chain:')}
+            <Text variant="caption" style={{ color: sub, fontSize: 11, fontFamily: theme.fontFamily.serif }}>
+              {t('切词积木序列（每猜出一个新词，就拼到句尾继续往下猜）：', 'Token sequence on page:')}
             </Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {sim.baseTokens.map((tok) => (
@@ -207,17 +206,17 @@ function AiInteractiveAnimationLab({
                   style={{
                     paddingHorizontal: 11,
                     paddingVertical: 6,
-                    borderRadius: 8,
-                    borderWidth: 1.2,
-                    borderColor: tok.color,
-                    backgroundColor: `${tok.color}18`,
+                    borderRadius: 6,
+                    borderWidth: 1,
+                    borderColor: borderCol,
+                    backgroundColor: isDark ? '#1e1b17' : '#fcfaf4',
                     alignItems: 'center',
                   }}
                 >
-                  <Text variant="caption" style={{ color: ink, fontSize: 12.5, fontWeight: '700' }}>
+                  <Text variant="caption" style={{ color: ink, fontSize: 13, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
                     {tok.text}
                   </Text>
-                  <Text variant="caption" style={{ color: tok.color, fontSize: 9.5, fontFamily: theme.fontFamily.mono }}>
+                  <Text variant="caption" style={{ color: sub, fontSize: 9, fontFamily: theme.fontFamily.mono }}>
                     {`#${tok.id}`}
                   </Text>
                 </View>
@@ -230,17 +229,17 @@ function AiInteractiveAnimationLab({
                     style={{
                       paddingHorizontal: 12,
                       paddingVertical: 6,
-                      borderRadius: 8,
-                      borderWidth: isLatest ? 2 : 1.2,
-                      borderColor: isLatest ? '#f5b942' : emerald,
-                      backgroundColor: isLatest ? 'rgba(245,185,66,0.25)' : 'rgba(52,211,153,0.18)',
+                      borderRadius: 6,
+                      borderWidth: isLatest ? 1.8 : 1,
+                      borderColor: isLatest ? '#b88228' : emerald,
+                      backgroundColor: isLatest ? 'rgba(245,185,66,0.20)' : 'rgba(52,211,153,0.12)',
                       alignItems: 'center',
                     }}
                   >
-                    <Text variant="caption" style={{ color: isLatest ? gold : emerald, fontSize: 12.5, fontWeight: '700' }}>
-                      {`${isLatest ? '✨ ' : ''}${gt.text}`}
+                    <Text variant="caption" style={{ color: isLatest ? gold : emerald, fontSize: 13, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                      {gt.text}
                     </Text>
-                    <Text variant="caption" style={{ color: sub, fontSize: 9.5, fontFamily: theme.fontFamily.mono }}>
+                    <Text variant="caption" style={{ color: sub, fontSize: 9, fontFamily: theme.fontFamily.mono }}>
                       {`概率 ${gt.probPct}%`}
                     </Text>
                   </View>
@@ -249,25 +248,25 @@ function AiInteractiveAnimationLab({
             </View>
           </View>
 
-          <View style={{ flex: 1, minWidth: 230, gap: 6, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: borderCol, backgroundColor: isDark ? '#18181b' : '#ffffff' }}>
-            <Text variant="caption" style={{ color: gold, fontSize: 11, fontWeight: '700' }}>
-              {t('② 候选词概率榜（为什么选了它？）：', '② Next-Token Probability Ranking:')}
+          <View style={{ flex: 1, minWidth: 220, gap: 6, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: borderCol, backgroundColor: isDark ? '#1c1916' : '#fcfaf4' }}>
+            <Text variant="caption" style={{ color: gold, fontSize: 11, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+              {t('候选词概率打分表：', 'Candidate Probabilities:')}
             </Text>
             {sim.candidates.map((cand) => (
               <View key={cand.tokenId} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text variant="caption" style={{ color: cand.chosen ? emerald : ink, fontSize: 11, fontWeight: cand.chosen ? '700' : '500', width: 66 }}>
-                  {`${cand.chosen ? '👉 ' : ''}${cand.token}`}
+                <Text variant="caption" style={{ color: cand.chosen ? emerald : ink, fontSize: 11.5, fontFamily: theme.fontFamily.serif, fontWeight: cand.chosen ? '700' : '500', width: 64 }}>
+                  {`${cand.chosen ? '● ' : ''}${cand.token}`}
                 </Text>
-                <View style={{ flex: 1, height: 14, borderRadius: 5, backgroundColor: isDark ? '#27272a' : '#e2e8f0', overflow: 'hidden' }}>
+                <View style={{ flex: 1, height: 11, borderRadius: 4, backgroundColor: isDark ? '#292520' : '#e6dfd1', overflow: 'hidden' }}>
                   <View
                     style={{
                       width: `${cand.probPct}%`,
                       height: '100%',
-                      backgroundColor: cand.chosen ? '#34d399' : '#38bdf8',
+                      backgroundColor: cand.chosen ? '#1f5e4b' : '#b88228',
                     }}
                   />
                 </View>
-                <Text variant="caption" style={{ color: cand.chosen ? emerald : sub, fontSize: 10.5, fontFamily: theme.fontFamily.mono, width: 42, textAlign: 'right', fontWeight: '700' }}>
+                <Text variant="caption" style={{ color: sub, fontSize: 10, fontFamily: theme.fontFamily.mono, width: 38, textAlign: 'right' }}>
                   {`${cand.probPct}%`}
                 </Text>
               </View>
@@ -275,11 +274,9 @@ function AiInteractiveAnimationLab({
           </View>
         </View>
 
-        <View style={[styles.stepCaptionBox, { borderColor: borderCol }]}>
-          <Text variant="caption" style={{ color: sub, fontSize: 11.5, lineHeight: 18 }}>
-            {sim.stepDescZh}
-          </Text>
-        </View>
+        <Text variant="caption" style={[styles.figureCaptionText, { color: sub }]}>
+          {`【图注】${sim.stepDescZh}`}
+        </Text>
       </View>
     );
   }
@@ -291,19 +288,22 @@ function AiInteractiveAnimationLab({
       showRoyaltyAnalogy,
     });
     return (
-      <View style={[styles.animContainer, { backgroundColor: boxBg, borderColor: borderCol }]}>
-        <View style={styles.animHeader}>
+      <View style={[styles.figurePlate, { backgroundColor: boxBg, borderColor: borderCol }]}>
+        <View style={styles.figureHeaderRow}>
+          <Text variant="caption" style={{ color: gold, fontSize: 11.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+            {`【书中插图 ${figureCode}】二维语义星空与词向量平行四边形法则`}
+          </Text>
           <Pressable
             onPress={() => {
               setPlaying(false);
               setShowRoyaltyAnalogy((v) => !v);
             }}
-            style={[styles.primaryPlayBtn, { backgroundColor: '#f5b942', borderColor: '#f5b942' }]}
+            style={[styles.primaryPlayBtn, { backgroundColor: '#b88228', borderColor: '#b88228' }]}
           >
-            <Text variant="caption" style={{ color: '#141311', fontSize: 12, fontWeight: '700' }}>
+            <Text variant="caption" style={{ color: '#fffbeb', fontSize: 11.5, fontWeight: '700' }}>
               {showRoyaltyAnalogy
-                ? t('👉 点这里：切回「宠物 / 咖啡 / AI」语义星团图', '👉 Back to Semantic Clusters')
-                : t('👉 点这里试试：演示「国王 - 男人 + 女人 = 女王」向量魔法！', '👉 Click: Demo King - Man + Woman = Queen!')}
+                ? t('👉 拨动插图：切回「宠物 / 咖啡 / 算力」星团图', '👉 Back to Semantic Clusters')
+                : t('👉 拨动插图：演示「国王 - 男人 + 女人 = 女王」', '👉 Demo King - Man + Woman = Queen')}
             </Text>
           </Pressable>
         </View>
@@ -318,12 +318,12 @@ function AiInteractiveAnimationLab({
                   y: 4,
                   width: 332,
                   height: 128,
-                  rx: 8,
-                  fill: isDark ? '#18181b' : '#ffffff',
+                  rx: 6,
+                  fill: isDark ? '#1c1916' : '#fcfaf4',
                   stroke: borderCol,
                 }),
-                createElement('line', { x1: 24, y1: 116, x2: 320, y2: 116, stroke: isDark ? '#334155' : '#cbd5e1', strokeWidth: 1 }),
-                createElement('line', { x1: 24, y1: 14, x2: 24, y2: 116, stroke: isDark ? '#334155' : '#cbd5e1', strokeWidth: 1 }),
+                createElement('line', { x1: 24, y1: 116, x2: 320, y2: 116, stroke: borderCol, strokeWidth: 1 }),
+                createElement('line', { x1: 24, y1: 14, x2: 24, y2: 116, stroke: borderCol, strokeWidth: 1 }),
                 showRoyaltyAnalogy
                   ? createElement(
                       'g',
@@ -333,8 +333,8 @@ function AiInteractiveAnimationLab({
                         y1: 96,
                         x2: 108,
                         y2: 34,
-                        stroke: '#f5b942',
-                        strokeWidth: 2.2,
+                        stroke: '#b88228',
+                        strokeWidth: 2,
                         strokeDasharray: '4 2',
                       }),
                       createElement('line', {
@@ -342,16 +342,16 @@ function AiInteractiveAnimationLab({
                         y1: 94,
                         x2: 260,
                         y2: 32,
-                        stroke: '#34d399',
-                        strokeWidth: 2.6,
+                        stroke: '#1f5e4b',
+                        strokeWidth: 2.4,
                       }),
                       createElement('line', {
                         x1: 108,
                         y1: 34,
                         x2: 260,
                         y2: 32,
-                        stroke: '#f472b6',
-                        strokeWidth: 2,
+                        stroke: '#b45309',
+                        strokeWidth: 1.6,
                         strokeDasharray: '3 3',
                       }),
                     )
@@ -362,7 +362,7 @@ function AiInteractiveAnimationLab({
                   return createElement(
                     'g',
                     { key: pt.word },
-                    createElement('circle', { cx, cy, r: 7, fill: pt.color }),
+                    createElement('circle', { cx, cy, r: 6.5, fill: pt.color }),
                     createElement(
                       'text',
                       {
@@ -380,13 +380,13 @@ function AiInteractiveAnimationLab({
               )
             : null}
 
-          <View style={{ flex: 1, minWidth: 240, gap: 6 }}>
+          <View style={{ flex: 1, minWidth: 230, gap: 6 }}>
             <Text variant="caption" style={{ color: gold, fontSize: 11.5, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
               {sim.pairLabelZh}
             </Text>
             {sim.points.slice(0, 4).map((pt) => (
-              <View key={pt.word} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 3 }}>
-                <Text variant="caption" style={{ color: pt.color, fontSize: 11, fontWeight: '700', width: 98 }}>
+              <View key={pt.word} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 2 }}>
+                <Text variant="caption" style={{ color: ink, fontSize: 11, fontFamily: theme.fontFamily.serif, fontWeight: '700', width: 98 }}>
                   {pt.word}
                 </Text>
                 <Text variant="caption" style={{ color: sub, fontSize: 10.5, fontFamily: theme.fontFamily.mono }}>
@@ -397,11 +397,9 @@ function AiInteractiveAnimationLab({
           </View>
         </View>
 
-        <View style={[styles.stepCaptionBox, { borderColor: borderCol }]}>
-          <Text variant="caption" style={{ color: sub, fontSize: 11.5, lineHeight: 18 }}>
-            {sim.summaryZh}
-          </Text>
-        </View>
+        <Text variant="caption" style={[styles.figureCaptionText, { color: sub }]}>
+          {`【图注】${sim.summaryZh}`}
+        </Text>
       </View>
     );
   }
@@ -413,25 +411,25 @@ function AiInteractiveAnimationLab({
       learningRate,
     });
     return (
-      <View style={[styles.animContainer, { backgroundColor: boxBg, borderColor: borderCol }]}>
-        <View style={styles.animHeader}>
+      <View style={[styles.figurePlate, { backgroundColor: boxBg, borderColor: borderCol }]}>
+        <View style={styles.figureHeaderRow}>
           <Pressable
             onPress={() => {
               setPlaying(false);
               setGradStep((s) => (s >= 7 ? 0 : s + 1));
             }}
-            style={[styles.primaryPlayBtn, { backgroundColor: '#34d399', borderColor: '#34d399' }]}
+            style={[styles.primaryPlayBtn, { backgroundColor: '#b88228', borderColor: '#b88228' }]}
           >
-            <Text variant="caption" style={{ color: '#0f172a', fontSize: 12, fontWeight: '700' }}>
-              {t(`👉 点这里：往山谷底迈出第 ${gradStep + 1} 步`, `👉 Click: Step Downhill (${gradStep + 1})`)}
+            <Text variant="caption" style={{ color: '#fffbeb', fontSize: 11.5, fontWeight: '700' }}>
+              {t(`👉 拨动插图：顺着斜坡往下走第 ${gradStep + 1} 步`, `👉 Step Downhill (${gradStep + 1})`)}
             </Text>
           </Pressable>
 
           <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
             {[
-              { lr: 0.08, label: '太慢 (0.08)' },
-              { lr: 0.25, label: '刚刚好 (0.25)' },
-              { lr: 0.92, label: '步太大震荡 (0.92)' },
+              { lr: 0.08, label: '小步慢走 (0.08)' },
+              { lr: 0.25, label: '稳步入谷 (0.25)' },
+              { lr: 0.92, label: '步大震荡 (0.92)' },
             ].map((item) => (
               <Pressable
                 key={item.lr}
@@ -444,7 +442,6 @@ function AiInteractiveAnimationLab({
                   styles.microBtn,
                   {
                     borderColor: Math.abs(learningRate - item.lr) < 0.02 ? gold : borderCol,
-                    backgroundColor: Math.abs(learningRate - item.lr) < 0.02 ? 'rgba(245,185,66,0.20)' : 'transparent',
                   },
                 ]}
               >
@@ -463,10 +460,10 @@ function AiInteractiveAnimationLab({
               createElement('path', {
                 d: 'M 80 18 Q 300 198 520 18',
                 fill: 'none',
-                stroke: isDark ? '#475569' : '#94a3b8',
-                strokeWidth: 2.5,
+                stroke: isDark ? '#57534e' : '#a8a29e',
+                strokeWidth: 2.2,
               }),
-              createElement('circle', { cx: 300, cy: 108, r: 6.5, fill: '#34d399' }),
+              createElement('circle', { cx: 300, cy: 108, r: 6.5, fill: '#1f5e4b' }),
               createElement(
                 'text',
                 { x: 300, y: 126, textAnchor: 'middle', fill: emerald, fontSize: '10.5', fontWeight: '700' },
@@ -488,16 +485,16 @@ function AiInteractiveAnimationLab({
                         y1: prevY,
                         x2: cx,
                         y2: cy,
-                        stroke: learningRate > 0.7 ? '#ef4444' : '#f5b942',
-                        strokeWidth: 2.2,
+                        stroke: learningRate > 0.7 ? '#dc2626' : '#b88228',
+                        strokeWidth: 2,
                         strokeDasharray: '3 2',
                       })
                     : null,
                   createElement('circle', {
                     cx,
                     cy,
-                    r: isLast ? 8 : 4.5,
-                    fill: isLast ? '#f5b942' : '#38bdf8',
+                    r: isLast ? 7.5 : 4,
+                    fill: isLast ? '#b88228' : '#78716c',
                     stroke: isLast ? '#ffffff' : 'none',
                     strokeWidth: 1.5,
                   }),
@@ -512,7 +509,7 @@ function AiInteractiveAnimationLab({
                           fontSize: '11',
                           fontWeight: '700',
                         },
-                        `当前小球 w=${pt.w} (误差=${pt.loss})`,
+                        `当前位置 w=${pt.w} (误差=${pt.loss})`,
                       )
                     : null,
                 );
@@ -520,11 +517,9 @@ function AiInteractiveAnimationLab({
             )
           : null}
 
-        <View style={[styles.stepCaptionBox, { borderColor: borderCol }]}>
-          <Text variant="caption" style={{ color: sub, fontSize: 11.5, lineHeight: 18 }}>
-            {sim.stepDescZh}
-          </Text>
-        </View>
+        <Text variant="caption" style={[styles.figureCaptionText, { color: sub }]}>
+          {`【图注】${sim.stepDescZh}`}
+        </Text>
       </View>
     );
   }
@@ -533,10 +528,10 @@ function AiInteractiveAnimationLab({
   if (kind === 'rnn-vs-attention') {
     const sim = computeRnnVsAttentionSimulation({ sentenceLength: rnnLen });
     return (
-      <View style={[styles.animContainer, { backgroundColor: boxBg, borderColor: borderCol }]}>
-        <View style={styles.animHeader}>
-          <Text variant="caption" style={{ color: gold, fontSize: 11.5, fontWeight: '700' }}>
-            {t('👉 点选下方句子长度，对比「传声筒失忆」与「微信 @ 直连」：', '👉 Click sentence length to compare RNN vs Attention:')}
+      <View style={[styles.figurePlate, { backgroundColor: boxBg, borderColor: borderCol }]}>
+        <View style={styles.figureHeaderRow}>
+          <Text variant="caption" style={{ color: gold, fontSize: 11.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+            {`【书中插图 ${figureCode}】串行传声筒衰减 vs 注意力一步直连对比`}
           </Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {([4, 8, 16] as const).map((len) => (
@@ -549,13 +544,13 @@ function AiInteractiveAnimationLab({
                 style={[
                   styles.primaryPlayBtn,
                   {
-                    backgroundColor: rnnLen === len ? '#f5b942' : 'transparent',
-                    borderColor: rnnLen === len ? '#f5b942' : borderCol,
+                    backgroundColor: rnnLen === len ? '#b88228' : 'transparent',
+                    borderColor: rnnLen === len ? '#b88228' : borderCol,
                   },
                 ]}
               >
-                <Text variant="caption" style={{ color: rnnLen === len ? '#141311' : ink, fontSize: 11, fontWeight: '700' }}>
-                  {len === 4 ? '短句 (4词)' : len === 8 ? '中句 (8词)' : '长句 (16词·看RNN失忆!)'}
+                <Text variant="caption" style={{ color: rnnLen === len ? '#fffbeb' : ink, fontSize: 11, fontWeight: '700' }}>
+                  {len === 4 ? '短句 (4词)' : len === 8 ? '中句 (8词)' : '👉 长句 (16词·看传声筒失忆)'}
                 </Text>
               </Pressable>
             ))}
@@ -563,12 +558,10 @@ function AiInteractiveAnimationLab({
         </View>
 
         <View style={{ gap: 10 }}>
-          <View style={{ padding: 10, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(239,68,68,0.35)', backgroundColor: isDark ? '#18181b' : '#ffffff', gap: 6 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text variant="caption" style={{ color: '#ef4444', fontSize: 11, fontWeight: '700' }}>
-                {`❌ 旧模型 RNN 传声筒：挨个传了 ${sim.rnnStepsRequired} 步，句首「小猫」传到句尾时只剩 ${sim.rnnRetentionPct}% 记忆`}
-              </Text>
-            </View>
+          <View style={{ padding: 10, borderRadius: 6, borderWidth: 1, borderColor: borderCol, backgroundColor: isDark ? '#1c1916' : '#fcfaf4', gap: 6 }}>
+            <Text variant="caption" style={{ color: '#b45309', fontSize: 11, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+              {`上篇 · 旧模型 RNN 传声筒（挨个传了 ${sim.rnnStepsRequired} 手，句首「小猫」传到末尾只剩 ${sim.rnnRetentionPct}% 印象）：`}
+            </Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
               {sim.tokens.map((tok, idx) => {
                 const fade = Math.max(0.14, 1 - (idx / sim.tokens.length) * (sim.sentenceLength === 16 ? 0.9 : 0.65));
@@ -577,12 +570,12 @@ function AiInteractiveAnimationLab({
                     key={`rnn-${idx}`}
                     style={{
                       paddingHorizontal: 7,
-                      paddingVertical: 4,
-                      borderRadius: 5,
-                      backgroundColor: `rgba(245, 185, 66, ${fade.toFixed(2)})`,
+                      paddingVertical: 3,
+                      borderRadius: 4,
+                      backgroundColor: `rgba(184, 130, 40, ${fade.toFixed(2)})`,
                     }}
                   >
-                    <Text variant="caption" style={{ color: ink, fontSize: 10.5, fontWeight: idx === 0 || idx === sim.tokens.length - 1 ? '700' : '500' }}>
+                    <Text variant="caption" style={{ color: ink, fontSize: 10.5, fontFamily: theme.fontFamily.serif }}>
                       {`${tok}${idx < sim.tokens.length - 1 ? ' →' : ''}`}
                     </Text>
                   </View>
@@ -591,27 +584,31 @@ function AiInteractiveAnimationLab({
             </View>
           </View>
 
-          <View style={{ padding: 10, borderRadius: 8, borderWidth: 1.5, borderColor: emerald, backgroundColor: isDark ? '#18181b' : '#ffffff', gap: 6 }}>
-            <Text variant="caption" style={{ color: emerald, fontSize: 11, fontWeight: '700' }}>
-              {`✅ Transformer 注意力直连：不管句子多长，句尾「它」永远 1 步专线连回「小猫」（记忆保留 ${sim.attentionRetentionPct}%！）`}
+          <View style={{ padding: 10, borderRadius: 6, borderWidth: 1.2, borderColor: emerald, backgroundColor: isDark ? '#1c1916' : '#fcfaf4', gap: 6 }}>
+            <Text variant="caption" style={{ color: emerald, fontSize: 11, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+              {`下篇 · Attention 注意力直连（句尾「它」直接拉一条专线回到句首「小猫」，记忆保留 ${sim.attentionRetentionPct}%）：`}
             </Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: 'rgba(52,211,153,0.22)', borderWidth: 1, borderColor: emerald }}>
-                <Text variant="caption" style={{ color: emerald, fontSize: 11, fontWeight: '700' }}>
+              <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 5, borderWidth: 1, borderColor: emerald }}>
+                <Text variant="caption" style={{ color: emerald, fontSize: 11, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
                   {`句首：「${sim.tokens[0]}」`}
                 </Text>
               </View>
-              <Text variant="caption" style={{ color: gold, fontSize: 11.5, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
-                {`⚡ ══════ 1 步直连专线 (跨越 ${sim.rnnStepsRequired} 词不衰减) ══════ ⚡`}
+              <Text variant="caption" style={{ color: gold, fontSize: 11, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                {`══════ O(1) 跨句直连引线 (无需中间传话) ══════`}
               </Text>
-              <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: 'rgba(245,185,66,0.22)', borderWidth: 1, borderColor: gold }}>
-                <Text variant="caption" style={{ color: gold, fontSize: 11, fontWeight: '700' }}>
+              <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 5, borderWidth: 1, borderColor: gold }}>
+                <Text variant="caption" style={{ color: gold, fontSize: 11, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
                   {`句尾：「${sim.tokens[sim.tokens.length - 1]}」`}
                 </Text>
               </View>
             </View>
           </View>
         </View>
+
+        <Text variant="caption" style={[styles.figureCaptionText, { color: sub }]}>
+          {`【图注】${sim.summaryZh}`}
+        </Text>
       </View>
     );
   }
@@ -623,8 +620,8 @@ function AiInteractiveAnimationLab({
       loraRank,
     });
     return (
-      <View style={[styles.animContainer, { backgroundColor: boxBg, borderColor: borderCol }]}>
-        <View style={styles.animHeader}>
+      <View style={[styles.figurePlate, { backgroundColor: boxBg, borderColor: borderCol }]}>
+        <View style={styles.figureHeaderRow}>
           <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
             {(['rag', 'lora', 'hybrid'] as const).map((m) => (
               <Pressable
@@ -636,13 +633,13 @@ function AiInteractiveAnimationLab({
                 style={[
                   styles.primaryPlayBtn,
                   {
-                    borderColor: loraRagMode === m ? '#f5b942' : borderCol,
-                    backgroundColor: loraRagMode === m ? '#f5b942' : 'transparent',
+                    borderColor: loraRagMode === m ? '#b88228' : borderCol,
+                    backgroundColor: loraRagMode === m ? '#b88228' : 'transparent',
                   },
                 ]}
               >
-                <Text variant="caption" style={{ color: loraRagMode === m ? '#141311' : ink, fontSize: 11, fontWeight: '700' }}>
-                  {m === 'rag' ? '📚 1. 纯 RAG 开卷检索' : m === 'lora' ? '🩹 2. 纯 LoRA 贴便利贴' : '⚡ 3. RAG+LoRA 组合拳'}
+                <Text variant="caption" style={{ color: loraRagMode === m ? '#fffbeb' : ink, fontSize: 11, fontWeight: '700' }}>
+                  {m === 'rag' ? '① 开卷翻书 (RAG)' : m === 'lora' ? '② 书旁贴便利贴 (LoRA)' : '③ 开卷 + 便利贴合璧'}
                 </Text>
               </Pressable>
             ))}
@@ -652,16 +649,10 @@ function AiInteractiveAnimationLab({
               <Pressable
                 key={r}
                 onPress={() => setLoraRank(r)}
-                style={[
-                  styles.microBtn,
-                  {
-                    borderColor: loraRank === r ? emerald : borderCol,
-                    backgroundColor: loraRank === r ? 'rgba(52,211,153,0.18)' : 'transparent',
-                  },
-                ]}
+                style={[styles.microBtn, { borderColor: loraRank === r ? emerald : borderCol }]}
               >
                 <Text variant="caption" style={{ color: emerald, fontSize: 10, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
-                  {`便利贴厚度 r=${r}`}
+                  {`便利贴秩 r=${r}`}
                 </Text>
               </Pressable>
             ))}
@@ -669,30 +660,28 @@ function AiInteractiveAnimationLab({
         </View>
 
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-          <View style={{ flex: 1, minWidth: 200, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: sky, backgroundColor: isDark ? '#18181b' : '#ffffff', gap: 4 }}>
-            <Text variant="caption" style={{ color: sky, fontSize: 11, fontWeight: '700' }}>
-              {t('❄️ 冻结原模型主干 W_0 (不动原字典)', '❄️ Frozen Base Weight W_0')}
+          <View style={{ flex: 1, minWidth: 200, padding: 12, borderRadius: 6, borderWidth: 1, borderColor: borderCol, backgroundColor: isDark ? '#1c1916' : '#fcfaf4', gap: 4 }}>
+            <Text variant="caption" style={{ color: sub, fontSize: 11, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+              {t('原版厚重词典 W_0 (冻结不动)：', 'Frozen Base Weight W_0:')}
             </Text>
             <Text variant="caption" style={{ color: ink, fontSize: 13, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
-              {`${sim.fullParamsMillion}M 参数 · 0 训练显存`}
+              {`${sim.fullParamsMillion}M 参数 · 0 训练开销`}
             </Text>
           </View>
 
-          <View style={{ flex: 1, minWidth: 200, padding: 12, borderRadius: 8, borderWidth: 1.5, borderColor: gold, backgroundColor: isDark ? '#18181b' : '#ffffff', gap: 4 }}>
-            <Text variant="caption" style={{ color: gold, fontSize: 11, fontWeight: '700' }}>
-              {`🔥 只训练 LoRA 便利贴旁路 (r=${sim.loraRank})`}
+          <View style={{ flex: 1, minWidth: 200, padding: 12, borderRadius: 6, borderWidth: 1.5, borderColor: gold, backgroundColor: isDark ? '#1c1916' : '#fcfaf4', gap: 4 }}>
+            <Text variant="caption" style={{ color: gold, fontSize: 11, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+              {`页边薄便利贴 A×B (秩 r=${sim.loraRank})：`}
             </Text>
             <Text variant="caption" style={{ color: emerald, fontSize: 13, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
-              {`仅 ${sim.loraParamsMillion}M 参数 (省下 ${sim.paramSavingPct}%！)`}
+              {`仅 ${sim.loraParamsMillion}M 参数 (省下 ${sim.paramSavingPct}%)`}
             </Text>
           </View>
         </View>
 
-        <View style={[styles.stepCaptionBox, { borderColor: borderCol }]}>
-          <Text variant="caption" style={{ color: sub, fontSize: 11.5, lineHeight: 18 }}>
-            {sim.summaryZh}
-          </Text>
-        </View>
+        <Text variant="caption" style={[styles.figureCaptionText, { color: sub }]}>
+          {`【图注】${sim.summaryZh}`}
+        </Text>
       </View>
     );
   }
@@ -704,8 +693,8 @@ function AiInteractiveAnimationLab({
       smoothOutliers,
     });
     return (
-      <View style={[styles.animContainer, { backgroundColor: boxBg, borderColor: borderCol }]}>
-        <View style={styles.animHeader}>
+      <View style={[styles.figurePlate, { backgroundColor: boxBg, borderColor: borderCol }]}>
+        <View style={styles.figureHeaderRow}>
           <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
             {(['fp16', 'int8', 'int4'] as const).map((p) => (
               <Pressable
@@ -717,25 +706,25 @@ function AiInteractiveAnimationLab({
                 style={[
                   styles.primaryPlayBtn,
                   {
-                    borderColor: quantPrecision === p ? '#f5b942' : borderCol,
-                    backgroundColor: quantPrecision === p ? '#f5b942' : 'transparent',
+                    borderColor: quantPrecision === p ? '#b88228' : borderCol,
+                    backgroundColor: quantPrecision === p ? '#b88228' : 'transparent',
                   },
                 ]}
               >
-                <Text variant="caption" style={{ color: quantPrecision === p ? '#141311' : ink, fontSize: 11, fontWeight: '700' }}>
-                  {p === 'fp16' ? 'FP16 原版 (14GB)' : p === 'int8' ? 'INT8 半压缩 (7GB)' : 'INT4 极速版 (3.8GB)'}
+                <Text variant="caption" style={{ color: quantPrecision === p ? '#fffbeb' : ink, fontSize: 11, fontWeight: '700' }}>
+                  {p === 'fp16' ? 'FP16 原装木箱 (14GB)' : p === 'int8' ? 'INT8 半缩盒 (7GB)' : 'INT4 袖珍盒 (3.8GB)'}
                 </Text>
               </Pressable>
             ))}
           </View>
           <Pressable
             onPress={() => setSmoothOutliers((s) => !s)}
-            style={[styles.microBtn, { borderColor: smoothOutliers ? emerald : '#ef4444' }]}
+            style={[styles.microBtn, { borderColor: smoothOutliers ? emerald : '#dc2626' }]}
           >
-            <Text variant="caption" style={{ color: smoothOutliers ? emerald : '#ef4444', fontSize: 10.5, fontWeight: '700' }}>
+            <Text variant="caption" style={{ color: smoothOutliers ? emerald : '#dc2626', fontSize: 10.5, fontWeight: '700' }}>
               {smoothOutliers
-                ? t('👉 点这里对比：已开启 SmoothQuant 压平尖峰', '✓ SmoothQuant On')
-                : t('👉 点这里修复：未压平 48.0 离群尖峰 (误差飙升!)', '⚠ Outliers Unsmoothed')}
+                ? t('✓ 已开启 SmoothQuant 削平离群尖峰', '✓ SmoothQuant On')
+                : t('👉 点击开启 SmoothQuant 驯服 48.0 尖峰', '⚠ Outliers Unsmoothed')}
             </Text>
           </Pressable>
         </View>
@@ -751,29 +740,27 @@ function AiInteractiveAnimationLab({
                   flex: 1,
                   minWidth: 120,
                   padding: 10,
-                  borderRadius: 8,
-                  borderWidth: 1.2,
-                  borderColor: isSpike ? '#ef4444' : emerald,
-                  backgroundColor: isDark ? '#18181b' : '#ffffff',
+                  borderRadius: 6,
+                  borderWidth: 1,
+                  borderColor: isSpike ? '#dc2626' : borderCol,
+                  backgroundColor: isDark ? '#1c1916' : '#fcfaf4',
                   gap: 3,
                 }}
               >
-                <Text variant="caption" style={{ color: isSpike ? '#ef4444' : sub, fontSize: 10, fontWeight: '700' }}>
+                <Text variant="caption" style={{ color: isSpike ? '#dc2626' : sub, fontSize: 10, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
                   {ch.name}
                 </Text>
                 <Text variant="caption" style={{ color: ink, fontSize: 12.5, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
-                  {`数值: ${val.toFixed(1)}`}
+                  {`幅度: ${val.toFixed(1)}`}
                 </Text>
               </View>
             );
           })}
         </View>
 
-        <View style={[styles.stepCaptionBox, { borderColor: borderCol }]}>
-          <Text variant="caption" style={{ color: sub, fontSize: 11.5, lineHeight: 18 }}>
-            {sim.summaryZh}
-          </Text>
-        </View>
+        <Text variant="caption" style={[styles.figureCaptionText, { color: sub }]}>
+          {`【图注】${sim.summaryZh}`}
+        </Text>
       </View>
     );
   }
@@ -791,11 +778,11 @@ function AiInteractiveAnimationLab({
     const ropeY = 74 - Math.sin(rad) * 34;
 
     return (
-      <View style={[styles.animContainer, { backgroundColor: boxBg, borderColor: borderCol }]}>
-        <View style={styles.animHeader}>
+      <View style={[styles.figurePlate, { backgroundColor: boxBg, borderColor: borderCol }]}>
+        <View style={styles.figureHeaderRow}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <Text variant="caption" style={{ color: gold, fontSize: 11.5, fontWeight: '700' }}>
-              {t('👉 点击切换提问词 (Query)：', '👉 Click Query Token:')}
+            <Text variant="caption" style={{ color: gold, fontSize: 11.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+              {t('👉 点击切换书页中的提问词 (Query)：', '👉 Click Query Token:')}
             </Text>
             {sim.tokens.map((tok, idx) => {
               const active = idx === sim.focusTokenIdx;
@@ -808,12 +795,12 @@ function AiInteractiveAnimationLab({
                     {
                       paddingHorizontal: 10,
                       paddingVertical: 4,
-                      backgroundColor: active ? '#f5b942' : 'transparent',
-                      borderColor: active ? '#f5b942' : borderCol,
+                      backgroundColor: active ? '#b88228' : 'transparent',
+                      borderColor: active ? '#b88228' : borderCol,
                     },
                   ]}
                 >
-                  <Text variant="caption" style={{ color: active ? '#141311' : ink, fontSize: 11, fontWeight: '700' }}>
+                  <Text variant="caption" style={{ color: active ? '#fffbeb' : ink, fontSize: 11, fontWeight: '700' }}>
                     {tok}
                   </Text>
                 </Pressable>
@@ -829,13 +816,12 @@ function AiInteractiveAnimationLab({
                 style={[
                   styles.microBtn,
                   {
-                    backgroundColor: Math.abs(temperature - tVal) < 0.05 ? 'rgba(56,189,248,0.22)' : 'transparent',
-                    borderColor: Math.abs(temperature - tVal) < 0.05 ? sky : borderCol,
+                    borderColor: Math.abs(temperature - tVal) < 0.05 ? gold : borderCol,
                   },
                 ]}
               >
-                <Text variant="caption" style={{ color: sky, fontSize: 10, fontWeight: '700' }}>
-                  {tVal === 0.4 ? 'τ=0.4 尖锐聚焦' : tVal === 0.8 ? 'τ=0.8 标准' : 'τ=1.6 平均分散'}
+                <Text variant="caption" style={{ color: Math.abs(temperature - tVal) < 0.05 ? gold : sub, fontSize: 10, fontWeight: '700' }}>
+                  {tVal === 0.4 ? 'τ=0.4 聚焦' : tVal === 0.8 ? 'τ=0.8 均衡' : 'τ=1.6 广博'}
                 </Text>
               </Pressable>
             ))}
@@ -862,7 +848,7 @@ function AiInteractiveAnimationLab({
                   createElement('path', {
                     d: `M ${xFrom} 34 Q ${(xFrom + xTo) / 2} ${78 + Math.abs(idx - sim.focusTokenIdx) * 6} ${xTo} 94`,
                     fill: 'none',
-                    stroke: idx === sim.focusTokenIdx ? '#34d399' : '#f5b942',
+                    stroke: idx === sim.focusTokenIdx ? '#1f5e4b' : '#b88228',
                     strokeWidth: strokeW,
                     strokeOpacity: opacity,
                   }),
@@ -871,8 +857,8 @@ function AiInteractiveAnimationLab({
                     y: 8,
                     width: 48,
                     height: 24,
-                    rx: 6,
-                    fill: idx === sim.focusTokenIdx ? '#f5b942' : isDark ? '#27272a' : '#e7e2d6',
+                    rx: 5,
+                    fill: idx === sim.focusTokenIdx ? '#b88228' : isDark ? '#27241f' : '#e7e0d2',
                   }),
                   createElement(
                     'text',
@@ -880,7 +866,7 @@ function AiInteractiveAnimationLab({
                       x: xTo,
                       y: 24,
                       textAnchor: 'middle',
-                      fill: idx === sim.focusTokenIdx ? '#18181b' : ink,
+                      fill: idx === sim.focusTokenIdx ? '#fffbeb' : ink,
                       fontSize: '11',
                       fontWeight: '700',
                     },
@@ -892,7 +878,7 @@ function AiInteractiveAnimationLab({
                     width: 48,
                     height: 20,
                     rx: 4,
-                    fill: isDark ? '#1f2937' : '#e2e8f0',
+                    fill: isDark ? '#27241f' : '#e5dec9',
                   }),
                   createElement('rect', {
                     x: xTo - 24,
@@ -900,7 +886,7 @@ function AiInteractiveAnimationLab({
                     width: Math.max(5, (48 * weight) / 100),
                     height: 20,
                     rx: 4,
-                    fill: weight >= 25 ? '#34d399' : '#38bdf8',
+                    fill: weight >= 25 ? '#1f5e4b' : '#b88228',
                   }),
                   createElement(
                     'text',
@@ -925,8 +911,8 @@ function AiInteractiveAnimationLab({
                   y: 8,
                   width: 164,
                   height: 130,
-                  rx: 8,
-                  fill: isDark ? '#18181b' : '#ffffff',
+                  rx: 6,
+                  fill: isDark ? '#1c1916' : '#fcfaf4',
                   stroke: borderCol,
                   strokeWidth: 1,
                 }),
@@ -940,14 +926,14 @@ function AiInteractiveAnimationLab({
                     fontSize: '10',
                     fontWeight: '700',
                   },
-                  `RoPE 位置指针 (m=${sim.focusTokenIdx})`,
+                  `RoPE 位置罗盘 (m=${sim.focusTokenIdx})`,
                 ),
                 createElement('circle', {
                   cx: 590,
                   cy: 74,
                   r: 34,
                   fill: 'none',
-                  stroke: isDark ? '#334155' : '#cbd5e1',
+                  stroke: borderCol,
                   strokeWidth: 1.2,
                   strokeDasharray: '3 3',
                 }),
@@ -956,11 +942,11 @@ function AiInteractiveAnimationLab({
                   y1: 74,
                   x2: ropeX,
                   y2: ropeY,
-                  stroke: '#f5b942',
+                  stroke: '#b88228',
                   strokeWidth: 3,
                   strokeLinecap: 'round',
                 }),
-                createElement('circle', { cx: ropeX, cy: ropeY, r: 4.5, fill: '#34d399' }),
+                createElement('circle', { cx: ropeX, cy: ropeY, r: 4.5, fill: '#1f5e4b' }),
                 createElement(
                   'text',
                   {
@@ -978,11 +964,9 @@ function AiInteractiveAnimationLab({
             )
           : null}
 
-        <View style={[styles.stepCaptionBox, { borderColor: borderCol }]}>
-          <Text variant="caption" style={{ color: sub, fontSize: 11.5, lineHeight: 18 }}>
-            {sim.stepDescZh}
-          </Text>
-        </View>
+        <Text variant="caption" style={[styles.figureCaptionText, { color: sub }]}>
+          {`【图注】${sim.stepDescZh}`}
+        </Text>
       </View>
     );
   }
@@ -993,17 +977,17 @@ function AiInteractiveAnimationLab({
       sharedPrefixEnabled: sharedPrefix,
     });
     return (
-      <View style={[styles.animContainer, { backgroundColor: boxBg, borderColor: borderCol }]}>
-        <View style={styles.animHeader}>
+      <View style={[styles.figurePlate, { backgroundColor: boxBg, borderColor: borderCol }]}>
+        <View style={styles.figureHeaderRow}>
           <Pressable
             onPress={() => {
               setPlaying(false);
               setPagedTokenCount((c) => (c >= 16 ? 4 : c + 1));
             }}
-            style={[styles.primaryPlayBtn, { backgroundColor: '#34d399', borderColor: '#34d399' }]}
+            style={[styles.primaryPlayBtn, { backgroundColor: '#b88228', borderColor: '#b88228' }]}
           >
-            <Text variant="caption" style={{ color: '#0f172a', fontSize: 12, fontWeight: '700' }}>
-              {t(`👉 点这里：新生成 1 个词，看它坐进哪张 4 人小方桌 (当前 ${pagedTokenCount} 词)`, `👉 Click: +1 Token (${pagedTokenCount})`)}
+            <Text variant="caption" style={{ color: '#fffbeb', fontSize: 11.5, fontWeight: '700' }}>
+              {t(`👉 拨动插图：新添 1 个词入席 (当前 ${pagedTokenCount} 词)`, `👉 +1 Token (${pagedTokenCount})`)}
             </Text>
           </Pressable>
           <Pressable
@@ -1011,7 +995,7 @@ function AiInteractiveAnimationLab({
             style={[styles.microBtn, { borderColor: sharedPrefix ? emerald : borderCol }]}
           >
             <Text variant="caption" style={{ color: sharedPrefix ? emerald : sub, fontSize: 10.5, fontWeight: '700' }}>
-              {sharedPrefix ? t('✓ CoW 前缀共享已开启', '✓ CoW Shared') : t('○ 开启 CoW 共享', '○ CoW Off')}
+              {sharedPrefix ? t('✓ 前缀共桌已开启', '✓ CoW Shared') : t('○ 开启前缀共桌', '○ CoW Off')}
             </Text>
           </Pressable>
         </View>
@@ -1024,15 +1008,15 @@ function AiInteractiveAnimationLab({
                 flex: 1,
                 minWidth: 140,
                 padding: 9,
-                borderRadius: 8,
-                borderWidth: 1.2,
-                borderColor: blk.isSharedCoW ? emerald : sky,
-                backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                borderRadius: 6,
+                borderWidth: 1,
+                borderColor: blk.isSharedCoW ? emerald : borderCol,
+                backgroundColor: isDark ? '#1c1916' : '#fcfaf4',
                 gap: 5,
               }}
             >
-              <Text variant="caption" style={{ color: sky, fontSize: 10.5, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
-                {`逻辑桌 L${blk.logicalIndex} → 物理框 P#${blk.physicalBlockId}`}
+              <Text variant="caption" style={{ color: gold, fontSize: 10.5, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
+                {`逻辑页 L${blk.logicalIndex} → 物理框 P#${blk.physicalBlockId}`}
               </Text>
               <View style={{ flexDirection: 'row', gap: 4 }}>
                 {[0, 1, 2, 3].map((slotIdx) => {
@@ -1042,17 +1026,17 @@ function AiInteractiveAnimationLab({
                       key={slotIdx}
                       style={{
                         flex: 1,
-                        height: 26,
-                        borderRadius: 5,
+                        height: 24,
+                        borderRadius: 4,
                         alignItems: 'center',
                         justifyContent: 'center',
-                        backgroundColor: tok ? 'rgba(245,185,66,0.22)' : 'rgba(148,163,184,0.12)',
+                        backgroundColor: tok ? 'rgba(184,130,40,0.18)' : 'transparent',
                         borderWidth: 1,
-                        borderColor: tok ? '#f5b942' : borderCol,
+                        borderColor: tok ? '#b88228' : borderCol,
                       }}
                     >
-                      <Text variant="caption" style={{ color: tok ? ink : sub, fontSize: 9.5, fontWeight: '600' }}>
-                        {tok ?? '空位'}
+                      <Text variant="caption" style={{ color: tok ? ink : sub, fontSize: 9.5, fontFamily: theme.fontFamily.serif }}>
+                        {tok ?? '空'}
                       </Text>
                     </View>
                   );
@@ -1062,11 +1046,9 @@ function AiInteractiveAnimationLab({
           ))}
         </View>
 
-        <View style={[styles.stepCaptionBox, { borderColor: borderCol }]}>
-          <Text variant="caption" style={{ color: sub, fontSize: 11.5, lineHeight: 18 }}>
-            {sim.summaryZh}
-          </Text>
-        </View>
+        <Text variant="caption" style={[styles.figureCaptionText, { color: sub }]}>
+          {`【图注】${sim.summaryZh}`}
+        </Text>
       </View>
     );
   }
@@ -1077,14 +1059,14 @@ function AiInteractiveAnimationLab({
       verifyPhase: specPhase + tick,
     });
     return (
-      <View style={[styles.animContainer, { backgroundColor: boxBg, borderColor: borderCol }]}>
-        <View style={styles.animHeader}>
+      <View style={[styles.figurePlate, { backgroundColor: boxBg, borderColor: borderCol }]}>
+        <View style={styles.figureHeaderRow}>
           <Pressable
             onPress={() => setSpecPhase((p) => p + 1)}
-            style={[styles.primaryPlayBtn, { backgroundColor: '#f5b942', borderColor: '#f5b942' }]}
+            style={[styles.primaryPlayBtn, { backgroundColor: '#b88228', borderColor: '#b88228' }]}
           >
-            <Text variant="caption" style={{ color: '#141311', fontSize: 12, fontWeight: '700' }}>
-              {t('👉 点这里切换：「4词全猜中白送1词」vs「最后1词猜错由大教授当场修正」', '👉 Toggle All-Hit vs Corrected')}
+            <Text variant="caption" style={{ color: '#fffbeb', fontSize: 11.5, fontWeight: '700' }}>
+              {t('👉 拨动插图：切换「4词全中奖1词」与「末词由导师批改修正」', '👉 Toggle All-Hit vs Corrected')}
             </Text>
           </Pressable>
         </View>
@@ -1096,32 +1078,30 @@ function AiInteractiveAnimationLab({
                 ? emerald
                 : cand.status === 'bonus'
                   ? sky
-                  : '#f59e0b';
+                  : '#b45309';
             return (
               <View
                 key={idx}
                 style={{
                   paddingHorizontal: 12,
-                  paddingVertical: 8,
-                  borderRadius: 8,
-                  borderWidth: 1.5,
+                  paddingVertical: 7,
+                  borderRadius: 6,
+                  borderWidth: 1.2,
                   borderColor: cColor,
-                  backgroundColor: `${cColor}18`,
+                  backgroundColor: isDark ? '#1c1916' : '#fcfaf4',
                 }}
               >
-                <Text variant="caption" style={{ color: cColor, fontSize: 11.5, fontWeight: '700' }}>
-                  {`${cand.status === 'accepted' ? '✓ 验证通过' : cand.status === 'bonus' ? '★ 教授白送词' : '↻ 教授当场修正'} · ${cand.token}`}
+                <Text variant="caption" style={{ color: cColor, fontSize: 11.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                  {`${cand.status === 'accepted' ? '✓ 审阅通过' : cand.status === 'bonus' ? '★ 附赠新词' : '↻ 导师朱批修正'} · ${cand.token}`}
                 </Text>
               </View>
             );
           })}
         </View>
 
-        <View style={[styles.stepCaptionBox, { borderColor: borderCol }]}>
-          <Text variant="caption" style={{ color: sub, fontSize: 11.5, lineHeight: 18 }}>
-            {sim.stepDescZh}
-          </Text>
-        </View>
+        <Text variant="caption" style={[styles.figureCaptionText, { color: sub }]}>
+          {`【图注】${sim.stepDescZh}`}
+        </Text>
       </View>
     );
   }
@@ -1129,14 +1109,14 @@ function AiInteractiveAnimationLab({
   if (kind === 'flash-attention') {
     const flashSim = computeFlashAttentionSimulation({ activeTileIdx: flashTileIdx });
     return (
-      <View style={[styles.animContainer, { backgroundColor: boxBg, borderColor: borderCol }]}>
-        <View style={styles.animHeader}>
+      <View style={[styles.figurePlate, { backgroundColor: boxBg, borderColor: borderCol }]}>
+        <View style={styles.figureHeaderRow}>
           <Pressable
             onPress={() => setFlashTileIdx((p) => (p + 1) % 4)}
-            style={[styles.primaryPlayBtn, { backgroundColor: '#f5b942', borderColor: '#f5b942' }]}
+            style={[styles.primaryPlayBtn, { backgroundColor: '#b88228', borderColor: '#b88228' }]}
           >
-            <Text variant="caption" style={{ color: '#141311', fontSize: 12, fontWeight: '700' }}>
-              {t(`👉 点这里：把下一盘食材端上 SRAM 案板 (${flashSim.activeTileIdx + 1}/4)`, '👉 Next SRAM Tile ▶')}
+            <Text variant="caption" style={{ color: '#fffbeb', fontSize: 11.5, fontWeight: '700' }}>
+              {t(`👉 拨动插图：将下一块书简调入片上案板 (${flashSim.activeTileIdx + 1}/4)`, '👉 Next SRAM Tile ▶')}
             </Text>
           </Pressable>
         </View>
@@ -1153,29 +1133,27 @@ function AiInteractiveAnimationLab({
                   flex: 1,
                   minWidth: 130,
                   padding: 10,
-                  borderRadius: 8,
-                  borderWidth: 1.5,
+                  borderRadius: 6,
+                  borderWidth: isCurrent ? 1.6 : 1,
                   borderColor: isCurrent ? gold : isDone ? emerald : borderCol,
-                  backgroundColor: isCurrent ? 'rgba(245,185,66,0.20)' : isDone ? 'rgba(52,211,153,0.12)' : 'transparent',
+                  backgroundColor: isDark ? '#1c1916' : '#fcfaf4',
                   gap: 4,
                 }}
               >
-                <Text variant="caption" style={{ color: isCurrent ? gold : isDone ? emerald : sub, fontSize: 11, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
-                  {`分块 #${tIdx + 1} ${isCurrent ? '⚡案板计算中' : isDone ? '✓已归约' : '待端上'}`}
+                <Text variant="caption" style={{ color: isCurrent ? gold : isDone ? emerald : sub, fontSize: 11, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                  {`分块 #${tIdx + 1} ${isCurrent ? '⚡案板演算中' : isDone ? '✓已归档' : '待调取'}`}
                 </Text>
                 <Text variant="caption" style={{ color: sub, fontSize: 10 }}>
-                  {isCurrent ? `最高分 m=${flashSim.runningMax} · 修正系数 α=${flashSim.rescaleFactor}` : isDone ? '已合并进总结果' : '在 HBM 冷库等待'}
+                  {isCurrent ? `极值 m=${flashSim.runningMax} · 缩放 α=${flashSim.rescaleFactor}` : isDone ? '已在线折算并入总表' : '静置在远端显存'}
                 </Text>
               </Pressable>
             );
           })}
         </View>
 
-        <View style={[styles.stepCaptionBox, { borderColor: borderCol }]}>
-          <Text variant="caption" style={{ color: sub, fontSize: 11.5, lineHeight: 18 }}>
-            {flashSim.stepDescZh}
-          </Text>
-        </View>
+        <Text variant="caption" style={[styles.figureCaptionText, { color: sub }]}>
+          {`【图注】${flashSim.stepDescZh}`}
+        </Text>
       </View>
     );
   }
@@ -1187,11 +1165,11 @@ function AiInteractiveAnimationLab({
       loadBalanceEnabled: moeLoadBalance,
     });
     return (
-      <View style={[styles.animContainer, { backgroundColor: boxBg, borderColor: borderCol }]}>
-        <View style={styles.animHeader}>
+      <View style={[styles.figurePlate, { backgroundColor: boxBg, borderColor: borderCol }]}>
+        <View style={styles.figureHeaderRow}>
           <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-            <Text variant="caption" style={{ color: gold, fontSize: 11.5, fontWeight: '700' }}>
-              {t('👉 点击挂号不同领域问题，看分诊台点亮哪位专家：', '👉 Select Token to Route:')}
+            <Text variant="caption" style={{ color: gold, fontSize: 11.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+              {t('👉 点选不同命题，看门控分诊台唤醒哪位专席学者：', '👉 Select Token to Route:')}
             </Text>
             {moeSim.tokens.map((tok, idx) => {
               const active = idx === moeSim.tokenIdx;
@@ -1205,12 +1183,12 @@ function AiInteractiveAnimationLab({
                   style={[
                     styles.primaryPlayBtn,
                     {
-                      backgroundColor: active ? '#f5b942' : 'transparent',
-                      borderColor: active ? '#f5b942' : borderCol,
+                      backgroundColor: active ? '#b88228' : 'transparent',
+                      borderColor: active ? '#b88228' : borderCol,
                     },
                   ]}
                 >
-                  <Text variant="caption" style={{ color: active ? '#141311' : ink, fontSize: 11, fontWeight: '700' }}>
+                  <Text variant="caption" style={{ color: active ? '#fffbeb' : ink, fontSize: 11, fontWeight: '700' }}>
                     {`${tok.text} (${tok.domain})`}
                   </Text>
                 </Pressable>
@@ -1227,35 +1205,27 @@ function AiInteractiveAnimationLab({
                 flex: 1,
                 minWidth: 145,
                 padding: 9,
-                borderRadius: 8,
+                borderRadius: 6,
                 borderWidth: exp.selected ? 1.5 : 1,
-                borderColor: exp.isShared ? emerald : exp.selected ? '#f5b942' : borderCol,
-                backgroundColor: exp.isShared
-                  ? 'rgba(52,211,153,0.16)'
-                  : exp.selected
-                    ? 'rgba(245,185,66,0.18)'
-                    : isDark
-                      ? '#18181b'
-                      : '#ffffff',
+                borderColor: exp.isShared ? emerald : exp.selected ? '#b88228' : borderCol,
+                backgroundColor: isDark ? '#1c1916' : '#fcfaf4',
                 opacity: exp.selected ? 1 : 0.55,
                 gap: 3,
               }}
             >
-              <Text variant="caption" style={{ color: exp.isShared ? emerald : exp.selected ? gold : sub, fontSize: 10.5, fontWeight: '700' }}>
+              <Text variant="caption" style={{ color: exp.isShared ? emerald : exp.selected ? gold : sub, fontSize: 10.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
                 {exp.nameZh}
               </Text>
               <Text variant="caption" style={{ color: sub, fontSize: 9.5 }}>
-                {exp.selected ? `⚡ 已出诊 (得分 ${exp.scorePct}%)` : '○ 休息中 (省算力)'}
+                {exp.selected ? `⚡ 奉命作答 (权重 ${exp.scorePct}%)` : '○ 闭门静修 (零算力消耗)'}
               </Text>
             </View>
           ))}
         </View>
 
-        <View style={[styles.stepCaptionBox, { borderColor: borderCol }]}>
-          <Text variant="caption" style={{ color: sub, fontSize: 11.5, lineHeight: 18 }}>
-            {moeSim.summaryZh}
-          </Text>
-        </View>
+        <Text variant="caption" style={[styles.figureCaptionText, { color: sub }]}>
+          {`【图注】${moeSim.summaryZh}`}
+        </Text>
       </View>
     );
   }
@@ -1266,11 +1236,11 @@ function AiInteractiveAnimationLab({
     microBatches,
   });
   return (
-    <View style={[styles.animContainer, { backgroundColor: boxBg, borderColor: borderCol }]}>
-      <View style={styles.animHeader}>
+    <View style={[styles.figurePlate, { backgroundColor: boxBg, borderColor: borderCol }]}>
+      <View style={styles.figureHeaderRow}>
         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Text variant="caption" style={{ color: gold, fontSize: 11.5, fontWeight: '700' }}>
-            {t('👉 点击切换 ZeRO 切分等级，看 8 张显卡如何分摊 112GB 显存：', '👉 Select ZeRO Stage:')}
+          <Text variant="caption" style={{ color: gold, fontSize: 11.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+            {t('👉 点击切换分卷制度 (ZeRO)，看 8 位抄书匠如何分担 112GB 典籍：', '👉 Select ZeRO Stage:')}
           </Text>
           {([0, 1, 2, 3] as const).map((st) => (
             <Pressable
@@ -1282,13 +1252,13 @@ function AiInteractiveAnimationLab({
               style={[
                 styles.primaryPlayBtn,
                 {
-                  borderColor: zeroStage === st ? '#34d399' : borderCol,
-                  backgroundColor: zeroStage === st ? '#34d399' : 'transparent',
+                  borderColor: zeroStage === st ? '#b88228' : borderCol,
+                  backgroundColor: zeroStage === st ? '#b88228' : 'transparent',
                 },
               ]}
             >
-              <Text variant="caption" style={{ color: zeroStage === st ? '#0f172a' : ink, fontSize: 11, fontWeight: '700' }}>
-                {st === 0 ? '不切分 (112GB)' : st === 1 ? 'ZeRO-1 切优化器 (38GB)' : st === 2 ? 'ZeRO-2 +切梯度 (26GB)' : 'ZeRO-3 全切分 (14.1GB)'}
+              <Text variant="caption" style={{ color: zeroStage === st ? '#fffbeb' : ink, fontSize: 11, fontWeight: '700' }}>
+                {st === 0 ? '各自备全套 (112GB)' : st === 1 ? 'ZeRO-1 拆参考书 (38GB)' : st === 2 ? 'ZeRO-2 +拆草稿 (26GB)' : 'ZeRO-3 全拆卷 (14.1GB)'}
               </Text>
             </Pressable>
           ))}
@@ -1297,9 +1267,9 @@ function AiInteractiveAnimationLab({
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {[
-          { label: '1. 模型参数 (Parameters)', gb: parallelSim.paramMemGb, baseGb: 14, color: '#38bdf8' },
-          { label: '2. 梯度草稿 (Gradients)', gb: parallelSim.gradMemGb, baseGb: 14, color: '#f5b942' },
-          { label: '3. Adam 优化器状态 (占大头!)', gb: parallelSim.optimMemGb, baseGb: 84, color: '#f472b6' },
+          { label: '卷一 · 模型正文参数', gb: parallelSim.paramMemGb, baseGb: 14, color: sky },
+          { label: '卷二 · 梯度批改草稿', gb: parallelSim.gradMemGb, baseGb: 14, color: gold },
+          { label: '卷三 · Adam 历年底档 (占75%!)', gb: parallelSim.optimMemGb, baseGb: 84, color: emerald },
         ].map((item) => (
           <View
             key={item.label}
@@ -1307,31 +1277,29 @@ function AiInteractiveAnimationLab({
               flex: 1,
               minWidth: 150,
               padding: 10,
-              borderRadius: 8,
-              borderWidth: 1.2,
-              borderColor: item.color,
-              backgroundColor: isDark ? '#18181b' : '#ffffff',
+              borderRadius: 6,
+              borderWidth: 1,
+              borderColor: borderCol,
+              backgroundColor: isDark ? '#1c1916' : '#fcfaf4',
               gap: 4,
             }}
           >
-            <Text variant="caption" style={{ color: item.color, fontSize: 10.5, fontWeight: '700' }}>
+            <Text variant="caption" style={{ color: item.color, fontSize: 10.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
               {item.label}
             </Text>
             <Text variant="caption" style={{ color: ink, fontSize: 13, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
-              {`${item.gb} GB / 卡`}
+              {`${item.gb} GB / 人`}
             </Text>
             <Text variant="caption" style={{ color: sub, fontSize: 9.5 }}>
-              {item.gb < item.baseGb ? `✓ 已由 8 卡平摊 (原 ${item.baseGb}GB)` : '未平摊 (每卡存整份)'}
+              {item.gb < item.baseGb ? `✓ 已由 8 人分管 (原 ${item.baseGb}GB)` : '每人各存一整套'}
             </Text>
           </View>
         ))}
       </View>
 
-      <View style={[styles.stepCaptionBox, { borderColor: borderCol }]}>
-        <Text variant="caption" style={{ color: sub, fontSize: 11.5, lineHeight: 18 }}>
-          {parallelSim.summaryZh}
-        </Text>
-      </View>
+      <Text variant="caption" style={[styles.figureCaptionText, { color: sub }]}>
+        {`【图注】${parallelSim.summaryZh}`}
+      </Text>
     </View>
   );
 }
@@ -1485,16 +1453,15 @@ export function KnowledgeGraphCornerHub({
 
   const [kgState, setKgState] = useState<KnowledgeGraphState>(readKnowledgeGraphState);
   const [activeSubView, setActiveSubView] = useState<StudyWorkbenchSubView>('lab');
-  // Default to Stage 1 (零基础小白入门) so only 4 clean lessons show up instead of 15!
   const [selectedStage, setSelectedStage] = useState<LearningStageLevel>(1);
   const [selectedNodeId, setSelectedNodeId] = useState<string>('node-ai-001-token');
-  // 4-Step Wizard inside each lesson: only 1 card shown at a time!
-  const [wizardStep, setWizardStep] = useState<LessonWizardStep>(1);
-  const [showFormulaDetail, setShowFormulaDetail] = useState(false);
+  const [pageNumber, setPageNumber] = useState<BookPageNumber>(1);
+  const [tocOpen, setTocOpen] = useState(false);
 
   const [showAddNodeBox, setShowAddNodeBox] = useState(false);
   const [showFlashcardAnswer, setShowFlashcardAnswer] = useState(false);
   const [selectedQuizOption, setSelectedQuizOption] = useState<number | null>(null);
+  const [marginNoteDraft, setMarginNoteDraft] = useState<string>('');
 
   const [customTitle, setCustomTitle] = useState('');
   const [customDomain, setCustomDomain] = useState<KnowledgeDomainId>('ai-infra');
@@ -1513,7 +1480,6 @@ export function KnowledgeGraphCornerHub({
     [bkState.wealthPlan.currentSavedCny, bkState.coupleProfile.teamStreakDays, stats.totalStudyMinutes, stats.masteredCount, totalStudyMinutesLive],
   );
 
-  // Only show nodes belonging to the selected Stage (3–5 lessons max, zero clutter!)
   const stageNodes = useMemo(
     () => kgState.nodes.filter((n) => (n.stageLevel ?? 2) === selectedStage),
     [kgState.nodes, selectedStage],
@@ -1528,7 +1494,6 @@ export function KnowledgeGraphCornerHub({
   );
   const selectedContent = kgState.offlineContents[selectedNode.id] ?? null;
 
-  // Ordered full curriculum for "Next Lesson" progression across stages
   const orderedAllNodes = useMemo(
     () => [...kgState.nodes].sort((a, b) => (a.stageLevel ?? 2) - (b.stageLevel ?? 2)),
     [kgState.nodes],
@@ -1537,52 +1502,100 @@ export function KnowledgeGraphCornerHub({
     () => Math.max(0, orderedAllNodes.findIndex((n) => n.id === selectedNode.id)),
     [orderedAllNodes, selectedNode.id],
   );
+  const prevNodeGlobal = orderedAllNodes[globalIndex - 1] ?? null;
   const nextNodeGlobal = orderedAllNodes[globalIndex + 1] ?? null;
 
-  const pal = isDark
-    ? {
-        bg: '#141311',
-        cardBg: '#191816',
-        elevated: '#201e1b',
-        border: 'rgba(255, 255, 255, 0.10)',
-        goldBorder: 'rgba(245, 185, 66, 0.34)',
-        ink: '#f8fafc',
-        sub: '#cbd5e1',
-        muted: '#94a3b8',
-        gold: '#f5b942',
-        goldText: '#fde68a',
-        emerald: '#34d399',
-        sky: '#38bdf8',
-        pillBg: 'rgba(255, 255, 255, 0.06)',
-        pillActiveBg: 'rgba(245, 185, 66, 0.18)',
-        inputBg: '#0e0d0b',
-      }
-    : {
-        bg: '#f7f4ec',
-        cardBg: '#ffffff',
-        elevated: '#faf8f2',
-        border: 'rgba(38, 36, 31, 0.12)',
-        goldBorder: 'rgba(184, 130, 40, 0.34)',
-        ink: '#26241f',
-        sub: '#524e46',
-        muted: '#7a756c',
-        gold: '#b88228',
-        goldText: '#92560c',
-        emerald: '#1f5e4b',
-        sky: '#0284c7',
-        pillBg: 'rgba(38, 36, 31, 0.05)',
-        pillActiveBg: 'rgba(204, 120, 92, 0.14)',
-        inputBg: '#f3efe6',
-      };
+  useEffect(() => {
+    setMarginNoteDraft(selectedNode.userNote ?? '');
+  }, [selectedNode.id, selectedNode.userNote]);
 
   function selectLesson(nodeId: string, stageLevel?: LearningStageLevel) {
     setSelectedNodeId(nodeId);
     if (stageLevel) setSelectedStage(stageLevel);
-    setWizardStep(1);
-    setShowFormulaDetail(false);
+    setPageNumber(1);
     setShowFlashcardAnswer(false);
     setSelectedQuizOption(null);
   }
+
+  function handlePrevPage() {
+    if (pageNumber > 1) {
+      setPageNumber((p) => (p - 1) as BookPageNumber);
+    } else if (prevNodeGlobal) {
+      selectLesson(prevNodeGlobal.id, prevNodeGlobal.stageLevel);
+      setPageNumber(4);
+    }
+  }
+
+  function handleNextPage() {
+    if (pageNumber < 4) {
+      setPageNumber((p) => (p + 1) as BookPageNumber);
+    } else if (nextNodeGlobal) {
+      selectLesson(nextNodeGlobal.id, nextNodeGlobal.stageLevel);
+    }
+  }
+
+  // Support Left / Right keyboard arrow keys to flip pages like an e-reader!
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || activeSubView !== 'lab') {
+      return undefined;
+    }
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        if (pageNumber < 4) setPageNumber((p) => (p + 1) as BookPageNumber);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        if (pageNumber > 1) setPageNumber((p) => (p - 1) as BookPageNumber);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [activeSubView, pageNumber]);
+
+  // Warm Literary Parchment & Night Reading Palette
+  const pal = isDark
+    ? {
+        deskBg: '#11100e',
+        paperBg: '#191714',
+        paperElevated: '#211e1a',
+        spineShadow: '#0a0907',
+        border: 'rgba(235, 220, 190, 0.12)',
+        goldBorder: 'rgba(217, 169, 78, 0.35)',
+        ink: '#f3efe6',
+        sub: '#cbc3b3',
+        muted: '#948c7d',
+        gold: '#d9a94e',
+        goldText: '#fde68a',
+        emerald: '#34d399',
+        sky: '#38bdf8',
+        sealRed: '#dc2626',
+        highlightBg: 'rgba(217, 169, 78, 0.14)',
+        pillBg: 'rgba(255, 255, 255, 0.05)',
+        pillActiveBg: 'rgba(217, 169, 78, 0.18)',
+        inputBg: '#12100d',
+      }
+    : {
+        deskBg: '#efeadd',
+        paperBg: '#fbf8f0',
+        paperElevated: '#f4efe2',
+        spineShadow: '#dfd7c4',
+        border: 'rgba(60, 50, 35, 0.14)',
+        goldBorder: 'rgba(146, 104, 41, 0.32)',
+        ink: '#26221b',
+        sub: '#574f42',
+        muted: '#857b6b',
+        gold: '#92560c',
+        goldText: '#7c4308',
+        emerald: '#1f5e4b',
+        sky: '#0369a1',
+        sealRed: '#b91c1c',
+        highlightBg: 'rgba(245, 185, 66, 0.22)',
+        pillBg: 'rgba(60, 50, 35, 0.05)',
+        pillActiveBg: 'rgba(184, 130, 40, 0.15)',
+        inputBg: '#f3ede0',
+      };
 
   async function handleExportPackFile(packId: string) {
     const json = exportChapterPackJson(packId);
@@ -1613,19 +1626,57 @@ export function KnowledgeGraphCornerHub({
 
   const activeStageMeta =
     LEARNING_STAGES.find((s) => s.level === selectedStage) ?? LEARNING_STAGES[0]!;
+  const chapterIndexInVolume = Math.max(
+    1,
+    stageNodes.findIndex((n) => n.id === selectedNode.id) + 1,
+  );
+  const volumeNameZh =
+    selectedStage === 1
+      ? '第一卷 · 零基础直觉篇'
+      : selectedStage === 2
+        ? '第二卷 · 核心架构篇'
+        : selectedStage === 3
+          ? '第三卷 · 定制与端侧篇'
+          : '第四卷 · 工业系统篇';
 
   return (
-    <View style={[styles.container, { backgroundColor: pal.bg, borderColor: pal.goldBorder }]}>
-      {/* 1. Calm Top Bar: Left = 4 Progressive Stages; Right = Secondary Tools (Graph / Offline Packs) */}
-      <View style={[styles.headerRow, { backgroundColor: pal.elevated, borderBottomColor: pal.border }]}>
+    <View style={[styles.container, { backgroundColor: pal.deskBg, borderColor: pal.goldBorder }]}>
+      {/* 1. Quiet Book Reader Top Bar (书眉工具栏：目录书签 + 四卷切换 + 星图/书匣) */}
+      <View style={[styles.readerTopBar, { backgroundColor: pal.paperElevated, borderBottomColor: pal.border }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="展开或收起目录书签"
+            onPress={() => {
+              setActiveSubView('lab');
+              setTocOpen((v) => !v);
+            }}
+            style={[
+              styles.tocToggleBtn,
+              {
+                backgroundColor: tocOpen ? pal.pillActiveBg : pal.paperBg,
+                borderColor: tocOpen ? pal.gold : pal.border,
+              },
+            ]}
+          >
+            <Text variant="caption" style={{ color: pal.goldText, fontSize: 12, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+              {tocOpen ? t('📖 收起目录 ▲', '📖 Hide TOC ▲') : t('📖 书目卷章 ▼', '📖 Contents ▼')}
+            </Text>
+          </Pressable>
+
           {LEARNING_STAGES.map((stg) => {
             const active = activeSubView === 'lab' && selectedStage === stg.level;
+            const volLabel =
+              stg.level === 1
+                ? '卷一·入门'
+                : stg.level === 2
+                  ? '卷二·核心'
+                  : stg.level === 3
+                    ? '卷三·微调'
+                    : '卷四·系统';
             return (
               <Pressable
                 key={stg.level}
-                accessibilityRole="button"
-                accessibilityLabel={t(stg.zh, stg.en)}
                 onPress={() => {
                   setActiveSubView('lab');
                   setSelectedStage(stg.level);
@@ -1633,73 +1684,112 @@ export function KnowledgeGraphCornerHub({
                   if (firstInStage) selectLesson(firstInStage.id, stg.level);
                 }}
                 style={[
-                  styles.stageTabBtn,
+                  styles.volumePill,
                   {
-                    backgroundColor: active ? `${stg.color}24` : pal.pillBg,
-                    borderColor: active ? stg.color : pal.border,
+                    backgroundColor: active ? pal.pillActiveBg : 'transparent',
+                    borderColor: active ? pal.gold : pal.border,
                   },
                 ]}
               >
                 <Text
                   variant="caption"
                   style={{
-                    color: active ? stg.color : pal.sub,
-                    fontSize: 12,
-                    fontWeight: active ? '700' : '600',
+                    color: active ? pal.goldText : pal.sub,
+                    fontSize: 11.5,
+                    fontFamily: theme.fontFamily.serif,
+                    fontWeight: active ? '700' : '500',
                   }}
                 >
-                  {t(stg.badge, stg.en)}
+                  {volLabel}
                 </Text>
               </Pressable>
             );
           })}
         </View>
 
-        {/* Secondary Views (Knowledge Graph & Offline Packs) Tucked Neatly on Right */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Pressable
             onPress={() => setActiveSubView(activeSubView === 'graph' ? 'lab' : 'graph')}
-            style={[
-              styles.microBtn,
-              {
-                backgroundColor: activeSubView === 'graph' ? pal.pillActiveBg : pal.pillBg,
-                borderColor: activeSubView === 'graph' ? pal.gold : pal.border,
-              },
-            ]}
+            style={[styles.microBtn, { borderColor: activeSubView === 'graph' ? pal.gold : pal.border }]}
           >
-            <Text variant="caption" style={{ color: activeSubView === 'graph' ? pal.goldText : pal.sub, fontSize: 11, fontWeight: '600' }}>
-              {activeSubView === 'graph' ? t('← 返回互动课堂', '← Back to Lesson') : t('🗺 全景知识图谱', '🗺 Graph')}
+            <Text variant="caption" style={{ color: activeSubView === 'graph' ? pal.goldText : pal.sub, fontSize: 11, fontFamily: theme.fontFamily.serif }}>
+              {activeSubView === 'graph' ? t('← 返回书页', '← Book') : t('🗺 知识星图', '🗺 Graph')}
             </Text>
           </Pressable>
           <Pressable
             onPress={() => setActiveSubView(activeSubView === 'packs' ? 'lab' : 'packs')}
-            style={[
-              styles.microBtn,
-              {
-                backgroundColor: activeSubView === 'packs' ? pal.pillActiveBg : pal.pillBg,
-                borderColor: activeSubView === 'packs' ? pal.gold : pal.border,
-              },
-            ]}
+            style={[styles.microBtn, { borderColor: activeSubView === 'packs' ? pal.gold : pal.border }]}
           >
-            <Text variant="caption" style={{ color: activeSubView === 'packs' ? pal.goldText : pal.sub, fontSize: 11, fontWeight: '600' }}>
-              {activeSubView === 'packs' ? t('← 返回互动课堂', '← Back to Lesson') : t(`📦 离线包 (${stats.cachedSizeKb}KB)`, `📦 Packs`)}
+            <Text variant="caption" style={{ color: activeSubView === 'packs' ? pal.goldText : pal.sub, fontSize: 11, fontFamily: theme.fontFamily.serif }}>
+              {activeSubView === 'packs' ? t('← 返回书页', '← Book') : t(`📦 藏书匣 (${stats.cachedSizeKb}KB)`, '📦 Packs')}
             </Text>
           </Pressable>
         </View>
       </View>
 
+      {/* Collapsible Bookmark Table of Contents Drawer (展开时像翻开书本扉页目录) */}
+      {tocOpen && activeSubView === 'lab' ? (
+        <View style={[styles.tocDrawer, { backgroundColor: pal.paperBg, borderBottomColor: pal.border }]}>
+          <Text variant="caption" style={{ color: pal.goldText, fontSize: 12, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+            {`${volumeNameZh} · 目录（${activeStageMeta.subtitleZh}）`}
+          </Text>
+          <View style={{ gap: 6, marginTop: 4 }}>
+            {stageNodes.map((n, idx) => {
+              const isSel = n.id === selectedNode.id;
+              const isRead = n.status === 'mastered';
+              return (
+                <Pressable
+                  key={n.id}
+                  onPress={() => {
+                    selectLesson(n.id);
+                    setTocOpen(false);
+                  }}
+                  style={[
+                    styles.tocRowItem,
+                    {
+                      backgroundColor: isSel ? pal.pillActiveBg : 'transparent',
+                      borderColor: isSel ? pal.gold : pal.border,
+                    },
+                  ]}
+                >
+                  <Text
+                    variant="caption"
+                    style={{
+                      color: isSel ? pal.goldText : pal.ink,
+                      fontSize: 13,
+                      fontFamily: theme.fontFamily.serif,
+                      fontWeight: isSel ? '700' : '500',
+                    }}
+                  >
+                    {`第 ${idx + 1} 章 (${n.code}) · ${n.title.replace(/^【[^】]+】/, '')}`}
+                  </Text>
+                  <Text
+                    variant="caption"
+                    style={{
+                      color: isRead ? pal.sealRed : pal.muted,
+                      fontSize: 11,
+                      fontFamily: theme.fontFamily.serif,
+                      fontWeight: isRead ? '700' : '400',
+                    }}
+                  >
+                    {isRead ? '〔已阅钤印〕' : `〔约 3 分钟 · 研读 ${n.studyMinutes}m〕`}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
+
       {/* ================= SUB-VIEW 3: OFFLINE CHAPTER PACK STORE ================= */}
       {activeSubView === 'packs' ? (
-        <View style={[styles.drawerBox, { backgroundColor: pal.cardBg }]}>
+        <View style={[styles.drawerBox, { backgroundColor: pal.paperBg }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
-            <Text variant="caption" style={{ color: pal.goldText, fontSize: 12.5, fontWeight: '700' }}>
-              {t(
-                '📦 按需离线章节包管理（App 仅内置 4KB 骨架索引，重型教学动画与题库按需装载/卸载）',
-                '📦 On-Demand Offline Chapter Packs (Zero Bundle Bloat)',
-              )}
+            <Text variant="caption" style={{ color: pal.goldText, fontSize: 12.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+              {t('📦 藏书匣 · 按需离线章节包管理（App 仅内置 4KB 书目索引，插图与正文按需下载缓存）', '📦 Offline Book Packs')}
             </Text>
             <Text variant="caption" style={{ color: pal.sky, fontSize: 10.5, fontFamily: theme.fontFamily.mono }}>
-              {`存储位置: localStorage["${stats.storageKey}"] & ${stats.packFolderRelPath}`}
+              {`localStorage["${stats.storageKey}"] & ${stats.packFolderRelPath}`}
             </Text>
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
@@ -1711,17 +1801,17 @@ export function KnowledgeGraphCornerHub({
                   style={[
                     styles.packCard,
                     {
-                      backgroundColor: pal.elevated,
+                      backgroundColor: pal.paperElevated,
                       borderColor: installed ? pal.emerald : pal.border,
                     },
                   ]}
                 >
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text variant="caption" style={{ color: pal.ink, fontSize: 12, fontWeight: '700' }}>
-                      {`[${pack.icon}] ${t(pack.titleZh, pack.titleEn)} (${pack.version})`}
+                    <Text variant="caption" style={{ color: pal.ink, fontSize: 12, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                      {`《${t(pack.titleZh, pack.titleEn)}》 (${pack.version})`}
                     </Text>
                     <Text variant="caption" style={{ color: installed ? pal.emerald : pal.muted, fontSize: 10.5, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
-                      {installed ? `✓ 已缓存 · ${pack.sizeKb} KB` : `未下载 · ${pack.sizeKb} KB`}
+                      {installed ? `✓ 已收入书匣 · ${pack.sizeKb} KB` : `未下载 · ${pack.sizeKb} KB`}
                     </Text>
                   </View>
                   <Text variant="caption" style={{ color: pal.sub, fontSize: 11, lineHeight: 17 }}>
@@ -1729,55 +1819,41 @@ export function KnowledgeGraphCornerHub({
                   </Text>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, flexWrap: 'wrap', gap: 6 }}>
                     <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`导出离线包文件 ${pack.titleZh}`}
                       onPress={() => void handleExportPackFile(pack.id)}
                       style={[styles.microBtn, { borderColor: pal.sky }]}
                     >
                       <Text variant="caption" style={{ color: pal.sky, fontSize: 10.5, fontWeight: '700' }}>
-                        {t('📥 导出 .pack.json', '📥 Save .pack.json')}
+                        {t('📥 导出 .pack.json 书卷', '📥 Export .pack.json')}
                       </Text>
                     </Pressable>
                     {installed ? (
                       <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`卸载离线章节包 ${pack.titleZh}`}
                         onPress={() => {
                           setKgState(offloadKnowledgeChapterPack(pack.id));
                           showToast({
                             text: t(
-                              `已卸载「${pack.titleZh}」释放 ${pack.sizeKb} KB，学习进度与笔记完整保留`,
-                              `Offloaded ${pack.titleEn} (${pack.sizeKb} KB freed)`,
+                              `已将《${pack.titleZh}》移出本地缓存释放 ${pack.sizeKb} KB，批注手札与阅读进度完整保留`,
+                              `Offloaded ${pack.titleEn}`,
                             ),
                           });
                         }}
                         style={[styles.microBtn, { borderColor: pal.border }]}
                       >
                         <Text variant="caption" style={{ color: pal.muted, fontSize: 10.5 }}>
-                          {t('卸载释放空间 (保留进度)', 'Offload Pack')}
+                          {t('移出缓存释放空间 (保留手札)', 'Offload Pack')}
                         </Text>
                       </Pressable>
                     ) : (
                       <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`下载离线章节包 ${pack.titleZh}`}
                         onPress={() => {
                           const res = installKnowledgeChapterPack(pack.id);
                           setKgState(res.state);
-                          showToast({
-                            text: t(
-                              `✓ 已离线装载「${pack.titleZh}」(${pack.sizeKb} KB)`,
-                              `✓ Installed ${pack.titleEn}`,
-                            ),
-                          });
+                          showToast({ text: t(`✓ 已收入离线书卷《${pack.titleZh}》`, `✓ Installed ${pack.titleEn}`) });
                         }}
-                        style={[
-                          styles.microBtn,
-                          { backgroundColor: 'rgba(52, 211, 153, 0.16)', borderColor: pal.emerald },
-                        ]}
+                        style={[styles.microBtn, { backgroundColor: 'rgba(52, 211, 153, 0.16)', borderColor: pal.emerald }]}
                       >
                         <Text variant="caption" style={{ color: pal.emerald, fontSize: 10.5, fontWeight: '700' }}>
-                          {t('⬇ 一键离线装载章节包', '⬇ Install Offline Pack')}
+                          {t('⬇ 收入本地藏书匣', '⬇ Install Offline Pack')}
                         </Text>
                       </Pressable>
                     )}
@@ -1793,26 +1869,26 @@ export function KnowledgeGraphCornerHub({
       {activeSubView === 'graph' ? (
         <View style={{ padding: 14, gap: 12 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-            <Text variant="caption" style={{ color: pal.goldText, fontSize: 12, fontWeight: '700' }}>
-              {t('🗺 全景知识图谱（点击任意圆点可直接进入该课程；实线为前置依赖，虚线为 [[双向链接]]）', '🗺 Full Knowledge Graph Topology')}
+            <Text variant="caption" style={{ color: pal.goldText, fontSize: 12, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+              {t('🗺 全书知识脉络星图（点击任意章节节点可直接翻至该章书页）', '🗺 Book Knowledge Graph')}
             </Text>
             <Pressable
               onPress={() => setShowAddNodeBox((v) => !v)}
               style={[styles.microBtn, { borderColor: pal.gold, backgroundColor: pal.pillActiveBg }]}
             >
               <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700' }}>
-                {t('＋ 新建 [[双链]] 笔记节点', '＋ Add [[WikiLink]] Node')}
+                {t('＋ 撰写新章节手稿 ([[双链]])', '＋ Add Chapter Note')}
               </Text>
             </Pressable>
           </View>
 
           {showAddNodeBox ? (
-            <View style={[styles.drawerBox, { backgroundColor: pal.cardBg, borderColor: pal.goldBorder, borderWidth: 1, borderRadius: 10 }]}>
+            <View style={[styles.drawerBox, { backgroundColor: pal.paperBg, borderColor: pal.goldBorder, borderWidth: 1, borderRadius: 10 }]}>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                 <TextInput
                   value={customTitle}
                   onChangeText={setCustomTitle}
-                  placeholder={t('节点标题，如：DeepSeek MLA 矩阵压缩推导', 'Node Title')}
+                  placeholder={t('新章节标题，如：DeepSeek MLA 矩阵压缩读书笔记', 'Chapter Title')}
                   placeholderTextColor={pal.muted}
                   style={[styles.input, { flex: 1, minWidth: 200, color: pal.ink, backgroundColor: pal.inputBg, borderColor: pal.border }]}
                 />
@@ -1838,7 +1914,7 @@ export function KnowledgeGraphCornerHub({
                 value={customMd}
                 onChangeText={setCustomMd}
                 placeholder={t(
-                  '支持多行要点与双向链接，例如：基于 [[AI-101]] 与 [[AI-201]] 将 KV 联合低秩压缩',
+                  '输入读书心得与双向链接，例如：承接 [[AI-101]] 与 [[AI-201]]，将 KV 联合低秩压缩',
                   'Markdown notes with [[WikiLinks]]...',
                 )}
                 placeholderTextColor={pal.muted}
@@ -1847,8 +1923,6 @@ export function KnowledgeGraphCornerHub({
               />
               <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
                 <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="保存自定义知识节点"
                   onPress={() => {
                     const res = importCustomMarkdownKnowledgeNode({
                       title: customTitle,
@@ -1862,21 +1936,19 @@ export function KnowledgeGraphCornerHub({
                     setCustomMd('');
                     setShowAddNodeBox(false);
                     setActiveSubView('lab');
-                    showToast({
-                      text: t(`✓ 已加入知识图谱节点「${res.addedNode.code}」`, `✓ Added node ${res.addedNode.code}`),
-                    });
+                    showToast({ text: t(`✓ 已编入新章节「${res.addedNode.code}」`, `✓ Added ${res.addedNode.code}`) });
                   }}
-                  style={[styles.primaryPlayBtn, { backgroundColor: pal.gold, borderColor: pal.gold }]}
+                  style={[styles.primaryPlayBtn, { backgroundColor: '#b88228', borderColor: '#b88228' }]}
                 >
-                  <Text variant="caption" style={{ color: '#141311', fontSize: 11, fontWeight: '700' }}>
-                    {t('✓ 挂载到个人知识图谱', '✓ Mount to Knowledge Graph')}
+                  <Text variant="caption" style={{ color: '#fffbeb', fontSize: 11, fontWeight: '700' }}>
+                    {t('✓ 编入个人书卷', '✓ Save to Book')}
                   </Text>
                 </Pressable>
               </View>
             </View>
           ) : null}
 
-          <View style={[styles.canvasCard, { backgroundColor: pal.cardBg, borderColor: pal.border }]}>
+          <View style={[styles.canvasCard, { backgroundColor: pal.paperBg, borderColor: pal.border }]}>
             <KnowledgeGraphSvgCanvas
               state={kgState}
               selectedNodeId={selectedNode.id}
@@ -1890,10 +1962,9 @@ export function KnowledgeGraphCornerHub({
             />
           </View>
 
-          {/* Studio Gear Unlocks in Graph View */}
-          <View style={[styles.topStrip, { backgroundColor: pal.elevated, borderColor: pal.border, borderWidth: 1, borderRadius: 10 }]}>
-            <Text variant="caption" style={{ color: pal.goldText, fontSize: 11.5, fontWeight: '700' }}>
-              {t(`🏆 书房藏品解锁进度 (${unlockables.filter((u) => u.unlocked).length}/${unlockables.length})`, '🏆 Studio Gear Unlocks')}
+          <View style={[styles.topStrip, { backgroundColor: pal.paperElevated, borderColor: pal.border, borderWidth: 1, borderRadius: 10 }]}>
+            <Text variant="caption" style={{ color: pal.goldText, fontSize: 11.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+              {t(`🏆 书房案头清供解锁 (${unlockables.filter((u) => u.unlocked).length}/${unlockables.length})`, '🏆 Studio Desk Unlocks')}
             </Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {unlockables.map((item) => (
@@ -1917,291 +1988,369 @@ export function KnowledgeGraphCornerHub({
         </View>
       ) : null}
 
-      {/* ================= SUB-VIEW 1: CALM, ONE-CARD-AT-A-TIME GUIDED LESSON FLOW ================= */}
+      {/* ================= SUB-VIEW 1: THE OPEN HARDCOVER BOOK FOLIO (沉浸式纸书开本) ================= */}
       {activeSubView === 'lab' ? (
-        <View style={{ padding: 16, gap: 14 }}>
-          {/* Stage Subtitle & Clean 3–4 Lesson Selector Pills for Current Stage Only */}
-          <View style={{ gap: 8 }}>
-            <Text variant="caption" style={{ color: pal.muted, fontSize: 11.5 }}>
-              {`${activeStageMeta.zh} — ${activeStageMeta.subtitleZh}`}
-            </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {stageNodes.map((n, idx) => {
-                const isSel = n.id === selectedNode.id;
-                const isMastered = n.status === 'mastered';
+        <View style={styles.deskStage}>
+          {/* Quick Chapter Ribbon Strip along top of book */}
+          <View style={styles.chapterBookmarkRow}>
+            {stageNodes.map((n, idx) => {
+              const isSel = n.id === selectedNode.id;
+              const isRead = n.status === 'mastered';
+              return (
+                <Pressable
+                  key={n.id}
+                  onPress={() => selectLesson(n.id)}
+                  style={[
+                    styles.chapterRibbonTab,
+                    {
+                      backgroundColor: isSel ? pal.paperBg : pal.paperElevated,
+                      borderColor: isSel ? pal.gold : pal.border,
+                      borderBottomWidth: isSel ? 0 : 1,
+                    },
+                  ]}
+                >
+                  <Text
+                    variant="caption"
+                    style={{
+                      color: isSel ? pal.goldText : isRead ? pal.emerald : pal.muted,
+                      fontSize: 11.5,
+                      fontFamily: theme.fontFamily.serif,
+                      fontWeight: isSel ? '700' : '500',
+                    }}
+                  >
+                    {`${isRead ? '✓ ' : ''}第 ${idx + 1} 章 · ${n.title.replace(/^【[^】]+】/, '').split('？')[0]}${n.title.includes('？') ? '？' : ''}`}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Physical Book Page Container with Left Spine Crease & Right Stacked Page Edge */}
+          <View
+            style={[
+              styles.bookPageFolio,
+              {
+                backgroundColor: pal.paperBg,
+                borderColor: pal.goldBorder,
+                borderLeftColor: pal.spineShadow,
+              },
+            ]}
+          >
+            {/* Book Running Header (书眉) */}
+            <View style={[styles.bookRunningHeader, { borderBottomColor: pal.border }]}>
+              <Text
+                variant="caption"
+                style={{
+                  color: pal.muted,
+                  fontSize: 11.5,
+                  fontFamily: theme.fontFamily.serif,
+                  letterSpacing: 0.6,
+                }}
+              >
+                {`${volumeNameZh}  ·  第 ${chapterIndexInVolume} 章 (${selectedNode.code})`}
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                {selectedNode.status === 'mastered' ? (
+                  <View style={[styles.redSealBadge, { borderColor: pal.sealRed }]}>
+                    <Text variant="caption" style={{ color: pal.sealRed, fontSize: 10, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                      〔已阅钤印〕
+                    </Text>
+                  </View>
+                ) : null}
+                <Text
+                  variant="caption"
+                  style={{
+                    color: pal.goldText,
+                    fontSize: 11.5,
+                    fontFamily: theme.fontFamily.serif,
+                    fontWeight: '700',
+                  }}
+                >
+                  {`第 ${pageNumber} / 4 页`}
+                </Text>
+              </View>
+            </View>
+
+            {/* 4-Page Navigation Tabs styled as subtle book section markers */}
+            <View style={[styles.pageSubtleNavRow, { borderBottomColor: pal.border }]}>
+              {(
+                [
+                  { p: 1 as const, label: '壹 · 开篇故事' },
+                  { p: 2 as const, label: '贰 · 活动插图' },
+                  { p: 3 as const, label: '叁 · 划线旁批' },
+                  { p: 4 as const, label: '肆 · 掩卷手札' },
+                ] as const
+              ).map((item) => {
+                const active = pageNumber === item.p;
                 return (
                   <Pressable
-                    key={n.id}
-                    onPress={() => selectLesson(n.id)}
+                    key={item.p}
+                    onPress={() => setPageNumber(item.p)}
                     style={[
-                      styles.cleanLessonPill,
+                      styles.pageSectionTab,
                       {
-                        backgroundColor: isSel ? pal.pillActiveBg : pal.cardBg,
-                        borderColor: isSel ? pal.gold : isMastered ? pal.emerald : pal.border,
+                        borderBottomColor: active ? pal.gold : 'transparent',
+                        borderBottomWidth: active ? 2 : 0,
                       },
                     ]}
                   >
                     <Text
                       variant="caption"
                       style={{
-                        color: isSel ? pal.goldText : isMastered ? pal.emerald : pal.sub,
-                        fontSize: 11.5,
-                        fontWeight: isSel ? '700' : '600',
+                        color: active ? pal.goldText : pal.muted,
+                        fontSize: 12,
+                        fontFamily: theme.fontFamily.serif,
+                        fontWeight: active ? '700' : '500',
                       }}
                     >
-                      {`${isMastered ? '✓ ' : ''}第 ${idx + 1} 课 · ${n.title.replace(/^【[^】]+】/, '').split('？')[0]}${n.title.includes('？') ? '？' : ''}`}
+                      {item.label}
                     </Text>
                   </Pressable>
                 );
               })}
             </View>
-          </View>
 
-          {/* Main Focused Lesson Card */}
-          <View style={[styles.focusedLessonCard, { backgroundColor: pal.cardBg, borderColor: pal.goldBorder }]}>
-            {/* Lesson Title + 4-Step Progress Bar */}
-            <View style={{ gap: 10, borderBottomWidth: 1, borderBottomColor: pal.border, paddingBottom: 12 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                <Text variant="heading" style={{ color: pal.ink, fontSize: 17, fontWeight: '700' }}>
-                  {`${selectedNode.code} · ${selectedNode.title.replace(/^【[^】]+】/, '')}`}
-                </Text>
-                <Text variant="caption" style={{ color: pal.emerald, fontSize: 11, fontFamily: theme.fontFamily.mono }}>
-                  {selectedNode.status === 'mastered' ? '✦ 本课已通关' : `当前进度：第 ${wizardStep} / 4 步`}
-                </Text>
-              </View>
-
-              {/* 4-Step Wizard Switcher Pills */}
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {(
-                  [
-                    { step: 1 as const, label: '① 先听大白话比喻' },
-                    { step: 2 as const, label: '② 动手点交互动画' },
-                    { step: 3 as const, label: '③ 三句话核心结论' },
-                    { step: 4 as const, label: '④ 一道题闯关自测' },
-                  ] as const
-                ).map((st) => {
-                  const isCurrent = wizardStep === st.step;
-                  const isPassed = wizardStep > st.step;
-                  return (
-                    <Pressable
-                      key={st.step}
-                      onPress={() => setWizardStep(st.step)}
-                      style={[
-                        styles.wizardStepPill,
-                        {
-                          backgroundColor: isCurrent
-                            ? pal.gold
-                            : isPassed
-                              ? 'rgba(52, 211, 153, 0.14)'
-                              : pal.pillBg,
-                          borderColor: isCurrent ? pal.gold : isPassed ? pal.emerald : pal.border,
-                        },
-                      ]}
-                    >
+            {selectedContent ? (
+              <View style={styles.bookPageBody}>
+                {/* ==================== PAGE 1: 开篇故事与直觉叙事 ==================== */}
+                {pageNumber === 1 ? (
+                  <View style={{ gap: 20 }}>
+                    {/* Literary Chapter Title Block */}
+                    <View style={{ gap: 8, paddingTop: 4 }}>
                       <Text
                         variant="caption"
                         style={{
-                          color: isCurrent ? '#141311' : isPassed ? pal.emerald : pal.sub,
-                          fontSize: 11.5,
-                          fontWeight: isCurrent || isPassed ? '700' : '500',
+                          color: pal.gold,
+                          fontSize: 12,
+                          fontFamily: theme.fontFamily.serif,
+                          letterSpacing: 1.2,
+                          fontWeight: '700',
                         }}
                       >
-                        {`${isPassed ? '✓ ' : ''}${st.label}`}
+                        {`CHAPTER ${selectedNode.code}  ·  开篇引子`}
                       </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
+                      <Text
+                        variant="heading"
+                        style={{
+                          color: pal.ink,
+                          fontSize: 22,
+                          lineHeight: 32,
+                          fontFamily: theme.fontFamily.serif,
+                          fontWeight: '700',
+                        }}
+                      >
+                        {selectedNode.title.replace(/^【[^】]+】/, '')}
+                      </Text>
+                    </View>
 
-            {selectedContent ? (
-              <View style={{ gap: 16, paddingTop: 6 }}>
-                {/* ==================== WIZARD STEP 1: ZERO-JARGON ANALOGY ONLY ==================== */}
-                {wizardStep === 1 ? (
-                  <View style={{ gap: 16 }}>
-                    <View
-                      style={[
-                        styles.spaciousAnalogyCard,
-                        {
-                          backgroundColor: isDark ? 'rgba(52, 211, 153, 0.08)' : 'rgba(31, 94, 75, 0.06)',
-                          borderColor: pal.emerald,
-                        },
-                      ]}
-                    >
-                      <Text variant="label" style={{ color: pal.emerald, fontSize: 13.5, fontWeight: '700' }}>
-                        {t('🌱 第 1 步 · 零基础大白话直觉（不讲任何数学公式，先听个生活比喻）', '🌱 Step 1 · Everyday Analogy')}
+                    {/* Epigraph Quote (题记引语) */}
+                    <View style={[styles.epigraphQuoteBox, { borderLeftColor: pal.gold, backgroundColor: pal.paperElevated }]}>
+                      <Text
+                        variant="body"
+                        style={{
+                          color: pal.sub,
+                          fontSize: 13.5,
+                          lineHeight: 22,
+                          fontFamily: theme.fontFamily.serif,
+                        }}
+                      >
+                        {`「导读」${selectedNode.summary.replace(/^【[^】]+】/, '')}`}
+                      </Text>
+                    </View>
+
+                    {/* Main Book Narrative Paragraphs */}
+                    <View style={{ gap: 14 }}>
+                      <Text
+                        variant="body"
+                        style={{
+                          color: pal.ink,
+                          fontSize: 16,
+                          lineHeight: 30,
+                          fontFamily: theme.fontFamily.serif,
+                        }}
+                      >
+                        {`　　${(selectedContent.beginnerAnalogyZh ?? selectedContent.coreMentalModel).replace(/^🌱\s*小白大白话：/, '')}`}
+                      </Text>
+                    </View>
+
+                    {/* Highlighted Key Sentence (荧光笔划线批注) */}
+                    <View style={[styles.highlightedPassageBox, { backgroundColor: pal.highlightBg, borderColor: pal.goldBorder }]}>
+                      <Text
+                        variant="caption"
+                        style={{
+                          color: pal.goldText,
+                          fontSize: 11.5,
+                          fontFamily: theme.fontFamily.serif,
+                          fontWeight: '700',
+                        }}
+                      >
+                        {t('✒️ 书页荧光划线 · 一句话点透本质：', '✒️ Highlighted Key Passage:')}
                       </Text>
                       <Text
                         variant="body"
                         style={{
                           color: pal.ink,
-                          fontSize: 15,
-                          lineHeight: 26,
+                          fontSize: 14.5,
+                          lineHeight: 25,
+                          fontFamily: theme.fontFamily.serif,
                         }}
                       >
-                        {selectedContent.beginnerAnalogyZh ?? selectedContent.coreMentalModel}
+                        {selectedContent.coreMentalModel}
                       </Text>
-                    </View>
-
-                    <View style={styles.wizardFooterRow}>
-                      <Text variant="caption" style={{ color: pal.muted, fontSize: 11.5 }}>
-                        {t('读完上面这段比喻就有直觉啦！接下来我们亲手点一点动画验证它。', 'Ready? Let us play with the interactive animation next.')}
-                      </Text>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="下一步去动手玩动画"
-                        onPress={() => setWizardStep(2)}
-                        style={[styles.nextBigCtaBtn, { backgroundColor: pal.gold, borderColor: pal.gold }]}
-                      >
-                        <Text variant="label" style={{ color: '#141311', fontSize: 13.5, fontWeight: '700' }}>
-                          {t('看懂比喻了，下一步：去动手玩动画 (2/4) →', 'Next: Play Interactive Animation (2/4) →')}
-                        </Text>
-                      </Pressable>
                     </View>
                   </View>
                 ) : null}
 
-                {/* ==================== WIZARD STEP 2: INTERACTIVE ANIMATION ONLY ==================== */}
-                {wizardStep === 2 ? (
-                  <View style={{ gap: 14 }}>
-                    {selectedContent.guidedStepsZh?.[0] ? (
-                      <View style={[styles.singleHintBanner, { backgroundColor: pal.elevated, borderColor: pal.goldBorder }]}>
-                        <Text variant="caption" style={{ color: pal.goldText, fontSize: 12, fontWeight: '700' }}>
-                          {`💡 玩法提示：${selectedContent.guidedStepsZh[0]}`}
-                        </Text>
-                      </View>
-                    ) : null}
+                {/* ==================== PAGE 2: 书中活动插图 (Interactive Figure) ==================== */}
+                {pageNumber === 2 ? (
+                  <View style={{ gap: 16 }}>
+                    <Text
+                      variant="body"
+                      style={{
+                        color: pal.ink,
+                        fontSize: 15.5,
+                        lineHeight: 27,
+                        fontFamily: theme.fontFamily.serif,
+                      }}
+                    >
+                      {`　　百闻不如一见。下面这幅【书中活动插图】将「${selectedNode.title.replace(/^【[^】]+】/, '')}」的内部运转过程拆解在了纸面上。${
+                        selectedContent.guidedStepsZh?.[0]
+                          ? `你可以试着按图上提示亲手拨动按钮——${selectedContent.guidedStepsZh[0]}：`
+                          : '不妨亲手点击图中的按钮，观察每一次状态变化：'
+                      }`}
+                    </Text>
 
                     {selectedContent.animationKind ? (
                       <AiInteractiveAnimationLab
                         kind={selectedContent.animationKind}
+                        figureCode={selectedNode.code}
                         isDark={isDark}
                         fullScreen={fullScreen}
                       />
                     ) : (
-                      <View style={[styles.spaciousAnalogyCard, { backgroundColor: pal.elevated, borderColor: pal.border }]}>
-                        <Text variant="body" style={{ color: pal.ink, fontSize: 14, lineHeight: 22 }}>
+                      <View style={[styles.epigraphQuoteBox, { borderLeftColor: pal.gold, backgroundColor: pal.paperElevated }]}>
+                        <Text variant="body" style={{ color: pal.ink, fontSize: 15, lineHeight: 26, fontFamily: theme.fontFamily.serif }}>
                           {selectedContent.coreMentalModel}
                         </Text>
                       </View>
                     )}
-
-                    <View style={styles.wizardFooterRow}>
-                      <Pressable
-                        onPress={() => setWizardStep(1)}
-                        style={[styles.microBtn, { borderColor: pal.border, paddingVertical: 8, paddingHorizontal: 12 }]}
-                      >
-                        <Text variant="caption" style={{ color: pal.sub, fontSize: 12 }}>
-                          {t('← 返回第 1 步看比喻', '← Back to Analogy')}
-                        </Text>
-                      </Pressable>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="下一步看三句话核心结论"
-                        onPress={() => setWizardStep(3)}
-                        style={[styles.nextBigCtaBtn, { backgroundColor: pal.gold, borderColor: pal.gold }]}
-                      >
-                        <Text variant="label" style={{ color: '#141311', fontSize: 13.5, fontWeight: '700' }}>
-                          {t('动画体验完了，下一步：看 3 句话核心结论 (3/4) →', 'Next: 3 Key Takeaways (3/4) →')}
-                        </Text>
-                      </Pressable>
-                    </View>
                   </View>
                 ) : null}
 
-                {/* ==================== WIZARD STEP 3: 3 KEY TAKEAWAYS & OPTIONAL FORMULA ==================== */}
-                {wizardStep === 3 ? (
-                  <View style={{ gap: 14 }}>
-                    <View style={[styles.spaciousAnalogyCard, { backgroundColor: pal.elevated, borderColor: pal.border }]}>
-                      <Text variant="label" style={{ color: pal.goldText, fontSize: 13.5, fontWeight: '700' }}>
-                        {t('💡 第 3 步 · 记住这 3 句话就够了（核心规律总结）', '💡 Step 3 · 3 Key Takeaways')}
-                      </Text>
-                      <Text variant="body" style={{ color: pal.ink, fontSize: 14, lineHeight: 23 }}>
-                        {selectedContent.coreMentalModel}
-                      </Text>
-                      <View style={{ gap: 8, marginTop: 6 }}>
-                        {selectedContent.keyTakeaways.map((pt, idx) => (
+                {/* ==================== PAGE 3: 精读划线与书页旁批脚注 ==================== */}
+                {pageNumber === 3 ? (
+                  <View style={{ gap: 18 }}>
+                    <Text
+                      variant="body"
+                      style={{
+                        color: pal.ink,
+                        fontSize: 15.5,
+                        lineHeight: 27,
+                        fontFamily: theme.fontFamily.serif,
+                      }}
+                    >
+                      {t(
+                        '　　看过了活动插图的推演，我们不妨在书页边缘记下本章最值得反复咀嚼的三条核心脉络：',
+                        'Having explored the interactive figure, let us underline the three essential principles on this page:',
+                      )}
+                    </Text>
+
+                    <View style={{ gap: 12 }}>
+                      {selectedContent.keyTakeaways.map((pt, idx) => {
+                        const numLabel = idx === 0 ? '其一' : idx === 1 ? '其二' : idx === 2 ? '其三' : `其四`;
+                        return (
                           <View
                             key={idx}
-                            style={{
-                              paddingHorizontal: 12,
-                              paddingVertical: 8,
-                              borderRadius: 8,
-                              backgroundColor: pal.cardBg,
-                              borderWidth: 1,
-                              borderColor: pal.border,
-                            }}
+                            style={[
+                              styles.underlinedBookNote,
+                              {
+                                backgroundColor: pal.paperElevated,
+                                borderLeftColor: pal.gold,
+                              },
+                            ]}
                           >
-                            <Text variant="body" style={{ color: pal.ink, fontSize: 13.5, lineHeight: 21 }}>
-                              {`${idx + 1}. ${pt}`}
+                            <Text
+                              variant="body"
+                              style={{
+                                color: pal.ink,
+                                fontSize: 15,
+                                lineHeight: 26,
+                                fontFamily: theme.fontFamily.serif,
+                              }}
+                            >
+                              <Text style={{ color: pal.goldText, fontWeight: '700', fontFamily: theme.fontFamily.serif }}>
+                                {`【${numLabel}】 `}
+                              </Text>
+                              {pt}
                             </Text>
                           </View>
-                        ))}
-                      </View>
+                        );
+                      })}
                     </View>
 
-                    {/* Optional Collapsible Formula Dictionary (Hidden by default so beginners aren't overwhelmed!) */}
-                    <View style={{ gap: 8 }}>
-                      <Pressable
-                        onPress={() => setShowFormulaDetail((v) => !v)}
-                        style={[styles.microBtn, { alignSelf: 'flex-start', borderColor: pal.border }]}
+                    {/* Classic Book Footnote Section (书页底注 · 符号释义) */}
+                    <View style={[styles.footnoteSection, { borderTopColor: pal.border }]}>
+                      <Text
+                        variant="caption"
+                        style={{
+                          color: pal.goldText,
+                          fontSize: 11.5,
+                          fontFamily: theme.fontFamily.serif,
+                          fontWeight: '700',
+                        }}
                       >
-                        <Text variant="caption" style={{ color: pal.sky, fontSize: 11.5, fontWeight: '600' }}>
-                          {showFormulaDetail
-                            ? t('收起数学公式与符号白话本 ▲', 'Hide Formula Breakdown ▲')
-                            : t('📐 想看数学公式怎么写？点此展开「公式符号白话本」（可选）▼', '📐 Optional: Show Formula Dictionary ▼')}
-                        </Text>
-                      </Pressable>
-
-                      {showFormulaDetail ? (
-                        <View style={[styles.codeBox, { backgroundColor: pal.inputBg, borderColor: pal.border, padding: 12 }]}>
-                          <Text variant="caption" style={{ color: pal.emerald, fontSize: 12, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
-                            {selectedContent.codeOrFormulaSnippet}
+                        {t('【书页底注 · 算式与符号释义】', '[Book Footnotes · Formula & Symbols]')}
+                      </Text>
+                      <Text
+                        variant="caption"
+                        style={{
+                          color: pal.emerald,
+                          fontSize: 11.5,
+                          fontFamily: theme.fontFamily.mono,
+                          fontWeight: '700',
+                          marginTop: 2,
+                        }}
+                      >
+                        {selectedContent.codeOrFormulaSnippet}
+                      </Text>
+                      {selectedContent.formulaBreakdownZh?.map((fb, idx) => (
+                        <Text
+                          key={idx}
+                          variant="caption"
+                          style={{
+                            color: pal.sub,
+                            fontSize: 12,
+                            lineHeight: 20,
+                            fontFamily: theme.fontFamily.serif,
+                          }}
+                        >
+                          {`[注${idx + 1}]  `}
+                          <Text style={{ fontFamily: theme.fontFamily.mono, fontWeight: '700', color: pal.ink }}>
+                            {fb.symbol}
                           </Text>
-                          {selectedContent.formulaBreakdownZh?.map((fb, idx) => (
-                            <View key={idx} style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-                              <Text variant="caption" style={{ color: pal.sky, fontSize: 11, fontFamily: theme.fontFamily.mono, fontWeight: '700', minWidth: 135 }}>
-                                {fb.symbol}
-                              </Text>
-                              <Text variant="caption" style={{ color: pal.sub, fontSize: 11, flex: 1 }}>
-                                {`→ ${fb.meaningZh}`}
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
-                      ) : null}
-                    </View>
-
-                    <View style={styles.wizardFooterRow}>
-                      <Pressable
-                        onPress={() => setWizardStep(2)}
-                        style={[styles.microBtn, { borderColor: pal.border, paddingVertical: 8, paddingHorizontal: 12 }]}
-                      >
-                        <Text variant="caption" style={{ color: pal.sub, fontSize: 12 }}>
-                          {t('← 返回第 2 步玩动画', '← Back to Animation')}
+                          {` ：${fb.meaningZh}`}
                         </Text>
-                      </Pressable>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="下一步去做一道题闯关"
-                        onPress={() => setWizardStep(4)}
-                        style={[styles.nextBigCtaBtn, { backgroundColor: pal.gold, borderColor: pal.gold }]}
-                      >
-                        <Text variant="label" style={{ color: '#141311', fontSize: 13.5, fontWeight: '700' }}>
-                          {t('总结看懂了，最后一步：做 1 道小测验通关 (4/4) →', 'Next: 1-Question Quiz (4/4) →')}
-                        </Text>
-                      </Pressable>
+                      ))}
                     </View>
                   </View>
                 ) : null}
 
-                {/* ==================== WIZARD STEP 4: 1-QUESTION QUIZ & COMPLETE LESSON ==================== */}
-                {wizardStep === 4 ? (
-                  <View style={{ gap: 16 }}>
+                {/* ==================== PAGE 4: 掩卷思考、读书手札与藏书钤印 ==================== */}
+                {pageNumber === 4 ? (
+                  <View style={{ gap: 18 }}>
+                    {/* End-of-chapter reflection (掩卷一问) */}
                     {selectedContent.quiz ? (
-                      <View style={[styles.spaciousAnalogyCard, { backgroundColor: pal.elevated, borderColor: pal.goldBorder }]}>
-                        <Text variant="label" style={{ color: pal.goldText, fontSize: 14, fontWeight: '700' }}>
-                          {`🎯 第 4 步 · 随堂 1 题闯关：${selectedContent.quiz.questionZh}`}
+                      <View style={[styles.reflectionBox, { backgroundColor: pal.paperElevated, borderColor: pal.goldBorder }]}>
+                        <Text
+                          variant="label"
+                          style={{
+                            color: pal.goldText,
+                            fontSize: 14,
+                            fontFamily: theme.fontFamily.serif,
+                            fontWeight: '700',
+                          }}
+                        >
+                          {`【掩卷一问】${selectedContent.quiz.questionZh.replace(/^【[^】]+】/, '')}`}
                         </Text>
                         <View style={{ gap: 8, marginTop: 6 }}>
                           {selectedContent.quiz.optionsZh.map((opt, oIdx) => {
@@ -2213,7 +2362,7 @@ export function KnowledgeGraphCornerHub({
                                 : isCorrect
                                   ? pal.emerald
                                   : chosen
-                                    ? '#ef4444'
+                                    ? pal.sealRed
                                     : pal.border;
                             return (
                               <Pressable
@@ -2230,14 +2379,21 @@ export function KnowledgeGraphCornerHub({
                                     borderColor: borderC,
                                     backgroundColor:
                                       selectedQuizOption !== null && isCorrect
-                                        ? 'rgba(52,211,153,0.18)'
+                                        ? 'rgba(52,211,153,0.15)'
                                         : chosen
-                                          ? 'rgba(239,68,68,0.14)'
-                                          : pal.cardBg,
+                                          ? 'rgba(220,38,38,0.10)'
+                                          : pal.paperBg,
                                   },
                                 ]}
                               >
-                                <Text variant="body" style={{ color: pal.ink, fontSize: 13.5 }}>
+                                <Text
+                                  variant="body"
+                                  style={{
+                                    color: pal.ink,
+                                    fontSize: 14,
+                                    fontFamily: theme.fontFamily.serif,
+                                  }}
+                                >
                                   {opt}
                                 </Text>
                               </Pressable>
@@ -2245,61 +2401,88 @@ export function KnowledgeGraphCornerHub({
                           })}
                         </View>
                         {selectedQuizOption !== null ? (
-                          <View style={{ marginTop: 8, padding: 10, borderRadius: 8, backgroundColor: pal.cardBg }}>
-                            <Text
-                              variant="caption"
-                              style={{
-                                color: selectedQuizOption === selectedContent.quiz.correctIndex ? pal.emerald : '#f59e0b',
-                                fontSize: 12,
-                                fontWeight: '700',
-                                lineHeight: 19,
-                              }}
-                            >
-                              {`${selectedQuizOption === selectedContent.quiz.correctIndex ? '🎉 回答正确！' : '💡 提示解析：'}${selectedContent.quiz.explanationZh}`}
-                            </Text>
-                          </View>
+                          <Text
+                            variant="caption"
+                            style={{
+                              color: selectedQuizOption === selectedContent.quiz.correctIndex ? pal.emerald : pal.goldText,
+                              fontSize: 12.5,
+                              lineHeight: 20,
+                              fontFamily: theme.fontFamily.serif,
+                              marginTop: 6,
+                            }}
+                          >
+                            {`【书后解析】${selectedContent.quiz.explanationZh}`}
+                          </Text>
                         ) : null}
                       </View>
                     ) : null}
 
-                    {/* Optional Flashcard Flipper */}
+                    {/* Optional Flashcard */}
                     {selectedContent.flashcards[0] ? (
                       <Pressable
                         onPress={() => setShowFlashcardAnswer((v) => !v)}
                         style={[
                           styles.flashcardBox,
-                          { backgroundColor: pal.elevated, borderColor: showFlashcardAnswer ? pal.emerald : pal.border, padding: 12 },
+                          { backgroundColor: pal.paperElevated, borderColor: pal.border, padding: 12 },
                         ]}
                       >
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Text variant="caption" style={{ color: pal.goldText, fontSize: 11.5, fontWeight: '700' }}>
-                            {`🃏 思考题闪卡：${selectedContent.flashcards[0].q}`}
+                          <Text variant="caption" style={{ color: pal.sub, fontSize: 12, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                            {`🔖 夹页书签问：${selectedContent.flashcards[0].q}`}
                           </Text>
-                          <Text variant="caption" style={{ color: pal.sky, fontSize: 10.5 }}>
-                            {showFlashcardAnswer ? t('收起答案 ▲', 'Hide ▲') : t('点击查看答案 ▼', 'Show Answer ▼')}
+                          <Text variant="caption" style={{ color: pal.goldText, fontSize: 11, fontFamily: theme.fontFamily.serif }}>
+                            {showFlashcardAnswer ? '合上书签 ▲' : '翻看书签背面 ▼'}
                           </Text>
                         </View>
                         {showFlashcardAnswer ? (
-                          <Text variant="caption" style={{ color: pal.emerald, fontSize: 11.5, marginTop: 6, lineHeight: 18 }}>
-                            {`答：${selectedContent.flashcards[0].a}`}
+                          <Text variant="caption" style={{ color: pal.emerald, fontSize: 12, marginTop: 6, lineHeight: 19, fontFamily: theme.fontFamily.serif }}>
+                            {`书签背面：${selectedContent.flashcards[0].a}`}
                           </Text>
                         ) : null}
                       </Pressable>
                     ) : null}
 
-                    <View style={styles.wizardFooterRow}>
-                      <Pressable
-                        onPress={() => setWizardStep(3)}
-                        style={[styles.microBtn, { borderColor: pal.border, paddingVertical: 8, paddingHorizontal: 12 }]}
-                      >
-                        <Text variant="caption" style={{ color: pal.sub, fontSize: 12 }}>
-                          {t('← 返回第 3 步看总结', '← Back to Summary')}
+                    {/* Personal Reading Margin Note (我的读书批注手札) */}
+                    <View style={[styles.marginNoteCard, { backgroundColor: pal.paperElevated, borderColor: pal.border }]}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text variant="caption" style={{ color: pal.goldText, fontSize: 12, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                          {t('✍️ 我的页边批注手札（随笔感悟会自动保存在本章书页上）', '✍️ Personal Margin Notes')}
                         </Text>
-                      </Pressable>
+                        <Pressable
+                          onPress={() => {
+                            setKgState(updateKnowledgeNodeProgress(selectedNode.id, { userNote: marginNoteDraft }));
+                            showToast({ text: t('✓ 已将批注手札落墨保存至本章书页', '✓ Margin note saved') });
+                          }}
+                          style={[styles.microBtn, { borderColor: pal.gold }]}
+                        >
+                          <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                            {t('落墨保存批注', 'Save Note')}
+                          </Text>
+                        </Pressable>
+                      </View>
+                      <TextInput
+                        value={marginNoteDraft}
+                        onChangeText={setMarginNoteDraft}
+                        placeholder={t('在此写下你读完本章的领悟或疑问...', 'Write your margin notes here...')}
+                        placeholderTextColor={pal.muted}
+                        multiline
+                        style={[
+                          styles.marginNoteInput,
+                          {
+                            color: pal.ink,
+                            backgroundColor: pal.paperBg,
+                            borderColor: pal.border,
+                            fontFamily: theme.fontFamily.serif,
+                          },
+                        ]}
+                      />
+                    </View>
 
+                    {/* Traditional Red Seal Stamp Button (盖下「已阅」藏书印并翻至下一章) */}
+                    <View style={{ alignItems: 'flex-end', paddingTop: 4 }}>
                       <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel="学会本课并进入下一课"
+                        accessibilityLabel="盖下已阅藏书印并翻至下一章"
                         onPress={() => {
                           const nextMins = selectedNode.studyMinutes + 25;
                           setKgState(
@@ -2307,6 +2490,7 @@ export function KnowledgeGraphCornerHub({
                               studyMinutes: nextMins,
                               reviewLevel: selectedNode.reviewLevel + 1,
                               status: 'mastered',
+                              userNote: marginNoteDraft,
                             }),
                           );
                           onLogStudyMinutes?.(selectedNode.title, 25);
@@ -2315,22 +2499,31 @@ export function KnowledgeGraphCornerHub({
                             selectLesson(nextNodeGlobal.id, nextNodeGlobal.stageLevel);
                             showToast({
                               text: t(
-                                `🎉 恭喜通关「${selectedNode.code}」(+25m)！已自动为你开启下一课「${nextNodeGlobal.code}」`,
-                                `🎉 Mastered ${selectedNode.code}! Advancing to ${nextNodeGlobal.code}`,
+                                `💮 已于「${selectedNode.code}」钤印立档 (+25m)，为你翻开下一章《${nextNodeGlobal.title.replace(/^【[^】]+】/, '').slice(0, 12)}》`,
+                                `💮 Stamped ${selectedNode.code}! Turning to ${nextNodeGlobal.code}`,
                               ),
                             });
                           } else {
                             showToast({
-                              text: t(`🎉 恭喜全部通关「${selectedNode.code}」(+25m)！`, `🎉 Completed ${selectedNode.code}!`),
+                              text: t(`💮 恭喜读完本卷终章「${selectedNode.code}」(+25m)！`, `💮 Finished ${selectedNode.code}!`),
                             });
                           }
                         }}
-                        style={[styles.nextBigCtaBtn, { backgroundColor: '#34d399', borderColor: '#34d399' }]}
+                        style={[styles.sealStampCtaBtn, { backgroundColor: pal.sealRed, borderColor: '#fca5a5' }]}
                       >
-                        <Text variant="label" style={{ color: '#0f172a', fontSize: 13.5, fontWeight: '700' }}>
+                        <Text
+                          variant="label"
+                          style={{
+                            color: '#fffbeb',
+                            fontSize: 13.5,
+                            fontFamily: theme.fontFamily.serif,
+                            fontWeight: '700',
+                            letterSpacing: 0.5,
+                          }}
+                        >
                           {nextNodeGlobal
-                            ? t(`🎉 本课学会了！打卡 +25m 并进入下一课 (${nextNodeGlobal.code}) →`, `🎉 Complete & Next (${nextNodeGlobal.code}) →`)
-                            : t('🎉 打卡 +25m 完成全部课程！', '🎉 Complete Curriculum!')}
+                            ? t(`💮 盖下「已阅」藏书印 (+25m) · 翻至下一章 (${nextNodeGlobal.code}) ❯`, `💮 Stamp Read & Next Chapter (${nextNodeGlobal.code}) ❯`)
+                            : t('💮 盖下「已阅」藏书印 (+25m) · 全书礼成', '💮 Stamp Read & Finish Book')}
                         </Text>
                       </Pressable>
                     </View>
@@ -2339,31 +2532,97 @@ export function KnowledgeGraphCornerHub({
               </View>
             ) : (
               /* Uninstalled Chapter Pack Prompt */
-              <View style={[styles.uninstalledBanner, { backgroundColor: pal.elevated, borderColor: pal.border }]}>
-                <Text variant="caption" style={{ color: pal.muted, fontSize: 12 }}>
+              <View style={[styles.uninstalledBanner, { backgroundColor: pal.paperElevated, borderColor: pal.border }]}>
+                <Text variant="caption" style={{ color: pal.muted, fontSize: 12.5, fontFamily: theme.fontFamily.serif }}>
                   {t(
-                    `当前课程所属离线章节包 (${selectedNode.packId}) 尚未缓存到本地（仅占 ~20KB 空间）。`,
+                    `本章所属书卷 (${selectedNode.packId}) 尚未收入本地书匣（仅占 ~20KB 空间）。`,
                     `Chapter pack (${selectedNode.packId}) is not cached locally yet.`,
                   )}
                 </Text>
                 <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`立即下载章节包 ${selectedNode.packId}`}
                   onPress={() => {
                     const res = installKnowledgeChapterPack(selectedNode.packId);
                     setKgState(res.state);
                     if (res.pack) {
-                      showToast({ text: t(`✓ 已离线装载「${res.pack.titleZh}」`, `✓ Installed ${res.pack.titleEn}`) });
+                      showToast({ text: t(`✓ 已收入书卷《${res.pack.titleZh}》`, `✓ Installed ${res.pack.titleEn}`) });
                     }
                   }}
-                  style={[styles.primaryPlayBtn, { backgroundColor: pal.gold, borderColor: pal.gold }]}
+                  style={[styles.primaryPlayBtn, { backgroundColor: '#b88228', borderColor: '#b88228' }]}
                 >
-                  <Text variant="caption" style={{ color: '#141311', fontSize: 11.5, fontWeight: '700' }}>
-                    {t('⬇ 立即按需下载该章节包', '⬇ Download Chapter Pack Now')}
+                  <Text variant="caption" style={{ color: '#fffbeb', fontSize: 11.5, fontWeight: '700' }}>
+                    {t('⬇ 立即展卷下载本章', '⬇ Download Chapter Pack')}
                   </Text>
                 </Pressable>
               </View>
             )}
+
+            {/* Book Page Bottom Footer (书页底栏：左翻页 · 页码 · 右翻页) */}
+            <View style={[styles.bookPageFooter, { borderTopColor: pal.border }]}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="上一页"
+                onPress={handlePrevPage}
+                disabled={pageNumber === 1 && !prevNodeGlobal}
+                style={[
+                  styles.pageTurnBtn,
+                  {
+                    borderColor: pal.border,
+                    backgroundColor: pal.paperElevated,
+                    opacity: pageNumber === 1 && !prevNodeGlobal ? 0.4 : 1,
+                  },
+                ]}
+              >
+                <Text variant="caption" style={{ color: pal.ink, fontSize: 12, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                  {pageNumber > 1
+                    ? t(`❮ 往前翻 (第 ${pageNumber - 1} 页)`, `❮ Page ${pageNumber - 1}`)
+                    : prevNodeGlobal
+                      ? t(`❮ 上一章 (${prevNodeGlobal.code})`, `❮ Prev Ch`)
+                      : t('❮ 已是卷首', '❮ First Page')}
+                </Text>
+              </Pressable>
+
+              <Text
+                variant="caption"
+                style={{
+                  color: pal.muted,
+                  fontSize: 11.5,
+                  fontFamily: theme.fontFamily.serif,
+                }}
+              >
+                {`—  第 ${pageNumber} / 4 页  ·  ${
+                  pageNumber === 1
+                    ? '开篇故事'
+                    : pageNumber === 2
+                      ? '活动插图'
+                      : pageNumber === 3
+                        ? '精读旁批'
+                        : '掩卷手札'
+                }  —`}
+              </Text>
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="下一页"
+                onPress={handleNextPage}
+                disabled={pageNumber === 4 && !nextNodeGlobal}
+                style={[
+                  styles.pageTurnBtn,
+                  {
+                    borderColor: pal.gold,
+                    backgroundColor: pal.pillActiveBg,
+                    opacity: pageNumber === 4 && !nextNodeGlobal ? 0.4 : 1,
+                  },
+                ]}
+              >
+                <Text variant="caption" style={{ color: pal.goldText, fontSize: 12.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                  {pageNumber < 4
+                    ? t(`往后翻一页 (第 ${pageNumber + 1} 页) ❯`, `Next Page (${pageNumber + 1}/4) ❯`)
+                    : nextNodeGlobal
+                      ? t(`翻至下一章 (${nextNodeGlobal.code}) ❯`, `Next Ch (${nextNodeGlobal.code}) ❯`)
+                      : t('已至卷末 ❯', 'End of Book ❯')}
+                </Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       ) : null}
@@ -2377,6 +2636,205 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
   },
+  readerTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
+  tocToggleBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 7,
+    borderWidth: 1,
+  },
+  volumePill: {
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: 7,
+    borderWidth: 1,
+  },
+  tocDrawer: {
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    gap: 8,
+  },
+  tocRowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  deskStage: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 18,
+  },
+  chapterBookmarkRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    paddingHorizontal: 8,
+  },
+  chapterRibbonTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    borderWidth: 1,
+  },
+  bookPageFolio: {
+    borderRadius: 10,
+    borderWidth: 1.2,
+    borderLeftWidth: 7,
+    borderRightWidth: 3,
+    borderBottomWidth: 4,
+    paddingHorizontal: 26,
+    paddingVertical: 20,
+    gap: 16,
+  },
+  bookRunningHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+  },
+  redSealBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  pageSubtleNavRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 18,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+  },
+  pageSectionTab: {
+    paddingVertical: 4,
+  },
+  bookPageBody: {
+    minHeight: 310,
+    paddingVertical: 6,
+    justifyContent: 'space-between',
+  },
+  epigraphQuoteBox: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderLeftWidth: 3.5,
+    borderRadius: 6,
+  },
+  highlightedPassageBox: {
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 6,
+  },
+  figurePlate: {
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 12,
+  },
+  figureHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  figureCaptionText: {
+    fontSize: 12,
+    lineHeight: 19,
+    fontFamily: theme.fontFamily.serif,
+  },
+  underlinedBookNote: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderLeftWidth: 3,
+    borderRadius: 6,
+  },
+  footnoteSection: {
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderStyle: 'dashed',
+    gap: 6,
+  },
+  reflectionBox: {
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 8,
+  },
+  marginNoteCard: {
+    padding: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 8,
+  },
+  marginNoteInput: {
+    minHeight: 68,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    fontSize: 13.5,
+    lineHeight: 22,
+  },
+  sealStampCtaBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: 8,
+    borderWidth: 1.5,
+  },
+  bookPageFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 10,
+    paddingTop: 14,
+    borderTopWidth: 1,
+  },
+  pageTurnBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  primaryPlayBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 7,
+    borderWidth: 1,
+  },
+  spaciousQuizOptionBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 7,
+    borderWidth: 1,
+  },
+  microBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
   topStrip: {
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -2386,87 +2844,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
-    borderWidth: 1,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  stageTabBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 9,
-    borderWidth: 1.2,
-  },
-  cleanLessonPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 9,
-    borderWidth: 1.2,
-  },
-  focusedLessonCard: {
-    padding: 18,
-    borderRadius: 12,
-    borderWidth: 1.2,
-    gap: 12,
-  },
-  wizardStepPill: {
-    flex: 1,
-    minWidth: 135,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  spaciousAnalogyCard: {
-    padding: 18,
-    borderRadius: 12,
-    borderWidth: 1.2,
-    gap: 10,
-  },
-  singleHintBanner: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  wizardFooterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 10,
-    paddingTop: 6,
-  },
-  nextBigCtaBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 11,
-    borderRadius: 10,
-    borderWidth: 1.5,
-  },
-  primaryPlayBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1.2,
-  },
-  spaciousQuizOptionBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderRadius: 9,
-    borderWidth: 1.2,
-  },
-  microBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 7,
     borderWidth: 1,
   },
   drawerBox: {
@@ -2493,33 +2870,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     padding: 12,
-  },
-  animContainer: {
-    padding: 14,
-    borderRadius: 10,
-    borderWidth: 1.2,
-    gap: 12,
-  },
-  animHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  stepCaptionBox: {
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 8,
-    borderWidth: 1,
-    gap: 4,
-  },
-  codeBox: {
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 8,
-    borderWidth: 1,
-    gap: 4,
   },
   flashcardBox: {
     paddingHorizontal: 12,

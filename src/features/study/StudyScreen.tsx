@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Platform, StyleSheet, TextInput, View } from 'react-native';
 
 import {
   computeKnowledgeGraphStats,
@@ -46,7 +46,7 @@ export function StudyScreen() {
   );
 
   const [showCustomLogger, setShowCustomLogger] = useState(false);
-  const [quickTopic, setQuickTopic] = useState('AI 交互式研习');
+  const [quickTopic, setQuickTopic] = useState('《AI 从零到架构师》精读笔记');
   const [quickMinutes, setQuickMinutes] = useState('25');
 
   const kgStats = useMemo(() => computeKnowledgeGraphStats(readKnowledgeGraphState()), []);
@@ -70,12 +70,12 @@ export function StudyScreen() {
   };
 
   const handleLogStudy = (topic: string, mins: number) => {
-    const cleanTopic = topic.trim() || 'AI 交互式研习';
+    const cleanTopic = topic.trim() || '《AI 从零到架构师》章节阅读';
     const validMins = Math.max(5, Math.min(480, Math.round(mins)));
     void study.saveRecord({
       topic: cleanTopic,
       durationMinutes: validMins,
-      note: '来自学习角闯关打卡',
+      note: '来自学习角书院阅读打卡',
     });
     incrementOrAddTimeBlock({
       localDay,
@@ -90,15 +90,15 @@ export function StudyScreen() {
     <Screen>
       <Content width="wide" inset={inset}>
         <ScreenHeader
-          kicker={t('学习角 · Academy', 'Academy · Guided Learning')}
-          title={t('从零看懂 AI · 一步一卡交互讲堂', 'Step-by-Step Interactive AI Academy')}
+          kicker={t('学习角 · 个人书房', 'Academy · Reading Sanctuary')}
+          title={t('《AI 从零到架构师 · 交互式插图读本》', 'The Illustrated Interactive Book of AI')}
           trailing={
             <Row gap="xs" align="center" wrap>
               <CockpitPillButton
                 label={
                   showCustomLogger
-                    ? t('收起计时器 ▲', 'Hide Timer ▲')
-                    : t(`⏱ 今日已学 ${todayMinutes}m · 累计 ${combinedHours}h ▼`, `⏱ Today ${todayMinutes}m · ${combinedHours}h ▼`)
+                    ? t('收起读书计时 ▲', 'Hide Reading Log ▲')
+                    : t(`📖 今日已读 ${todayMinutes}m · 累计 ${combinedHours}h ▼`, `📖 Today ${todayMinutes}m · ${combinedHours}h ▼`)
                 }
                 active={showCustomLogger}
                 onPress={() => setShowCustomLogger((v) => !v)}
@@ -106,8 +106,8 @@ export function StudyScreen() {
               {layout !== 'compact' ? (
                 <CockpitHeaderBar
                   hudText={t(
-                    `已掌握 ${kgStats.masteredCount}/${kgStats.totalNodes} 课`,
-                    `Mastered ${kgStats.masteredCount}/${kgStats.totalNodes}`,
+                    `已读完 ${kgStats.masteredCount}/${kgStats.totalNodes} 章`,
+                    `Read ${kgStats.masteredCount}/${kgStats.totalNodes} Ch`,
                   )}
                   onOpenRecord={() => openRecordSheet(undefined, 'study')}
                   onOpenPalette={() => openDesktopBridge('palette')}
@@ -118,8 +118,8 @@ export function StudyScreen() {
           }
           subtitle={{
             description: t(
-              '每次只聚焦 1 张卡片：先听生活比喻 → 再动手点动画 → 看 3 句话总结 → 做 1 道题通关。',
-              'One focused card at a time: Analogy → Interactive Animation → 3 Key Takeaways → 1 Quiz.',
+              '像翻开一本带有活动插图的精装书：一页开篇故事、一页可拨动的书中插图、一页划线旁批、一页掩卷手札。',
+              'Read like an illustrated hardcover book: Narrative intro, interactive figure, margin notes, and reflection.',
             ),
             timeZone,
             onRetry: () => void study.reload(),
@@ -127,22 +127,21 @@ export function StudyScreen() {
         />
 
         <Stack gap="md">
-          {/* Optional Collapsible Study Time Logger Drawer (Hidden by default to keep screen calm!) */}
           {showCustomLogger ? (
             <Card>
               <Stack gap="sm">
                 <Row justify="between" align="center" gap="sm" wrap>
                   <Text variant="caption" style={{ fontWeight: '700' }}>
-                    {t('⏱ 快速补记今日自定义学习时长', '⏱ Quick Log Custom Study Session')}
+                    {t('⏱ 补记今日读书时长', '⏱ Log Custom Reading Session')}
                   </Text>
                   <Row gap="xs" align="center">
                     {[25, 45].map((m) => (
                       <CockpitPillButton
                         key={m}
-                        label={`＋${m}m 番茄钟`}
+                        label={`＋${m}m 读书打卡`}
                         onPress={() => {
                           handleLogStudy(quickTopic, m);
-                          showToast({ text: t(`✓ 已记录专注研习 +${m} 分钟`, `✓ Logged +${m}m`) });
+                          showToast({ text: t(`✓ 已记录阅读时长 +${m} 分钟`, `✓ Logged +${m}m`) });
                         }}
                       />
                     ))}
@@ -152,7 +151,7 @@ export function StudyScreen() {
                   <TextInput
                     value={quickTopic}
                     onChangeText={setQuickTopic}
-                    placeholder={t('输入研习课题', 'Study topic...')}
+                    placeholder={t('输入所读书籍或章节名', 'Book or chapter title...')}
                     placeholderTextColor={color.muted}
                     style={[
                       styles.topicInput,
@@ -179,7 +178,7 @@ export function StudyScreen() {
                     ]}
                   />
                   <CockpitPillButton
-                    label={t('✓ 保存记录', '✓ Save')}
+                    label={t('✓ 记入书房台账', '✓ Save')}
                     active
                     onPress={() => {
                       const mins = Number.parseInt(quickMinutes, 10) || 25;
@@ -201,14 +200,14 @@ export function StudyScreen() {
                   </Stack>
                 ) : (
                   <Text variant="caption" tone="muted">
-                    {t(`${formatMonthDay(localDay)} 暂无单独打卡，每通关一节课程也会自动为你记入 +25 分钟。`, 'Completing any lesson below automatically logs +25m.')}
+                    {t(`${formatMonthDay(localDay)} 暂无单独记录，在下方书页第 4 页盖下「已阅藏书印」也会自动记入 +25 分钟。`, 'Stamping a chapter as Read on Page 4 automatically logs +25m.')}
                   </Text>
                 )}
               </Stack>
             </Card>
           ) : null}
 
-          {/* Main Focused Step-by-Step Guided Academy */}
+          {/* Main Interactive Illustrated Book Reader */}
           <KnowledgeGraphCornerHub
             localDay={localDay}
             totalStudyMinutesLive={combinedStudyMinutes}
