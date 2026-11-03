@@ -11,8 +11,12 @@ import {
 } from './bookkeeping';
 import {
   buildDefaultKnowledgeState,
+  buildSrsFlashcardDeck,
+  buildStructuredMindMapForResult,
+  buildWeeklyLifeMagazine,
   clipCustomNewsArticle,
   computeAttentionSimulation,
+  computeDailyNutritionSummary,
   computeDistributedParallelSimulation,
   computeFlashAttentionSimulation,
   computeKnowledgeGraphStats,
@@ -23,13 +27,16 @@ import {
   computeQuantizationSimulation,
   computeRnnVsAttentionSimulation,
   computeSpeculativeDecodingSimulation,
+  computeSrsDeckSummary,
   computeStudioUnlockables,
   computeTokenNextWordSimulation,
   computeWordEmbeddingSimulation,
   DEFAULT_NEWS_DIGEST_ITEMS,
   DEFAULT_NEWS_FILTER,
+  executeInAppBrowserSearch,
   exportChapterPackJson,
   filterNewsDigestItems,
+  gradeSrsFlashcard,
   importCustomMarkdownKnowledgeNode,
   installKnowledgeChapterPack,
   LEARNING_STAGES,
@@ -38,7 +45,6 @@ import {
   scoreArticleSignalToNoise,
   searchLocalKnowledgeAndNews,
   updateKnowledgeNodeProgress,
-  executeInAppBrowserSearch,
 } from './knowledge-graph-corner';
 
 describe('Study Corner Hardcover Book Reader, In-App Research Browser, 17 Chapters & Smart News Digest Filter', () => {
@@ -93,6 +99,56 @@ describe('Study Corner Hardcover Book Reader, In-App Research Browser, 17 Chapte
       state,
     });
     expect(googleExec.results.some((r) => r.sourceKind === 'google-web')).toBe(true);
+
+    // Structured Mind-Map deconstructor for any search result
+    const mindMap = buildStructuredMindMapForResult(arxivExec.results[0]!);
+    expect(mindMap.branches).toHaveLength(4);
+    expect(mindMap.markdownExport).toContain('思维导图精读');
+
+    // FSRS Spaced Repetition flashcard deck & grading
+    const deck = buildSrsFlashcardDeck(state);
+    expect(deck.length).toBeGreaterThanOrEqual(15);
+    const gradedEasy = gradeSrsFlashcard(deck[0]!, 'easy');
+    expect(gradedEasy.stabilityDays).toBeGreaterThan(deck[0]!.stabilityDays);
+    expect(computeSrsDeckSummary(deck).retentionPct).toBeGreaterThanOrEqual(68);
+
+    // Fitness × Nutrition Macros & Calorie Deficit summary
+    const nutSummary = computeDailyNutritionSummary({
+      items: [
+        {
+          id: 'm1',
+          nameZh: '香煎鸡胸肉',
+          proteinG: 54,
+          carbsG: 2,
+          fatG: 6,
+          kcal: 280,
+          priceCny: 16,
+          loggedAt: '12:00',
+          syncedToLedger: true,
+        },
+      ],
+      bodyWeightKg: 70,
+      workoutBurnKcal: 350,
+    });
+    expect(nutSummary.targetProteinG).toBe(126);
+    expect(nutSummary.calorieDeficitKcal).toBeGreaterThan(1000);
+
+    // Weekly Life Magazine generator
+    const mag = buildWeeklyLifeMagazine({
+      localDay: '2026-11-04',
+      studyMinutesTotal: 240,
+      masteredChaptersCount: 6,
+      totalChaptersCount: 17,
+      srsRetentionPct: 92,
+      workoutSetsCount: 14,
+      workoutVolumeKg: 7200,
+      best1RmKg: 100,
+      latestWeightKg: 71.5,
+      monthlySavedCny: 360000,
+      monthlyExpenseCny: 3200,
+    });
+    expect(mag.columns).toHaveLength(3);
+    expect(mag.shareableMarkdown).toContain('星途生活画报');
   });
 
   it('ships a 4-volume 17-chapter illustrated book with multi-paragraph long-form essays and on-demand pack management', () => {

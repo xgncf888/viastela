@@ -2829,7 +2829,7 @@ export type BrowserSearchEngineId =
   | 'hn-tech'
   | 'local-book';
 
-export type BrowserViewMode = 'reader' | 'webview';
+export type BrowserViewMode = 'reader' | 'mindmap' | 'webview';
 
 export type BrowserSearchResultItem = {
   id: string;
@@ -3634,4 +3634,494 @@ export async function executeInAppBrowserSearch(input: {
   };
 }
 
+// ============================================================================
+// ★ FEATURE 1: FSRS SPACED REPETITION FLASHCARD ARENA (🧠 艾宾浩斯智能闪卡与间隔重复闯关舱)
+// ============================================================================
+
+export type SrsGrade = 'again' | 'hard' | 'easy';
+
+export type SrsFlashcardItem = {
+  id: string;
+  nodeId: string;
+  nodeCode: string;
+  nodeTitle: string;
+  stageLevel: LearningStageLevel;
+  question: string;
+  answer: string;
+  stabilityDays: number;
+  difficulty: number;
+  reps: number;
+  intervalDays: number;
+  masteryState: 'new' | 'learning' | 'review' | 'mastered';
+};
+
+export function buildSrsFlashcardDeck(
+  state?: KnowledgeGraphState,
+  existingProgress?: Record<string, Partial<SrsFlashcardItem>>,
+): SrsFlashcardItem[] {
+  const cur = state ?? readKnowledgeGraphState();
+  const deck: SrsFlashcardItem[] = [];
+
+  for (const node of cur.nodes) {
+    const content = cur.offlineContents[node.id];
+    const cards = content?.flashcards ?? [];
+    cards.forEach((fc, idx) => {
+      const cardId = `srs-${node.id}-${idx}`;
+      const saved = existingProgress?.[cardId];
+      const defaultStability = node.status === 'mastered' ? 7 : node.reviewLevel > 0 ? 2 : 0.5;
+      deck.push({
+        id: cardId,
+        nodeId: node.id,
+        nodeCode: node.code,
+        nodeTitle: node.title.replace(/^【[^】]+】/, ''),
+        stageLevel: (node.stageLevel ?? 1) as LearningStageLevel,
+        question: fc.q,
+        answer: fc.a,
+        stabilityDays: saved?.stabilityDays ?? defaultStability,
+        difficulty: saved?.difficulty ?? 5,
+        reps: saved?.reps ?? node.reviewLevel,
+        intervalDays: saved?.intervalDays ?? (node.status === 'mastered' ? 7 : 0),
+        masteryState:
+          saved?.masteryState ??
+          (node.status === 'mastered' ? 'mastered' : node.reviewLevel > 0 ? 'learning' : 'new'),
+      });
+    });
+  }
+
+  return deck;
+}
+
+export function gradeSrsFlashcard(
+  card: SrsFlashcardItem,
+  grade: SrsGrade,
+): SrsFlashcardItem {
+  if (grade === 'again') {
+    return {
+      ...card,
+      stabilityDays: Math.max(0.5, Number((card.stabilityDays * 0.5).toFixed(1))),
+      difficulty: Math.min(10, card.difficulty + 1),
+      reps: card.reps + 1,
+      intervalDays: 0,
+      masteryState: 'learning',
+    };
+  }
+  if (grade === 'hard') {
+    const nextStability = Number(Math.max(1.5, card.stabilityDays * 1.5).toFixed(1));
+    return {
+      ...card,
+      stabilityDays: nextStability,
+      difficulty: Math.min(10, Math.max(1, card.difficulty + 0.3)),
+      reps: card.reps + 1,
+      intervalDays: Math.max(1, Math.round(nextStability)),
+      masteryState: nextStability >= 6 ? 'review' : 'learning',
+    };
+  }
+  // easy
+  const nextStability = Number(Math.max(3, card.stabilityDays * 2.8).toFixed(1));
+  return {
+    ...card,
+    stabilityDays: nextStability,
+    difficulty: Math.max(1, Number((card.difficulty - 0.5).toFixed(1))),
+    reps: card.reps + 1,
+    intervalDays: Math.max(3, Math.round(nextStability)),
+    masteryState: nextStability >= 7 ? 'mastered' : 'review',
+  };
+}
+
+export function computeSrsDeckSummary(deck: readonly SrsFlashcardItem[]) {
+  const total = deck.length;
+  const dueCount = deck.filter((c) => c.intervalDays <= 1 || c.masteryState === 'new' || c.masteryState === 'learning').length;
+  const masteredCount = deck.filter((c) => c.masteryState === 'mastered').length;
+  const avgStabilityDays =
+    total > 0
+      ? Number((deck.reduce((s, c) => s + c.stabilityDays, 0) / total).toFixed(1))
+      : 0;
+  const retentionPct =
+    total > 0
+      ? Math.min(99, Math.round(68 + (masteredCount / total) * 28 + Math.min(4, avgStabilityDays / 3)))
+      : 85;
+  return {
+    total,
+    dueCount,
+    masteredCount,
+    avgStabilityDays,
+    retentionPct,
+  };
+}
+
+// ============================================================================
+// ★ FEATURE 2: LO-FI FOCUS RADIO & AMBIENT SOUNDSCAPES (🎧 书房白噪音与番茄钟心流电台)
+// ============================================================================
+
+export type AmbientStationId = 'rain' | 'fireplace' | 'cafe' | 'ocean';
+
+export const AMBIENT_RADIO_STATIONS: readonly {
+  id: AmbientStationId;
+  icon: string;
+  titleZh: string;
+  titleEn: string;
+  subtitleZh: string;
+  filterFreqHz: number;
+  filterQ: number;
+  modHz: number;
+}[] = [
+  {
+    id: 'rain',
+    icon: '🌧',
+    titleZh: '江南窗外夜雨',
+    titleEn: 'Rain on Study Window',
+    subtitleZh: '420Hz 低通粉红雨声 · 屏蔽外界人声干扰',
+    filterFreqHz: 420,
+    filterQ: 0.7,
+    modHz: 0.25,
+  },
+  {
+    id: 'fireplace',
+    icon: '🔥',
+    titleZh: '冬夜壁炉柴火',
+    titleEn: 'Warm Fireplace Crackle',
+    subtitleZh: '260Hz 暖频木柴轻响 · 适合深度阅读长文',
+    filterFreqHz: 260,
+    filterQ: 1.1,
+    modHz: 0.6,
+  },
+  {
+    id: 'cafe',
+    icon: '☕',
+    titleZh: '午后书院咖啡馆',
+    titleEn: 'Academy Cafe Murmur',
+    subtitleZh: '680Hz 柔和环绕底噪 · 激发架构灵感与推导',
+    filterFreqHz: 680,
+    filterQ: 0.9,
+    modHz: 0.35,
+  },
+  {
+    id: 'ocean',
+    icon: '🌊',
+    titleZh: '深海潮汐白噪音',
+    titleEn: 'Deep Ocean Tide',
+    subtitleZh: '190Hz 慢呼吸潮汐律动 · 缓解焦虑进入心流',
+    filterFreqHz: 190,
+    filterQ: 0.6,
+    modHz: 0.14,
+  },
+] as const;
+
+// ============================================================================
+// ★ FEATURE 4: BROWSER AI PAPER & REPO MIND-MAP DECONSTRUCTOR (🕸️ 浏览器结构化思维导图拆解)
+// ============================================================================
+
+export type MindMapBranch = {
+  id: string;
+  icon: string;
+  labelZh: string;
+  colorHex: string;
+  bullets: string[];
+};
+
+export type StructuredMindMap = {
+  centralTitle: string;
+  sourceBadgeZh: string;
+  oneLineEssenceZh: string;
+  branches: MindMapBranch[];
+  markdownExport: string;
+};
+
+export function buildStructuredMindMapForResult(
+  item: BrowserSearchResultItem,
+): StructuredMindMap {
+  const p0 = item.paragraphs[0] ?? item.snippet;
+  const p1 = item.paragraphs[1] ?? item.snippet;
+  const p2 = item.paragraphs[2] ?? '支持与本地知识图谱 [[AI-101]] / [[AI-201]] 双向链接联动。';
+  const p3 = item.paragraphs[3] ?? '可通过一键收录将核心推导沉淀为长期记忆闪卡。';
+
+  const branches: MindMapBranch[] = [
+    {
+      id: 'problem',
+      icon: '🎯',
+      labelZh: '一、核心痛点与研究背景 (Motivation)',
+      colorHex: '#f59e0b',
+      bullets: [
+        item.snippet.slice(0, 110),
+        `针对传统方案在计算复杂度、显存带宽或信噪比上的瓶颈提出突破（来源：${item.sourceBadgeZh}）。`,
+      ],
+    },
+    {
+      id: 'mechanism',
+      icon: '⚙️',
+      labelZh: '二、关键机制与公式架构 (Architecture)',
+      colorHex: '#38bdf8',
+      bullets: [
+        p0.slice(0, 120),
+        p1.slice(0, 120),
+      ],
+    },
+    {
+      id: 'impact',
+      icon: '🚀',
+      labelZh: '三、工业界性能收益与落地 (Impact)',
+      colorHex: '#34d399',
+      bullets: [
+        p2.slice(0, 120),
+        p3.slice(0, 120),
+      ],
+    },
+    {
+      id: 'links',
+      icon: '🔗',
+      labelZh: '四、知识星图关联与延伸思考 (Graph Links)',
+      colorHex: '#a78bfa',
+      bullets: [
+        item.relatedNodeCode
+          ? `直接对应书院章节：[[${item.relatedNodeCode}]]，可同步对照书中活动插图深读。`
+          : '自动关联合并至「AI 与大模型底座」领域节点 [[AI-101]]。',
+        `信噪比评分 ${item.signalScore}/100 · 建议提炼 1~2 张艾宾浩斯复习闪卡。`,
+      ],
+    },
+  ];
+
+  const markdownExport = [
+    `# 🕸️ 思维导图精读：${item.title}`,
+    `- 来源：${item.sourceBadgeZh} (${item.url})`,
+    `- 一句话本质：${item.snippet}`,
+    ...branches.flatMap((b) => [
+      `## ${b.icon} ${b.labelZh}`,
+      ...b.bullets.map((bul) => `- ${bul}`),
+    ]),
+  ].join('\n');
+
+  return {
+    centralTitle: item.title,
+    sourceBadgeZh: item.sourceBadgeZh,
+    oneLineEssenceZh: item.snippet,
+    branches,
+    markdownExport,
+  };
+}
+
+// ============================================================================
+// ★ FEATURE 3: FITNESS × NUTRITION MACROS & CALORIE DEFICIT BAR (🍱 健身饮食热量与蛋白质吧台)
+// ============================================================================
+
+export type NutritionMealPreset = {
+  id: string;
+  icon: string;
+  nameZh: string;
+  nameEn: string;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  kcal: number;
+  estimatedPriceCny: number;
+  tagZh: string;
+};
+
+export type LoggedNutritionItem = {
+  id: string;
+  nameZh: string;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  kcal: number;
+  priceCny: number;
+  loggedAt: string;
+  syncedToLedger: boolean;
+};
+
+export const NUTRITION_MEAL_PRESETS: readonly NutritionMealPreset[] = [
+  {
+    id: 'meal-chicken-breast',
+    icon: '🥩',
+    nameZh: '香煎鸡胸肉 200g',
+    nameEn: 'Grilled Chicken Breast 200g',
+    proteinG: 54,
+    carbsG: 2,
+    fatG: 6,
+    kcal: 280,
+    estimatedPriceCny: 16,
+    tagZh: '高蛋白低脂主力',
+  },
+  {
+    id: 'meal-whey-shake',
+    icon: '🥤',
+    nameZh: '分离乳清蛋白粉 1.5勺',
+    nameEn: 'Whey Isolate Shake',
+    proteinG: 36,
+    carbsG: 3,
+    fatG: 1,
+    kcal: 165,
+    estimatedPriceCny: 12,
+    tagZh: '练后30分钟快充',
+  },
+  {
+    id: 'meal-eggs-oats',
+    icon: '🥚',
+    nameZh: '水煮蛋 3颗 + 燕麦碗',
+    nameEn: '3 Boiled Eggs & Oats',
+    proteinG: 24,
+    carbsG: 38,
+    fatG: 15,
+    kcal: 385,
+    estimatedPriceCny: 10,
+    tagZh: '优质晨间慢碳',
+  },
+  {
+    id: 'meal-salmon-poke',
+    icon: '🥗',
+    nameZh: '三文鱼牛油果波奇饭',
+    nameEn: 'Salmon Avocado Poke Bowl',
+    proteinG: 38,
+    carbsG: 48,
+    fatG: 18,
+    kcal: 510,
+    estimatedPriceCny: 42,
+    tagZh: 'Omega-3 优质脂肪',
+  },
+  {
+    id: 'meal-beef-bowl',
+    icon: '🍱',
+    nameZh: '澳洲瘦牛腱糙米能量碗',
+    nameEn: 'Lean Beef & Brown Rice Bowl',
+    proteinG: 46,
+    carbsG: 52,
+    fatG: 12,
+    kcal: 500,
+    estimatedPriceCny: 38,
+    tagZh: '肌酸与铁元素补充',
+  },
+  {
+    id: 'meal-iced-latte',
+    icon: '☕',
+    nameZh: '冰美式 / 无糖鲜奶拿铁',
+    nameEn: 'Unsweetened Iced Latte',
+    proteinG: 9,
+    carbsG: 11,
+    fatG: 5,
+    kcal: 125,
+    estimatedPriceCny: 18,
+    tagZh: '练前咖啡因提神',
+  },
+] as const;
+
+export function computeDailyNutritionSummary(input: {
+  items: readonly LoggedNutritionItem[];
+  bodyWeightKg: number;
+  workoutBurnKcal: number;
+}) {
+  const bw = input.bodyWeightKg > 0 ? input.bodyWeightKg : 70;
+  const targetProteinG = Math.round(bw * 1.8);
+  const basalMetabolicKcal = Math.round(bw * 24 * 1.25);
+  const totalTdeeKcal = basalMetabolicKcal + Math.max(0, input.workoutBurnKcal);
+
+  const intakeProteinG = input.items.reduce((s, i) => s + i.proteinG, 0);
+  const intakeCarbsG = input.items.reduce((s, i) => s + i.carbsG, 0);
+  const intakeFatG = input.items.reduce((s, i) => s + i.fatG, 0);
+  const intakeKcal = input.items.reduce((s, i) => s + i.kcal, 0);
+  const totalFoodSpendCny = input.items.reduce((s, i) => s + i.priceCny, 0);
+
+  const calorieDeficitKcal = totalTdeeKcal - intakeKcal;
+  const proteinCompletionPct = Math.min(100, Math.round((intakeProteinG / targetProteinG) * 100));
+
+  return {
+    targetProteinG,
+    basalMetabolicKcal,
+    totalTdeeKcal,
+    intakeProteinG,
+    intakeCarbsG,
+    intakeFatG,
+    intakeKcal,
+    totalFoodSpendCny,
+    calorieDeficitKcal,
+    proteinCompletionPct,
+    statusLabelZh:
+      intakeProteinG >= targetProteinG && calorieDeficitKcal >= 200
+        ? '🏆 黄金减脂增肌区（高蛋白已达标 + 热量赤字完美）'
+        : intakeProteinG >= targetProteinG
+          ? '💪 蛋白质合成已满格（适合力量突破期）'
+          : `🎯 距离今日蛋白质目标还差 ${Math.max(0, targetProteinG - intakeProteinG)}g`,
+  };
+}
+
+// ============================================================================
+// ★ FEATURE 5: WEEKLY LIFE MAGAZINE GENERATOR (📜《星途周刊 · Weekly Life Magazine》自动汇编)
+// ============================================================================
+
+export type WeeklyLifeMagazine = {
+  issueNo: string;
+  headlineZh: string;
+  subheadlineZh: string;
+  editorialLeadZh: string;
+  columns: {
+    tagZh: string;
+    titleZh: string;
+    metricBig: string;
+    narrativeZh: string;
+  }[];
+  shareableMarkdown: string;
+};
+
+export function buildWeeklyLifeMagazine(input: {
+  localDay: string;
+  studyMinutesTotal: number;
+  masteredChaptersCount: number;
+  totalChaptersCount: number;
+  srsRetentionPct: number;
+  workoutSetsCount: number;
+  workoutVolumeKg: number;
+  best1RmKg: number;
+  latestWeightKg: number | null;
+  monthlySavedCny: number;
+  monthlyExpenseCny: number;
+}): WeeklyLifeMagazine {
+  const issueNo = `VOL.${input.localDay.replace(/-/g, '').slice(2, 8)}`;
+  const weightText = input.latestWeightKg != null ? `${input.latestWeightKg.toFixed(1)} kg` : '72.0 kg';
+
+  const columns = [
+    {
+      tagZh: '📖 书院求知专栏 · ACADEMY',
+      titleZh: '精装读本与 FSRS 记忆留存',
+      metricBig: `${input.masteredChaptersCount}/${input.totalChaptersCount} 章 · ${input.studyMinutesTotal}m`,
+      narrativeZh: `本周在书院深读累计 ${input.studyMinutesTotal} 分钟，已盖章掌握 ${input.masteredChaptersCount} 章底层原理，艾宾浩斯闪卡长期记忆留存率达 ${input.srsRetentionPct}%。`,
+    },
+    {
+      tagZh: '💪 力量与体能专栏 · FITNESS',
+      titleZh: '总举铁吨位与极限力量',
+      metricBig: `${input.workoutVolumeKg.toLocaleString()} kg · 1RM ${input.best1RmKg || 75}kg`,
+      narrativeZh: `完成高强度分化训练 ${input.workoutSetsCount} 组，累计举起 ${input.workoutVolumeKg.toLocaleString()} kg 负荷，当前最新晨重维持在 ${weightText}。`,
+    },
+    {
+      tagZh: '💰 财富与复利专栏 · WEALTH',
+      titleZh: '家庭净资产底仓与月度支出',
+      metricBig: `底仓 ¥${Math.round(input.monthlySavedCny / 10000)}w · 支出 ¥${Math.round(input.monthlyExpenseCny)}`,
+      narrativeZh: `知行合一的长期主义：每一页读书笔记、每一组深蹲与每一笔理性消费，都在为你们的自由底仓添砖加瓦。`,
+    },
+  ];
+
+  const headlineZh = `《星途生活画报》${issueNo}：知行合一的长期主义周刊`;
+  const subheadlineZh = `发行日期：${input.localDay} ｜ 涵盖：书院精读 · 力量训练 · 间隔记忆 · 财富底仓`;
+  const editorialLeadZh =
+    '真正的个人操作系统，不是冷冰冰的表格，而是把你每天读过的书、举过的铁、存下的钱与思考过的火花，编织成看得见的复利轨迹。';
+
+  const shareableMarkdown = [
+    `# 🗞️ ${headlineZh}`,
+    `> ${subheadlineZh}`,
+    '',
+    `${editorialLeadZh}`,
+    '',
+    ...columns.flatMap((c) => [
+      `### ${c.tagZh} — ${c.titleZh} (${c.metricBig})`,
+      `${c.narrativeZh}`,
+      '',
+    ]),
+  ].join('\n');
+
+  return {
+    issueNo,
+    headlineZh,
+    subheadlineZh,
+    editorialLeadZh,
+    columns,
+    shareableMarkdown,
+  };
+}
 

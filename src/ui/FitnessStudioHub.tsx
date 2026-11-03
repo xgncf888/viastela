@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
+import {
+  computeDailyNutritionSummary,
+  type LoggedNutritionItem,
+  NUTRITION_MEAL_PRESETS,
+  type NutritionMealPreset,
+} from '@/core/knowledge-graph-corner';
 import { formatMonthDay } from '@/core/local-day';
 import {
   BAND_LABEL,
@@ -11,6 +17,7 @@ import {
   type TrainingSet,
 } from '@/core/training';
 import { formatKg } from '@/core/weight-stats';
+import { addLedgerTransaction } from '@/data/bookkeeping';
 import { recordPledgeReward } from '@/data/life-gamification';
 import { incrementOrAddTimeBlock } from '@/data/time-block-tracker';
 
@@ -134,6 +141,22 @@ export function FitnessStudioHub({
   const [restSecondsLeft, setRestSecondsLeft] = useState<number>(0);
   const [restRunning, setRestRunning] = useState<boolean>(false);
 
+  // Feature 3: Fitness × Nutrition Macros & Calorie Deficit State
+  const [loggedMeals, setLoggedMeals] = useState<LoggedNutritionItem[]>(() => [
+    {
+      id: 'init-meal-1',
+      nameZh: '🥚 水煮蛋 3颗 + 燕麦碗',
+      proteinG: 24,
+      carbsG: 38,
+      fatG: 15,
+      kcal: 385,
+      priceCny: 10,
+      loggedAt: '08:30',
+      syncedToLedger: false,
+    },
+  ]);
+  const [syncMealToLedger, setSyncMealToLedger] = useState<boolean>(true);
+
   useEffect(() => {
     if (!restRunning) return undefined;
     const timer = setInterval(() => {
@@ -200,9 +223,60 @@ export function FitnessStudioHub({
     };
   }, [todaySets, allSets]);
 
+  const nutritionSummary = useMemo(
+    () =>
+      computeDailyNutritionSummary({
+        items: loggedMeals,
+        bodyWeightKg: latestWeightKg ?? 72,
+        workoutBurnKcal: fitnessAnalytics.estKcalBurned,
+      }),
+    [loggedMeals, latestWeightKg, fitnessAnalytics.estKcalBurned],
+  );
+
   function startRestTimer(seconds: number) {
     setRestSecondsLeft(seconds);
     setRestRunning(true);
+  }
+
+  function handleLogMealPreset(preset: NutritionMealPreset) {
+    setLoggedMeals((prev) => [
+      {
+        id: `meal-${prev.length + 1}-${preset.id}`,
+        nameZh: `${preset.icon} ${preset.nameZh}`,
+        proteinG: preset.proteinG,
+        carbsG: preset.carbsG,
+        fatG: preset.fatG,
+        kcal: preset.kcal,
+        priceCny: preset.estimatedPriceCny,
+        loggedAt: '刚刚',
+        syncedToLedger: syncMealToLedger,
+      },
+      ...prev,
+    ]);
+
+    if (syncMealToLedger && preset.estimatedPriceCny > 0) {
+      addLedgerTransaction({
+        kind: 'expense',
+        amountCny: preset.estimatedPriceCny,
+        categoryId: 'dining',
+        accountId: 'wechat',
+        note: `健身营养餐: ${preset.nameZh} (+${preset.proteinG}g蛋白)`,
+        localDay,
+        owner: 'me',
+      });
+    }
+
+    showToast({
+      text: syncMealToLedger
+        ? t(
+            `🍱 已记录「${preset.nameZh}」(+${preset.proteinG}g 蛋白质 / ${preset.kcal} kcal)，并已同步记入记账本 -¥${preset.estimatedPriceCny}！`,
+            `🍱 Logged ${preset.nameEn} (+${preset.proteinG}g protein) & synced ¥${preset.estimatedPriceCny} to Ledger!`,
+          )
+        : t(
+            `🍱 已记录「${preset.nameZh}」(+${preset.proteinG}g 蛋白质 / ${preset.kcal} kcal)`,
+            `🍱 Logged ${preset.nameEn} (+${preset.proteinG}g protein)`,
+          ),
+    });
   }
 
   function handleSaveSet(customItem?: { exercise: string; weightKg: number | null; reps: number; bandLevel: string | null }) {
@@ -685,6 +759,104 @@ export function FitnessStudioHub({
           </Card>
         </View>
       </View>
+
+      {/* 4. Feature 3: Fitness × Nutrition Macros & Calorie Deficit Bar (🍱 健身 × 饮食热量 & 蛋白质宏量营养素吧台) */}
+      <Card>
+        <Stack gap="sm">
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <View style={{ gap: 2 }}>
+              <Text variant="label" style={{ fontSize: 15, fontWeight: '700' }}>
+                {t('🍱 健身 × 饮食热量 & 蛋白质宏量营养素 (Macros) 吧台', '🍱 Nutrition Macros & Calorie Deficit Bar')}
+              </Text>
+              <Text variant="caption" style={{ color: pal.emerald, fontSize: 11.5, fontWeight: '700' }}>
+                {nutritionSummary.statusLabelZh}
+              </Text>
+            </View>
+
+            <Pressable
+              onPress={() => setSyncMealToLedger((v) => !v)}
+              style={[
+                styles.microBtn,
+                {
+                  borderColor: syncMealToLedger ? pal.emerald : pal.border,
+                  backgroundColor: syncMealToLedger ? 'rgba(52, 211, 153, 0.14)' : pal.elevated,
+                },
+              ]}
+            >
+              <Text variant="caption" style={{ color: syncMealToLedger ? pal.emerald : pal.sub, fontSize: 11, fontWeight: '700' }}>
+                {syncMealToLedger
+                  ? t('⚡ 已开启：打卡餐食自动同步至「记账」餐饮流水', '⚡ Auto-Sync Meal Cost to Ledger: ON')
+                  : t('○ 点击开启：打卡餐食同步记账', '○ Auto-Sync to Ledger: OFF')}
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* Protein & Calorie Deficit Summary Strip */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+            <View style={[styles.kpiCard, { backgroundColor: pal.elevated, borderColor: pal.border }]}>
+              <Text variant="caption" style={{ color: pal.sub, fontSize: 11 }}>
+                {t('🥩 今日蛋白质摄入 / 增肌目标 (1.8g/kg)', '🥩 Protein Intake / Target')}
+              </Text>
+              <Text variant="title" style={{ color: pal.emerald, fontSize: 19, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                {`${nutritionSummary.intakeProteinG}g / ${nutritionSummary.targetProteinG}g (${nutritionSummary.proteinCompletionPct}%)`}
+              </Text>
+              <View style={{ height: 7, borderRadius: 4, backgroundColor: pal.cardBg, overflow: 'hidden', marginTop: 4 }}>
+                <View style={{ width: `${nutritionSummary.proteinCompletionPct}%`, height: '100%', backgroundColor: pal.emerald }} />
+              </View>
+            </View>
+
+            <View style={[styles.kpiCard, { backgroundColor: pal.elevated, borderColor: pal.border }]}>
+              <Text variant="caption" style={{ color: pal.sub, fontSize: 11 }}>
+                {t('🔥 热量赤字 (总消耗 TDEE - 饮食摄入)', '🔥 Daily Calorie Deficit')}
+              </Text>
+              <Text variant="title" style={{ color: pal.gold, fontSize: 19, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                {`${nutritionSummary.calorieDeficitKcal >= 0 ? `赤字 -${nutritionSummary.calorieDeficitKcal}` : `盈余 +${Math.abs(nutritionSummary.calorieDeficitKcal)}`} kcal`}
+              </Text>
+              <Text variant="caption" style={{ color: pal.sub, fontSize: 10.5, fontFamily: theme.fontFamily.mono }}>
+                {`消耗 ${nutritionSummary.totalTdeeKcal} kcal vs 摄入 ${nutritionSummary.intakeKcal} kcal`}
+              </Text>
+            </View>
+
+            <View style={[styles.kpiCard, { backgroundColor: pal.elevated, borderColor: pal.border }]}>
+              <Text variant="caption" style={{ color: pal.sub, fontSize: 11 }}>
+                {t('⚖️ 三大宏量营养素 & 今日餐饮开销', '⚖️ Macros & Dining Spend')}
+              </Text>
+              <Text variant="caption" style={{ color: pal.ink, fontSize: 13, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                {`蛋白 ${nutritionSummary.intakeProteinG}g · 碳水 ${nutritionSummary.intakeCarbsG}g · 脂肪 ${nutritionSummary.intakeFatG}g`}
+              </Text>
+              <Text variant="caption" style={{ color: pal.sky, fontSize: 11, fontFamily: theme.fontFamily.mono }}>
+                {`今日营养餐累计 ¥${nutritionSummary.totalFoodSpendCny}`}
+              </Text>
+            </View>
+          </View>
+
+          {/* 6 One-Tap Fitness Meal Presets */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {NUTRITION_MEAL_PRESETS.map((meal) => (
+              <Pressable
+                key={meal.id}
+                onPress={() => handleLogMealPreset(meal)}
+                style={[styles.presetExerciseCard, { backgroundColor: pal.elevated, borderColor: pal.border }]}
+              >
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text variant="caption" style={{ color: pal.emerald, fontSize: 10.5, fontWeight: '700' }}>
+                    {meal.tagZh}
+                  </Text>
+                  <Text variant="caption" style={{ color: pal.gold, fontSize: 10.5, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                    {`¥${meal.estimatedPriceCny}`}
+                  </Text>
+                </View>
+                <Text variant="label" style={{ color: pal.ink, fontSize: 13, fontWeight: '700' }}>
+                  {`${meal.icon} ${meal.nameZh}`}
+                </Text>
+                <Text variant="caption" style={{ color: pal.sub, fontSize: 10.5, fontFamily: theme.fontFamily.mono }}>
+                  {`＋${meal.proteinG}g 蛋白 · ${meal.kcal} kcal`}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </Stack>
+      </Card>
     </Stack>
   );
 }

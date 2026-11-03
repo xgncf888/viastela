@@ -3,11 +3,15 @@ import { Platform, Pressable, Share, StyleSheet, TextInput, View } from 'react-n
 
 import {
   type AiAnimationKind,
+  AMBIENT_RADIO_STATIONS,
+  type AmbientStationId,
   BROWSER_HOT_QUERIES,
   BROWSER_SEARCH_ENGINES,
   type BrowserSearchEngineId,
   type BrowserSearchResultItem,
   type BrowserViewMode,
+  buildSrsFlashcardDeck,
+  buildWeeklyLifeMagazine,
   CATALOG_CHAPTER_PACKS,
   clipCustomNewsArticle,
   computeAttentionSimulation,
@@ -21,6 +25,7 @@ import {
   computeQuantizationSimulation,
   computeRnnVsAttentionSimulation,
   computeSpeculativeDecodingSimulation,
+  computeSrsDeckSummary,
   computeStudioUnlockables,
   computeTokenNextWordSimulation,
   computeWordEmbeddingSimulation,
@@ -29,6 +34,7 @@ import {
   executeInAppBrowserSearch,
   exportChapterPackJson,
   filterNewsDigestItems,
+  gradeSrsFlashcard,
   importCustomMarkdownKnowledgeNode,
   installKnowledgeChapterPack,
   KNOWLEDGE_DOMAINS,
@@ -41,6 +47,8 @@ import {
   offloadKnowledgeChapterPack,
   readKnowledgeGraphState,
   searchLocalKnowledgeAndNews,
+  type SrsFlashcardItem,
+  type SrsGrade,
   toggleNewsItemStatus,
   updateKnowledgeNodeProgress,
   updateNewsFilterOptions,
@@ -54,7 +62,7 @@ import { useTheme } from './ThemeProvider';
 import { showToast } from './toast';
 import { useI18n } from './use-i18n';
 
-export type StudyWorkbenchSubView = 'lab' | 'browser' | 'news' | 'graph' | 'packs';
+export type StudyWorkbenchSubView = 'lab' | 'srs' | 'magazine' | 'browser' | 'news' | 'graph' | 'packs';
 
 /**
  * 4 Book Pages per Chapter (每章四页纸书阅读体验):
@@ -1499,7 +1507,114 @@ export function KnowledgeGraphCornerHub({
   const [browserHistoryIdx, setBrowserHistoryIdx] = useState<number>(0);
   const [iframeReloadTick, setIframeReloadTick] = useState<number>(0);
 
+  // Feature 1: FSRS Spaced Repetition Flashcard Arena State (🧠 艾宾浩斯智能闪卡闯关)
+  const [srsProgressMap, setSrsProgressMap] = useState<Record<string, Partial<SrsFlashcardItem>>>({});
+  const [srsCardIdx, setSrsCardIdx] = useState<number>(0);
+  const [srsFlipped, setSrsFlipped] = useState<boolean>(false);
+
+  // Feature 2: Lo-Fi Focus Radio & 25m Pomodoro Timer State (🎧 书房白噪音与番茄钟心流电台)
+  const [activeStationId, setActiveStationId] = useState<AmbientStationId | null>(null);
+  const [pomodoroSecLeft, setPomodoroSecLeft] = useState<number>(25 * 60);
+  const [pomodoroRunning, setPomodoroRunning] = useState<boolean>(false);
+
+  const srsDeck = useMemo(
+    () => buildSrsFlashcardDeck(kgState, srsProgressMap),
+    [kgState, srsProgressMap],
+  );
+  const srsSummary = useMemo(() => computeSrsDeckSummary(srsDeck), [srsDeck]);
+  const activeSrsCard = srsDeck[srsCardIdx % Math.max(1, srsDeck.length)] ?? null;
+
+  // Procedural Web Audio API Soundscape Generator (0 MB external audio)
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || !activeStationId) {
+      return undefined;
+    }
+    const station = AMBIENT_RADIO_STATIONS.find((s) => s.id === activeStationId) ?? AMBIENT_RADIO_STATIONS[0]!;
+    const WinAudioCtx =
+      (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext })
+        .AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!WinAudioCtx) return undefined;
+
+    let ctx: AudioContext | null = null;
+    try {
+      ctx = new WinAudioCtx();
+      const bufferSize = ctx.sampleRate * 2;
+      const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      let b0 = 0;
+      let b1 = 0;
+      let b2 = 0;
+      for (let i = 0; i < bufferSize; i += 1) {
+        const white = Math.random() * 2 - 1;
+        b0 = 0.997 * b0 + white * 0.029;
+        b1 = 0.985 * b1 + white * 0.032;
+        b2 = 0.95 * b2 + white * 0.048;
+        output[i] = (b0 + b1 + b2) * 0.25;
+      }
+      const whiteNoise = ctx.createBufferSource();
+      whiteNoise.buffer = noiseBuffer;
+      whiteNoise.loop = true;
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = station.filterFreqHz;
+      filter.Q.value = station.filterQ;
+
+      const gainNode = ctx.createGain();
+      gainNode.gain.value = 0.08;
+
+      whiteNoise.connect(filter);
+      filter.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      whiteNoise.start(0);
+    } catch {
+      // Ignore audio autoplay block
+    }
+
+    return () => {
+      if (ctx) {
+        void ctx.close().catch(() => {});
+      }
+    };
+  }, [activeStationId]);
+
+  // 25m Pomodoro Focus Timer
+  useEffect(() => {
+    if (!pomodoroRunning) return undefined;
+    const timer = setInterval(() => {
+      setPomodoroSecLeft((s) => {
+        if (s <= 1) {
+          setPomodoroRunning(false);
+          onLogStudyMinutes?.('🍅 书院番茄钟心流共读', 25);
+          recordPledgeReward(localDay, 'study');
+          showToast({ text: t('🍅 25 分钟番茄钟专注完成！已自动记入 +25m 书院共读并奖励心愿金库！', '🍅 25m Pomodoro complete! +25m logged!') });
+          return 25 * 60;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [pomodoroRunning, localDay, onLogStudyMinutes, t]);
+
   const bkState = readBookkeepingState();
+  const weeklyMagazine = useMemo(
+    () =>
+      buildWeeklyLifeMagazine({
+        localDay,
+        studyMinutesTotal: Math.max(kgState.nodes.reduce((s, n) => s + n.studyMinutes, 0), totalStudyMinutesLive),
+        masteredChaptersCount: kgState.nodes.filter((n) => n.status === 'mastered').length,
+        totalChaptersCount: kgState.nodes.length,
+        srsRetentionPct: srsSummary.retentionPct,
+        workoutSetsCount: 12,
+        workoutVolumeKg: 6480,
+        best1RmKg: 95,
+        latestWeightKg: 71.8,
+        monthlySavedCny: bkState.wealthPlan.currentSavedCny,
+        monthlyExpenseCny: 3280,
+      }),
+    [localDay, kgState.nodes, totalStudyMinutesLive, srsSummary.retentionPct, bkState.wealthPlan.currentSavedCny],
+  );
   const stats = useMemo(() => computeKnowledgeGraphStats(kgState), [kgState]);
   const unlockables = useMemo(
     () =>
@@ -1796,24 +1911,42 @@ export function KnowledgeGraphCornerHub({
           })}
         </View>
 
-        {/* Right Side: In-App Browser (`🌐 书院浏览器 · 直接搜`) + Smart News Digest (`📰 书院晨报`) + Knowledge Graph + Offline Packs */}
+        {/* Right Side: FSRS Flashcards (`🧠 闪卡闯关`) + Weekly Magazine (`📜 星途周刊`) + News Digest + Graph + Packs */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="切换至书院内置浏览器直接搜索"
-            onPress={() => setActiveSubView(activeSubView === 'browser' ? 'lab' : 'browser')}
+            accessibilityLabel="切换至艾宾浩斯智能闪卡闯关舱"
+            onPress={() => setActiveSubView(activeSubView === 'srs' ? 'lab' : 'srs')}
             style={[
               styles.tocToggleBtn,
               {
-                backgroundColor: activeSubView === 'browser' ? pal.pillActiveBg : pal.paperBg,
-                borderColor: activeSubView === 'browser' ? pal.gold : pal.border,
+                backgroundColor: activeSubView === 'srs' ? pal.pillActiveBg : pal.paperBg,
+                borderColor: activeSubView === 'srs' ? pal.emerald : pal.border,
               },
             ]}
           >
-            <Text variant="caption" style={{ color: activeSubView === 'browser' ? pal.goldText : pal.ink, fontSize: 11.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
-              {activeSubView === 'browser'
+            <Text variant="caption" style={{ color: activeSubView === 'srs' ? pal.emerald : pal.ink, fontSize: 11.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+              {activeSubView === 'srs'
                 ? t('← 返回精装书卷', '← Back to Book')
-                : t('🌐 书院浏览器 · 直接搜', '🌐 Research Browser')}
+                : t(`🧠 闪卡闯关 (待复习 ${srsSummary.dueCount})`, `🧠 SRS Cards (${srsSummary.dueCount})`)}
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="切换至星途周刊生活画报"
+            onPress={() => setActiveSubView(activeSubView === 'magazine' ? 'lab' : 'magazine')}
+            style={[
+              styles.tocToggleBtn,
+              {
+                backgroundColor: activeSubView === 'magazine' ? pal.pillActiveBg : pal.paperBg,
+                borderColor: activeSubView === 'magazine' ? pal.gold : pal.border,
+              },
+            ]}
+          >
+            <Text variant="caption" style={{ color: activeSubView === 'magazine' ? pal.goldText : pal.ink, fontSize: 11.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+              {activeSubView === 'magazine'
+                ? t('← 返回精装书卷', '← Back to Book')
+                : t('📜 星途周刊画报', '📜 Weekly Magazine')}
             </Text>
           </Pressable>
           <Pressable
@@ -1831,7 +1964,7 @@ export function KnowledgeGraphCornerHub({
             <Text variant="caption" style={{ color: activeSubView === 'news' ? pal.goldText : pal.ink, fontSize: 11.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
               {activeSubView === 'news'
                 ? t('← 返回精装书卷', '← Back to Book')
-                : t(`📰 书院晨报 · 资讯筛选 (${filteredNewsResult.visibleItems.length})`, `📰 News Digest (${filteredNewsResult.visibleItems.length})`)}
+                : t(`📰 书院晨报 (${filteredNewsResult.visibleItems.length})`, `📰 News (${filteredNewsResult.visibleItems.length})`)}
             </Text>
           </Pressable>
           <Pressable
@@ -1850,6 +1983,76 @@ export function KnowledgeGraphCornerHub({
               {activeSubView === 'packs' ? t('← 返回书页', '← Book') : t(`📦 藏书匣 (${stats.cachedSizeKb}KB)`, '📦 Packs')}
             </Text>
           </Pressable>
+        </View>
+      </View>
+
+      {/* 1.5 Lo-Fi Focus Radio & 25m Pomodoro Bar (🎧 书房白噪音与番茄钟心流电台 · 0MB 实时合成) */}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 8,
+          paddingHorizontal: 16,
+          paddingVertical: 8,
+          backgroundColor: pal.paperBg,
+          borderBottomWidth: 1,
+          borderBottomColor: pal.border,
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <Text variant="caption" style={{ color: pal.goldText, fontSize: 11.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+            {t('🎧 书房心流电台 (0MB 合成白噪音)：', '🎧 Focus Ambient Radio:')}
+          </Text>
+          {AMBIENT_RADIO_STATIONS.map((st) => {
+            const isPlaying = activeStationId === st.id;
+            return (
+              <Pressable
+                key={st.id}
+                onPress={() => setActiveStationId((prev) => (prev === st.id ? null : st.id))}
+                style={[
+                  styles.microBtn,
+                  {
+                    borderColor: isPlaying ? pal.emerald : pal.border,
+                    backgroundColor: isPlaying ? pal.pillActiveBg : 'transparent',
+                  },
+                ]}
+              >
+                <Text variant="caption" style={{ color: isPlaying ? pal.emerald : pal.sub, fontSize: 11, fontFamily: theme.fontFamily.serif, fontWeight: isPlaying ? '700' : '500' }}>
+                  {`${st.icon} ${st.titleZh}${isPlaying ? ' 🔊' : ''}`}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Pressable
+            onPress={() => setPomodoroRunning((r) => !r)}
+            style={[
+              styles.microBtn,
+              {
+                borderColor: pomodoroRunning ? pal.emerald : pal.gold,
+                backgroundColor: pomodoroRunning ? 'rgba(52, 211, 153, 0.16)' : pal.pillActiveBg,
+              },
+            ]}
+          >
+            <Text variant="caption" style={{ color: pomodoroRunning ? pal.emerald : pal.goldText, fontSize: 11.5, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+              {`🍅 番茄钟 ${String(Math.floor(pomodoroSecLeft / 60)).padStart(2, '0')}:${String(pomodoroSecLeft % 60).padStart(2, '0')} ${pomodoroRunning ? '⏸ 暂停' : '▶ 开启心流'}`}
+            </Text>
+          </Pressable>
+          {pomodoroSecLeft !== 25 * 60 ? (
+            <Pressable
+              onPress={() => {
+                setPomodoroRunning(false);
+                setPomodoroSecLeft(25 * 60);
+              }}
+              style={[styles.microBtn, { borderColor: pal.border }]}
+            >
+              <Text variant="caption" style={{ color: pal.muted, fontSize: 10.5 }}>重置</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
 
@@ -1903,6 +2106,224 @@ export function KnowledgeGraphCornerHub({
                 </Pressable>
               );
             })}
+          </View>
+        </View>
+      ) : null}
+
+      {/* ================= SUB-VIEW: FSRS SPACED REPETITION FLASHCARD ARENA (🧠 艾宾浩斯智能闪卡与间隔重复闯关舱) ================= */}
+      {activeSubView === 'srs' ? (
+        <View style={styles.deskStage}>
+          <View style={[styles.bookPageFolio, { backgroundColor: pal.paperBg, borderColor: pal.goldBorder, borderLeftColor: pal.spineShadow }]}>
+            <View style={[styles.bookRunningHeader, { borderBottomColor: pal.border }]}>
+              <Text variant="caption" style={{ color: pal.goldText, fontSize: 12, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                {t('🧠 艾宾浩斯 FSRS 智能闪卡与间隔重复闯关舱', '🧠 FSRS Spaced Repetition Flashcard Arena')}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
+                <Text variant="caption" style={{ color: pal.emerald, fontSize: 11.5, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                  {`长期记忆留存率 ${srsSummary.retentionPct}% · 平均稳定度 ${srsSummary.avgStabilityDays} 天`}
+                </Text>
+                <Text variant="caption" style={{ color: pal.sub, fontSize: 11.5, fontFamily: theme.fontFamily.mono }}>
+                  {`进度 ${(srsCardIdx % Math.max(1, srsDeck.length)) + 1}/${srsDeck.length} · 已掌握 ${srsSummary.masteredCount} 张`}
+                </Text>
+              </View>
+            </View>
+
+            {activeSrsCard ? (
+              <View style={{ gap: 16 }}>
+                <Pressable
+                  onPress={() => setSrsFlipped((f) => !f)}
+                  style={[
+                    styles.highlightedPassageBox,
+                    {
+                      backgroundColor: pal.paperElevated,
+                      borderColor: srsFlipped ? pal.emerald : pal.gold,
+                      padding: 24,
+                      minHeight: 220,
+                      justifyContent: 'space-between',
+                    },
+                  ]}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                    <Text variant="caption" style={{ color: pal.goldText, fontSize: 11.5, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                      {`【${activeSrsCard.nodeCode} · ${activeSrsCard.nodeTitle}】 记忆稳定度 S=${activeSrsCard.stabilityDays}d · 难度 D=${activeSrsCard.difficulty}`}
+                    </Text>
+                    <Text variant="caption" style={{ color: pal.emerald, fontSize: 11, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                      {srsFlipped ? '📖 卡片背面（标准推导与解答）' : '👉 点击卡片翻转查看背面答案'}
+                    </Text>
+                  </View>
+
+                  <Text
+                    variant="title"
+                    style={{
+                      color: pal.ink,
+                      fontSize: 20,
+                      lineHeight: 30,
+                      fontFamily: theme.fontFamily.serif,
+                      fontWeight: '700',
+                      marginVertical: 12,
+                    }}
+                  >
+                    {`问：${activeSrsCard.question}`}
+                  </Text>
+
+                  {srsFlipped ? (
+                    <View style={{ paddingTop: 12, borderTopWidth: 1, borderTopColor: pal.border, gap: 6 }}>
+                      <Text variant="caption" style={{ color: pal.emerald, fontSize: 12, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                        {t('💡 核心解答与记忆锚点：', '💡 Key Answer & Mental Anchor:')}
+                      </Text>
+                      <Text
+                        variant="body"
+                        style={{
+                          color: pal.ink,
+                          fontSize: 16,
+                          lineHeight: 27,
+                          fontFamily: theme.fontFamily.serif,
+                        }}
+                      >
+                        {activeSrsCard.answer}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text variant="caption" style={{ color: pal.muted, fontSize: 12, fontFamily: theme.fontFamily.serif }}>
+                      {t('先在脑海中回想 3 秒钟，再点击卡片翻开背面进行 FSRS 记忆评级...', 'Recall in your head for 3s, then tap to flip and grade...')}
+                    </Text>
+                  )}
+                </Pressable>
+
+                {/* 3 FSRS Grading Buttons */}
+                <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
+                  {(
+                    [
+                      {
+                        grade: 'again' as SrsGrade,
+                        labelZh: '🔴 忘了 / 重来 (Again · 10分钟后重现)',
+                        borderCol: pal.sealRed,
+                        textCol: pal.sealRed,
+                      },
+                      {
+                        grade: 'hard' as SrsGrade,
+                        labelZh: `🟡 有点犹豫 (Hard · ${Math.max(1, Math.round(activeSrsCard.stabilityDays * 1.5))}天后复习)`,
+                        borderCol: pal.gold,
+                        textCol: pal.goldText,
+                      },
+                      {
+                        grade: 'easy' as SrsGrade,
+                        labelZh: `🟢 秒懂掌握 (Easy · ${Math.max(3, Math.round(activeSrsCard.stabilityDays * 2.8))}天后复习 +5m)`,
+                        borderCol: pal.emerald,
+                        textCol: pal.emerald,
+                      },
+                    ] as const
+                  ).map((btn) => (
+                    <Pressable
+                      key={btn.grade}
+                      onPress={() => {
+                        const updated = gradeSrsFlashcard(activeSrsCard, btn.grade);
+                        setSrsProgressMap((prev) => ({ ...prev, [activeSrsCard.id]: updated }));
+                        setSrsFlipped(false);
+                        setSrsCardIdx((idx) => idx + 1);
+                        if (btn.grade === 'easy') {
+                          onLogStudyMinutes?.(`FSRS 闪卡闯关: ${activeSrsCard.nodeTitle}`, 5);
+                          recordPledgeReward(localDay, 'study');
+                        }
+                        showToast({
+                          text: t(
+                            `🧠 已完成闪卡评级：下次复习间隔 ${updated.intervalDays} 天（记忆稳定度 ${updated.stabilityDays}d）`,
+                            `🧠 Graded! Next review in ${updated.intervalDays}d`,
+                          ),
+                        });
+                      }}
+                      style={[
+                        styles.pageTurnBtn,
+                        {
+                          flex: 1,
+                          minWidth: 190,
+                          borderColor: btn.borderCol,
+                          backgroundColor: pal.paperElevated,
+                          alignItems: 'center',
+                        },
+                      ]}
+                    >
+                      <Text variant="caption" style={{ color: btn.textCol, fontSize: 12.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                        {btn.labelZh}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+
+      {/* ================= SUB-VIEW: WEEKLY LIFE MAGAZINE (📜《星途周刊 · Weekly Life Magazine》跨 Tab 画报) ================= */}
+      {activeSubView === 'magazine' ? (
+        <View style={styles.deskStage}>
+          <View style={[styles.bookPageFolio, { backgroundColor: pal.paperBg, borderColor: pal.goldBorder, borderLeftColor: pal.spineShadow }]}>
+            <View style={[styles.bookRunningHeader, { borderBottomColor: pal.border }]}>
+              <Text variant="caption" style={{ color: pal.goldText, fontSize: 12, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                {`🗞️ MONOCLE / EDITORIAL EDITION · ${weeklyMagazine.issueNo}`}
+              </Text>
+              <Pressable
+                onPress={async () => {
+                  if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+                    await navigator.clipboard.writeText(weeklyMagazine.shareableMarkdown);
+                    showToast({ text: t('📜 已复制《星途生活画报》全文 Markdown，可直接粘贴分享！', '📜 Copied Weekly Magazine Markdown!') });
+                    return;
+                  }
+                  await Share.share({ title: weeklyMagazine.headlineZh, message: weeklyMagazine.shareableMarkdown });
+                }}
+                style={[styles.primaryPlayBtn, { backgroundColor: '#b88228', borderColor: '#b88228' }]}
+              >
+                <Text variant="caption" style={{ color: '#fffbeb', fontSize: 11.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                  {t('📤 一键复制 / 分享本期周刊海报', '📤 Copy / Share Weekly Magazine')}
+                </Text>
+              </Pressable>
+            </View>
+
+            <View style={{ gap: 6, alignItems: 'center', paddingVertical: 8, borderBottomWidth: 2, borderBottomColor: pal.gold }}>
+              <Text variant="title" style={{ color: pal.ink, fontSize: 24, lineHeight: 34, fontFamily: theme.fontFamily.serif, fontWeight: '700', textAlign: 'center' }}>
+                {weeklyMagazine.headlineZh}
+              </Text>
+              <Text variant="caption" style={{ color: pal.sub, fontSize: 12, fontFamily: theme.fontFamily.serif }}>
+                {weeklyMagazine.subheadlineZh}
+              </Text>
+            </View>
+
+            <View style={[styles.epigraphQuoteBox, { backgroundColor: pal.paperElevated, borderLeftColor: pal.gold }]}>
+              <Text variant="body" style={{ color: pal.ink, fontSize: 15, lineHeight: 26, fontFamily: theme.fontFamily.serif }}>
+                {`“${weeklyMagazine.editorialLeadZh}”`}
+              </Text>
+            </View>
+
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+              {weeklyMagazine.columns.map((col) => (
+                <View
+                  key={col.tagZh}
+                  style={[
+                    styles.packCard,
+                    {
+                      backgroundColor: pal.paperElevated,
+                      borderColor: pal.border,
+                      padding: 16,
+                      gap: 8,
+                    },
+                  ]}
+                >
+                  <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                    {col.tagZh}
+                  </Text>
+                  <Text variant="label" style={{ color: pal.ink, fontSize: 15, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                    {col.titleZh}
+                  </Text>
+                  <Text variant="title" style={{ color: pal.emerald, fontSize: 18, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                    {col.metricBig}
+                  </Text>
+                  <Text variant="body" style={{ color: pal.sub, fontSize: 13.5, lineHeight: 22, fontFamily: theme.fontFamily.serif }}>
+                    {col.narrativeZh}
+                  </Text>
+                </View>
+              ))}
+            </View>
           </View>
         </View>
       ) : null}

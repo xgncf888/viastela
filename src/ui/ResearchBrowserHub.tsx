@@ -4,6 +4,7 @@ import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import {
   BROWSER_HOT_QUERIES,
   BROWSER_SEARCH_ENGINES,
+  buildStructuredMindMapForResult,
   type BrowserBookmarkItem,
   type BrowserSearchEngineId,
   type BrowserSearchResultItem,
@@ -90,6 +91,11 @@ export function ResearchBrowserHub({
       activeTab.results[0] ??
       null,
     [activeTab.results, activeTab.selectedResultId],
+  );
+
+  const activeMindMap = useMemo(
+    () => (activeResult ? buildStructuredMindMapForResult(activeResult) : null),
+    [activeResult],
   );
 
   const pal = isDark
@@ -227,7 +233,7 @@ export function ResearchBrowserHub({
 
   return (
     <View style={[styles.browserFrame, { backgroundColor: pal.deskBg, borderColor: pal.goldBorder }]}>
-      {/* 1. Multi-Tab Strip (多标签页栏 + 视图切换) */}
+      {/* 1. Multi-Tab Strip (多标签页栏 + 三模视图切换: 纸书净读 / 思维导图拆解 / 网页原貌) */}
       <View style={[styles.tabStripBar, { backgroundColor: pal.paperElevated, borderBottomColor: pal.border }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', flex: 1 }}>
           {tabs.map((tb, idx) => {
@@ -307,7 +313,29 @@ export function ResearchBrowserHub({
                 fontWeight: '700',
               }}
             >
-              {t('📖 纸书净读模式 (去杂讯)', '📖 Book Reader Mode')}
+              {t('📖 纸书净读模式', '📖 Book Reader')}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => updateActiveTab({ viewMode: 'mindmap' })}
+            style={[
+              styles.microBtn,
+              {
+                borderColor: activeTab.viewMode === 'mindmap' ? pal.emerald : pal.border,
+                backgroundColor: activeTab.viewMode === 'mindmap' ? pal.pillActiveBg : pal.paperBg,
+              },
+            ]}
+          >
+            <Text
+              variant="caption"
+              style={{
+                color: activeTab.viewMode === 'mindmap' ? pal.emerald : pal.sub,
+                fontSize: 11,
+                fontFamily: theme.fontFamily.serif,
+                fontWeight: '700',
+              }}
+            >
+              {t('🕸️ AI 思维导图拆解', '🕸️ Mind Map')}
             </Text>
           </Pressable>
           <Pressable
@@ -329,7 +357,7 @@ export function ResearchBrowserHub({
                 fontWeight: '700',
               }}
             >
-              {t('🖥 网页原貌窗口 (内嵌浏览)', '🖥 Web Iframe View')}
+              {t('🖥 网页原貌窗口', '🖥 Web View')}
             </Text>
           </Pressable>
         </View>
@@ -611,10 +639,101 @@ export function ResearchBrowserHub({
         </View>
       </View>
 
-      {/* 3. Main Browser Viewport: Reader Mode OR Embedded Web Window */}
+      {/* 3. Main Browser Viewport: Reader Mode OR AI Mind-Map Mode OR Embedded Web Window */}
       <View style={{ padding: 16 }}>
         {activeResult ? (
-          activeTab.viewMode === 'reader' ? (
+          activeTab.viewMode === 'mindmap' && activeMindMap ? (
+            <View style={[styles.bookPageFolio, { backgroundColor: pal.paperBg, borderColor: pal.goldBorder, borderLeftColor: pal.spineShadow }]}>
+              <View style={[styles.bookRunningHeader, { borderBottomColor: pal.border }]}>
+                <Text variant="caption" style={{ color: pal.emerald, fontSize: 12, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                  {`🕸️ AI 论文与项目结构化思维导图拆解 · ${activeMindMap.sourceBadgeZh}`}
+                </Text>
+                <Pressable
+                  onPress={() => updateActiveTab({ viewMode: 'reader' })}
+                  style={[styles.microBtn, { borderColor: pal.gold }]}
+                >
+                  <Text variant="caption" style={{ color: pal.goldText, fontSize: 11, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                    {t('← 返回纸书全文净读', '← Back to Reader')}
+                  </Text>
+                </Pressable>
+              </View>
+
+              {/* Central Mind-Map Root Node */}
+              <View style={[styles.mindMapRootCard, { backgroundColor: pal.paperElevated, borderColor: pal.gold }]}>
+                <Text variant="caption" style={{ color: pal.goldText, fontSize: 11, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                  {t('🌟 思维导图中心主题 (Root Node)', '🌟 Mind-Map Central Thesis')}
+                </Text>
+                <Text variant="title" style={{ color: pal.ink, fontSize: 20, lineHeight: 28, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                  {activeMindMap.centralTitle}
+                </Text>
+                <Text variant="body" style={{ color: pal.sub, fontSize: 13.5, lineHeight: 22, fontFamily: theme.fontFamily.serif }}>
+                  {activeMindMap.oneLineEssenceZh}
+                </Text>
+              </View>
+
+              {/* 4 Structured Mind-Map Branches */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                {activeMindMap.branches.map((br) => (
+                  <View
+                    key={br.id}
+                    style={[
+                      styles.mindMapBranchCard,
+                      {
+                        backgroundColor: pal.paperElevated,
+                        borderColor: pal.border,
+                        borderLeftColor: br.colorHex,
+                      },
+                    ]}
+                  >
+                    <Text variant="label" style={{ color: br.colorHex, fontSize: 13.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                      {`${br.icon} ${br.labelZh}`}
+                    </Text>
+                    {br.bullets.map((bul, idx) => (
+                      <Text
+                        key={idx}
+                        variant="body"
+                        style={{
+                          color: pal.ink,
+                          fontSize: 13.5,
+                          lineHeight: 22,
+                          fontFamily: theme.fontFamily.serif,
+                        }}
+                      >
+                        {`• ${bul}`}
+                      </Text>
+                    ))}
+                  </View>
+                ))}
+              </View>
+
+              <View style={[styles.bookPageFooter, { borderTopColor: pal.border }]}>
+                <Pressable
+                  onPress={() => {
+                    const { addedNode } = importCustomMarkdownKnowledgeNode({
+                      title: `思维导图: ${activeResult.title.slice(0, 26)}`,
+                      domainId: 'ai-infra',
+                      markdownBody: activeMindMap.markdownExport,
+                    });
+                    onSaveStudyRecord?.(`思维导图精读: ${addedNode.title}`, 15, activeResult.sourceBadgeZh);
+                    incrementOrAddTimeBlock({
+                      localDay,
+                      category: 'study',
+                      title: `思维导图精读: ${addedNode.title}`,
+                      deltaMinutes: 15,
+                      goalId: null,
+                    });
+                    recordPledgeReward(localDay, 'study');
+                    showToast({ text: t(`🕸️ 已将「${addedNode.title}」四维导图存入知识图谱并生成复习闪卡！`, '🕸️ Mind map saved to Knowledge Graph!') });
+                  }}
+                  style={[styles.pageTurnBtn, { backgroundColor: '#b88228', borderColor: '#b88228' }]}
+                >
+                  <Text variant="caption" style={{ color: '#fffbeb', fontSize: 12, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                    {t('📌 将整张思维导图存入我的知识图谱 (+15m)', '📌 Save Mind Map to Knowledge Graph (+15m)')}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : activeTab.viewMode === 'reader' ? (
             <View style={[styles.bookPageFolio, { backgroundColor: pal.paperBg, borderColor: pal.goldBorder, borderLeftColor: pal.spineShadow }]}>
               <View style={[styles.bookRunningHeader, { borderBottomColor: pal.border }]}>
                 <Text variant="caption" style={{ color: pal.muted, fontSize: 11.5, fontFamily: theme.fontFamily.serif }}>
@@ -631,6 +750,14 @@ export function ResearchBrowserHub({
                     {`原文地址：${activeResult.url}`}
                   </Text>
                   <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                    <Pressable
+                      onPress={() => updateActiveTab({ viewMode: 'mindmap' })}
+                      style={[styles.microBtn, { borderColor: pal.emerald }]}
+                    >
+                      <Text variant="caption" style={{ color: pal.emerald, fontSize: 10.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                        {t('🕸️ 一键拆解为结构化思维导图 →', '🕸️ Deconstruct into Mind Map →')}
+                      </Text>
+                    </Pressable>
                     <Pressable
                       onPress={() => updateActiveTab({ viewMode: 'webview' })}
                       style={[styles.microBtn, { borderColor: pal.gold }]}
@@ -911,6 +1038,21 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderLeftWidth: 3.5,
     borderRadius: 6,
+  },
+  mindMapRootCard: {
+    padding: 16,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    gap: 6,
+  },
+  mindMapBranchCard: {
+    flex: 1,
+    minWidth: 250,
+    padding: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderLeftWidth: 4,
+    gap: 6,
   },
   bookPageFooter: {
     flexDirection: 'row',
