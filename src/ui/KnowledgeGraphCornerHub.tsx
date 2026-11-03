@@ -4,6 +4,7 @@ import { Platform, Pressable, Share, StyleSheet, TextInput, View } from 'react-n
 import {
   type AiAnimationKind,
   CATALOG_CHAPTER_PACKS,
+  clipCustomNewsArticle,
   computeAttentionSimulation,
   computeDistributedParallelSimulation,
   computeFlashAttentionSimulation,
@@ -18,7 +19,10 @@ import {
   computeStudioUnlockables,
   computeTokenNextWordSimulation,
   computeWordEmbeddingSimulation,
+  DEFAULT_NEWS_DIGEST_ITEMS,
+  DEFAULT_NEWS_FILTER,
   exportChapterPackJson,
+  filterNewsDigestItems,
   importCustomMarkdownKnowledgeNode,
   installKnowledgeChapterPack,
   KNOWLEDGE_DOMAINS,
@@ -26,9 +30,13 @@ import {
   type KnowledgeGraphState,
   LEARNING_STAGES,
   type LearningStageLevel,
+  NEWS_CATEGORIES,
+  type NewsCategoryId,
   offloadKnowledgeChapterPack,
   readKnowledgeGraphState,
+  toggleNewsItemStatus,
   updateKnowledgeNodeProgress,
+  updateNewsFilterOptions,
 } from '@/core/knowledge-graph-corner';
 import { readBookkeepingState } from '@/data/bookkeeping';
 import { recordPledgeReward } from '@/data/life-gamification';
@@ -39,11 +47,11 @@ import { useTheme } from './ThemeProvider';
 import { showToast } from './toast';
 import { useI18n } from './use-i18n';
 
-export type StudyWorkbenchSubView = 'lab' | 'graph' | 'packs';
+export type StudyWorkbenchSubView = 'lab' | 'news' | 'graph' | 'packs';
 
 /**
  * 4 Book Pages per Chapter (每章四页纸书阅读体验):
- * Page 1 = 第 1 页 · 开篇引子与直觉叙事 (Narrative Opening & Highlighted Quote)
+ * Page 1 = 第 1 页 · 开篇引子与深度长文 (Narrative Opening & Multi-Paragraph Deep Essay)
  * Page 2 = 第 2 页 · 书中活动插图 (Interactive Book Figure & Caption)
  * Page 3 = 第 3 页 · 精读划线与书页脚注 (Underlined Key Passages & Footnotes)
  * Page 4 = 第 4 页 · 掩卷思考与手札钤印 (Reflection, Margin Note & Red Seal Stamp)
@@ -51,7 +59,7 @@ export type StudyWorkbenchSubView = 'lab' | 'graph' | 'packs';
 export type BookPageNumber = 1 | 2 | 3 | 4;
 
 /**
- * Interactive Book Figure (书中活动插图 · 像哈利波特魔法书/Distill绘本一样嵌在书页中央)
+ * Interactive Book Figure (书中活动插图 · 嵌在书页中央)
  */
 function AiInteractiveAnimationLab({
   kind,
@@ -159,7 +167,6 @@ function AiInteractiveAnimationLab({
   const sky = isDark ? '#38bdf8' : '#0369a1';
   const svgHeight = fullScreen ? 184 : 142;
 
-  // ==================== LAB AI-001: TOKEN NEXT-WORD SOLITAIRE ====================
   if (kind === 'token-next-word') {
     const sim = computeTokenNextWordSimulation({
       generatedStep: tokenStep,
@@ -281,7 +288,6 @@ function AiInteractiveAnimationLab({
     );
   }
 
-  // ==================== LAB AI-002: WORD EMBEDDING 2D GALAXY ====================
   if (kind === 'word-embedding') {
     const sim = computeWordEmbeddingSimulation({
       clusterId: embedCluster,
@@ -404,7 +410,6 @@ function AiInteractiveAnimationLab({
     );
   }
 
-  // ==================== LAB AI-003: NEURON LOSS VALLEY & GRADIENT DESCENT ====================
   if (kind === 'neuron-gradient') {
     const sim = computeNeuronGradientSimulation({
       stepCount: gradStep,
@@ -524,7 +529,6 @@ function AiInteractiveAnimationLab({
     );
   }
 
-  // ==================== LAB AI-004: RNN DECAY VS ATTENTION DIRECT LINK ====================
   if (kind === 'rnn-vs-attention') {
     const sim = computeRnnVsAttentionSimulation({ sentenceLength: rnnLen });
     return (
@@ -613,7 +617,6 @@ function AiInteractiveAnimationLab({
     );
   }
 
-  // ==================== LAB AI-105: RAG VS LORA ADAPTATION ====================
   if (kind === 'lora-rag') {
     const sim = computeLoraRagSimulation({
       mode: loraRagMode,
@@ -686,7 +689,6 @@ function AiInteractiveAnimationLab({
     );
   }
 
-  // ==================== LAB AI-701: INT4 QUANTIZATION & SMOOTHQUANT ====================
   if (kind === 'quantization-smooth') {
     const sim = computeQuantizationSimulation({
       precision: quantPrecision,
@@ -765,7 +767,6 @@ function AiInteractiveAnimationLab({
     );
   }
 
-  // ==================== LAB AI-101: SELF-ATTENTION + ROPE ====================
   if (kind === 'self-attention') {
     const sim = computeAttentionSimulation({
       focusTokenIdx,
@@ -1467,6 +1468,13 @@ export function KnowledgeGraphCornerHub({
   const [customDomain, setCustomDomain] = useState<KnowledgeDomainId>('ai-infra');
   const [customMd, setCustomMd] = useState('');
 
+  // Smart News & Tech Digest Reader State
+  const [selectedNewsId, setSelectedNewsId] = useState<string>('news-deepseek-r1-grpo');
+  const [showClipDrawer, setShowClipDrawer] = useState(false);
+  const [clipTitle, setClipTitle] = useState('');
+  const [clipCategory, setClipCategory] = useState<NewsCategoryId>('ai-frontier');
+  const [clipBody, setClipBody] = useState('');
+
   const bkState = readBookkeepingState();
   const stats = useMemo(() => computeKnowledgeGraphStats(kgState), [kgState]);
   const unlockables = useMemo(
@@ -1505,6 +1513,21 @@ export function KnowledgeGraphCornerHub({
   const prevNodeGlobal = orderedAllNodes[globalIndex - 1] ?? null;
   const nextNodeGlobal = orderedAllNodes[globalIndex + 1] ?? null;
 
+  // Filtered News Digest Items
+  const newsFilter = kgState.newsFilter ?? DEFAULT_NEWS_FILTER;
+  const allNewsItems = kgState.newsItems ?? DEFAULT_NEWS_DIGEST_ITEMS;
+  const filteredNewsResult = useMemo(
+    () => filterNewsDigestItems(allNewsItems, newsFilter),
+    [allNewsItems, newsFilter],
+  );
+  const activeNewsItem = useMemo(
+    () =>
+      filteredNewsResult.visibleItems.find((item) => item.id === selectedNewsId) ??
+      filteredNewsResult.visibleItems[0] ??
+      allNewsItems[0]!,
+    [allNewsItems, filteredNewsResult.visibleItems, selectedNewsId],
+  );
+
   useEffect(() => {
     setMarginNoteDraft(selectedNode.userNote ?? '');
   }, [selectedNode.id, selectedNode.userNote]);
@@ -1534,7 +1557,6 @@ export function KnowledgeGraphCornerHub({
     }
   }
 
-  // Support Left / Right keyboard arrow keys to flip pages like an e-reader!
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined' || activeSubView !== 'lab') {
       return undefined;
@@ -1554,7 +1576,6 @@ export function KnowledgeGraphCornerHub({
     return () => window.removeEventListener('keydown', onKey);
   }, [activeSubView, pageNumber]);
 
-  // Warm Literary Parchment & Night Reading Palette
   const pal = isDark
     ? {
         deskBg: '#11100e',
@@ -1636,12 +1657,12 @@ export function KnowledgeGraphCornerHub({
       : selectedStage === 2
         ? '第二卷 · 核心架构篇'
         : selectedStage === 3
-          ? '第三卷 · 定制与端侧篇'
+          ? '第三卷 · 定制与智能体篇'
           : '第四卷 · 工业系统篇';
 
   return (
     <View style={[styles.container, { backgroundColor: pal.deskBg, borderColor: pal.goldBorder }]}>
-      {/* 1. Quiet Book Reader Top Bar (书眉工具栏：目录书签 + 四卷切换 + 星图/书匣) */}
+      {/* 1. Quiet Book Reader Top Bar (书眉工具栏：目录书签 + 四卷切换 + 书院晨报资讯筛选 + 星图/书匣) */}
       <View style={[styles.readerTopBar, { backgroundColor: pal.paperElevated, borderBottomColor: pal.border }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           <Pressable
@@ -1654,13 +1675,13 @@ export function KnowledgeGraphCornerHub({
             style={[
               styles.tocToggleBtn,
               {
-                backgroundColor: tocOpen ? pal.pillActiveBg : pal.paperBg,
-                borderColor: tocOpen ? pal.gold : pal.border,
+                backgroundColor: activeSubView === 'lab' && tocOpen ? pal.pillActiveBg : pal.paperBg,
+                borderColor: activeSubView === 'lab' ? pal.gold : pal.border,
               },
             ]}
           >
             <Text variant="caption" style={{ color: pal.goldText, fontSize: 12, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
-              {tocOpen ? t('📖 收起目录 ▲', '📖 Hide TOC ▲') : t('📖 书目卷章 ▼', '📖 Contents ▼')}
+              {activeSubView === 'lab' && tocOpen ? t('📖 收起目录 ▲', '📖 Hide TOC ▲') : t('📖 精装读本 · 目录 ▼', '📖 Book & TOC ▼')}
             </Text>
           </Pressable>
 
@@ -1672,7 +1693,7 @@ export function KnowledgeGraphCornerHub({
                 : stg.level === 2
                   ? '卷二·核心'
                   : stg.level === 3
-                    ? '卷三·微调'
+                    ? '卷三·智能体'
                     : '卷四·系统';
             return (
               <Pressable
@@ -1707,7 +1728,26 @@ export function KnowledgeGraphCornerHub({
           })}
         </View>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        {/* Right Side: Smart News Digest Filter (`📰 书院晨报`) + Knowledge Graph + Offline Packs */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="切换至书院晨报与智能资讯筛选"
+            onPress={() => setActiveSubView(activeSubView === 'news' ? 'lab' : 'news')}
+            style={[
+              styles.tocToggleBtn,
+              {
+                backgroundColor: activeSubView === 'news' ? pal.pillActiveBg : pal.paperBg,
+                borderColor: activeSubView === 'news' ? pal.gold : pal.border,
+              },
+            ]}
+          >
+            <Text variant="caption" style={{ color: activeSubView === 'news' ? pal.goldText : pal.ink, fontSize: 11.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+              {activeSubView === 'news'
+                ? t('← 返回精装书卷', '← Back to Book')
+                : t(`📰 书院晨报 · 资讯筛选 (${filteredNewsResult.visibleItems.length})`, `📰 News Digest (${filteredNewsResult.visibleItems.length})`)}
+            </Text>
+          </Pressable>
           <Pressable
             onPress={() => setActiveSubView(activeSubView === 'graph' ? 'lab' : 'graph')}
             style={[styles.microBtn, { borderColor: activeSubView === 'graph' ? pal.gold : pal.border }]}
@@ -1727,7 +1767,7 @@ export function KnowledgeGraphCornerHub({
         </View>
       </View>
 
-      {/* Collapsible Bookmark Table of Contents Drawer (展开时像翻开书本扉页目录) */}
+      {/* Collapsible Bookmark Table of Contents Drawer */}
       {tocOpen && activeSubView === 'lab' ? (
         <View style={[styles.tocDrawer, { backgroundColor: pal.paperBg, borderBottomColor: pal.border }]}>
           <Text variant="caption" style={{ color: pal.goldText, fontSize: 12, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
@@ -1772,12 +1812,439 @@ export function KnowledgeGraphCornerHub({
                       fontWeight: isRead ? '700' : '400',
                     }}
                   >
-                    {isRead ? '〔已阅钤印〕' : `〔约 3 分钟 · 研读 ${n.studyMinutes}m〕`}
+                    {isRead ? '〔已阅钤印〕' : `〔约 5 分钟长文 · 已读 ${n.studyMinutes}m〕`}
                   </Text>
                 </Pressable>
               );
             })}
           </View>
+        </View>
+      ) : null}
+
+      {/* ================= SUB-VIEW 4: SMART NEWS & TECH DIGEST FILTER READER (书院晨报 · 资讯筛选与长文净读) ================= */}
+      {activeSubView === 'news' ? (
+        <View style={styles.deskStage}>
+          {/* 1. Multi-Dimensional News Filter Controls */}
+          <View style={[styles.newsFilterPanel, { backgroundColor: pal.paperElevated, borderColor: pal.border }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <Text variant="label" style={{ color: pal.ink, fontSize: 14, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                  {t('📰 书院晨报 · 智能信噪比资讯筛选台', '📰 Smart High-Signal News & Essay Filter')}
+                </Text>
+                <View style={[styles.redSealBadge, { borderColor: pal.emerald, paddingHorizontal: 8, paddingVertical: 2 }]}>
+                  <Text variant="caption" style={{ color: pal.emerald, fontSize: 10.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                    {t(
+                      `🛡 已自动拦截 ${filteredNewsResult.filteredOutNoiseCount} 篇标题党/低信噪比水文`,
+                      `🛡 Intercepted ${filteredNewsResult.filteredOutNoiseCount} noisy items`,
+                    )}
+                  </Text>
+                </View>
+              </View>
+
+              <Pressable
+                onPress={() => setShowClipDrawer((v) => !v)}
+                style={[styles.primaryPlayBtn, { backgroundColor: '#b88228', borderColor: '#b88228' }]}
+              >
+                <Text variant="caption" style={{ color: '#fffbeb', fontSize: 11, fontWeight: '700' }}>
+                  {showClipDrawer ? t('收起剪藏面板 ▲', 'Hide Clipper ▲') : t('＋ 粘贴外部文章 / 资讯净读', '＋ Clip Article to Read')}
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Category & Signal Threshold Row */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+              <Pressable
+                onPress={() => setKgState(updateNewsFilterOptions({ category: 'all' }))}
+                style={[
+                  styles.volumePill,
+                  {
+                    backgroundColor: newsFilter.category === 'all' ? pal.pillActiveBg : pal.paperBg,
+                    borderColor: newsFilter.category === 'all' ? pal.gold : pal.border,
+                  },
+                ]}
+              >
+                <Text variant="caption" style={{ color: newsFilter.category === 'all' ? pal.goldText : pal.sub, fontSize: 11, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                  {t('全部频道', 'All')}
+                </Text>
+              </Pressable>
+              {NEWS_CATEGORIES.map((cat) => {
+                const active = newsFilter.category === cat.id;
+                return (
+                  <Pressable
+                    key={cat.id}
+                    onPress={() => setKgState(updateNewsFilterOptions({ category: cat.id }))}
+                    style={[
+                      styles.volumePill,
+                      {
+                        backgroundColor: active ? pal.pillActiveBg : pal.paperBg,
+                        borderColor: active ? pal.gold : pal.border,
+                      },
+                    ]}
+                  >
+                    <Text variant="caption" style={{ color: active ? pal.goldText : pal.sub, fontSize: 11, fontFamily: theme.fontFamily.serif, fontWeight: active ? '700' : '500' }}>
+                      {`${cat.icon} ${t(cat.zh, cat.en)}`}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+
+              {/* Signal Score Toggle */}
+              <Pressable
+                onPress={() =>
+                  setKgState(
+                    updateNewsFilterOptions({
+                      minSignalScore: newsFilter.minSignalScore >= 80 ? 0 : 80,
+                    }),
+                  )
+                }
+                style={[
+                  styles.volumePill,
+                  {
+                    backgroundColor: newsFilter.minSignalScore >= 80 ? 'rgba(52,211,153,0.16)' : pal.paperBg,
+                    borderColor: newsFilter.minSignalScore >= 80 ? pal.emerald : pal.border,
+                  },
+                ]}
+              >
+                <Text variant="caption" style={{ color: newsFilter.minSignalScore >= 80 ? pal.emerald : pal.sub, fontSize: 11, fontWeight: '700' }}>
+                  {newsFilter.minSignalScore >= 80
+                    ? t('✓ 仅看高信噪比 (≥80分)', '✓ High-Signal Only (≥80)')
+                    : t('○ 显示全部 (含低分水文)', '○ Show All Scores')}
+                </Text>
+              </Pressable>
+
+              {/* Depth & Bookmark Toggles */}
+              <Pressable
+                onPress={() =>
+                  setKgState(
+                    updateNewsFilterOptions({
+                      readingDepth:
+                        newsFilter.readingDepth === 'all'
+                          ? 'deep'
+                          : newsFilter.readingDepth === 'deep'
+                            ? 'quick'
+                            : 'all',
+                    }),
+                  )
+                }
+                style={[styles.volumePill, { borderColor: pal.border, backgroundColor: pal.paperBg }]}
+              >
+                <Text variant="caption" style={{ color: pal.sub, fontSize: 11 }}>
+                  {newsFilter.readingDepth === 'all'
+                    ? '⏱ 时长：不限'
+                    : newsFilter.readingDepth === 'deep'
+                      ? '☕ 仅看 ≥6m 深度长文'
+                      : '⚡ 仅看 ≤5m 速读简报'}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() =>
+                  setKgState(updateNewsFilterOptions({ onlyBookmarked: !newsFilter.onlyBookmarked }))
+                }
+                style={[
+                  styles.volumePill,
+                  {
+                    borderColor: newsFilter.onlyBookmarked ? pal.gold : pal.border,
+                    backgroundColor: newsFilter.onlyBookmarked ? pal.pillActiveBg : pal.paperBg,
+                  },
+                ]}
+              >
+                <Text variant="caption" style={{ color: newsFilter.onlyBookmarked ? pal.goldText : pal.sub, fontSize: 11, fontWeight: '700' }}>
+                  {newsFilter.onlyBookmarked ? '★ 仅看已收藏' : '☆ 收藏筛选'}
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Search & Noise Blocklist Inputs */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              <TextInput
+                value={newsFilter.searchQuery}
+                onChangeText={(q) => setKgState(updateNewsFilterOptions({ searchQuery: q }))}
+                placeholder={t('🔍 搜索资讯关键词（如 DeepSeek、MCP、vLLM、杠铃策略）...', '🔍 Filter by keyword...')}
+                placeholderTextColor={pal.muted}
+                style={[styles.input, { flex: 1, minWidth: 220, color: pal.ink, backgroundColor: pal.paperBg, borderColor: pal.border }]}
+              />
+              <TextInput
+                value={newsFilter.mutedKeywordsCsv}
+                onChangeText={(m) => setKgState(updateNewsFilterOptions({ mutedKeywordsCsv: m }))}
+                placeholder={t('静音词黑名单（逗号分隔，如：震惊, 暴富, 必看）', 'Muted clickbait keywords...')}
+                placeholderTextColor={pal.muted}
+                style={[styles.input, { flex: 1, minWidth: 220, color: pal.ink, backgroundColor: pal.paperBg, borderColor: pal.border }]}
+              />
+            </View>
+
+            {/* Optional Custom Article Clipper Drawer */}
+            {showClipDrawer ? (
+              <View style={{ padding: 12, borderRadius: 8, borderWidth: 1, borderColor: pal.goldBorder, backgroundColor: pal.paperBg, gap: 8 }}>
+                <Text variant="caption" style={{ color: pal.goldText, fontSize: 11.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                  {t('✂️ 粘贴外部新闻或长文 → 自动计算信噪比评分并转为纸书排版净读：', '✂️ Paste Article for Clean Book-Style Reading:')}
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  <TextInput
+                    value={clipTitle}
+                    onChangeText={setClipTitle}
+                    placeholder={t('文章标题，如：Anthropic 发布最新 Agent 架构实践', 'Article Title')}
+                    placeholderTextColor={pal.muted}
+                    style={[styles.input, { flex: 1, minWidth: 200, color: pal.ink, backgroundColor: pal.inputBg, borderColor: pal.border }]}
+                  />
+                  {NEWS_CATEGORIES.map((c) => (
+                    <Pressable
+                      key={c.id}
+                      onPress={() => setClipCategory(c.id)}
+                      style={[
+                        styles.microBtn,
+                        {
+                          backgroundColor: clipCategory === c.id ? pal.pillActiveBg : 'transparent',
+                          borderColor: clipCategory === c.id ? pal.gold : pal.border,
+                        },
+                      ]}
+                    >
+                      <Text variant="caption" style={{ color: clipCategory === c.id ? pal.goldText : pal.sub, fontSize: 10.5 }}>
+                        {c.zh}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <TextInput
+                  value={clipBody}
+                  onChangeText={setClipBody}
+                  placeholder={t('在此粘贴文章正文段落（支持多段文本，系统将自动剔除噪音并按信噪比评分）...', 'Paste article paragraphs here...')}
+                  placeholderTextColor={pal.muted}
+                  multiline
+                  style={[styles.input, { minHeight: 74, color: pal.ink, backgroundColor: pal.inputBg, borderColor: pal.border }]}
+                />
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+                  <Pressable
+                    onPress={() => {
+                      const res = clipCustomNewsArticle({
+                        title: clipTitle,
+                        categoryId: clipCategory,
+                        rawText: clipBody,
+                      });
+                      setKgState(res.state);
+                      setSelectedNewsId(res.addedItem.id);
+                      setClipTitle('');
+                      setClipBody('');
+                      setShowClipDrawer(false);
+                      showToast({
+                        text: t(
+                          `✓ 已净读收入《${res.addedItem.titleZh}》（信噪比评分 ${res.addedItem.signalScore} 分）`,
+                          `✓ Clipped (${res.addedItem.signalScore} pts)`,
+                        ),
+                      });
+                    }}
+                    style={[styles.primaryPlayBtn, { backgroundColor: '#b88228', borderColor: '#b88228' }]}
+                  >
+                    <Text variant="caption" style={{ color: '#fffbeb', fontSize: 11.5, fontWeight: '700' }}>
+                      {t('✓ 转为纸书排版并开始阅读', '✓ Format as Book Page')}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+
+            {/* Horizontal Filtered Headline Cards */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {filteredNewsResult.visibleItems.map((item) => {
+                const isSel = item.id === activeNewsItem.id;
+                return (
+                  <Pressable
+                    key={item.id}
+                    onPress={() => setSelectedNewsId(item.id)}
+                    style={[
+                      styles.newsHeadlineCard,
+                      {
+                        backgroundColor: isSel ? pal.pillActiveBg : pal.paperBg,
+                        borderColor: isSel ? pal.gold : pal.border,
+                      },
+                    ]}
+                  >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                      <Text variant="caption" style={{ color: item.signalScore >= 90 ? pal.emerald : pal.goldText, fontSize: 10, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                        {`信噪比 ${item.signalScore}分 · ${item.readMinutes}m`}
+                      </Text>
+                      <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>
+                        {`${item.bookmarked ? '★ ' : ''}${item.read ? '✓已读' : '未读'}`}
+                      </Text>
+                    </View>
+                    <Text
+                      variant="caption"
+                      style={{
+                        color: isSel ? pal.goldText : pal.ink,
+                        fontSize: 12,
+                        fontFamily: theme.fontFamily.serif,
+                        fontWeight: isSel ? '700' : '600',
+                        lineHeight: 18,
+                      }}
+                    >
+                      {item.titleZh.slice(0, 28)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* 2. Selected News Article Rendered in the Same Calm Hardcover Book Folio! */}
+          {activeNewsItem ? (
+            <View
+              style={[
+                styles.bookPageFolio,
+                {
+                  backgroundColor: pal.paperBg,
+                  borderColor: pal.goldBorder,
+                  borderLeftColor: pal.spineShadow,
+                  marginTop: 12,
+                },
+              ]}
+            >
+              <View style={[styles.bookRunningHeader, { borderBottomColor: pal.border }]}>
+                <Text variant="caption" style={{ color: pal.muted, fontSize: 11.5, fontFamily: theme.fontFamily.serif }}>
+                  {`${activeNewsItem.sourceName}  ·  ${activeNewsItem.publishedAt}  ·  预计阅读 ${activeNewsItem.readMinutes} 分钟`}
+                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <View style={[styles.redSealBadge, { borderColor: pal.emerald }]}>
+                    <Text variant="caption" style={{ color: pal.emerald, fontSize: 10.5, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                      {`信噪比 ${activeNewsItem.signalScore}/100`}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => setKgState(toggleNewsItemStatus(activeNewsItem.id, 'bookmarked'))}
+                    style={[styles.microBtn, { borderColor: activeNewsItem.bookmarked ? pal.gold : pal.border }]}
+                  >
+                    <Text variant="caption" style={{ color: activeNewsItem.bookmarked ? pal.goldText : pal.sub, fontSize: 11, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                      {activeNewsItem.bookmarked ? '★ 已收藏' : '☆ 收藏本文'}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              <View style={{ gap: 16, paddingVertical: 8 }}>
+                <Text
+                  variant="heading"
+                  style={{
+                    color: pal.ink,
+                    fontSize: 21,
+                    lineHeight: 31,
+                    fontFamily: theme.fontFamily.serif,
+                    fontWeight: '700',
+                  }}
+                >
+                  {activeNewsItem.titleZh}
+                </Text>
+
+                <View style={[styles.epigraphQuoteBox, { borderLeftColor: pal.gold, backgroundColor: pal.paperElevated }]}>
+                  <Text variant="body" style={{ color: pal.sub, fontSize: 13.5, lineHeight: 22, fontFamily: theme.fontFamily.serif }}>
+                    {`「晨报提要」${activeNewsItem.summaryZh}`}
+                  </Text>
+                </View>
+
+                <View style={{ gap: 14 }}>
+                  {activeNewsItem.paragraphsZh.map((para, idx) => (
+                    <Text
+                      key={idx}
+                      variant="body"
+                      style={{
+                        color: pal.ink,
+                        fontSize: 16,
+                        lineHeight: 30,
+                        fontFamily: theme.fontFamily.serif,
+                      }}
+                    >
+                      {`　　${para}`}
+                    </Text>
+                  ))}
+                </View>
+
+                <View style={[styles.highlightedPassageBox, { backgroundColor: pal.highlightBg, borderColor: pal.goldBorder }]}>
+                  <Text variant="caption" style={{ color: pal.goldText, fontSize: 11.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                    {t('✒️ 本文核心要点摘录：', '✒️ Key Takeaways:')}
+                  </Text>
+                  {activeNewsItem.keyTakeawaysZh.map((kt, idx) => (
+                    <Text key={idx} variant="body" style={{ color: pal.ink, fontSize: 14, lineHeight: 23, fontFamily: theme.fontFamily.serif }}>
+                      {`• ${kt}`}
+                    </Text>
+                  ))}
+                </View>
+              </View>
+
+              <View style={[styles.bookPageFooter, { borderTopColor: pal.border }]}>
+                <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                  {activeNewsItem.relatedNodeCode ? (
+                    <Pressable
+                      onPress={() => {
+                        const target = kgState.nodes.find((n) => n.code === activeNewsItem.relatedNodeCode);
+                        if (target) {
+                          selectLesson(target.id, target.stageLevel);
+                          setActiveSubView('lab');
+                        }
+                      }}
+                      style={[styles.pageTurnBtn, { borderColor: pal.gold, backgroundColor: pal.paperElevated }]}
+                    >
+                      <Text variant="caption" style={{ color: pal.goldText, fontSize: 11.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                        {`📖 翻阅关联书章 (${activeNewsItem.relatedNodeCode})`}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+
+                  <Pressable
+                    onPress={() => {
+                      const res = importCustomMarkdownKnowledgeNode({
+                        title: activeNewsItem.titleZh.slice(0, 26),
+                        domainId:
+                          activeNewsItem.categoryId === 'wealth-macro'
+                            ? 'wealth-quant'
+                            : activeNewsItem.categoryId === 'sys-open'
+                              ? 'cs-systems'
+                              : 'ai-infra',
+                        markdownBody: [
+                          ...activeNewsItem.keyTakeawaysZh,
+                          activeNewsItem.relatedNodeCode ? `关联章节 [[${activeNewsItem.relatedNodeCode}]]` : '',
+                        ]
+                          .filter(Boolean)
+                          .join('\n'),
+                      });
+                      setKgState(res.state);
+                      showToast({
+                        text: t(
+                          `📌 已将本文核心要点摘录进你的知识图谱节点「${res.addedNode.code}」！`,
+                          `📌 Clipped to Knowledge Graph (${res.addedNode.code})`,
+                        ),
+                      });
+                    }}
+                    style={[styles.pageTurnBtn, { borderColor: pal.emerald, backgroundColor: pal.paperElevated }]}
+                  >
+                    <Text variant="caption" style={{ color: pal.emerald, fontSize: 11.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                      {t('📌 一键摘录进我的知识图谱', '📌 Clip to Knowledge Graph')}
+                    </Text>
+                  </Pressable>
+                </View>
+
+                <Pressable
+                  onPress={() => {
+                    if (!activeNewsItem.read) {
+                      setKgState(toggleNewsItemStatus(activeNewsItem.id, 'read'));
+                    }
+                    onLogStudyMinutes?.(activeNewsItem.titleZh, activeNewsItem.readMinutes);
+                    recordPledgeReward(localDay, 'study');
+                    showToast({
+                      text: t(
+                        `💮 已阅《${activeNewsItem.titleZh.slice(0, 14)}...》，记入阅读时长 +${activeNewsItem.readMinutes} 分钟`,
+                        `💮 Marked Read (+${activeNewsItem.readMinutes}m)`,
+                      ),
+                    });
+                  }}
+                  style={[styles.sealStampCtaBtn, { backgroundColor: pal.sealRed, borderColor: '#fca5a5' }]}
+                >
+                  <Text variant="caption" style={{ color: '#fffbeb', fontSize: 12.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                    {activeNewsItem.read
+                      ? t(`💮 已阅钤印 (+${activeNewsItem.readMinutes}m)`, '💮 Read')
+                      : t(`💮 读完本文 · 盖下「已阅」印 (+${activeNewsItem.readMinutes}m)`, `💮 Mark Read (+${activeNewsItem.readMinutes}m)`)}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
         </View>
       ) : null}
 
@@ -2075,10 +2542,10 @@ export function KnowledgeGraphCornerHub({
             <View style={[styles.pageSubtleNavRow, { borderBottomColor: pal.border }]}>
               {(
                 [
-                  { p: 1 as const, label: '壹 · 开篇故事' },
-                  { p: 2 as const, label: '贰 · 活动插图' },
-                  { p: 3 as const, label: '叁 · 划线旁批' },
-                  { p: 4 as const, label: '肆 · 掩卷手札' },
+                  { p: 1 as const, label: '壹 · 开篇深度长文' },
+                  { p: 2 as const, label: '贰 · 书中活动插图' },
+                  { p: 3 as const, label: '叁 · 划线旁批与底注' },
+                  { p: 4 as const, label: '肆 · 掩卷手札与钤印' },
                 ] as const
               ).map((item) => {
                 const active = pageNumber === item.p;
@@ -2112,10 +2579,9 @@ export function KnowledgeGraphCornerHub({
 
             {selectedContent ? (
               <View style={styles.bookPageBody}>
-                {/* ==================== PAGE 1: 开篇故事与直觉叙事 ==================== */}
+                {/* ==================== PAGE 1: 开篇故事与深度长文 (Multi-Paragraph Long-Form Reading) ==================== */}
                 {pageNumber === 1 ? (
-                  <View style={{ gap: 20 }}>
-                    {/* Literary Chapter Title Block */}
+                  <View style={{ gap: 18 }}>
                     <View style={{ gap: 8, paddingTop: 4 }}>
                       <Text
                         variant="caption"
@@ -2127,7 +2593,7 @@ export function KnowledgeGraphCornerHub({
                           fontWeight: '700',
                         }}
                       >
-                        {`CHAPTER ${selectedNode.code}  ·  开篇引子`}
+                        {`CHAPTER ${selectedNode.code}  ·  精读正文`}
                       </Text>
                       <Text
                         variant="heading"
@@ -2149,28 +2615,35 @@ export function KnowledgeGraphCornerHub({
                         variant="body"
                         style={{
                           color: pal.sub,
-                          fontSize: 13.5,
-                          lineHeight: 22,
+                          fontSize: 14,
+                          lineHeight: 23,
                           fontFamily: theme.fontFamily.serif,
                         }}
                       >
-                        {`「导读」${selectedNode.summary.replace(/^【[^】]+】/, '')}`}
+                        {`「开篇直觉」${(selectedContent.beginnerAnalogyZh ?? selectedContent.coreMentalModel).replace(/^🌱\s*小白大白话：/, '')}`}
                       </Text>
                     </View>
 
-                    {/* Main Book Narrative Paragraphs */}
+                    {/* Rich Multi-Paragraph Book Essay so users can read deeply right inside the app! */}
                     <View style={{ gap: 14 }}>
-                      <Text
-                        variant="body"
-                        style={{
-                          color: pal.ink,
-                          fontSize: 16,
-                          lineHeight: 30,
-                          fontFamily: theme.fontFamily.serif,
-                        }}
-                      >
-                        {`　　${(selectedContent.beginnerAnalogyZh ?? selectedContent.coreMentalModel).replace(/^🌱\s*小白大白话：/, '')}`}
-                      </Text>
+                      {(selectedContent.deepReadingParagraphsZh &&
+                      selectedContent.deepReadingParagraphsZh.length > 0
+                        ? selectedContent.deepReadingParagraphsZh
+                        : [selectedContent.coreMentalModel]
+                      ).map((para, pIdx) => (
+                        <Text
+                          key={pIdx}
+                          variant="body"
+                          style={{
+                            color: pal.ink,
+                            fontSize: 16,
+                            lineHeight: 30,
+                            fontFamily: theme.fontFamily.serif,
+                          }}
+                        >
+                          {`　　${para}`}
+                        </Text>
+                      ))}
                     </View>
 
                     {/* Highlighted Key Sentence (荧光笔划线批注) */}
@@ -2338,7 +2811,6 @@ export function KnowledgeGraphCornerHub({
                 {/* ==================== PAGE 4: 掩卷思考、读书手札与藏书钤印 ==================== */}
                 {pageNumber === 4 ? (
                   <View style={{ gap: 18 }}>
-                    {/* End-of-chapter reflection (掩卷一问) */}
                     {selectedContent.quiz ? (
                       <View style={[styles.reflectionBox, { backgroundColor: pal.paperElevated, borderColor: pal.goldBorder }]}>
                         <Text
@@ -2417,7 +2889,6 @@ export function KnowledgeGraphCornerHub({
                       </View>
                     ) : null}
 
-                    {/* Optional Flashcard */}
                     {selectedContent.flashcards[0] ? (
                       <Pressable
                         onPress={() => setShowFlashcardAnswer((v) => !v)}
@@ -2478,7 +2949,7 @@ export function KnowledgeGraphCornerHub({
                       />
                     </View>
 
-                    {/* Traditional Red Seal Stamp Button (盖下「已阅」藏书印并翻至下一章) */}
+                    {/* Traditional Red Seal Stamp Button */}
                     <View style={{ alignItems: 'flex-end', paddingTop: 4 }}>
                       <Pressable
                         accessibilityRole="button"
@@ -2531,7 +3002,6 @@ export function KnowledgeGraphCornerHub({
                 ) : null}
               </View>
             ) : (
-              /* Uninstalled Chapter Pack Prompt */
               <View style={[styles.uninstalledBanner, { backgroundColor: pal.paperElevated, borderColor: pal.border }]}>
                 <Text variant="caption" style={{ color: pal.muted, fontSize: 12.5, fontFamily: theme.fontFamily.serif }}>
                   {t(
@@ -2556,7 +3026,7 @@ export function KnowledgeGraphCornerHub({
               </View>
             )}
 
-            {/* Book Page Bottom Footer (书页底栏：左翻页 · 页码 · 右翻页) */}
+            {/* Book Page Bottom Footer */}
             <View style={[styles.bookPageFooter, { borderTopColor: pal.border }]}>
               <Pressable
                 accessibilityRole="button"
@@ -2591,7 +3061,7 @@ export function KnowledgeGraphCornerHub({
               >
                 {`—  第 ${pageNumber} / 4 页  ·  ${
                   pageNumber === 1
-                    ? '开篇故事'
+                    ? '开篇深度长文'
                     : pageNumber === 2
                       ? '活动插图'
                       : pageNumber === 3
@@ -2680,6 +3150,20 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 18,
   },
+  newsFilterPanel: {
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 10,
+  },
+  newsHeadlineCard: {
+    flex: 1,
+    minWidth: 210,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 4,
+  },
   chapterBookmarkRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -2729,7 +3213,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   bookPageBody: {
-    minHeight: 310,
+    minHeight: 320,
     paddingVertical: 6,
     justifyContent: 'space-between',
   },
