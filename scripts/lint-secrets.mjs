@@ -46,6 +46,11 @@ const BINARY_EXT = new Set([
   '.mp4',
   '.webm',
   '.wasm',
+  '.apk',
+  '.ipa',
+  '.dmg',
+  '.pkg',
+  '.mobileconfig',
 ]);
 const KEY_BASENAMES = new Set(['id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519']);
 const KEY_EXT = new Set(['.p8', '.p12', '.pfx', '.key']);

@@ -651,7 +651,11 @@ function repackageExistingIpaWithLatestDist(displayName, ipaPath) {
   if (!existsSync(distDir) || !existsSync(ipaPath)) return false;
   const workDir = mkdtempSync(path.join(os.tmpdir(), 'viastela-ipa-repack-'));
   try {
-    execFileSync('ditto', ['-x', '-k', ipaPath, workDir], { stdio: 'ignore' });
+    try {
+      execFileSync('ditto', ['-x', '-k', ipaPath, workDir], { stdio: 'ignore' });
+    } catch {
+      execFileSync('unzip', ['-q', ipaPath, '-d', workDir], { stdio: 'ignore' });
+    }
     const appDir = path.join(workDir, 'Payload', `${displayName}.app`);
     if (!existsSync(appDir)) return false;
     const webRoot = path.join(appDir, 'web');
@@ -667,9 +671,13 @@ function repackageExistingIpaWithLatestDist(displayName, ipaPath) {
       execFileSync('codesign', ['--force', '--sign', '-', appDir], { stdio: 'pipe' });
     } catch {}
     rmSync(ipaPath, { force: true });
-    execFileSync('ditto', ['-c', '-k', '--norsrc', '--keepParent', path.join(workDir, 'Payload'), ipaPath], {
-      stdio: 'ignore',
-    });
+    try {
+      execFileSync('ditto', ['-c', '-k', '--norsrc', '--keepParent', path.join(workDir, 'Payload'), ipaPath], {
+        stdio: 'ignore',
+      });
+    } catch {
+      execFileSync('zip', ['-qr', ipaPath, 'Payload'], { cwd: workDir, stdio: 'ignore' });
+    }
     console.log(`Updated native iOS IPA bundle with latest dist & Black-Gold icon: ${ipaPath}`);
     return true;
   } finally {

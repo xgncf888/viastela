@@ -1,8 +1,10 @@
 name: Build All-Platform Packages
 
 # Zero-npm-dependency multi-platform native package builder & publisher:
-# 1. `android-apk`: Compiles standalone signed `viastela-android.apk` (~1.6 MB) using `$ANDROID_HOME` in ~15s.
-# 2. `apple-packages`: Compiles native `viastela-ios-unsigned.ipa` (~1.6 MB) and `viastela-macos.dmg` (~2.1 MB) in ~20s.
+# Runs on `ubuntu-latest` so it never gets blocked by GitHub's `macos-latest` runner capacity shortages
+# ("The job was not acquired by Runner of type hosted even after multiple attempts").
+# 1. `android-apk`: Compiles standalone signed `viastela-android.apk` using `$ANDROID_HOME` in ~15s.
+# 2. `apple-packages`: Builds `viastela-ios.mobileconfig`, repackages `viastela-ios-unsigned.ipa`, and verifies `viastela-macos.dmg` / `viastela-macos.pkg`.
 # 3. `publish-release`: Publishes all raw native installers (.pkg, .dmg, .apk, .ipa, .mobileconfig) to GitHub Releases (`latest`)
 #    and syncs the raw mobile packages back into `releases/`.
 on:
@@ -17,6 +19,9 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 concurrency:
   group: build-packages-${{ github.ref }}
   cancel-in-progress: true
@@ -28,7 +33,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
@@ -42,30 +47,21 @@ jobs:
 
   apple-packages:
     name: Build macOS .dmg & iOS .ipa
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Build native iOS .ipa and .mobileconfig
         run: node scripts/build-ios-ipa.mjs
-      - name: Build macOS .dmg from signed bundle
+      - name: Verify macOS .dmg & .pkg bundles
         run: |
-          mkdir -p dmg-stage
-          ditto -x -k releases/viastela-macos.zip dmg-stage
-          APP_PATH=$(ls -d dmg-stage/*.app | head -n 1)
-          APP_NAME=$(basename "$APP_PATH" .app)
-          ln -s /Applications dmg-stage/Applications
-          for attempt in 1 2 3; do
-            if hdiutil create -volname "$APP_NAME" -srcfolder dmg-stage -ov -format UDZO releases/viastela-macos.dmg; then
-              break
-            fi
-            sleep 2
-          done
+          ls -lh releases/viastela-macos.dmg releases/viastela-macos.pkg releases/viastela-ios-unsigned.ipa releases/viastela-ios.mobileconfig
       - uses: actions/upload-artifact@v4
         with:
           name: viastela-apple-packages
           path: |
             releases/viastela-macos.dmg
+            releases/viastela-macos.pkg
             releases/viastela-ios-unsigned.ipa
             releases/viastela-ios.mobileconfig
           if-no-files-found: warn
@@ -76,7 +72,7 @@ jobs:
       - android-apk
       - apple-packages
     runs-on: ubuntu-latest
-    if: always()
+    if: always() && (needs.android-apk.result == 'success' || needs.apple-packages.result == 'success')
     steps:
       - uses: actions/checkout@v4
         with:
@@ -101,6 +97,7 @@ jobs:
           git add releases/
           if ! git diff --cached --quiet; then
             git commit -m "chore(release): update raw Android .apk, iOS .ipa, and macOS .dmg packages [skip ci]"
+            git pull --rebase -X ours origin ${{ github.ref_name }} || true
             git push origin HEAD:${{ github.ref_name }} || true
           fi
       - name: Publish or Update GitHub Release (`latest`)
