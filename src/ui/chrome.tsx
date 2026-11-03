@@ -335,13 +335,13 @@ const styles = StyleSheet.create({
   },
   sidebar: {
     paddingHorizontal: theme.space.ms,
-    paddingTop: theme.space.sm,
+    paddingTop: theme.space.xs,
     paddingBottom: theme.space.ms,
-    gap: theme.space.xs,
+    gap: 2,
     borderRightWidth: theme.border.width,
   },
   windowBar: {
-    height: 28,
+    height: 22,
     paddingHorizontal: theme.space.xs,
     flexDirection: 'row',
     alignItems: 'center',
@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: theme.space.xs,
     paddingHorizontal: theme.space.xs,
-    paddingVertical: 6,
+    paddingVertical: 3,
   },
   brandLeft: {
     flexDirection: 'row',
@@ -400,14 +400,14 @@ const styles = StyleSheet.create({
     fontWeight: theme.fontWeight.semibold,
   },
   quickActionBtn: {
-    height: 36,
+    height: 32,
     paddingHorizontal: theme.space.ms,
     borderRadius: theme.radius.button,
     borderWidth: theme.border.width,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 2,
+    marginBottom: 0,
   },
   quickActionText: {
     fontWeight: theme.fontWeight.medium,
@@ -418,8 +418,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   groupHeader: {
-    paddingTop: theme.space.sm,
-    paddingBottom: 2,
+    paddingTop: 4,
+    paddingBottom: 1,
     paddingHorizontal: theme.space.sm,
   },
   groupHeaderText: {
@@ -428,7 +428,7 @@ const styles = StyleSheet.create({
     fontWeight: theme.fontWeight.semibold,
     letterSpacing: 0.6,
   },
-  sideNav: { gap: 2, flex: 1 },
+  sideNav: { gap: 1, flex: 1 },
   footer: {
     paddingTop: theme.space.sm,
     borderTopWidth: theme.border.width,
@@ -442,7 +442,7 @@ const styles = StyleSheet.create({
   },
   tabs: { flexDirection: 'row', height: theme.layout.tabBar },
   nav: {
-    minHeight: 36,
+    minHeight: 28,
     paddingHorizontal: theme.space.sm,
     alignItems: 'center',
     justifyContent: 'center',
