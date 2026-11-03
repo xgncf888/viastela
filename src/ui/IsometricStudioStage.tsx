@@ -1507,6 +1507,7 @@ export function IsometricStudioStage({
   const [masteryGoals, setMasteryGoals] = useState<MasteryGoal[]>(readMasteryGoals);
   const [timer, setTimer] = useState<ActiveTimerSession>(readActiveTimer);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [lowerWorkspaceTab, setLowerWorkspaceTab] = useState<'matrix' | 'okr' | 'split'>('matrix');
 
   useEffect(() => {
     ensureStageFxKeyframes();
@@ -3134,9 +3135,65 @@ export function IsometricStudioStage({
             </View>
           </View>
 
+          {/* Clean Segmented Switcher for Lower Workspace (Progressive Disclosure) */}
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingHorizontal: 18,
+              paddingTop: 4,
+              paddingBottom: 2,
+              flexWrap: 'wrap',
+              gap: 8,
+            }}
+          >
+            <Text variant="caption" style={{ color: pal.muted, fontSize: 11, fontWeight: '600' }}>
+              {t('专注工作区视图：', 'Workspace View:')}
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              {(
+                [
+                  { id: 'matrix', label: t('24H 时间块矩阵', '24H Time Matrix') },
+                  { id: 'okr', label: t('OKR & 365星图', 'OKR & Heatmap') },
+                  { id: 'split', label: t('双栏同屏', 'Split View') },
+                ] as const
+              ).map((tab) => {
+                const active = lowerWorkspaceTab === tab.id;
+                return (
+                  <Pressable
+                    key={tab.id}
+                    onPress={() => setLowerWorkspaceTab(tab.id)}
+                    style={[
+                      styles.hudMicroBtn,
+                      {
+                        paddingHorizontal: 10,
+                        paddingVertical: 4,
+                        backgroundColor: active ? pal.pillActiveBg : pal.pillBg,
+                        borderColor: active ? pal.goldAccent : pal.bentoBorder,
+                      },
+                    ]}
+                  >
+                    <Text
+                      variant="caption"
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: active ? '700' : '500',
+                        color: active ? pal.goldText : pal.sub,
+                      }}
+                    >
+                      {tab.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
           {/* Lower Stage: Option-A Split Bento Workspace (100% Interactive) */}
           <View style={styles.bentoSplitRow}>
             {/* Left Bento Card: 24H 时间块矩阵 */}
+            {lowerWorkspaceTab === 'matrix' || lowerWorkspaceTab === 'split' ? (
             <View
               style={[
                 styles.bentoLeftCard,
@@ -3568,8 +3625,10 @@ export function IsometricStudioStage({
                 </View>
               ) : null}
             </View>
+            ) : null}
 
             {/* Right Bento Stack: OKR 目标进度 + 365 天人生星图热力矩阵 */}
+            {lowerWorkspaceTab === 'okr' || lowerWorkspaceTab === 'split' ? (
             <View style={styles.bentoRightStack}>
               <View
                 style={[
@@ -3582,7 +3641,7 @@ export function IsometricStudioStage({
               >
                 <View style={styles.bentoHeader}>
                   <Text variant="label" style={[styles.bentoTitle, { color: pal.ink }]}>
-                    {t('OKR 目标进度 🎯', 'OKR Objectives 🎯')}
+                    {t('OKR 目标进度', 'OKR Objectives')}
                   </Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     <Pressable
@@ -3699,7 +3758,7 @@ export function IsometricStudioStage({
                           setVault(v);
                           triggerStageBurst(
                             `okr-${item.kr.id}`,
-                            `🎯 +${item.kr.stepDelta}${item.kr.unit} · +¥${v.config.checkInRewardCny}`,
+                            `✦ +${item.kr.stepDelta}${item.kr.unit} · +¥${v.config.checkInRewardCny}`,
                             barColor,
                             'reward',
                           );
@@ -3927,6 +3986,7 @@ export function IsometricStudioStage({
                 </View>
               </View>
             </View>
+            ) : null}
           </View>
         </View>
       ) : null}

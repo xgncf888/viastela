@@ -594,6 +594,9 @@ export function BookkeepingLedgerHub({
   const [newBookBudget, setNewBookBudget] = useState('3000');
   const [newBookIncludePool, setNewBookIncludePool] = useState(true);
 
+  // Clean 3-Mode Segmented Sub-View ('record' = 日常记账, 'wealth' = 财富曲线与统计, 'coop' = 双人协同与规则)
+  const [ledgerSubView, setLedgerSubView] = useState<'record' | 'wealth' | 'coop'>('record');
+
   // In-App Friend Pairing & Couple Chat Drawer
   const [showCoupleChatDrawer, setShowCoupleChatDrawer] = useState(false);
   const [chatInput, setChatInput] = useState('');
@@ -1169,208 +1172,18 @@ export function BookkeepingLedgerHub({
 
   return (
     <View style={[styles.container, { backgroundColor: pal.bg, borderColor: pal.goldBorder }]}>
-      {/* 0. Couple Co-Op Team Bar (Clean Editorial Style, No Emojis) */}
-      <View
-        style={[
-          styles.coupleBanner,
-          { backgroundColor: pal.cardElevated, borderBottomColor: pal.border },
-        ]}
-      >
-        <View style={styles.coupleLeftCluster}>
-          <View style={[styles.coupleAvatarPill, { backgroundColor: pal.pillActiveBg, borderColor: pal.goldBorder }]}>
-            <Text variant="caption" style={{ color: pal.goldText, fontWeight: '700', fontSize: 11 }}>
-              {`${state.coupleProfile.myName} & ${state.coupleProfile.partnerName} · ${t('双人共管账本', 'Couple Co-Op')}`}
-            </Text>
-          </View>
-          {editingPartnerNames ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-              <TextInput
-                value={myNameDraft}
-                onChangeText={setMyNameDraft}
-                placeholder="我"
-                style={[styles.miniNameInput, { backgroundColor: pal.inputBg, borderColor: pal.border, color: pal.ink }]}
-              />
-              <Text variant="caption" style={{ color: pal.muted }}>&amp;</Text>
-              <TextInput
-                value={partnerNameDraft}
-                onChangeText={setPartnerNameDraft}
-                placeholder="老婆"
-                style={[styles.miniNameInput, { backgroundColor: pal.inputBg, borderColor: pal.pink, color: pal.ink }]}
-              />
-              <Pressable
-                onPress={() => {
-                  const next = updateCoupleTeamProfile({
-                    myName: myNameDraft.trim() || '我',
-                    partnerName: partnerNameDraft.trim() || '老婆',
-                  });
-                  setState(next);
-                  setEditingPartnerNames(false);
-                }}
-                style={[styles.microBtn, { backgroundColor: pal.pillActiveBg, borderColor: pal.gold }]}
-              >
-                <Text variant="caption" style={{ color: pal.goldText, fontSize: 10, fontWeight: '700' }}>保存</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <Pressable
-              onPress={() => {
-                setMyNameDraft(state.coupleProfile.myName);
-                setPartnerNameDraft(state.coupleProfile.partnerName);
-                setEditingPartnerNames(true);
-              }}
-            >
-              <Text variant="caption" style={{ color: pal.sub, fontSize: 10.5, fontFamily: theme.fontFamily.mono }}>
-                {t(
-                  `协同 ${state.coupleProfile.teamStreakDays}d · ${state.coupleProfile.myName}支 ¥${summary.byOwner.meExpenseCny.toFixed(0)} · ${state.coupleProfile.partnerName}支 ¥${summary.byOwner.partnerExpenseCny.toFixed(0)} · 共同 ¥${summary.byOwner.sharedExpenseCny.toFixed(0)} [编辑]`,
-                  `Streak ${state.coupleProfile.teamStreakDays}d · Me ¥${summary.byOwner.meExpenseCny.toFixed(0)} · Partner ¥${summary.byOwner.partnerExpenseCny.toFixed(0)} · Joint ¥${summary.byOwner.sharedExpenseCny.toFixed(0)} [Edit]`,
-                )}
-              </Text>
-            </Pressable>
-          )}
-        </View>
-
-        <View style={styles.coupleRightActions}>
-          {(
-            [
-              { id: 'all', label: t('全部', 'All') },
-              { id: 'me', label: state.coupleProfile.myName },
-              { id: 'partner', label: state.coupleProfile.partnerName },
-              { id: 'shared', label: t('共同', 'Joint') },
-            ] as const
-          ).map((item) => {
-            const active = filterOwner === item.id;
-            return (
-              <Pressable
-                key={item.id}
-                onPress={() => setFilterOwner(item.id)}
-                style={[
-                  styles.microBtn,
-                  {
-                    backgroundColor: active ? pal.pillActiveBg : pal.pillBg,
-                    borderColor: active ? pal.gold : pal.border,
-                  },
-                ]}
-              >
-                <Text
-                  variant="caption"
-                  style={{
-                    fontSize: 10.5,
-                    fontWeight: active ? '700' : '500',
-                    color: active ? pal.goldText : pal.sub,
-                  }}
-                >
-                  {item.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="打开双人好友配对与联机房间"
-            onPress={() => setShowFriendPairBox((prev) => !prev)}
-            style={[
-              styles.microBtn,
-              {
-                backgroundColor: showFriendPairBox ? pal.pillActiveBg : pal.pillBg,
-                borderColor: syncStatus.isCloudRealtime ? pal.emerald : pal.goldBorder,
-              },
-            ]}
-          >
-            <Text
-              variant="caption"
-              style={{
-                color: syncStatus.isCloudRealtime ? pal.emerald : pal.goldText,
-                fontSize: 10.5,
-                fontWeight: '700',
-              }}
-            >
-              {syncStatus.isCloudRealtime
-                ? t(`云端在线 #${state.coupleProfile.roomCode || 'LOVE-88'}`, `Cloud #${state.coupleProfile.roomCode || 'LOVE-88'}`)
-                : t(`本机房间 #${state.coupleProfile.roomCode || 'LOVE-88'} [配云端]`, `Local #${state.coupleProfile.roomCode || 'LOVE-88'}`)}
-            </Text>
-          </Pressable>
-          {hasDemoSeeds ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="一键清空内置演示数据并开启真实账本"
-              onPress={() => {
-                const next = clearDemoBookkeepingData();
-                setState(next);
-                showToast({
-                  text: t('已清空全部内置演示账单，现在可开始记录你的真实收支', 'Cleared demo seed transactions'),
-                });
-              }}
-              style={[styles.microBtn, { backgroundColor: `${pal.terracotta}18`, borderColor: pal.terracotta }]}
-            >
-              <Text variant="caption" style={{ color: pal.terracotta, fontSize: 10.5, fontWeight: '700' }}>
-                {t('清空演示数据', 'Clear Demo')}
-              </Text>
-            </Pressable>
-          ) : null}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="打开App内双人聊天与账单互动窗口"
-            onPress={() => setShowCoupleChatDrawer((prev) => !prev)}
-            style={[
-              styles.microBtn,
-              {
-                backgroundColor: showCoupleChatDrawer ? `${pal.pink}24` : pal.pillBg,
-                borderColor: pal.pink,
-              },
-            ]}
-          >
-            <Text variant="caption" style={{ color: pal.pink, fontSize: 10.5, fontWeight: '700' }}>
-              {t(`双人聊天 (${chatMessages.length})`, `Couple Chat (${chatMessages.length})`)}
-            </Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="复制双人账本同步码发给老婆"
-            onPress={() => void handleCopyPartnerSyncCode()}
-            style={[styles.microBtn, { backgroundColor: pal.pillBg, borderColor: pal.border }]}
-          >
-            <Text variant="caption" style={{ color: pal.ink, fontSize: 10.5, fontWeight: '600' }}>
-              {t('备份同步码', 'Backup Sync')}
-            </Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="合并老婆发来的账本同步码"
-            onPress={() => setShowPartnerMergeBox((prev) => !prev)}
-            style={[styles.microBtn, { backgroundColor: pal.pillBg, borderColor: pal.border }]}
-          >
-            <Text variant="caption" style={{ color: pal.ink, fontSize: 10.5, fontWeight: '600' }}>
-              {t('导入合并', 'Import')}
-            </Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="打开 iOS 快捷指令自动记账配置向导"
-            onPress={() => setShowShortcutsGuide((prev) => !prev)}
-            style={[styles.microBtn, { backgroundColor: pal.pillBg, borderColor: pal.emerald }]}
-          >
-            <Text variant="caption" style={{ color: pal.emerald, fontSize: 10.5, fontWeight: '700' }}>
-              {t('iOS 自动记账', 'iOS Auto-Log')}
-            </Text>
-          </Pressable>
-        </View>
-      </View>
-
-      {/* 0.1 Multi-Ledger Switcher & Pooled Funds Aggregation Bar (多账本管理 + 资金合池统计) */}
+      {/* Unified Single-Row Top Bar: Left = Ledger & Pool Switcher | Right = 3 Clean Segmented Views */}
       <View
         style={[
           styles.coupleBanner,
           {
-            backgroundColor: pal.cardBg,
+            backgroundColor: pal.cardElevated,
             borderBottomColor: pal.border,
-            paddingVertical: 8,
+            paddingVertical: 9,
           },
         ]}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, flex: 1 }}>
-          <Text variant="caption" style={{ color: pal.muted, fontSize: 10.5, fontWeight: '600' }}>
-            {t('多账本与合池：', 'Ledgers & Pool:')}
-          </Text>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="切换至全账本资金合池统计总览"
@@ -1391,7 +1204,7 @@ export function BookkeepingLedgerHub({
                 fontWeight: activeLedgerScope === 'pool' ? '700' : '600',
               }}
             >
-              {t(`合池总览 (${summary.pooledLedgerCount}/${ledgerBooks.length} 账本合池)`, `Fund Pool (${summary.pooledLedgerCount}/${ledgerBooks.length})`)}
+              {t(`合池总览 (${summary.pooledLedgerCount}/${ledgerBooks.length})`, `Pool (${summary.pooledLedgerCount}/${ledgerBooks.length})`)}
             </Text>
           </Pressable>
 
@@ -1422,43 +1235,12 @@ export function BookkeepingLedgerHub({
                     fontWeight: isSelected ? '700' : '500',
                   }}
                 >
-                  {`[${book.icon}] ${t(book.zh, book.en)}${book.includeInPool ? '' : t(' (独立)', ' (Solo)')}`}
+                  {`[${book.icon}] ${t(book.zh, book.en)}`}
                 </Text>
               </Pressable>
             );
           })}
-        </View>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          {activeLedgerScope === 'pool' ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>
-                {t('新账单记入：', 'Log into:')}
-              </Text>
-              {ledgerBooks.map((book) => {
-                const isTarget = targetWriteLedgerId === book.id;
-                return (
-                  <Pressable
-                    key={`target-${book.id}`}
-                    onPress={() => setTargetWriteLedgerId(book.id)}
-                    style={[
-                      styles.microBtn,
-                      {
-                        paddingHorizontal: 6,
-                        paddingVertical: 2,
-                        backgroundColor: isTarget ? pal.pillActiveBg : pal.pillBg,
-                        borderColor: isTarget ? pal.gold : pal.border,
-                      },
-                    ]}
-                  >
-                    <Text variant="caption" style={{ color: isTarget ? pal.goldText : pal.sub, fontSize: 9.5, fontWeight: isTarget ? '700' : '500' }}>
-                      {book.zh.slice(0, 4)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : null}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="管理多账本与资金合池开关"
@@ -1472,14 +1254,213 @@ export function BookkeepingLedgerHub({
             ]}
           >
             <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700' }}>
-              {showLedgerManager ? t('收起账本管理 ▲', 'Close Ledgers ▲') : t('多账本与合池管理 ✎', 'Manage Ledgers ✎')}
+              {showLedgerManager ? t('收起账本 ▲', 'Close ▲') : t('账本管理 ✎', 'Ledgers ✎')}
             </Text>
           </Pressable>
         </View>
+
+        {/* 3 Segmented Sub-Views (Copilot / Linear Progressive Disclosure Pattern) */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+          <View
+            style={[
+              styles.kindSwitchPill,
+              {
+                backgroundColor: pal.cardBg,
+                borderWidth: 1,
+                borderColor: pal.border,
+                padding: 2,
+              },
+            ]}
+          >
+            {(
+              [
+                { id: 'record', label: t('日常记账', 'Record') },
+                { id: 'wealth', label: t('财富曲线 & 统计', 'Wealth & Stats') },
+                {
+                  id: 'coop',
+                  label: t(
+                    `双人协同 (${chatMessages.length})`,
+                    `Co-Op (${chatMessages.length})`,
+                  ),
+                },
+              ] as const
+            ).map((tab) => {
+              const active = ledgerSubView === tab.id;
+              return (
+                <Pressable
+                  key={tab.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`切换记账子视图 ${tab.label}`}
+                  onPress={() => {
+                    setLedgerSubView(tab.id);
+                    if (tab.id === 'coop') {
+                      setShowCoupleChatDrawer(true);
+                    }
+                  }}
+                  style={[
+                    styles.kindSwitchBtn,
+                    active ? { backgroundColor: pal.pillActiveBg } : null,
+                  ]}
+                >
+                  <Text
+                    variant="caption"
+                    style={{
+                      fontSize: 11,
+                      fontWeight: active ? '700' : '500',
+                      color: active ? pal.goldText : pal.sub,
+                    }}
+                  >
+                    {tab.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {hasDemoSeeds ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="一键清空内置演示数据并开启真实账本"
+              onPress={() => {
+                const next = clearDemoBookkeepingData();
+                setState(next);
+                showToast({
+                  text: t('已清空全部内置演示账单，现在可开始记录你的真实收支', 'Cleared demo seed transactions'),
+                });
+              }}
+              style={[styles.microBtn, { backgroundColor: `${pal.terracotta}18`, borderColor: pal.terracotta }]}
+            >
+              <Text variant="caption" style={{ color: pal.terracotta, fontSize: 10, fontWeight: '700' }}>
+                {t('清空演示数据', 'Clear Demo')}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
-      {/* Optional Drawer 0A: Multi-Ledger & Pooled Funds Breakdown Panel */}
-      {showLedgerManager || activeLedgerScope === 'pool' ? (
+      {/* Secondary Couple & Tools Bar — shown only in 'coop' view so 'record' view stays ultra-clean */}
+      {ledgerSubView === 'coop' ? (
+        <View
+          style={[
+            styles.coupleBanner,
+            { backgroundColor: pal.cardBg, borderBottomColor: pal.border },
+          ]}
+        >
+          <View style={styles.coupleLeftCluster}>
+            <View style={[styles.coupleAvatarPill, { backgroundColor: pal.pillActiveBg, borderColor: pal.goldBorder }]}>
+              <Text variant="caption" style={{ color: pal.goldText, fontWeight: '700', fontSize: 11 }}>
+                {`${state.coupleProfile.myName} & ${state.coupleProfile.partnerName} · ${t('双人共管', 'Couple Co-Op')}`}
+              </Text>
+            </View>
+            {editingPartnerNames ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                <TextInput
+                  value={myNameDraft}
+                  onChangeText={setMyNameDraft}
+                  placeholder="我"
+                  style={[styles.miniNameInput, { backgroundColor: pal.inputBg, borderColor: pal.border, color: pal.ink }]}
+                />
+                <Text variant="caption" style={{ color: pal.muted }}>&amp;</Text>
+                <TextInput
+                  value={partnerNameDraft}
+                  onChangeText={setPartnerNameDraft}
+                  placeholder="老婆"
+                  style={[styles.miniNameInput, { backgroundColor: pal.inputBg, borderColor: pal.pink, color: pal.ink }]}
+                />
+                <Pressable
+                  onPress={() => {
+                    const next = updateCoupleTeamProfile({
+                      myName: myNameDraft.trim() || '我',
+                      partnerName: partnerNameDraft.trim() || '老婆',
+                    });
+                    setState(next);
+                    setEditingPartnerNames(false);
+                  }}
+                  style={[styles.microBtn, { backgroundColor: pal.pillActiveBg, borderColor: pal.gold }]}
+                >
+                  <Text variant="caption" style={{ color: pal.goldText, fontSize: 10, fontWeight: '700' }}>保存</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                onPress={() => {
+                  setMyNameDraft(state.coupleProfile.myName);
+                  setPartnerNameDraft(state.coupleProfile.partnerName);
+                  setEditingPartnerNames(true);
+                }}
+              >
+                <Text variant="caption" style={{ color: pal.sub, fontSize: 10.5, fontFamily: theme.fontFamily.mono }}>
+                  {t(
+                    `协同 ${state.coupleProfile.teamStreakDays}d · ${state.coupleProfile.myName}支 ¥${summary.byOwner.meExpenseCny.toFixed(0)} · ${state.coupleProfile.partnerName}支 ¥${summary.byOwner.partnerExpenseCny.toFixed(0)} · 共同 ¥${summary.byOwner.sharedExpenseCny.toFixed(0)} [改昵称]`,
+                    `Streak ${state.coupleProfile.teamStreakDays}d · Me ¥${summary.byOwner.meExpenseCny.toFixed(0)} · Partner ¥${summary.byOwner.partnerExpenseCny.toFixed(0)} [Edit]`,
+                  )}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+
+          <View style={styles.coupleRightActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="打开双人好友配对与联机房间"
+              onPress={() => setShowFriendPairBox((prev) => !prev)}
+              style={[
+                styles.microBtn,
+                {
+                  backgroundColor: showFriendPairBox ? pal.pillActiveBg : pal.pillBg,
+                  borderColor: syncStatus.isCloudRealtime ? pal.emerald : pal.goldBorder,
+                },
+              ]}
+            >
+              <Text
+                variant="caption"
+                style={{
+                  color: syncStatus.isCloudRealtime ? pal.emerald : pal.goldText,
+                  fontSize: 10.5,
+                  fontWeight: '700',
+                }}
+              >
+                {syncStatus.isCloudRealtime
+                  ? t(`云端在线 #${state.coupleProfile.roomCode || 'LOVE-88'}`, `Cloud #${state.coupleProfile.roomCode || 'LOVE-88'}`)
+                  : t(`本机房间 #${state.coupleProfile.roomCode || 'LOVE-88'} [配云端]`, `Local #${state.coupleProfile.roomCode || 'LOVE-88'}`)}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="复制双人账本同步码发给老婆"
+              onPress={() => void handleCopyPartnerSyncCode()}
+              style={[styles.microBtn, { backgroundColor: pal.pillBg, borderColor: pal.border }]}
+            >
+              <Text variant="caption" style={{ color: pal.ink, fontSize: 10.5, fontWeight: '600' }}>
+                {t('备份同步码', 'Backup Sync')}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="合并老婆发来的账本同步码"
+              onPress={() => setShowPartnerMergeBox((prev) => !prev)}
+              style={[styles.microBtn, { backgroundColor: pal.pillBg, borderColor: pal.border }]}
+            >
+              <Text variant="caption" style={{ color: pal.ink, fontSize: 10.5, fontWeight: '600' }}>
+                {t('导入合并', 'Import')}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="打开 iOS 快捷指令自动记账配置向导"
+              onPress={() => setShowShortcutsGuide((prev) => !prev)}
+              style={[styles.microBtn, { backgroundColor: pal.pillBg, borderColor: pal.emerald }]}
+            >
+              <Text variant="caption" style={{ color: pal.emerald, fontSize: 10.5, fontWeight: '700' }}>
+                {t('iOS 自动记账', 'iOS Auto-Log')}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
+      {/* Optional Drawer 0A: Multi-Ledger & Pooled Funds Breakdown Panel — shown on demand or in 'wealth' tab */}
+      {showLedgerManager || ledgerSubView === 'wealth' ? (
         <View style={[styles.drawerPanel, { backgroundColor: pal.cardElevated, borderBottomColor: pal.border, paddingVertical: 10 }]}>
           <View style={styles.sectionTitleRow}>
             <Text variant="caption" style={{ color: pal.goldText, fontSize: 11.5, fontWeight: '700' }}>
@@ -1633,7 +1614,7 @@ export function BookkeepingLedgerHub({
       ) : null}
 
       {/* Optional Drawer 0B: In-App Friend Pairing & Room Binding */}
-      {showFriendPairBox ? (
+      {showFriendPairBox || ledgerSubView === 'coop' ? (
         <View style={[styles.drawerPanel, { backgroundColor: pal.cardElevated, borderBottomColor: pal.border }]}>
           <View style={styles.sectionTitleRow}>
             <Text variant="caption" style={{ color: pal.emerald, fontSize: 11.5, fontWeight: '700' }}>
@@ -1731,7 +1712,7 @@ export function BookkeepingLedgerHub({
       ) : null}
 
       {/* Optional Drawer 0C: In-App Couple Chat & Bill Comment Stream */}
-      {showCoupleChatDrawer ? (
+      {showCoupleChatDrawer || ledgerSubView === 'coop' ? (
         <View style={[styles.drawerPanel, { backgroundColor: pal.cardElevated, borderBottomColor: pal.border, gap: 8 }]}>
           <View style={styles.sectionTitleRow}>
             <Text variant="caption" style={{ color: pal.pink, fontSize: 12, fontWeight: '700' }}>
@@ -2560,8 +2541,8 @@ export function BookkeepingLedgerHub({
         </View>
       ) : null}
 
-      {/* 1.5. Continuous Slidable Salary × Investment Ratio -> Target Wealth Trajectory Curve Card */}
-      {showFullPanels ? (
+      {/* 1.5. Continuous Slidable Salary × Investment Ratio -> Target Wealth Trajectory Curve Card (shown in 'wealth' sub-view) */}
+      {showFullPanels && ledgerSubView === 'wealth' ? (
         <View style={[styles.wealthCardWrap, { backgroundColor: pal.cardBg, borderColor: pal.goldBorder }]}>
           <View style={styles.sectionTitleRow}>
             <View style={{ gap: 3, flex: 1 }}>
@@ -2724,7 +2705,7 @@ export function BookkeepingLedgerHub({
       ) : null}
 
       {/* 2. Main Split Workspace: Left Interactive Category Keypad & Right Analytics/Stream */}
-      {showFullPanels ? (
+      {showFullPanels && ledgerSubView !== 'coop' ? (
         <View style={styles.mainSplitGrid}>
           {/* Left Column: Visual Category Grid + Built-in Calculator Keypad + Recurring Rules */}
           <View style={[styles.leftPanelCard, { backgroundColor: pal.cardBg, borderColor: pal.border }]}>
@@ -2975,7 +2956,8 @@ export function BookkeepingLedgerHub({
               </View>
             </View>
 
-            {/* Recurring Rules Section */}
+            {/* Recurring Rules Section — shown when in 'wealth' view or when adding a rule */}
+            {ledgerSubView === 'wealth' || showAddRecurring ? (
             <View style={styles.walletSection}>
               <View style={styles.metricHeaderRow}>
                 <Text variant="caption" style={{ color: pal.goldText, fontSize: 11, fontWeight: '700' }}>
@@ -3102,6 +3084,7 @@ export function BookkeepingLedgerHub({
                 })}
               </View>
             </View>
+            ) : null}
 
             {/* Account Wallet Balances with Editable Initial Balance (底仓) */}
             <View style={styles.walletSection}>
@@ -3200,8 +3183,9 @@ export function BookkeepingLedgerHub({
             </View>
           </View>
 
-          {/* Right Column: 14-Day Spend Bars + Category Breakdown + Daily Transaction Stream */}
+          {/* Right Column: 14-Day Spend Bars + Category Breakdown (in 'wealth' view) + Daily Transaction Stream (in 'record' view) */}
           <View style={styles.rightPanelStack}>
+            {ledgerSubView === 'wealth' ? (
             <View style={[styles.rightCard, { backgroundColor: pal.cardBg, borderColor: pal.border }]}>
               <View style={styles.sectionTitleRow}>
                 <Text variant="label" style={{ color: pal.ink, fontSize: 13.5, fontWeight: '700' }}>
@@ -3316,13 +3300,52 @@ export function BookkeepingLedgerHub({
                 })}
               </View>
             </View>
+            ) : null}
 
             {/* Bottom-Right Card: Daily Grouped Transaction Stream */}
             <View style={[styles.rightCard, { backgroundColor: pal.cardBg, borderColor: pal.border }]}>
               <View style={styles.sectionTitleRow}>
-                <Text variant="label" style={{ color: pal.ink, fontSize: 13.5, fontWeight: '700' }}>
-                  {t('收支流水明细', 'Transaction Ledger')}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <Text variant="label" style={{ color: pal.ink, fontSize: 13.5, fontWeight: '700' }}>
+                    {t('收支流水明细', 'Transaction Ledger')}
+                  </Text>
+                  {(
+                    [
+                      { id: 'all', label: t('全部', 'All') },
+                      { id: 'me', label: state.coupleProfile.myName },
+                      { id: 'partner', label: state.coupleProfile.partnerName },
+                      { id: 'shared', label: t('共同', 'Joint') },
+                    ] as const
+                  ).map((item) => {
+                    const active = filterOwner === item.id;
+                    return (
+                      <Pressable
+                        key={`stream-own-${item.id}`}
+                        onPress={() => setFilterOwner(item.id)}
+                        style={[
+                          styles.microBtn,
+                          {
+                            paddingHorizontal: 7,
+                            paddingVertical: 2.5,
+                            backgroundColor: active ? pal.pillActiveBg : pal.pillBg,
+                            borderColor: active ? pal.gold : pal.border,
+                          },
+                        ]}
+                      >
+                        <Text
+                          variant="caption"
+                          style={{
+                            fontSize: 10,
+                            fontWeight: active ? '700' : '500',
+                            color: active ? pal.goldText : pal.sub,
+                          }}
+                        >
+                          {item.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
                 <TextInput
                   value={searchQuery}
                   onChangeText={setSearchQuery}
@@ -3438,6 +3461,7 @@ export function BookkeepingLedgerHub({
                                     kind: tx.kind,
                                     ledgerTitle: bookMeta.zh,
                                   });
+                                  setLedgerSubView('coop');
                                   setShowCoupleChatDrawer(true);
                                 }}
                                 style={[styles.microBtn, { paddingHorizontal: 6, paddingVertical: 2, backgroundColor: pal.pillBg, borderColor: pal.border }]}
