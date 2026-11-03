@@ -4001,6 +4001,7 @@ export function IsometricStudioStage({
                     category: 'study',
                     title: `知识图谱：${title}`,
                     deltaMinutes: mins,
+                    goalId: null,
                   });
                   setTimeBlocks(readTimeBlocks());
                   triggerStageBurst('focus', `+${mins}m 知识图谱`, pal.goldAccent, 'page');

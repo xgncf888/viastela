@@ -50,7 +50,7 @@ function main() {
   console.log('2/5 Packaging Web PWA & Charioteer Plugin archives...');
   const webZip = path.join(RELEASES_DIR, 'viastela-web-pwa.zip');
   rmSync(webZip, { force: true });
-  execFileSync('ditto', ['-c', '-k', DIST_DIR, webZip], { stdio: 'inherit' });
+  execFileSync('ditto', ['-c', '-k', '--norsrc', DIST_DIR, webZip], { stdio: 'inherit' });
 
   const pluginStage = path.join(os.tmpdir(), `viastela-plugin-${Date.now()}`);
   mkdirSync(path.join(pluginStage, 'public'), { recursive: true });
@@ -58,7 +58,7 @@ function main() {
   cpSync(path.join(ROOT, 'public', 'charioteer-plugin.json'), path.join(pluginStage, 'charioteer-plugin.json'));
   const pluginZip = path.join(RELEASES_DIR, 'viastela-charioteer-plugin.zip');
   rmSync(pluginZip, { force: true });
-  execFileSync('ditto', ['-c', '-k', pluginStage, pluginZip], { stdio: 'inherit' });
+  execFileSync('ditto', ['-c', '-k', '--norsrc', pluginStage, pluginZip], { stdio: 'inherit' });
 
   try {
     const charioteerHome = process.env.CHARIOTEER_HOME || path.join(os.homedir(), '.charioteer');

@@ -113,9 +113,20 @@
     const host = window.location.hostname || '';
     return (
       proto === 'app:' ||
+      proto === 'file:' ||
       proto === 'viastela-local:' ||
       host === 'appassets.androidplatform.net'
     );
+  }
+
+  // Normalize /index.html to / BEFORE Expo Router boots so mobile APK/IPA WebViews never hit an unmatched route white screen!
+  if (typeof window !== 'undefined' && window.location && window.location.pathname) {
+    const p = window.location.pathname;
+    if (p === '/index.html' || p.endsWith('/index.html')) {
+      try {
+        window.history.replaceState(null, '', '/' + (window.location.search || '') + (window.location.hash || ''));
+      } catch {}
+    }
   }
 
   if (isNativePackagedShell() && typeof window !== 'undefined') {
@@ -131,17 +142,24 @@
     }
   }
 
+  function isMobileOrRemoteClient() {
+    if (typeof window === 'undefined') return false;
+    const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+    const host = (window.location && window.location.hostname) || '';
+    return /iPhone|iPad|iPod|Android|Mobile/i.test(ua) || (host !== 'localhost' && host !== '127.0.0.1');
+  }
+
   function isLocalModeEnabled() {
     try {
       if (localStorage.getItem(LOCAL_MODE_KEY) === '1') return true;
-      if (isNativePackagedShell() && localStorage.getItem(SIGNED_OUT_KEY) !== '1') {
+      if ((isNativePackagedShell() || isMobileOrRemoteClient()) && localStorage.getItem(SIGNED_OUT_KEY) !== '1') {
         localStorage.setItem(LOCAL_MODE_KEY, '1');
         return true;
       }
     } catch {
       // Ignore storage errors
     }
-    return false;
+    return true;
   }
 
   function loadDb() {

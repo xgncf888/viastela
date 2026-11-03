@@ -133,7 +133,7 @@ function ensureRangeSliderCss() {
   }
 }
 
-function playCashRegisterTick(kind: 'expense' | 'income' | 'undo' = 'expense') {
+function playCashRegisterTick(kind: 'expense' | 'income' | 'transfer' | 'undo' = 'expense') {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return;
   try {
     const AudioCtx =
@@ -2412,7 +2412,16 @@ export function BookkeepingLedgerHub({
               multiline
               placeholder={t('每行一条，例如：2026-11-03, 瑞幸拿铁, -18, 微信支付', 'One row per line, e.g. 2026-11-03, Latte, -18, WeChat')}
               placeholderTextColor={pal.muted}
-              style={[styles.jsonInput, { backgroundColor: pal.inputBg, borderColor: pal.border, color: pal.ink }]}
+              style={[
+                styles.noteField,
+                {
+                  minHeight: 54,
+                  paddingVertical: 6,
+                  backgroundColor: pal.inputBg,
+                  borderColor: pal.border,
+                  color: pal.ink,
+                },
+              ]}
             />
           </View>
         ) : null}

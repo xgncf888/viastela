@@ -1,0 +1,15 @@
+{
+  "id": "pack-ai-infra",
+  "domainId": "ai-infra",
+  "version": "v2.0-interactive",
+  "titleZh": "AI Infra 与大模型原理交互动画离线包",
+  "titleEn": "AI Infra Interactive Animation Pack",
+  "storageFormat": "viastela-offline-chapter-pack-v2",
+  "nodes": [
+    "node-transformer",
+    "node-kv-cache",
+    "node-speculative",
+    "node-flash-attn"
+  ],
+  "descriptionZh": "独立离线章节数据包（支持按需加载至本地沙箱缓存或直接作为文件备份）：包含 Self-Attention QKV 矩阵热力动画、vLLM PagedAttention 显存分页动画、Speculative Decoding 投机采样动画与 FlashAttention SRAM Tiling 分块动画。"
+}

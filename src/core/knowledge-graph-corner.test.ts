@@ -11,21 +11,27 @@ import {
 } from './bookkeeping';
 import {
   buildDefaultKnowledgeState,
+  computeAttentionSimulation,
+  computeFlashAttentionSimulation,
   computeKnowledgeGraphStats,
+  computePagedAttentionSimulation,
+  computeSpeculativeDecodingSimulation,
   computeStudioUnlockables,
+  exportChapterPackJson,
   importCustomMarkdownKnowledgeNode,
   installKnowledgeChapterPack,
   offloadKnowledgeChapterPack,
   updateKnowledgeNodeProgress,
 } from './knowledge-graph-corner';
 
-describe('Study Corner Knowledge Graph & On-Demand Offline Chapter Packs', () => {
+describe('Study Corner Knowledge Graph, AI Interactive Animations & Offline Chapter Packs', () => {
   it('ships a lightweight skeleton index and supports on-demand chapter pack install & offload without losing mastery progress', () => {
     const initial = buildDefaultKnowledgeState();
     const stats0 = computeKnowledgeGraphStats(initial);
-    expect(stats0.totalNodes).toBeGreaterThanOrEqual(6);
+    expect(stats0.totalNodes).toBeGreaterThanOrEqual(7);
     expect(stats0.installedPacksCount).toBe(1);
-    expect(initial.offlineContents['node-transformer']).toBeDefined();
+    expect(stats0.storageKey).toBe('viastela.knowledge_graph.v1');
+    expect(initial.offlineContents['node-transformer']?.animationKind).toBe('self-attention');
     expect(initial.offlineContents['node-raft']).toBeUndefined();
 
     // Install CS Systems pack on demand
@@ -34,7 +40,7 @@ describe('Study Corner Knowledge Graph & On-Demand Offline Chapter Packs', () =>
     expect(afterInstall.offlineContents['node-raft']).toBeDefined();
 
     // Mark node-raft as mastered and add study minutes
-    const afterMastery = updateKnowledgeNodeProgress('node-raft', {
+    updateKnowledgeNodeProgress('node-raft', {
       status: 'mastered',
       studyMinutes: 90,
     });
@@ -45,13 +51,48 @@ describe('Study Corner Knowledge Graph & On-Demand Offline Chapter Packs', () =>
     const raftNode = afterOffload.nodes.find((n) => n.id === 'node-raft');
     expect(raftNode?.status).toBe('mastered');
     expect(raftNode?.studyMinutes).toBe(90);
+
+    const exportedJson = exportChapterPackJson('pack-ai-infra');
+    expect(exportedJson).toContain('ai-infra-interactive.pack.json');
+  });
+
+  it('computes interactive AI animation frames for Self-Attention, PagedAttention, Speculative Decoding, and FlashAttention', () => {
+    const sharpAttn = computeAttentionSimulation({
+      focusTokenIdx: 5,
+      stepIdx: 2,
+      temperature: 0.4,
+    });
+    const smoothAttn = computeAttentionSimulation({
+      focusTokenIdx: 5,
+      stepIdx: 2,
+      temperature: 1.6,
+    });
+    expect(Math.max(...sharpAttn.weightsPct)).toBeGreaterThan(Math.max(...smoothAttn.weightsPct));
+
+    const paged = computePagedAttentionSimulation({
+      tokenCount: 10,
+      sharedPrefixEnabled: true,
+    });
+    expect(paged.logicalBlocks.length).toBe(3);
+    expect(paged.logicalBlocks[0]?.isSharedCoW).toBe(true);
+    expect(paged.savedVramPct).toBeGreaterThan(40);
+
+    const spec = computeSpeculativeDecodingSimulation({
+      gamma: 4,
+      verifyPhase: 0,
+    });
+    expect(spec.acceptedCount).toBe(5);
+    expect(spec.effectiveSpeedup).toBeGreaterThan(2);
+
+    const flash = computeFlashAttentionSimulation({ activeTileIdx: 2 });
+    expect(flash.ioReductionFactor).toBe(8);
   });
 
   it('imports custom Markdown nodes with [[WikiLink]] bidirectional links and computes 2.5D studio unlockables', () => {
     const { state, addedNode } = importCustomMarkdownKnowledgeNode({
-      title: 'FlashAttention-3 异步流水线',
+      title: 'MoE 混合专家负载均衡路由',
       domainId: 'ai-infra',
-      markdownBody: '- 基于 [[AI-101]] 与 Hopper 架构 WGMMA 指令重叠计算与数据传输',
+      markdownBody: '- 基于 [[AI-101]] Top-K 门控网络与辅助负载均衡损失',
     });
     expect(addedNode.bidirectionalLinks).toContain('node-transformer');
     expect(state.offlineContents[addedNode.id]).toBeDefined();

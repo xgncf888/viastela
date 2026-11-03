@@ -582,7 +582,9 @@ function buildSelfContainedMobileSanctuaryHtml(displayName, iconB64) {
 }
 
 function buildMobileConfig(displayName) {
-  const iconB64 = readFileSync(path.join(ROOT, 'public', 'icons', 'apple-touch-icon.png')).toString('base64');
+  const icon512Path = path.join(ROOT, 'public', 'icons', 'icon-512.png');
+  const icon180Path = path.join(ROOT, 'public', 'icons', 'apple-touch-icon.png');
+  const iconB64 = readFileSync(existsSync(icon512Path) ? icon512Path : icon180Path).toString('base64');
   const htmlB64 = Buffer.from(buildSelfContainedMobileSanctuaryHtml(displayName, iconB64), 'utf8').toString('base64');
   const appUrl = process.env.VIASTELA_WEB_URL || `data:text/html;charset=utf-8;base64,${htmlB64}`;
   const mobileConfig = `<?xml version="1.0" encoding="UTF-8"?>
@@ -593,7 +595,7 @@ function buildMobileConfig(displayName) {
   <array>
     <dict>
       <key>FullScreen</key>
-      <true/>
+      <false/>
       <key>Icon</key>
       <data>${iconB64}</data>
       <key>IgnoreManifestScope</key>
@@ -607,13 +609,13 @@ function buildMobileConfig(displayName) {
       <key>PayloadDisplayName</key>
       <string>${displayName} Sanctuary</string>
       <key>PayloadIdentifier</key>
-      <string>app.viastela.webclip.v2</string>
+      <string>app.viastela.webclip.v3</string>
       <key>PayloadType</key>
       <string>com.apple.webClip.managed</string>
       <key>PayloadUUID</key>
-      <string>8A9D547E-3B2F-4E91-9A11-7C64E8120009</string>
+      <string>8A9D547E-3B2F-4E91-9A11-7C64E8120019</string>
       <key>PayloadVersion</key>
-      <integer>2</integer>
+      <integer>3</integer>
       <key>Precomposed</key>
       <true/>
       <key>URL</key>
@@ -621,7 +623,7 @@ function buildMobileConfig(displayName) {
     </dict>
   </array>
   <key>PayloadDescription</key>
-  <string>${displayName} iOS Direct Home Screen Installer (Black-Gold Astrolabe v2 · Zero-404 Offline Ready)</string>
+  <string>${displayName} iOS Direct Home Screen Installer (Black-Gold Astrolabe v3 · Full-Bleed Zero-Border Icon)</string>
   <key>PayloadDisplayName</key>
   <string>${displayName} (${displayName} 星途工作台)</string>
   <key>PayloadIdentifier</key>
@@ -633,9 +635,9 @@ function buildMobileConfig(displayName) {
   <key>PayloadType</key>
   <string>Configuration</string>
   <key>PayloadUUID</key>
-  <string>8A9D547E-3B2F-4E91-9A11-7C64E8120000</string>
+  <string>8A9D547E-3B2F-4E91-9A11-7C64E8120018</string>
   <key>PayloadVersion</key>
-  <integer>2</integer>
+  <integer>3</integer>
 </dict>
 </plist>
 `;
