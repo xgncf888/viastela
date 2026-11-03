@@ -8,16 +8,24 @@ import {
   computeDistributedParallelSimulation,
   computeFlashAttentionSimulation,
   computeKnowledgeGraphStats,
+  computeLoraRagSimulation,
   computeMoeRoutingSimulation,
+  computeNeuronGradientSimulation,
   computePagedAttentionSimulation,
+  computeQuantizationSimulation,
+  computeRnnVsAttentionSimulation,
   computeSpeculativeDecodingSimulation,
   computeStudioUnlockables,
+  computeTokenNextWordSimulation,
+  computeWordEmbeddingSimulation,
   exportChapterPackJson,
   importCustomMarkdownKnowledgeNode,
   installKnowledgeChapterPack,
   KNOWLEDGE_DOMAINS,
   type KnowledgeDomainId,
   type KnowledgeGraphState,
+  LEARNING_STAGES,
+  type LearningStageLevel,
   offloadKnowledgeChapterPack,
   readKnowledgeGraphState,
   updateKnowledgeNodeProgress,
@@ -34,9 +42,7 @@ import { useI18n } from './use-i18n';
 export type StudyWorkbenchSubView = 'lab' | 'graph' | 'packs';
 
 /**
- * Interactive Animated AI Learning Lab (AI 交互式动画教学大讲堂)
- * Supports 6 interactive SVG laboratories with Play/Pause auto-stepping,
- * multi-head/parameter controls, and real-time mathematical readouts.
+ * Interactive Animated AI Learning Lab (AI 交互式动画教学大讲堂 · 支持从 L1 零基础小白到 L4 工业级共 12 大实验)
  */
 function AiInteractiveAnimationLab({
   kind,
@@ -51,29 +57,52 @@ function AiInteractiveAnimationLab({
   const [playing, setPlaying] = useState(true);
   const [tick, setTick] = useState(0);
 
-  // Lab 1: Self-Attention + Multi-Head + RoPE 2D Rotation
-  const [focusTokenIdx, setFocusTokenIdx] = useState(5); // 'AI'
+  // L1-1: Token Next-Word Solitaire (AI-001)
+  const [tokenStep, setTokenStep] = useState(0);
+  const [samplingMode, setSamplingMode] = useState<'greedy' | 'top-p'>('greedy');
+
+  // L1-2: Word Embedding 2D Galaxy & King-Man+Woman=Queen (AI-002)
+  const [embedCluster, setEmbedCluster] = useState<'pets' | 'coffee' | 'tech'>('pets');
+  const [showRoyaltyAnalogy, setShowRoyaltyAnalogy] = useState(false);
+
+  // L1-3: Neuron Loss Valley & Gradient Descent (AI-003)
+  const [gradStep, setGradStep] = useState(2);
+  const [learningRate, setLearningRate] = useState(0.25);
+
+  // L1-4: RNN Sequential Decay vs Attention O(1) Direct Link (AI-004)
+  const [rnnLen, setRnnLen] = useState<4 | 8 | 16>(8);
+
+  // L2: Self-Attention + Multi-Head + RoPE 2D Rotation (AI-101)
+  const [focusTokenIdx, setFocusTokenIdx] = useState(5);
   const [attnHeadIdx, setAttnHeadIdx] = useState(0);
   const [attnStepIdx, setAttnStepIdx] = useState(2);
   const [temperature, setTemperature] = useState(0.8);
 
-  // Lab 2: PagedAttention
+  // L3-1: RAG vs LoRA Low-Rank Adaptation (AI-105)
+  const [loraRagMode, setLoraRagMode] = useState<'rag' | 'lora' | 'hybrid'>('hybrid');
+  const [loraRank, setLoraRank] = useState<4 | 8 | 16>(8);
+
+  // L3-2: FP16 -> INT4 Quantization & SmoothQuant Outliers (AI-701)
+  const [quantPrecision, setQuantPrecision] = useState<'fp16' | 'int8' | 'int4'>('int4');
+  const [smoothOutliers, setSmoothOutliers] = useState(true);
+
+  // L4-1: PagedAttention (AI-201)
   const [pagedTokenCount, setPagedTokenCount] = useState(11);
   const [sharedPrefix, setSharedPrefix] = useState(true);
 
-  // Lab 3: Speculative Decoding
+  // L4-2: Speculative Decoding (AI-301)
   const [specGamma, setSpecGamma] = useState(4);
   const [specPhase, setSpecPhase] = useState(0);
 
-  // Lab 4: FlashAttention Tiling
+  // L4-3: FlashAttention Tiling (AI-401)
   const [flashTileIdx, setFlashTileIdx] = useState(1);
 
-  // Lab 5: MoE Top-K Router
+  // L4-4: MoE Top-K Router (AI-501)
   const [moeTokenIdx, setMoeTokenIdx] = useState(0);
   const [moeTopK, setMoeTopK] = useState(2);
   const [moeLoadBalance, setMoeLoadBalance] = useState(true);
 
-  // Lab 6: 3D Parallelism & ZeRO Sharding
+  // L4-5: 3D Parallelism & ZeRO Sharding (AI-601)
   const [zeroStage, setZeroStage] = useState<0 | 1 | 2 | 3>(2);
   const [microBatches, setMicroBatches] = useState(8);
 
@@ -81,8 +110,20 @@ function AiInteractiveAnimationLab({
     if (!playing) return undefined;
     const timer = setInterval(() => {
       setTick((prev) => prev + 1);
-      if (kind === 'self-attention') {
+      if (kind === 'token-next-word') {
+        setTokenStep((prev) => (prev + 1) % 4);
+      } else if (kind === 'word-embedding') {
+        setEmbedCluster((prev) => (prev === 'pets' ? 'coffee' : prev === 'coffee' ? 'tech' : 'pets'));
+      } else if (kind === 'neuron-gradient') {
+        setGradStep((prev) => (prev >= 7 ? 0 : prev + 1));
+      } else if (kind === 'rnn-vs-attention') {
+        setRnnLen((prev) => (prev === 4 ? 8 : prev === 8 ? 16 : 4));
+      } else if (kind === 'self-attention') {
         setAttnStepIdx((prev) => (prev + 1) % 4);
+      } else if (kind === 'lora-rag') {
+        setLoraRagMode((prev) => (prev === 'rag' ? 'lora' : prev === 'lora' ? 'hybrid' : 'rag'));
+      } else if (kind === 'quantization-smooth') {
+        setQuantPrecision((prev) => (prev === 'fp16' ? 'int8' : prev === 'int8' ? 'int4' : 'fp16'));
       } else if (kind === 'paged-attention') {
         setPagedTokenCount((prev) => (prev >= 16 ? 5 : prev + 1));
       } else if (kind === 'speculative-decoding') {
@@ -94,7 +135,7 @@ function AiInteractiveAnimationLab({
       } else if (kind === 'distributed-parallel') {
         setZeroStage((prev) => ((prev + 1) % 4) as 0 | 1 | 2 | 3);
       }
-    }, 2000);
+    }, 2100);
     return () => clearInterval(timer);
   }, [playing, kind]);
 
@@ -107,6 +148,713 @@ function AiInteractiveAnimationLab({
   const sky = isDark ? '#38bdf8' : '#0284c7';
   const pink = isDark ? '#f472b6' : '#db2777';
   const svgHeight = fullScreen ? 176 : 138;
+
+  // ==================== LAB AI-001: TOKEN NEXT-WORD SOLITAIRE ====================
+  if (kind === 'token-next-word') {
+    const sim = computeTokenNextWordSimulation({
+      generatedStep: tokenStep,
+      samplingMode,
+    });
+    return (
+      <View style={[styles.animContainer, { backgroundColor: boxBg, borderColor: borderCol }]}>
+        <View style={styles.animHeader}>
+          <Text variant="caption" style={{ color: emerald, fontSize: 12, fontWeight: '700' }}>
+            {t('🌱 零基础第 1 课动画 · Token 切词积木与「下一词概率接龙」游戏机', '🌱 Beginner Lab 1 · Tokenization & Next-Token Prediction')}
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+            <Pressable
+              onPress={() => setPlaying((p) => !p)}
+              style={[styles.microBtn, { borderColor: playing ? emerald : gold }]}
+            >
+              <Text variant="caption" style={{ color: playing ? emerald : gold, fontSize: 10, fontWeight: '700' }}>
+                {playing ? t('⏸ 自动接龙中', '⏸ Auto Playing') : t('▶ 自动播放接龙', '▶ Auto Play')}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                setPlaying(false);
+                setTokenStep((s) => (s + 1) % 4);
+              }}
+              style={[styles.microBtn, { backgroundColor: 'rgba(52,211,153,0.18)', borderColor: emerald }]}
+            >
+              <Text variant="caption" style={{ color: emerald, fontSize: 10, fontWeight: '700' }}>
+                {t('🎲 接龙生成下一个词 ▶|', '🎲 Generate Next Token ▶|')}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setSamplingMode((m) => (m === 'greedy' ? 'top-p' : 'greedy'))}
+              style={[styles.microBtn, { borderColor: sky }]}
+            >
+              <Text variant="caption" style={{ color: sky, fontSize: 10, fontWeight: '700' }}>
+                {samplingMode === 'greedy'
+                  ? t('当前：Greedy 贪婪必选第1名', 'Mode: Greedy Top-1')
+                  : t('当前：Top-P 核采样创意模式', 'Mode: Top-P Creative')}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Visual Lego Token Stream + Candidate Probability Bars */}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'flex-start' }}>
+          {/* Left: Token Blocks Stream */}
+          <View style={{ flex: 1.4, minWidth: 260, gap: 6 }}>
+            <Text variant="caption" style={{ color: sub, fontSize: 10, fontWeight: '700' }}>
+              {t('① 切词器 (Tokenizer) 切出的上下文积木块 + 新吐出的接龙词:', '① Context Token Blocks + Generated Tokens:')}
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+              {sim.baseTokens.map((tok) => (
+                <View
+                  key={tok.id}
+                  style={{
+                    paddingHorizontal: 9,
+                    paddingVertical: 5,
+                    borderRadius: 7,
+                    borderWidth: 1.2,
+                    borderColor: tok.color,
+                    backgroundColor: `${tok.color}18`,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text variant="caption" style={{ color: ink, fontSize: 11.5, fontWeight: '700' }}>
+                    {tok.text}
+                  </Text>
+                  <Text variant="caption" style={{ color: tok.color, fontSize: 9, fontFamily: theme.fontFamily.mono }}>
+                    {`#${tok.id}`}
+                  </Text>
+                </View>
+              ))}
+              {sim.generatedTokens.map((gt, idx) => {
+                const isLatest = idx === sim.generatedTokens.length - 1;
+                return (
+                  <View
+                    key={`${gt.id}-${idx}`}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
+                      borderRadius: 7,
+                      borderWidth: isLatest ? 2 : 1.2,
+                      borderColor: isLatest ? '#f5b942' : emerald,
+                      backgroundColor: isLatest ? 'rgba(245,185,66,0.25)' : 'rgba(52,211,153,0.18)',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text variant="caption" style={{ color: isLatest ? gold : emerald, fontSize: 11.5, fontWeight: '700' }}>
+                      {`${isLatest ? '✨' : ''}${gt.text}`}
+                    </Text>
+                    <Text variant="caption" style={{ color: sub, fontSize: 9, fontFamily: theme.fontFamily.mono }}>
+                      {`#${gt.id} (${gt.probPct}%)`}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+            <Text variant="caption" style={{ color: gold, fontSize: 11, fontWeight: '700', marginTop: 2 }}>
+              {`当前拼出完整句子：「${sim.fullSentence}」`}
+            </Text>
+          </View>
+
+          {/* Right: Next-Token Candidate Probability Leaderboard */}
+          <View style={{ flex: 1, minWidth: 230, gap: 5, padding: 8, borderRadius: 8, borderWidth: 1, borderColor: borderCol, backgroundColor: isDark ? '#18181b' : '#ffffff' }}>
+            <Text variant="caption" style={{ color: gold, fontSize: 10, fontWeight: '700' }}>
+              {t('② 词表候选词概率打分榜 P(next | context):', '② Candidate Token Probabilities:')}
+            </Text>
+            {sim.candidates.map((cand) => (
+              <View key={cand.tokenId} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text variant="caption" style={{ color: cand.chosen ? emerald : ink, fontSize: 10.5, fontWeight: cand.chosen ? '700' : '500', width: 62 }}>
+                  {`${cand.chosen ? '👉 ' : ''}${cand.token}`}
+                </Text>
+                <View style={{ flex: 1, height: 12, borderRadius: 4, backgroundColor: isDark ? '#27272a' : '#e2e8f0', overflow: 'hidden' }}>
+                  <View
+                    style={{
+                      width: `${cand.probPct}%`,
+                      height: '100%',
+                      backgroundColor: cand.chosen ? '#34d399' : '#38bdf8',
+                    }}
+                  />
+                </View>
+                <Text variant="caption" style={{ color: cand.chosen ? emerald : sub, fontSize: 9.5, fontFamily: theme.fontFamily.mono, width: 38, textAlign: 'right', fontWeight: '700' }}>
+                  {`${cand.probPct}%`}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={[styles.stepCaptionBox, { borderColor: borderCol }]}>
+          <Text variant="caption" style={{ color: sub, fontSize: 10.5 }}>
+            {sim.stepDescZh}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  // ==================== LAB AI-002: WORD EMBEDDING 2D GALAXY ====================
+  if (kind === 'word-embedding') {
+    const sim = computeWordEmbeddingSimulation({
+      clusterId: embedCluster,
+      showRoyaltyAnalogy,
+    });
+    return (
+      <View style={[styles.animContainer, { backgroundColor: boxBg, borderColor: borderCol }]}>
+        <View style={styles.animHeader}>
+          <Text variant="caption" style={{ color: emerald, fontSize: 12, fontWeight: '700' }}>
+            {t('🌱 零基础第 2 课动画 · Embedding 词向量语义星空与向量加减魔法', '🌱 Beginner Lab 2 · Word Embeddings & Vector Arithmetic')}
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+            <Pressable
+              onPress={() => {
+                setPlaying(false);
+                setShowRoyaltyAnalogy((v) => !v);
+              }}
+              style={[
+                styles.microBtn,
+                {
+                  backgroundColor: showRoyaltyAnalogy ? 'rgba(245,185,66,0.22)' : 'rgba(52,211,153,0.16)',
+                  borderColor: showRoyaltyAnalogy ? gold : emerald,
+                },
+              ]}
+            >
+              <Text variant="caption" style={{ color: showRoyaltyAnalogy ? gold : emerald, fontSize: 10, fontWeight: '700' }}>
+                {showRoyaltyAnalogy
+                  ? t('✨ 正在演示：国王 - 男人 + 女人 = 女王 (点击切回星团)', '✨ King - Man + Woman = Queen')
+                  : t('✨ 点击演示：国王 - 男人 + 女人 = 女王 向量魔法', '✨ Demo King - Man + Woman = Queen')}
+              </Text>
+            </Pressable>
+            {!showRoyaltyAnalogy
+              ? (['pets', 'coffee', 'tech'] as const).map((cid) => (
+                  <Pressable
+                    key={cid}
+                    onPress={() => {
+                      setPlaying(false);
+                      setEmbedCluster(cid);
+                    }}
+                    style={[
+                      styles.microBtn,
+                      {
+                        borderColor: embedCluster === cid ? sky : borderCol,
+                        backgroundColor: embedCluster === cid ? 'rgba(56,189,248,0.18)' : 'transparent',
+                      },
+                    ]}
+                  >
+                    <Text variant="caption" style={{ color: sky, fontSize: 9.5, fontWeight: '700' }}>
+                      {cid === 'pets' ? '🐱 宠物星团' : cid === 'coffee' ? '☕ 咖啡星团' : '💻 AI算力星团'}
+                    </Text>
+                  </Pressable>
+                ))
+              : null}
+          </View>
+        </View>
+
+        {/* 2D Vector Space SVG + Multi-Dimensional Scorecard */}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+          {Platform.OS === 'web'
+            ? createElement(
+                'svg',
+                { width: 340, height: 136, viewBox: '0 0 340 136', style: { flex: 1, minWidth: 260 } },
+                createElement('rect', {
+                  x: 4,
+                  y: 4,
+                  width: 332,
+                  height: 128,
+                  rx: 8,
+                  fill: isDark ? '#18181b' : '#ffffff',
+                  stroke: borderCol,
+                }),
+                // Axes
+                createElement('line', { x1: 24, y1: 116, x2: 320, y2: 116, stroke: isDark ? '#334155' : '#cbd5e1', strokeWidth: 1 }),
+                createElement('line', { x1: 24, y1: 14, x2: 24, y2: 116, stroke: isDark ? '#334155' : '#cbd5e1', strokeWidth: 1 }),
+                showRoyaltyAnalogy
+                  ? createElement(
+                      'g',
+                      null,
+                      // Parallelogram vector arrows: Man -> King and Woman -> Queen
+                      createElement('line', {
+                        x1: 95,
+                        y1: 96,
+                        x2: 108,
+                        y2: 34,
+                        stroke: '#f5b942',
+                        strokeWidth: 2.2,
+                        strokeDasharray: '4 2',
+                      }),
+                      createElement('line', {
+                        x1: 246,
+                        y1: 94,
+                        x2: 260,
+                        y2: 32,
+                        stroke: '#34d399',
+                        strokeWidth: 2.6,
+                      }),
+                      createElement('line', {
+                        x1: 108,
+                        y1: 34,
+                        x2: 260,
+                        y2: 32,
+                        stroke: '#f472b6',
+                        strokeWidth: 2,
+                        strokeDasharray: '3 3',
+                      }),
+                    )
+                  : null,
+                sim.points.map((pt) => {
+                  const cx = 24 + (pt.x / 100) * 290;
+                  const cy = 12 + (pt.y / 100) * 98;
+                  return createElement(
+                    'g',
+                    { key: pt.word },
+                    createElement('circle', { cx, cy, r: 6.5, fill: pt.color }),
+                    createElement(
+                      'text',
+                      {
+                        x: cx,
+                        y: cy - 9,
+                        textAnchor: 'middle',
+                        fill: ink,
+                        fontSize: '10',
+                        fontWeight: '700',
+                      },
+                      pt.word,
+                    ),
+                  );
+                }),
+              )
+            : null}
+
+          <View style={{ flex: 1, minWidth: 240, gap: 5 }}>
+            <Text variant="caption" style={{ color: gold, fontSize: 10.5, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
+              {sim.pairLabelZh}
+            </Text>
+            {sim.points.slice(0, 4).map((pt) => (
+              <View key={pt.word} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 2 }}>
+                <Text variant="caption" style={{ color: pt.color, fontSize: 10, fontWeight: '700', width: 92 }}>
+                  {pt.word}
+                </Text>
+                <Text variant="caption" style={{ color: sub, fontSize: 9.5, fontFamily: theme.fontFamily.mono }}>
+                  {`[活力:${pt.dims[0]}, 社交/皇室:${pt.dims[1]}, 科技:${pt.dims[2]}]`}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={[styles.stepCaptionBox, { borderColor: borderCol }]}>
+          <Text variant="caption" style={{ color: sub, fontSize: 10.5 }}>
+            {sim.summaryZh}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  // ==================== LAB AI-003: NEURON LOSS VALLEY & GRADIENT DESCENT ====================
+  if (kind === 'neuron-gradient') {
+    const sim = computeNeuronGradientSimulation({
+      stepCount: gradStep,
+      learningRate,
+    });
+    return (
+      <View style={[styles.animContainer, { backgroundColor: boxBg, borderColor: borderCol }]}>
+        <View style={styles.animHeader}>
+          <Text variant="caption" style={{ color: emerald, fontSize: 12, fontWeight: '700' }}>
+            {t('🌱 零基础第 3 课动画 · Loss 误差山谷与梯度下降 (Gradient Descent) 下山寻优', '🌱 Beginner Lab 3 · Loss Valley & Gradient Descent')}
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+            <Pressable
+              onPress={() => {
+                setPlaying(false);
+                setGradStep((s) => (s >= 7 ? 0 : s + 1));
+              }}
+              style={[styles.microBtn, { backgroundColor: 'rgba(52,211,153,0.18)', borderColor: emerald }]}
+            >
+              <Text variant="caption" style={{ color: emerald, fontSize: 10, fontWeight: '700' }}>
+                {t(`👣 迈出一步梯度更新 (当前第 ${gradStep} 步)`, `👣 Step Gradient (${gradStep})`)}
+              </Text>
+            </Pressable>
+            {[
+              { lr: 0.08, label: 'η=0.08 蜗牛步' },
+              { lr: 0.25, label: 'η=0.25 黄金步长' },
+              { lr: 0.92, label: 'η=0.92 步大震荡!' },
+            ].map((item) => (
+              <Pressable
+                key={item.lr}
+                onPress={() => {
+                  setPlaying(false);
+                  setLearningRate(item.lr);
+                  setGradStep(4);
+                }}
+                style={[
+                  styles.microBtn,
+                  {
+                    borderColor: Math.abs(learningRate - item.lr) < 0.02 ? gold : borderCol,
+                    backgroundColor: Math.abs(learningRate - item.lr) < 0.02 ? 'rgba(245,185,66,0.20)' : 'transparent',
+                  },
+                ]}
+              >
+                <Text variant="caption" style={{ color: Math.abs(learningRate - item.lr) < 0.02 ? gold : sub, fontSize: 9.5, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
+                  {item.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {/* SVG Parabolic Loss Valley Curve L(w) = (w - 3)^2 */}
+        {Platform.OS === 'web'
+          ? createElement(
+              'svg',
+              { width: '100%', height: 132, viewBox: '0 0 600 132' },
+              // Valley parabola path from w=0 (x=80, y=18) through w=3 (x=300, y=108) to w=6 (x=520, y=18)
+              createElement('path', {
+                d: 'M 80 18 Q 300 198 520 18',
+                fill: 'none',
+                stroke: isDark ? '#475569' : '#94a3b8',
+                strokeWidth: 2.5,
+              }),
+              // Target minimum marker at w=3.0
+              createElement('circle', { cx: 300, cy: 108, r: 6, fill: '#34d399' }),
+              createElement(
+                'text',
+                { x: 300, y: 125, textAnchor: 'middle', fill: emerald, fontSize: '10', fontWeight: '700' },
+                '★ 谷底最优解 w=3.0 (Loss=0)',
+              ),
+              // Trajectory polyline & balls
+              sim.trajectory.map((pt, idx) => {
+                const cx = 80 + (pt.w / 6) * 440;
+                const cy = 108 - Math.min(92, (pt.loss / 9) * 90);
+                const isLast = idx === sim.trajectory.length - 1;
+                const prev = idx > 0 ? sim.trajectory[idx - 1] : null;
+                const prevX = prev ? 80 + (prev.w / 6) * 440 : cx;
+                const prevY = prev ? 108 - Math.min(92, (prev.loss / 9) * 90) : cy;
+                return createElement(
+                  'g',
+                  { key: idx },
+                  prev
+                    ? createElement('line', {
+                        x1: prevX,
+                        y1: prevY,
+                        x2: cx,
+                        y2: cy,
+                        stroke: learningRate > 0.7 ? '#ef4444' : '#f5b942',
+                        strokeWidth: 2,
+                        strokeDasharray: '3 2',
+                      })
+                    : null,
+                  createElement('circle', {
+                    cx,
+                    cy,
+                    r: isLast ? 7.5 : 4,
+                    fill: isLast ? '#f5b942' : '#38bdf8',
+                    stroke: isLast ? '#ffffff' : 'none',
+                    strokeWidth: 1.5,
+                  }),
+                  isLast
+                    ? createElement(
+                        'text',
+                        {
+                          x: cx,
+                          y: Math.max(14, cy - 11),
+                          textAnchor: 'middle',
+                          fill: gold,
+                          fontSize: '10.5',
+                          fontWeight: '700',
+                        },
+                        `当前 w=${pt.w} (Loss=${pt.loss})`,
+                      )
+                    : null,
+                );
+              }),
+            )
+          : null}
+
+        <View style={[styles.stepCaptionBox, { borderColor: borderCol }]}>
+          <Text variant="caption" style={{ color: gold, fontSize: 11, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
+            {`w_new = w - η · ∇L  =>  当前参数 w=${sim.currentWeight} · 误差 Loss=${sim.currentLoss} · 梯度斜率 ∇L=${sim.currentGradient}`}
+          </Text>
+          <Text variant="caption" style={{ color: sub, fontSize: 10.5 }}>
+            {sim.stepDescZh}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  // ==================== LAB AI-004: RNN DECAY VS ATTENTION DIRECT LINK ====================
+  if (kind === 'rnn-vs-attention') {
+    const sim = computeRnnVsAttentionSimulation({ sentenceLength: rnnLen });
+    return (
+      <View style={[styles.animContainer, { backgroundColor: boxBg, borderColor: borderCol }]}>
+        <View style={styles.animHeader}>
+          <Text variant="caption" style={{ color: emerald, fontSize: 12, fontWeight: '700' }}>
+            {t('🌱 零基础第 4 课动画 · RNN 串行传声筒遗忘 vs Attention 微信群 @ 直连通道', '🌱 Beginner Lab 4 · RNN Sequential Decay vs Attention Direct Link')}
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {([4, 8, 16] as const).map((len) => (
+              <Pressable
+                key={len}
+                onPress={() => {
+                  setPlaying(false);
+                  setRnnLen(len);
+                }}
+                style={[
+                  styles.microBtn,
+                  {
+                    borderColor: rnnLen === len ? gold : borderCol,
+                    backgroundColor: rnnLen === len ? 'rgba(245,185,66,0.20)' : 'transparent',
+                  },
+                ]}
+              >
+                <Text variant="caption" style={{ color: rnnLen === len ? gold : sub, fontSize: 10, fontWeight: '700' }}>
+                  {len === 4 ? '短句 (4词)' : len === 8 ? '中句 (8词)' : '长句 (16词·RNN彻底失忆)'}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {/* Dual-Track Comparison: RNN Fading Chain vs Attention Direct Beam */}
+        <View style={{ gap: 8 }}>
+          <View style={{ padding: 8, borderRadius: 7, borderWidth: 1, borderColor: 'rgba(239,68,68,0.35)', backgroundColor: isDark ? '#18181b' : '#ffffff', gap: 5 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text variant="caption" style={{ color: '#ef4444', fontSize: 10.5, fontWeight: '700' }}>
+                {`❌ 传统 RNN 传声筒（需串行接力 ${sim.rnnStepsRequired} 步，句首「小猫」传到「它」时信号衰减至 ${sim.rnnRetentionPct}%）`}
+              </Text>
+              <Text variant="caption" style={{ color: '#ef4444', fontSize: 10, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                {`记忆保留: ${sim.rnnRetentionPct}%`}
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+              {sim.tokens.map((tok, idx) => {
+                const fade = Math.max(0.14, 1 - (idx / sim.tokens.length) * (sim.sentenceLength === 16 ? 0.9 : 0.65));
+                return (
+                  <View
+                    key={`rnn-${idx}`}
+                    style={{
+                      paddingHorizontal: 6,
+                      paddingVertical: 3,
+                      borderRadius: 5,
+                      backgroundColor: `rgba(245, 185, 66, ${fade.toFixed(2)})`,
+                    }}
+                  >
+                    <Text variant="caption" style={{ color: ink, fontSize: 9.5, fontWeight: idx === 0 || idx === sim.tokens.length - 1 ? '700' : '500' }}>
+                      {`${tok}${idx < sim.tokens.length - 1 ? ' →' : ''}`}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={{ padding: 8, borderRadius: 7, borderWidth: 1.2, borderColor: emerald, backgroundColor: isDark ? '#18181b' : '#ffffff', gap: 5 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text variant="caption" style={{ color: emerald, fontSize: 10.5, fontWeight: '700' }}>
+                {`✅ Transformer Attention 全局直连（句尾「它」直接 1 步 @ 句首「小猫」，记忆保留 ${sim.attentionRetentionPct}%！）`}
+              </Text>
+              <Text variant="caption" style={{ color: emerald, fontSize: 10, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                {`1 步直达 · 保留 ${sim.attentionRetentionPct}%`}
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(52,211,153,0.22)', borderWidth: 1, borderColor: emerald }}>
+                <Text variant="caption" style={{ color: emerald, fontSize: 10.5, fontWeight: '700' }}>
+                  {`句首 Key/Value：「${sim.tokens[0]}」`}
+                </Text>
+              </View>
+              <Text variant="caption" style={{ color: gold, fontSize: 11, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
+                {`⚡ ══════ O(1) 注意力高速直连专线 (跨越 ${sim.rnnStepsRequired} 个词零衰减) ══════ ⚡`}
+              </Text>
+              <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(245,185,66,0.22)', borderWidth: 1, borderColor: gold }}>
+                <Text variant="caption" style={{ color: gold, fontSize: 10.5, fontWeight: '700' }}>
+                  {`句尾 Query：「${sim.tokens[sim.tokens.length - 1]}」`}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <View style={[styles.stepCaptionBox, { borderColor: borderCol }]}>
+          <Text variant="caption" style={{ color: sub, fontSize: 10.5 }}>
+            {sim.summaryZh}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  // ==================== LAB AI-105: RAG VS LORA ADAPTATION ====================
+  if (kind === 'lora-rag') {
+    const sim = computeLoraRagSimulation({
+      mode: loraRagMode,
+      loraRank,
+    });
+    return (
+      <View style={[styles.animContainer, { backgroundColor: boxBg, borderColor: borderCol }]}>
+        <View style={styles.animHeader}>
+          <Text variant="caption" style={{ color: sky, fontSize: 12, fontWeight: '700' }}>
+            {t('🛠 进阶第 6 课动画 · RAG 开卷向量检索 vs LoRA 低秩旁路微调 (ΔW = B·A)', '🛠 Stage 3 Lab · RAG Retrieval vs LoRA Low-Rank Adaptation')}
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+            {(['rag', 'lora', 'hybrid'] as const).map((m) => (
+              <Pressable
+                key={m}
+                onPress={() => {
+                  setPlaying(false);
+                  setLoraRagMode(m);
+                }}
+                style={[
+                  styles.microBtn,
+                  {
+                    borderColor: loraRagMode === m ? gold : borderCol,
+                    backgroundColor: loraRagMode === m ? 'rgba(245,185,66,0.20)' : 'transparent',
+                  },
+                ]}
+              >
+                <Text variant="caption" style={{ color: loraRagMode === m ? gold : sub, fontSize: 10, fontWeight: '700' }}>
+                  {m === 'rag' ? '📚 纯 RAG 开卷检索' : m === 'lora' ? '🩹 纯 LoRA 旁路微调' : '⚡ RAG + LoRA 双剑合璧'}
+                </Text>
+              </Pressable>
+            ))}
+            {([4, 8, 16] as const).map((r) => (
+              <Pressable
+                key={r}
+                onPress={() => setLoraRank(r)}
+                style={[
+                  styles.microBtn,
+                  {
+                    borderColor: loraRank === r ? emerald : borderCol,
+                    backgroundColor: loraRank === r ? 'rgba(52,211,153,0.18)' : 'transparent',
+                  },
+                ]}
+              >
+                <Text variant="caption" style={{ color: emerald, fontSize: 9.5, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                  {`秩 r=${r}`}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          <View style={{ flex: 1, minWidth: 180, padding: 9, borderRadius: 8, borderWidth: 1, borderColor: sky, backgroundColor: isDark ? '#18181b' : '#ffffff', gap: 3 }}>
+            <Text variant="caption" style={{ color: sky, fontSize: 10.5, fontWeight: '700' }}>
+              {t('❄️ 冻结主干矩阵 W_0 (4096×4096)', '❄️ Frozen Base Weight W_0')}
+            </Text>
+            <Text variant="caption" style={{ color: ink, fontSize: 12, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
+              {`${sim.fullParamsMillion}M 参数 (0 梯度显存)`}
+            </Text>
+            <Text variant="caption" style={{ color: sub, fontSize: 9.5 }}>
+              {t('原封不动保留通用语言与世界知识，不参与反向传播', 'Preserves general world knowledge')}
+            </Text>
+          </View>
+
+          <View style={{ flex: 1, minWidth: 180, padding: 9, borderRadius: 8, borderWidth: 1.5, borderColor: gold, backgroundColor: isDark ? '#18181b' : '#ffffff', gap: 3 }}>
+            <Text variant="caption" style={{ color: gold, fontSize: 10.5, fontWeight: '700' }}>
+              {`🔥 LoRA 便利贴旁路 A(4096×${sim.loraRank}) · B(${sim.loraRank}×4096)`}
+            </Text>
+            <Text variant="caption" style={{ color: emerald, fontSize: 12, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
+              {`仅 ${sim.loraParamsMillion}M 参数 (省 ${sim.paramSavingPct}%)`}
+            </Text>
+            <Text variant="caption" style={{ color: sub, fontSize: 9.5 }}>
+              {t('上线时直接合并 W = W_0 + B·A，推理零额外耗时！', 'Merges into W_0 for 0ms extra latency')}
+            </Text>
+          </View>
+        </View>
+
+        <View style={[styles.stepCaptionBox, { borderColor: borderCol }]}>
+          <Text variant="caption" style={{ color: sub, fontSize: 10.5 }}>
+            {sim.summaryZh}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  // ==================== LAB AI-701: INT4 QUANTIZATION & SMOOTHQUANT ====================
+  if (kind === 'quantization-smooth') {
+    const sim = computeQuantizationSimulation({
+      precision: quantPrecision,
+      smoothOutliers,
+    });
+    return (
+      <View style={[styles.animContainer, { backgroundColor: boxBg, borderColor: borderCol }]}>
+        <View style={styles.animHeader}>
+          <Text variant="caption" style={{ color: sky, fontSize: 12, fontWeight: '700' }}>
+            {t('🛠 进阶第 7 课动画 · FP16 → INT4 量化格子压缩与 SmoothQuant 离群尖峰平滑', '🛠 Stage 3 Lab · INT4 Quantization & SmoothQuant Outlier Smoothing')}
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+            {(['fp16', 'int8', 'int4'] as const).map((p) => (
+              <Pressable
+                key={p}
+                onPress={() => {
+                  setPlaying(false);
+                  setQuantPrecision(p);
+                }}
+                style={[
+                  styles.microBtn,
+                  {
+                    borderColor: quantPrecision === p ? gold : borderCol,
+                    backgroundColor: quantPrecision === p ? 'rgba(245,185,66,0.20)' : 'transparent',
+                  },
+                ]}
+              >
+                <Text variant="caption" style={{ color: quantPrecision === p ? gold : sub, fontSize: 10, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                  {p.toUpperCase()}
+                </Text>
+              </Pressable>
+            ))}
+            <Pressable
+              onPress={() => setSmoothOutliers((s) => !s)}
+              style={[styles.microBtn, { borderColor: smoothOutliers ? emerald : '#ef4444' }]}
+            >
+              <Text variant="caption" style={{ color: smoothOutliers ? emerald : '#ef4444', fontSize: 10, fontWeight: '700' }}>
+                {smoothOutliers
+                  ? t('✓ SmoothQuant 离群值平滑已开启 (误差 0.9%)', '✓ SmoothQuant On')
+                  : t('⚠ 离群值未平滑 (48.0 尖峰撑爆刻度尺!)', '⚠ Outliers Unsmoothed')}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {sim.activationChannels.map((ch) => {
+            const val = sim.smoothOutliers ? ch.smoothedVal : ch.rawVal;
+            const isSpike = val > 10;
+            return (
+              <View
+                key={ch.name}
+                style={{
+                  flex: 1,
+                  minWidth: 120,
+                  padding: 8,
+                  borderRadius: 7,
+                  borderWidth: 1.2,
+                  borderColor: isSpike ? '#ef4444' : emerald,
+                  backgroundColor: isDark ? '#18181b' : '#ffffff',
+                  gap: 3,
+                }}
+              >
+                <Text variant="caption" style={{ color: isSpike ? '#ef4444' : sub, fontSize: 9.5, fontWeight: '700' }}>
+                  {ch.name}
+                </Text>
+                <Text variant="caption" style={{ color: ink, fontSize: 11.5, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
+                  {`激活值: ${val.toFixed(1)}`}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+
+        <View style={[styles.stepCaptionBox, { borderColor: borderCol }]}>
+          <Text variant="caption" style={{ color: emerald, fontSize: 11, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
+            {`7B 模型显存：${sim.modelVramGb} GB · 解码加速：${sim.speedupFactor}x · 量化精度误差：${sim.quantErrorPct}%`}
+          </Text>
+          <Text variant="caption" style={{ color: sub, fontSize: 10.5 }}>
+            {sim.summaryZh}
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   if (kind === 'self-attention') {
     const sim = computeAttentionSimulation({
@@ -254,7 +1002,6 @@ function AiInteractiveAnimationLab({
           ? createElement(
               'svg',
               { width: '100%', height: svgHeight, viewBox: '0 0 680 148' },
-              // Left Panel: Attention Curved Beams from focusTokenIdx to all Key tokens
               sim.tokens.map((tok, idx) => {
                 const xFrom = 44 + sim.focusTokenIdx * 78;
                 const xTo = 44 + idx * 78;
@@ -276,7 +1023,6 @@ function AiInteractiveAnimationLab({
                     strokeOpacity: opacity,
                     strokeDasharray: sim.stepIdx === 1 ? '5 3' : undefined,
                   }),
-                  // Top Query Token Box
                   createElement('rect', {
                     x: xTo - 24,
                     y: 8,
@@ -299,7 +1045,6 @@ function AiInteractiveAnimationLab({
                     },
                     `${tok}${idx === sim.focusTokenIdx ? '(Q)' : ''}`,
                   ),
-                  // Bottom Key/Value Probability Bar
                   createElement('rect', {
                     x: xTo - 24,
                     y: 96,
@@ -342,7 +1087,6 @@ function AiInteractiveAnimationLab({
                   ),
                 );
               }),
-              // Right Panel: 2D Complex Plane RoPE Rotation Visualizer
               createElement(
                 'g',
                 null,
@@ -393,7 +1137,6 @@ function AiInteractiveAnimationLab({
                   stroke: isDark ? '#334155' : '#cbd5e1',
                   strokeWidth: 1,
                 }),
-                // Base vector at 0 deg
                 createElement('line', {
                   x1: 590,
                   y1: 74,
@@ -403,7 +1146,6 @@ function AiInteractiveAnimationLab({
                   strokeWidth: 2,
                   strokeOpacity: 0.5,
                 }),
-                // Rotated Query vector at m * theta
                 createElement('line', {
                   x1: 590,
                   y1: 74,
@@ -436,7 +1178,6 @@ function AiInteractiveAnimationLab({
             )
           : null}
 
-        {/* Stepper Progress Pills */}
         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
           {[0, 1, 2, 3].map((sIdx) => (
             <Pressable
@@ -524,7 +1265,6 @@ function AiInteractiveAnimationLab({
           </View>
         </View>
 
-        {/* Visual Block Table Mapping */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {sim.logicalBlocks.map((blk) => (
             <View
@@ -582,7 +1322,6 @@ function AiInteractiveAnimationLab({
           ))}
         </View>
 
-        {/* Contiguous vs Paged VRAM Waste Visual Comparison Bars */}
         <View style={{ gap: 4, paddingVertical: 4 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Text variant="caption" style={{ color: sub, fontSize: 9.5, width: 118 }}>
@@ -816,7 +1555,6 @@ function AiInteractiveAnimationLab({
           </View>
         </View>
 
-        {/* Token Picker */}
         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           <Text variant="caption" style={{ color: sub, fontSize: 10 }}>
             {t('点击测试不同领域输入 Token:', 'Select Input Token:')}
@@ -846,7 +1584,6 @@ function AiInteractiveAnimationLab({
           })}
         </View>
 
-        {/* Expert Cards Grid */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
           {moeSim.experts.map((exp) => (
             <View
@@ -951,7 +1688,6 @@ function AiInteractiveAnimationLab({
         </View>
       </View>
 
-      {/* Single-GPU Memory Breakdown Comparison */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {[
           { label: 'FP16 参数 (Parameters)', gb: parallelSim.paramMemGb, baseGb: 14, color: '#38bdf8' },
@@ -1015,7 +1751,7 @@ function KnowledgeGraphSvgCanvas({
   if (Platform.OS !== 'web') return null;
 
   const width = 680;
-  const height = fullScreen ? 250 : 196;
+  const height = fullScreen ? 260 : 196;
   const toX = (pct: number) => 34 + (pct / 100) * (width - 68);
   const toY = (pct: number) => 26 + (pct / 100) * (height - 52);
 
@@ -1083,7 +1819,7 @@ function KnowledgeGraphSvgCanvas({
           ? createElement('circle', {
               cx,
               cy,
-              r: 25,
+              r: 24,
               fill: `${statusColor}25`,
               stroke: statusColor,
               strokeWidth: 1.8,
@@ -1093,7 +1829,7 @@ function KnowledgeGraphSvgCanvas({
         createElement('circle', {
           cx,
           cy,
-          r: 17,
+          r: 16,
           fill: isDark ? '#18181b' : '#ffffff',
           stroke: statusColor,
           strokeWidth: isSelected ? 3 : 2,
@@ -1105,7 +1841,7 @@ function KnowledgeGraphSvgCanvas({
             y: cy + 3.5,
             textAnchor: 'middle',
             fill: statusColor,
-            fontSize: '9',
+            fontSize: '8.5',
             fontWeight: '700',
             fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
           },
@@ -1115,13 +1851,13 @@ function KnowledgeGraphSvgCanvas({
           'text',
           {
             x: cx,
-            y: cy + 30,
+            y: cy + 28,
             textAnchor: 'middle',
             fill: isSelected ? (isDark ? '#fde68a' : '#92560c') : isDark ? '#e2e8f0' : '#334155',
-            fontSize: '10',
+            fontSize: '9.5',
             fontWeight: isSelected ? '700' : '600',
           },
-          `${node.title.slice(0, 11)}${isCached ? ' ●' : ' ○'}`,
+          `${node.title.slice(0, 9)}${isCached ? ' ●' : ' ○'}`,
         ),
       );
     }),
@@ -1145,8 +1881,10 @@ export function KnowledgeGraphCornerHub({
 
   const [kgState, setKgState] = useState<KnowledgeGraphState>(readKnowledgeGraphState);
   const [activeSubView, setActiveSubView] = useState<StudyWorkbenchSubView>('lab');
+  const [selectedStage, setSelectedStage] = useState<LearningStageLevel | 'all'>('all');
   const [selectedDomain, setSelectedDomain] = useState<KnowledgeDomainId | 'all'>('ai-infra');
-  const [selectedNodeId, setSelectedNodeId] = useState<string>('node-transformer');
+  // Start at AI-001 so beginners immediately see Lesson 1!
+  const [selectedNodeId, setSelectedNodeId] = useState<string>('node-ai-001-token');
   const [showAddNodeBox, setShowAddNodeBox] = useState(false);
   const [showFlashcardAnswer, setShowFlashcardAnswer] = useState(false);
   const [selectedQuizOption, setSelectedQuizOption] = useState<number | null>(null);
@@ -1168,11 +1906,31 @@ export function KnowledgeGraphCornerHub({
     [bkState.wealthPlan.currentSavedCny, bkState.coupleProfile.teamStreakDays, stats.totalStudyMinutes, stats.masteredCount, totalStudyMinutesLive],
   );
 
+  const visibleNodes = useMemo(
+    () =>
+      kgState.nodes.filter((n) => {
+        const domainOk = selectedDomain === 'all' || n.domainId === selectedDomain;
+        const stageOk = selectedStage === 'all' || (n.stageLevel ?? 2) === selectedStage;
+        return domainOk && stageOk;
+      }),
+    [kgState.nodes, selectedDomain, selectedStage],
+  );
+
   const selectedNode = useMemo(
-    () => kgState.nodes.find((n) => n.id === selectedNodeId) ?? kgState.nodes[0]!,
-    [kgState.nodes, selectedNodeId],
+    () =>
+      kgState.nodes.find((n) => n.id === selectedNodeId) ??
+      visibleNodes[0] ??
+      kgState.nodes[0]!,
+    [kgState.nodes, selectedNodeId, visibleNodes],
   );
   const selectedContent = kgState.offlineContents[selectedNode.id] ?? null;
+
+  const currentIndexInVisible = useMemo(
+    () => Math.max(0, visibleNodes.findIndex((n) => n.id === selectedNode.id)),
+    [visibleNodes, selectedNode.id],
+  );
+  const prevNode = visibleNodes[currentIndexInVisible - 1] ?? null;
+  const nextNode = visibleNodes[currentIndexInVisible + 1] ?? null;
 
   const pal = isDark
     ? {
@@ -1210,14 +1968,6 @@ export function KnowledgeGraphCornerHub({
         inputBg: '#f3efe6',
       };
 
-  const visibleNodes = useMemo(
-    () =>
-      selectedDomain === 'all'
-        ? kgState.nodes
-        : kgState.nodes.filter((n) => n.domainId === selectedDomain),
-    [kgState.nodes, selectedDomain],
-  );
-
   async function handleExportPackFile(packId: string) {
     const json = exportChapterPackJson(packId);
     const filename = `${packId}.pack.json`;
@@ -1253,8 +2003,8 @@ export function KnowledgeGraphCornerHub({
           {[
             {
               id: 'lab' as const,
-              zh: '✦ AI 交互动画大讲堂 (6 大实验)',
-              en: '✦ AI Interactive Animation Labs (6)',
+              zh: '✦ 从零学 AI 交互动画课 (12 课循序渐进)',
+              en: '✦ Progressive AI Animation Curriculum (12 Labs)',
             },
             {
               id: 'graph' as const,
@@ -1300,6 +2050,22 @@ export function KnowledgeGraphCornerHub({
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel="从零基础第1课开始跟学"
+            onPress={() => {
+              setSelectedDomain('ai-infra');
+              setSelectedStage(1);
+              setSelectedNodeId('node-ai-001-token');
+              setSelectedQuizOption(null);
+              setShowFlashcardAnswer(false);
+            }}
+            style={[styles.microBtn, { backgroundColor: 'rgba(52,211,153,0.18)', borderColor: pal.emerald }]}
+          >
+            <Text variant="caption" style={{ color: pal.emerald, fontSize: 10.5, fontWeight: '700' }}>
+              {t('🌱 从零基础第 1 课开始跟学', '🌱 Start from Beginner Lesson 1')}
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
             accessibilityLabel="自建双链知识节点"
             onPress={() => {
               setActiveSubView('graph');
@@ -1320,9 +2086,61 @@ export function KnowledgeGraphCornerHub({
         </View>
       </View>
 
-      {/* 2. Domain Filter & Course Chapter Selector Strip */}
+      {/* 2. 4-Stage Progressive Learning Path Ladder (L1 小白入门 -> L2 核心架构 -> L3 微调与量化 -> L4 工业级系统) */}
       <View style={[styles.domainStrip, { borderBottomColor: pal.border }]}>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+          <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700' }}>
+            {t('🎓 渐进式学习阶梯:', '🎓 Learning Ladder:')}
+          </Text>
+          <Pressable
+            onPress={() => setSelectedStage('all')}
+            style={[
+              styles.microBtn,
+              {
+                backgroundColor: selectedStage === 'all' ? pal.pillActiveBg : pal.pillBg,
+                borderColor: selectedStage === 'all' ? pal.gold : pal.border,
+              },
+            ]}
+          >
+            <Text variant="caption" style={{ color: selectedStage === 'all' ? pal.goldText : pal.sub, fontSize: 10.5, fontWeight: '700' }}>
+              {t(`全部阶段 (${kgState.nodes.length}课)`, `All Stages (${kgState.nodes.length})`)}
+            </Text>
+          </Pressable>
+          {LEARNING_STAGES.map((stg) => {
+            const active = selectedStage === stg.level;
+            return (
+              <Pressable
+                key={stg.level}
+                onPress={() => {
+                  setSelectedStage(stg.level);
+                  const firstInStage = kgState.nodes.find((n) => n.stageLevel === stg.level);
+                  if (firstInStage) {
+                    setSelectedNodeId(firstInStage.id);
+                    setSelectedQuizOption(null);
+                    setShowFlashcardAnswer(false);
+                  }
+                }}
+                style={[
+                  styles.microBtn,
+                  {
+                    backgroundColor: active ? `${stg.color}22` : pal.pillBg,
+                    borderColor: active ? stg.color : pal.border,
+                  },
+                ]}
+              >
+                <Text variant="caption" style={{ color: active ? stg.color : pal.sub, fontSize: 10.5, fontWeight: '700' }}>
+                  {t(stg.zh, stg.en)}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* Domain Filter Row */}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+          <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>
+            {t('领域筛选:', 'Domain:')}
+          </Text>
           <Pressable
             onPress={() => setSelectedDomain('all')}
             style={[
@@ -1333,8 +2151,8 @@ export function KnowledgeGraphCornerHub({
               },
             ]}
           >
-            <Text variant="caption" style={{ color: selectedDomain === 'all' ? pal.goldText : pal.sub, fontSize: 10.5, fontWeight: '700' }}>
-              {t(`全部课题 (${kgState.nodes.length})`, `All (${kgState.nodes.length})`)}
+            <Text variant="caption" style={{ color: selectedDomain === 'all' ? pal.goldText : pal.sub, fontSize: 10, fontWeight: '700' }}>
+              {t('全部领域', 'All')}
             </Text>
           </Pressable>
           {KNOWLEDGE_DOMAINS.map((dom) => {
@@ -1351,7 +2169,7 @@ export function KnowledgeGraphCornerHub({
                   },
                 ]}
               >
-                <Text variant="caption" style={{ color: active ? dom.color : pal.sub, fontSize: 10.5, fontWeight: '700' }}>
+                <Text variant="caption" style={{ color: active ? dom.color : pal.sub, fontSize: 10, fontWeight: '700' }}>
                   {`[${dom.icon}] ${t(dom.zh, dom.en)}`}
                 </Text>
               </Pressable>
@@ -1361,7 +2179,7 @@ export function KnowledgeGraphCornerHub({
 
         {/* Horizontal Node Selector Cards */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-          {visibleNodes.map((n) => {
+          {visibleNodes.map((n, idx) => {
             const isSel = n.id === selectedNode.id;
             const isCached = Boolean(kgState.offlineContents[n.id]);
             const hasAnim = Boolean(kgState.offlineContents[n.id]?.animationKind);
@@ -1383,14 +2201,14 @@ export function KnowledgeGraphCornerHub({
                   },
                 ]}
               >
-                <Text variant="caption" style={{ color: dotColor, fontSize: 10.5, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
-                  {`${n.code}${hasAnim ? '🎬' : ''}`}
+                <Text variant="caption" style={{ color: dotColor, fontSize: 10, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
+                  {`第${idx + 1}课·${n.code}${hasAnim ? '🎬' : ''}`}
                 </Text>
                 <Text variant="caption" style={{ color: isSel ? pal.goldText : pal.ink, fontSize: 10.5, fontWeight: isSel ? '700' : '500' }}>
-                  {n.title.slice(0, 14)}
+                  {n.title.replace(/^【[^】]+】/, '').slice(0, 14)}
                 </Text>
-                <Text variant="caption" style={{ color: isCached ? pal.emerald : pal.muted, fontSize: 9.5 }}>
-                  {isCached ? '●已缓存' : '○未装'}
+                <Text variant="caption" style={{ color: isCached ? pal.emerald : pal.muted, fontSize: 9 }}>
+                  {n.status === 'mastered' ? '✓已掌握' : isCached ? '●已缓存' : '○未装'}
                 </Text>
               </Pressable>
             );
@@ -1509,7 +2327,7 @@ export function KnowledgeGraphCornerHub({
             <View style={[styles.drawerBox, { backgroundColor: pal.cardBg, borderColor: pal.goldBorder, borderWidth: 1, borderRadius: 8 }]}>
               <Text variant="caption" style={{ color: pal.goldText, fontSize: 11, fontWeight: '700' }}>
                 {t(
-                  '✍️ 导入自定义 Markdown 知识节点（在正文中输入 [[AI-101]] 或 [[Transformer]] 自动生成双向图谱连线）',
+                  '✍️ 导入自定义 Markdown 知识节点（在正文中输入 [[AI-001]] 或 [[AI-101]] 自动生成双向图谱连线）',
                   '✍️ Import Custom Markdown Node (Use [[Code]] or [[Title]] for automatic bidirectional links)',
                 )}
               </Text>
@@ -1607,14 +2425,15 @@ export function KnowledgeGraphCornerHub({
         </View>
       ) : null}
 
-      {/* ================= SELECTED CHAPTER INTERACTIVE ANIMATION & INSPECTOR ================= */}
+      {/* ================= SELECTED CHAPTER 4-STEP BEGINNER-TO-PRO TEACHING WORKBENCH ================= */}
       <View style={{ padding: 12, gap: 10 }}>
         <View style={[styles.inspectorCard, { backgroundColor: pal.cardBg, borderColor: pal.goldBorder }]}>
+          {/* Top Lesson Header & Prev/Next Guided Navigation */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <View style={[styles.microBtn, { backgroundColor: pal.pillActiveBg, borderColor: pal.gold }]}>
                 <Text variant="caption" style={{ color: pal.goldText, fontSize: 11, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
-                  {selectedNode.code}
+                  {`L${selectedNode.stageLevel ?? 2} · ${selectedNode.code}`}
                 </Text>
               </View>
               <Text variant="label" style={{ color: pal.ink, fontSize: 15, fontWeight: '700' }}>
@@ -1625,8 +2444,22 @@ export function KnowledgeGraphCornerHub({
               </Text>
             </View>
 
-            {/* Status & Pomodoro Action Buttons */}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              {prevNode ? (
+                <Pressable
+                  onPress={() => {
+                    setSelectedNodeId(prevNode.id);
+                    setSelectedQuizOption(null);
+                    setShowFlashcardAnswer(false);
+                  }}
+                  style={[styles.microBtn, { borderColor: pal.border }]}
+                >
+                  <Text variant="caption" style={{ color: pal.sub, fontSize: 10, fontWeight: '700' }}>
+                    {`◀ 上一课 (${prevNode.code})`}
+                  </Text>
+                </Pressable>
+              ) : null}
+
               {(['locked', 'learning', 'mastered'] as const).map((st) => {
                 const active = selectedNode.status === st;
                 return (
@@ -1652,30 +2485,40 @@ export function KnowledgeGraphCornerHub({
 
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="专注研习该知识节点25分钟"
+                accessibilityLabel="学会本课并进入下一课"
                 onPress={() => {
                   const nextMins = selectedNode.studyMinutes + 25;
-                  const nextStatus = nextMins >= 60 ? 'mastered' : 'learning';
                   setKgState(
                     updateKnowledgeNodeProgress(selectedNode.id, {
                       studyMinutes: nextMins,
                       reviewLevel: selectedNode.reviewLevel + 1,
-                      status: nextStatus,
+                      status: 'mastered',
                     }),
                   );
                   onLogStudyMinutes?.(selectedNode.title, 25);
                   recordPledgeReward(localDay, 'study');
-                  showToast({
-                    text: t(
-                      `✓ 已完成「${selectedNode.code}」25m 深度研习，同步计入一万小时定律 (+15 心流币)`,
-                      `✓ Logged +25m on ${selectedNode.code}`,
-                    ),
-                  });
+                  if (nextNode) {
+                    setSelectedNodeId(nextNode.id);
+                    setSelectedQuizOption(null);
+                    setShowFlashcardAnswer(false);
+                    showToast({
+                      text: t(
+                        `🎉 已通关「${selectedNode.code}」(+25m)，自动为你开启下一课「${nextNode.code} ${nextNode.title.slice(0, 12)}」！`,
+                        `🎉 Mastered ${selectedNode.code}! Advancing to ${nextNode.code}`,
+                      ),
+                    });
+                  } else {
+                    showToast({
+                      text: t(`🎉 恭喜完成当前阶段全部课程「${selectedNode.code}」(+25m)！`, `🎉 Completed ${selectedNode.code}!`),
+                    });
+                  }
                 }}
                 style={[styles.microBtn, { backgroundColor: pal.gold, borderColor: pal.gold }]}
               >
                 <Text variant="caption" style={{ color: '#141311', fontSize: 10.5, fontWeight: '700' }}>
-                  {t('⏱ 打卡 +25m 专注研习', '⏱ Log +25m Study')}
+                  {nextNode
+                    ? t(`🎉 学会了！打卡 +25m 并进入下一课 (${nextNode.code}) ▶`, `🎉 Complete & Next (${nextNode.code}) ▶`)
+                    : t('⏱ 打卡 +25m 掌握本课', '⏱ Complete +25m')}
                 </Text>
               </Pressable>
             </View>
@@ -1687,7 +2530,56 @@ export function KnowledgeGraphCornerHub({
 
           {selectedContent ? (
             <View style={{ gap: 10, marginTop: 4 }}>
-              {/* ★ AI Interactive Animation Lab Stage ★ */}
+              {/* ★ STEP 1: ZERO-JARGON BEGINNER ANALOGY BANNER (从小白大白话入门) ★ */}
+              {selectedContent.beginnerAnalogyZh ? (
+                <View
+                  style={[
+                    styles.analogyBanner,
+                    {
+                      backgroundColor: isDark ? 'rgba(52, 211, 153, 0.10)' : 'rgba(31, 94, 75, 0.08)',
+                      borderColor: pal.emerald,
+                    },
+                  ]}
+                >
+                  <Text variant="caption" style={{ color: pal.emerald, fontSize: 11.5, fontWeight: '700' }}>
+                    {t('👶 第 1 步 · 零基础小白大白话直觉（不用任何数学公式，10 秒看懂它到底在干嘛）', '👶 Step 1 · Zero-Jargon Everyday Analogy')}
+                  </Text>
+                  <Text variant="caption" style={{ color: pal.ink, fontSize: 12, lineHeight: 19 }}>
+                    {selectedContent.beginnerAnalogyZh}
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* ★ STEP 2: GUIDED HANDS-ON PROMPTS + INTERACTIVE ANIMATION LAB ★ */}
+              {selectedContent.guidedStepsZh && selectedContent.guidedStepsZh.length > 0 ? (
+                <View style={[styles.guidedBox, { backgroundColor: pal.elevated, borderColor: pal.goldBorder }]}>
+                  <Text variant="caption" style={{ color: pal.goldText, fontSize: 11, fontWeight: '700' }}>
+                    {t('🎬 第 2 步 · 手把手带你玩下方交互动画（跟着这几步点一点）：', '🎬 Step 2 · Hands-On Interactive Walkthrough:')}
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                    {selectedContent.guidedStepsZh.map((gStep, idx) => (
+                      <View
+                        key={idx}
+                        style={{
+                          flex: 1,
+                          minWidth: 210,
+                          paddingHorizontal: 8,
+                          paddingVertical: 5,
+                          borderRadius: 6,
+                          borderWidth: 1,
+                          borderColor: pal.border,
+                          backgroundColor: pal.cardBg,
+                        }}
+                      >
+                        <Text variant="caption" style={{ color: pal.sub, fontSize: 10.5 }}>
+                          {gStep}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
+
               {selectedContent.animationKind ? (
                 <AiInteractiveAnimationLab
                   kind={selectedContent.animationKind}
@@ -1696,11 +2588,11 @@ export function KnowledgeGraphCornerHub({
                 />
               ) : null}
 
-              {/* Core Mental Model & Key Takeaways Grid */}
+              {/* ★ STEP 3: PLAIN-CHINESE FORMULA SYMBOL DICTIONARY & CORE MENTAL MODEL ★ */}
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
                 <View style={[styles.contentBox, { flex: 1, minWidth: 280, backgroundColor: pal.elevated, borderColor: pal.border }]}>
                   <Text variant="caption" style={{ color: pal.goldText, fontSize: 11, fontWeight: '700' }}>
-                    {t('💡 核心心智模型 (Core Mental Model)', '💡 Core Mental Model')}
+                    {t('💡 第 3 步 · 进阶核心心智模型与要点总结', '💡 Step 3 · Core Mental Model & Key Takeaways')}
                   </Text>
                   <Text variant="caption" style={{ color: pal.ink, fontSize: 11.5, lineHeight: 18 }}>
                     {selectedContent.coreMentalModel}
@@ -1715,17 +2607,29 @@ export function KnowledgeGraphCornerHub({
                 </View>
 
                 <View style={{ flex: 1, minWidth: 280, gap: 8 }}>
-                  {/* Code / Formula Box */}
                   <View style={[styles.codeBox, { backgroundColor: pal.inputBg, borderColor: pal.border }]}>
-                    <Text variant="caption" style={{ color: pal.muted, fontSize: 9.5 }}>
-                      {t('核心数学公式 / 算子伪代码:', 'Core Formula / Snippet:')}
+                    <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700' }}>
+                      {t('📐 核心公式与符号大白话拆解字典:', '📐 Formula & Plain-Language Symbol Dictionary:')}
                     </Text>
                     <Text variant="caption" style={{ color: pal.emerald, fontSize: 11, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
                       {selectedContent.codeOrFormulaSnippet}
                     </Text>
+                    {selectedContent.formulaBreakdownZh && selectedContent.formulaBreakdownZh.length > 0 ? (
+                      <View style={{ gap: 4, marginTop: 4 }}>
+                        {selectedContent.formulaBreakdownZh.map((fb, idx) => (
+                          <View key={idx} style={{ flexDirection: 'row', gap: 6, alignItems: 'flex-start' }}>
+                            <Text variant="caption" style={{ color: pal.sky, fontSize: 10, fontFamily: theme.fontFamily.mono, fontWeight: '700', minWidth: 120 }}>
+                              {fb.symbol}
+                            </Text>
+                            <Text variant="caption" style={{ color: pal.sub, fontSize: 10, flex: 1 }}>
+                              {`→ ${fb.meaningZh}`}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : null}
                   </View>
 
-                  {/* Spaced Repetition Flashcard */}
                   {selectedContent.flashcards[0] ? (
                     <Pressable
                       onPress={() => setShowFlashcardAnswer((v) => !v)}
@@ -1752,12 +2656,12 @@ export function KnowledgeGraphCornerHub({
                 </View>
               </View>
 
-              {/* ★ Interactive Self-Test Quiz Card ★ */}
+              {/* ★ STEP 4: INTERACTIVE SELF-TEST QUIZ CARD ★ */}
               {selectedContent.quiz ? (
                 <View style={[styles.quizBox, { backgroundColor: pal.elevated, borderColor: pal.goldBorder }]}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
                     <Text variant="caption" style={{ color: pal.goldText, fontSize: 11.5, fontWeight: '700' }}>
-                      {`🧪 随堂交互自测 · ${selectedContent.quiz.questionZh}`}
+                      {`🧪 第 4 步 · 随堂闯关自测 · ${selectedContent.quiz.questionZh}`}
                     </Text>
                     {selectedQuizOption !== null ? (
                       <Text
@@ -1824,7 +2728,6 @@ export function KnowledgeGraphCornerHub({
               ) : null}
             </View>
           ) : (
-            /* Uninstalled Chapter Pack Prompt */
             <View style={[styles.uninstalledBanner, { backgroundColor: pal.elevated, borderColor: pal.border }]}>
               <Text variant="caption" style={{ color: pal.muted, fontSize: 11 }}>
                 {t(
@@ -1979,6 +2882,18 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     gap: 8,
+  },
+  analogyBanner: {
+    padding: 11,
+    borderRadius: 9,
+    borderWidth: 1.2,
+    gap: 4,
+  },
+  guidedBox: {
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 6,
   },
   animContainer: {
     padding: 12,

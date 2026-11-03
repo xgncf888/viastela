@@ -1,20 +1,24 @@
 /**
- * Study Corner & Personal Knowledge Graph Engine (学习角 · 个人知识图谱与按需离线章节包)
+ * Study Corner & Personal Knowledge Graph Engine (学习角 · 从小白到架构师渐进式 AI 动画讲堂与知识图谱)
  *
  * Inspired by open-source best practices:
- * - Obsidian / Logseq: Bidirectional `[[WikiLinks]]` & local-first Markdown notes
- * - Roadmap.sh: DAG prerequisite skill-tree topology (`locked` -> `learning` -> `mastered`)
- * - Kiwix / Anki: Zero-bloat app bundle! The app only ships a <4KB Graph Skeleton Index;
- *   heavy chapter contents (mental models, code templates, interactive animation scripts, flashcards)
- *   are fetched/installed on-demand as modular Offline Chapter Packs and can be offloaded anytime
- *   without losing personal mastery progress or study time logs.
- * - 3Blue1Brown / Distill.pub / Brendan Bycroft LLM Viz: Step-by-step interactive animated simulations
- *   for AI Infra & Distributed Systems concepts.
+ * - 3Blue1Brown / Distill.pub / Karpathy Zero-to-Hero: Progressive visual intuition from absolute beginner
+ *   (Tokens, Embeddings, Gradient Descent, RNN vs Attention) to industrial LLM systems (PagedAttention,
+ *   Speculative Decoding, FlashAttention, MoE, 3D Parallelism, LoRA/RAG, INT4 Quantization).
+ * - Obsidian / Logseq: Bidirectional `[[WikiLinks]]` & local-first Markdown notes.
+ * - Roadmap.sh: 4-Stage progressive skill-tree (`L1 小白入门` -> `L2 核心原理` -> `L3 微调与量化` -> `L4 工业级系统`).
+ * - Kiwix / Anki: Zero-bloat app bundle! The app only ships a lightweight skeleton index;
+ *   heavy chapter contents & animations are installed on-demand as modular Offline Chapter Packs.
  */
 
 export type KnowledgeDomainId = 'ai-infra' | 'cs-systems' | 'wealth-quant' | 'product-arch';
 
 export type NodeMasteryStatus = 'locked' | 'learning' | 'mastered';
+
+/**
+ * 4 Progressive Learning Stages from Zero-Basis Beginner to Systems Architect
+ */
+export type LearningStageLevel = 1 | 2 | 3 | 4;
 
 export type KnowledgeFlashcard = {
   q: string;
@@ -28,8 +32,19 @@ export type KnowledgeQuizItem = {
   explanationZh: string;
 };
 
+export type FormulaSymbolItem = {
+  symbol: string;
+  meaningZh: string;
+};
+
 export type AiAnimationKind =
+  | 'token-next-word'
+  | 'word-embedding'
+  | 'neuron-gradient'
+  | 'rnn-vs-attention'
   | 'self-attention'
+  | 'lora-rag'
+  | 'quantization-smooth'
   | 'paged-attention'
   | 'speculative-decoding'
   | 'flash-attention'
@@ -38,6 +53,13 @@ export type AiAnimationKind =
 
 export type KnowledgeChapterContent = {
   nodeId: string;
+  stageLevel?: LearningStageLevel;
+  /** Zero-jargon everyday analogy for complete beginners */
+  beginnerAnalogyZh?: string;
+  /** Step-by-step hands-on prompts guiding the user through the interactive animation */
+  guidedStepsZh?: readonly string[];
+  /** Plain-Chinese dictionary breaking down every symbol in the formula */
+  formulaBreakdownZh?: readonly FormulaSymbolItem[];
   coreMentalModel: string;
   keyTakeaways: readonly string[];
   codeOrFormulaSnippet: string;
@@ -64,6 +86,7 @@ export type KnowledgeChapterPack = {
 export type KnowledgeNode = {
   id: string;
   domainId: KnowledgeDomainId;
+  stageLevel: LearningStageLevel;
   code: string;
   title: string;
   summary: string;
@@ -100,6 +123,48 @@ export type StudioUnlockableItem = {
   color: string;
 };
 
+export const LEARNING_STAGES: readonly {
+  level: LearningStageLevel;
+  badge: string;
+  zh: string;
+  en: string;
+  subtitleZh: string;
+  color: string;
+}[] = [
+  {
+    level: 1,
+    badge: 'L1 · 零基础入门',
+    zh: '第 1 阶：零基础小白直觉营',
+    en: 'Stage 1: Zero-to-One Intuition',
+    subtitleZh: '无需任何数学与编程背景，用「文字接龙、性格打分卡、下山调水温、微信群@人」4 个生活比喻彻底看懂 AI 底层逻辑',
+    color: '#34d399',
+  },
+  {
+    level: 2,
+    badge: 'L2 · 核心架构',
+    zh: '第 2 阶：Transformer 核心原理',
+    en: 'Stage 2: Transformer Core',
+    subtitleZh: '掌握 Q/K/V 动态软寻址、多头注意力分工、RoPE 复平面旋转编码与计算机底层内存局部性',
+    color: '#f5b942',
+  },
+  {
+    level: 3,
+    badge: 'L3 · 微调与端侧',
+    zh: '第 3 阶：私有定制与端侧量化',
+    en: 'Stage 3: Customization & Quantization',
+    subtitleZh: '学会用 RAG 开卷检索、LoRA 低秩便利贴定制专属模型，并用 INT4 量化把大模型装进个人笔记本',
+    color: '#38bdf8',
+  },
+  {
+    level: 4,
+    badge: 'L4 · 工业级系统',
+    zh: '第 4 阶：工业级推理与集群训练',
+    en: 'Stage 4: Industrial LLM Infra',
+    subtitleZh: '深入 vLLM 显存分页、投机采样双轨竞速、FlashAttention 片上分块、MoE 专家路由与 3D 分布式并行',
+    color: '#f472b6',
+  },
+] as const;
+
 export const KNOWLEDGE_DOMAINS: readonly {
   id: KnowledgeDomainId;
   icon: string;
@@ -107,40 +172,151 @@ export const KNOWLEDGE_DOMAINS: readonly {
   en: string;
   color: string;
 }[] = [
-  { id: 'ai-infra', icon: '智', zh: 'AI Infra 交互动画实验室', en: 'AI Infra Interactive Lab', color: '#f5b942' },
+  { id: 'ai-infra', icon: '智', zh: 'AI 从零到架构师动画课 (12课)', en: 'AI Zero-to-Hero Interactive Labs (12)', color: '#f5b942' },
   { id: 'cs-systems', icon: '核', zh: '计算机底层与分布式', en: 'Systems & Distributed', color: '#38bdf8' },
   { id: 'wealth-quant', icon: '财', zh: '资产配置与复利模型', en: 'Asset Allocation & Quant', color: '#34d399' },
   { id: 'product-arch', icon: '架', zh: '跨端架构与工程效能', en: 'Cross-Platform Arch', color: '#f472b6' },
 ] as const;
 
 /**
- * Lightweight Graph Skeleton (< 4 KB): Only topology & progress metadata live in the initial state.
+ * Lightweight Graph Skeleton: Progressive 14-Node Curriculum from AI-001 (Beginner) to AI-701 (Industrial)
  */
 export const DEFAULT_KNOWLEDGE_NODES: readonly KnowledgeNode[] = [
+  // ==================== STAGE 1: 零基础小白入门 (AI-001 ~ AI-004) ====================
+  {
+    id: 'node-ai-001-token',
+    domainId: 'ai-infra',
+    stageLevel: 1,
+    code: 'AI-001',
+    title: '大模型是怎么说话的？Token 切词与下一词接龙动画',
+    summary: '【零基础第1课】把句子切成积木块 (Token)，看大模型如何像玩文字接龙一样算出下一个词的概率',
+    x: 8,
+    y: 14,
+    prerequisites: [],
+    bidirectionalLinks: ['node-ai-002-embed', 'node-transformer'],
+    status: 'mastered',
+    studyMinutes: 35,
+    reviewLevel: 3,
+    userNote: '原来 ChatGPT 每次只吐一个词，把吐出来的词拼回去再算下一个词！',
+    packId: 'pack-ai-infra',
+  },
+  {
+    id: 'node-ai-002-embed',
+    domainId: 'ai-infra',
+    stageLevel: 1,
+    code: 'AI-002',
+    title: '文字怎么变成数字？词向量 Embedding 与语义星空动画',
+    summary: '【零基础第2课】给每个词发一张多维特征打分卡，亲手体验「国王 - 男人 + 女人 = 女王」的向量魔法',
+    x: 24,
+    y: 14,
+    prerequisites: ['node-ai-001-token'],
+    bidirectionalLinks: ['node-ai-001-token', 'node-ai-003-grad', 'node-transformer'],
+    status: 'mastered',
+    studyMinutes: 40,
+    reviewLevel: 3,
+    userNote: '意思越像的词，在向量空间里的夹角余弦 cos(θ) 越接近 1。',
+    packId: 'pack-ai-infra',
+  },
+  {
+    id: 'node-ai-003-grad',
+    domainId: 'ai-infra',
+    stageLevel: 1,
+    code: 'AI-003',
+    title: '机器是怎么学会知识的？Loss 误差山谷与梯度下降动画',
+    summary: '【零基础第3课】像蒙眼下山和调冷热水龙头一样，顺着斜率（梯度）一步步修正参数直到误差最小',
+    x: 40,
+    y: 14,
+    prerequisites: ['node-ai-002-embed'],
+    bidirectionalLinks: ['node-ai-002-embed', 'node-ai-004-rnn-attn'],
+    status: 'learning',
+    studyMinutes: 35,
+    reviewLevel: 2,
+    userNote: '学习率太小下山太慢，学习率太大直接在山谷两边震荡飞出去了。',
+    packId: 'pack-ai-infra',
+  },
+  {
+    id: 'node-ai-004-rnn-attn',
+    domainId: 'ai-infra',
+    stageLevel: 1,
+    code: 'AI-004',
+    title: '为什么旧模型会忘事？RNN 传声筒衰减 vs 注意力直连动画',
+    summary: '【零基础第4课】对比串行传话筒的记忆衰减与微信群直接 @ 某人的全局注意力直连通道',
+    x: 56,
+    y: 14,
+    prerequisites: ['node-ai-003-grad'],
+    bidirectionalLinks: ['node-ai-003-grad', 'node-transformer'],
+    status: 'learning',
+    studyMinutes: 30,
+    reviewLevel: 2,
+    userNote: '彻底看懂为什么 Transformer 能替代 RNN：不用挨个传话，任意两词一步直达！',
+    packId: 'pack-ai-infra',
+  },
+
+  // ==================== STAGE 2: 核心原理进阶 (AI-101 & SYS-101) ====================
   {
     id: 'node-transformer',
     domainId: 'ai-infra',
+    stageLevel: 2,
     code: 'AI-101',
-    title: 'Transformer 与 Self-Attention + RoPE 旋转动画',
-    summary: 'Q/K/V 多头投影、2D RoPE 复平面旋转编码与温度 τ 注意力热力分布动态演示',
-    x: 12,
-    y: 22,
-    prerequisites: [],
-    bidirectionalLinks: ['node-kv-cache', 'node-flash-attn', 'node-cuda-mem'],
+    title: 'Transformer 核心：Q/K/V 自注意力与 RoPE 旋转动画',
+    summary: '【核心第5课】拆解 Query/Key/Value 三兄弟怎么配合打分，以及 2D 复平面旋转如何记住词序',
+    x: 16,
+    y: 44,
+    prerequisites: ['node-ai-004-rnn-attn'],
+    bidirectionalLinks: ['node-ai-004-rnn-attn', 'node-kv-cache', 'node-flash-attn', 'node-ai-105-lora-rag'],
     status: 'mastered',
     studyMinutes: 95,
     reviewLevel: 4,
     userNote: '已完成手推 QK^T/sqrt(d_k) 梯度与 RoPE 相对位置内积不变性推导。',
     packId: 'pack-ai-infra',
   },
+
+  // ==================== STAGE 3: 私有定制与端侧量化 (AI-105 & AI-701) ====================
+  {
+    id: 'node-ai-105-lora-rag',
+    domainId: 'ai-infra',
+    stageLevel: 3,
+    code: 'AI-105',
+    title: '怎么定制专属模型？RAG 开卷考试 vs LoRA 低秩微调动画',
+    summary: '【进阶第6课】对比外挂知识库检索 (RAG) 与冻结主干只训 1% 旁路小矩阵 (LoRA) 的双剑合璧架构',
+    x: 36,
+    y: 44,
+    prerequisites: ['node-transformer'],
+    bidirectionalLinks: ['node-transformer', 'node-ai-701-quant'],
+    status: 'learning',
+    studyMinutes: 40,
+    reviewLevel: 2,
+    userNote: 'RAG 解决最新事实与防幻觉，LoRA 解决特定语气格式与垂直领域思维习惯。',
+    packId: 'pack-ai-infra',
+  },
+  {
+    id: 'node-ai-701-quant',
+    domainId: 'ai-infra',
+    stageLevel: 3,
+    code: 'AI-701',
+    title: '笔记本怎么跑大模型？FP16→INT4 量化与离群值平滑动画',
+    summary: '【进阶第7课】把 16 位高精度浮点数装进 4 位小格子显存立省 75%，用 SmoothQuant 驯服离群尖峰',
+    x: 56,
+    y: 44,
+    prerequisites: ['node-ai-105-lora-rag'],
+    bidirectionalLinks: ['node-ai-105-lora-rag', 'node-kv-cache'],
+    status: 'learning',
+    studyMinutes: 30,
+    reviewLevel: 2,
+    userNote: '7B 模型 FP16 要 14GB 显存，INT4 量化后仅需 3.8GB，MacBook 也能流畅跑！',
+    packId: 'pack-ai-infra',
+  },
+
+  // ==================== STAGE 4: 工业级推理与集群训练 (AI-201 ~ AI-601) ====================
   {
     id: 'node-kv-cache',
     domainId: 'ai-infra',
+    stageLevel: 4,
     code: 'AI-201',
     title: 'KV Cache 与 vLLM PagedAttention 显存分页动画',
-    summary: '虚拟页表映射、非连续物理显存块分配与 Copy-on-Write 前缀共享动画',
-    x: 34,
-    y: 16,
+    summary: '【高阶第8课】虚拟页表映射、非连续物理显存块分配与 Copy-on-Write 前缀共享动画',
+    x: 76,
+    y: 20,
     prerequisites: ['node-transformer'],
     bidirectionalLinks: ['node-transformer', 'node-speculative', 'node-flash-attn'],
     status: 'learning',
@@ -152,10 +328,11 @@ export const DEFAULT_KNOWLEDGE_NODES: readonly KnowledgeNode[] = [
   {
     id: 'node-speculative',
     domainId: 'ai-infra',
+    stageLevel: 4,
     code: 'AI-301',
     title: '投机采样 (Speculative Decoding) 双轨竞速动画',
-    summary: '小模型串行快猜 γ 步 + 大模型单次前向并行验证的无损加速动画',
-    x: 56,
+    summary: '【高阶第9课】小模型串行快猜 γ 步 + 大模型单次前向并行验证的无损加速动画',
+    x: 92,
     y: 20,
     prerequisites: ['node-kv-cache'],
     bidirectionalLinks: ['node-kv-cache', 'node-flash-attn', 'node-moe-router'],
@@ -168,11 +345,12 @@ export const DEFAULT_KNOWLEDGE_NODES: readonly KnowledgeNode[] = [
   {
     id: 'node-flash-attn',
     domainId: 'ai-infra',
+    stageLevel: 4,
     code: 'AI-401',
     title: 'FlashAttention SRAM 分块与 Online Softmax 动画',
-    summary: 'GPU HBM ⇄ 片上 SRAM Tiling 流水线与在线重缩放递推公式动画',
+    summary: '【高阶第10课】GPU HBM ⇄ 片上 SRAM Tiling 流水线与在线重缩放递推公式动画',
     x: 76,
-    y: 18,
+    y: 48,
     prerequisites: ['node-transformer', 'node-kv-cache'],
     bidirectionalLinks: ['node-transformer', 'node-cuda-mem', 'node-3d-parallel'],
     status: 'learning',
@@ -184,11 +362,12 @@ export const DEFAULT_KNOWLEDGE_NODES: readonly KnowledgeNode[] = [
   {
     id: 'node-moe-router',
     domainId: 'ai-infra',
+    stageLevel: 4,
     code: 'AI-501',
     title: 'MoE 混合专家 Top-K 门控路由与负载均衡动画',
-    summary: 'DeepSeek/Mixtral 共享专家 + 路由专家激活与负载均衡辅助损失动画',
-    x: 64,
-    y: 46,
+    summary: '【高阶第11课】DeepSeek/Mixtral 共享专家 + 路由专家激活与负载均衡辅助损失动画',
+    x: 76,
+    y: 76,
     prerequisites: ['node-transformer'],
     bidirectionalLinks: ['node-speculative', 'node-3d-parallel'],
     status: 'learning',
@@ -200,11 +379,12 @@ export const DEFAULT_KNOWLEDGE_NODES: readonly KnowledgeNode[] = [
   {
     id: 'node-3d-parallel',
     domainId: 'ai-infra',
+    stageLevel: 4,
     code: 'AI-601',
     title: '分布式 3D 并行 (TP/PP/DP) 与 ZeRO 显存切分动画',
-    summary: '1F1B 流水线气泡消除、NVLink 张量切分与 ZeRO-1/2/3 优化器状态分片动画',
-    x: 88,
-    y: 44,
+    summary: '【高阶第12课】1F1B 流水线气泡消除、NVLink 张量切分与 ZeRO-1/2/3 优化器状态分片动画',
+    x: 92,
+    y: 62,
     prerequisites: ['node-flash-attn', 'node-moe-router'],
     bidirectionalLinks: ['node-flash-attn', 'node-moe-router', 'node-raft'],
     status: 'locked',
@@ -213,14 +393,17 @@ export const DEFAULT_KNOWLEDGE_NODES: readonly KnowledgeNode[] = [
     userNote: '节点内走 NVLink 做 TP，跨机走 RoCE/IB 做 PP 与 ZeRO-DP。',
     packId: 'pack-ai-infra',
   },
+
+  // ==================== CS SYSTEMS & WEALTH QUANT ====================
   {
     id: 'node-cuda-mem',
     domainId: 'cs-systems',
+    stageLevel: 2,
     code: 'SYS-101',
     title: 'CPU/GPU 内存层次与 Cache Line 伪共享剖析',
     summary: 'SRAM vs HBM 带宽差距、False Sharing 与零拷贝机制',
-    x: 20,
-    y: 76,
+    x: 16,
+    y: 80,
     prerequisites: [],
     bidirectionalLinks: ['node-transformer', 'node-raft'],
     status: 'mastered',
@@ -232,11 +415,12 @@ export const DEFAULT_KNOWLEDGE_NODES: readonly KnowledgeNode[] = [
   {
     id: 'node-raft',
     domainId: 'cs-systems',
+    stageLevel: 3,
     code: 'SYS-202',
     title: 'Raft 共识状态机与 Local-First CRDT',
     summary: 'Leader 选举、日志复制安全性与离线多端无冲突合并',
-    x: 50,
-    y: 80,
+    x: 38,
+    y: 82,
     prerequisites: ['node-cuda-mem'],
     bidirectionalLinks: ['node-cuda-mem', 'node-kelly-dca', 'node-3d-parallel'],
     status: 'learning',
@@ -248,11 +432,12 @@ export const DEFAULT_KNOWLEDGE_NODES: readonly KnowledgeNode[] = [
   {
     id: 'node-kelly-dca',
     domainId: 'wealth-quant',
+    stageLevel: 2,
     code: 'FIN-101',
     title: '凯利公式、股债再平衡与家庭现金流池',
     summary: '安全边际、定投微笑曲线、最大回撤控制与双人合池预算模型',
-    x: 82,
-    y: 78,
+    x: 58,
+    y: 82,
     prerequisites: [],
     bidirectionalLinks: ['node-raft'],
     status: 'learning',
@@ -271,18 +456,218 @@ export const CATALOG_CHAPTER_PACKS: readonly KnowledgeChapterPack[] = [
     id: 'pack-ai-infra',
     domainId: 'ai-infra',
     icon: '智',
-    titleZh: 'AI Infra 交互式动画教学离线包 (Pro)',
-    titleEn: 'AI Infra Interactive Animation Pack (Pro)',
-    version: 'v3.0',
-    sizeKb: 54,
-    nodeCount: 6,
+    titleZh: 'AI 从零基础小白到架构师 12 课交互动画全集',
+    titleEn: 'AI Zero-to-Hero 12 Interactive Animation Pack',
+    version: 'v4.0',
+    sizeKb: 86,
+    nodeCount: 12,
     localFilePath: 'knowledge-packs/ai-infra-interactive.pack.json',
     descriptionZh:
-      '含 6 套可交互 SVG 教学动画（Self-Attention + RoPE 复平面旋转、PagedAttention 显存分页、Speculative 投机采样、FlashAttention SRAM 分块、MoE Top-K 门控路由、3D 并行 & ZeRO 显存切分）、随堂自测与艾宾浩斯闪卡。',
+      '从零基础小白（Token 文字接龙、词向量星空、梯度下降下山、RNN vs 注意力传声筒）一路手把手教到 Transformer、RAG/LoRA、INT4 量化、PagedAttention、投机采样、FlashAttention、MoE 与 3D 分布式并行，共 12 套交互 SVG 动画 + 符号字典 + 随堂自测。',
     chapters: {
+      // ==================== AI-001 ====================
+      'node-ai-001-token': {
+        nodeId: 'node-ai-001-token',
+        stageLevel: 1,
+        animationKind: 'token-next-word',
+        beginnerAnalogyZh:
+          '🌱 小白大白话：别把大模型想得太玄乎！它本质上就是一个超级「词语接龙游戏机」。你输入半句话，它先把话切成一小块一小块的乐高积木（叫做 Token），然后翻遍字典给所有可能接在后面的词打分算概率，选出一个词吐给你；接着把这个新词拼到句子末尾，再猜下一个词，循环往复直到说完一整段话！',
+        guidedStepsZh: [
+          '第 1 步：观察上方输入句子是如何被切成带编号的彩色积木块 (Token ID) 的',
+          '第 2 步：看右侧候选词概率条——模型正在预测当前句子后面最可能跟哪个词',
+          '第 3 步：点击「切换 Greedy 稳健 / Top-P 创意采样」，对比只选最高分 vs 按概率掷骰子的区别',
+          '第 4 步：连续点击「＋ 接龙生成下一个词」，亲眼看它如何一个词一个词拼出完整回答！',
+        ],
+        formulaBreakdownZh: [
+          { symbol: 'w_1, w_2, ..., w_{t-1}', meaningZh: '已经说出口的前面那串词（上下文积木）' },
+          { symbol: 'P(w_t | w_{<t})', meaningZh: '在看到前面所有词的条件下，第 t 个位置出现某个新词的概率' },
+          { symbol: 'Tokenizer', meaningZh: '切词器：把人类文字切成模型词表里的数字编号（如「人工智能」→ #8921）' },
+        ],
+        coreMentalModel:
+          '自回归语言模型 (Autoregressive LLM) 的核心机制是「条件概率链式法则」：将生成整段长文的复杂任务，拆解为每一步仅预测「下一个 Token 的概率分布」，并通过采样将新 Token 追加回输入序列循环生成。',
+        keyTakeaways: [
+          '模型眼里没有汉字或英文字母，只有切词器 (Tokenizer) 转换出的整数编号 Token ID',
+          '常见词通常 1 个词就是 1 个 Token，生僻词或长单词会被拆成多个子词 (Sub-word) 积木',
+          'Greedy（贪婪解码）每次死板只选第 1 名，容易车轱辘话重复；Top-P 核采样保留前 P% 概率池随机抽样，说话更自然鲜活',
+        ],
+        codeOrFormulaSnippet:
+          'P(w_1, ..., w_T) = prod_{t=1..T} P(w_t | w_1, ..., w_{t-1})  // 自回归逐词接龙公式',
+        flashcards: [
+          {
+            q: '为什么 ChatGPT 回复我们时字是一个个往外蹦的，而不是整篇瞬间弹出来？',
+            a: '因为大模型采用自回归 (Autoregressive) 接龙机制：必须先算出第 N 个词，把它拼回输入里，才能继续算第 N+1 个词。',
+          },
+        ],
+        quiz: {
+          questionZh: '【小白闯关】如果大模型已经生成了「今天天气真」，它下一步在做什么？',
+          optionsZh: [
+            'A. 去互联网上搜索今天的天气预报网页',
+            'B. 给词表里所有候选词计算接在「今天天气真」后面的概率（如「好」62%、「棒」21%），并按采样策略选出下一个 Token',
+            'C. 一次性把后面 500 个字同时算出来',
+            'D. 把「今天天气真」删掉重写',
+          ],
+          correctIndex: 1,
+          explanationZh:
+            '太棒了！大模型每一步只做一件事：根据当前已有的 Token 序列，预测下一个 Token 的概率分布并抽样出一个词拼上去。',
+        },
+      },
+
+      // ==================== AI-002 ====================
+      'node-ai-002-embed': {
+        nodeId: 'node-ai-002-embed',
+        stageLevel: 1,
+        animationKind: 'word-embedding',
+        beginnerAnalogyZh:
+          '🌱 小白大白话：电脑只会算加减乘除，根本不懂「小猫」和「小狗」是什么意思。怎么办？我们给每个词发一张「多维属性打分卡」——比如按 [毛茸茸程度, 体型大小, 科技含量] 三个维度打分：「小猫 = [0.9, 0.2, 0.0]」，「小狗 = [0.85, 0.35, 0.0]」，「显卡 = [0.0, 0.1, 0.98]」。这一串数字就叫 **词向量 (Embedding)**！分数越接近的词，在星空图里靠得越近！',
+        guidedStepsZh: [
+          '第 1 步：点击切换「宠物星团 / 咖啡饮品星团 / AI 硬件星团」，观察意思相近的词在坐标系里如何自动抱团',
+          '第 2 步：观察右侧每个词的「特征维度打分条」（生命感、皇家/权力感、科技属性）',
+          '第 3 步：点击开启「✨ 演示国王 - 男人 + 女人 = 女王 向量加减魔法」，看箭头如何在空间里平移合成！',
+        ],
+        formulaBreakdownZh: [
+          { symbol: 'E(w) ∈ R^d', meaningZh: '把词 w 变成由 d 个小数组成的特征向量（真实大模型里 d 通常是 4096 维）' },
+          { symbol: 'cos(θ) = (A · B) / (|A||B|)', meaningZh: '余弦相似度：两个词向量箭头的夹角越小，cos(θ) 越接近 1，代表意思越相近' },
+          { symbol: 'v(国王) - v(男人) + v(女人)', meaningZh: '剥离「男性」特征、保留「皇室统治者」特征、再加上「女性」特征，正好落到「女王」坐标点！' },
+        ],
+        coreMentalModel:
+          'Embedding 将离散的符号编号映射到连续的高维几何空间（语义空间）。在这个空间里，「语义相似性」直接等价于「几何距离/方向接近度」，而「概念关系」则表现为「向量平移方向」。',
+        keyTakeaways: [
+          'One-Hot 编码里所有词都互相垂直、毫无关联；而 Embedding 用稠密低维实数向量捕获了词汇间的天然亲疏关系',
+          '向量点积 A·B 或余弦相似度 cos(θ) 是大模型衡量「两个概念有多匹配」最核心的尺子',
+          '不仅是单个词，整句话、一张图片、一段音频都可以编码成同一个空间里的 Embedding 向量（多模态底座）',
+        ],
+        codeOrFormulaSnippet:
+          'Similarity(u, v) = dot(u, v) / (norm(u) * norm(v));  v_queen ≈ v_king - v_man + v_woman',
+        flashcards: [
+          {
+            q: '为什么把文字变成 Embedding 词向量后，计算机就能理解「苹果」和「香蕉」比「苹果」和「卡车」更相近？',
+            a: '因为训练后的 Embedding 空间把具有相似上下文属性的词（如水果属性高、交通工具属性低）映射到了几何距离很近的坐标点，它们的向量夹角余弦值接近 1。',
+          },
+        ],
+        quiz: {
+          questionZh: '【小白闯关】在词向量 (Embedding) 空间里，如果两个词的意思非常接近（比如「拿铁」和「卡布奇诺」），它们的向量会发生什么？',
+          optionsZh: [
+            'A. 两个向量方向几乎相反，余弦相似度接近 -1',
+            'B. 两个向量在空间里靠得很近、指向相似方向，余弦相似度 cos(θ) 接近 1',
+            'C. 两个向量的数字全部变成 0',
+            'D. 词表编号 ID 必须相邻（比如 101 和 102）',
+          ],
+          correctIndex: 1,
+          explanationZh:
+            '完全正确！词表编号 ID 只是随机字典页码，而 Embedding 向量坐标才真正代表语义——意思越像，空间距离越近、夹角越小！',
+        },
+      },
+
+      // ==================== AI-003 ====================
+      'node-ai-003-grad': {
+        nodeId: 'node-ai-003-grad',
+        stageLevel: 1,
+        animationKind: 'neuron-gradient',
+        beginnerAnalogyZh:
+          '🌱 小白大白话：大模型里几百亿个参数是怎么变聪明的？想象你在漆黑的浓雾里站在半山腰，目标是走到海拔最低的「零误差山谷底」。你看不见谷底在哪，但你可以用脚探一探脚下地面往哪边倾斜（这就是算**梯度 Gradient**），然后顺着下坡方向迈出一步（步长就是**学习率 Learning Rate**）。每猜错一次题，就顺着下坡改一点点参数，走几万步就到谷底了！',
+        guidedStepsZh: [
+          '第 1 步：观察抛物线山谷图——横轴是模型参数 w，纵轴是预测误差 Loss（越低代表模型越准，谷底 w=3.0 是最优解）',
+          '第 2 步：点击「👣 迈出一步梯度更新」，看小球如何算出当前斜率并往山谷底部滚动',
+          '第 3 步：切换学习率 η：「0.08 太慢像蜗牛」、「0.25 黄金步长稳步进谷底」、「0.92 步子太大在山谷两侧来回震荡」！',
+        ],
+        formulaBreakdownZh: [
+          { symbol: 'L(w) = (y_pred - y_true)^2', meaningZh: '损失函数 (Loss)：模型猜的答案和标准答案差了多少（山坡的高度）' },
+          { symbol: '∇L = dL / dw', meaningZh: '梯度 (Gradient)：当前位置山坡的坡度与方向（正数说明在右坡，应该往左走）' },
+          { symbol: 'η (Learning Rate)', meaningZh: '学习率：下山每一步迈多大（太大容易跨过谷底震荡，太小训练太慢）' },
+          { symbol: 'w_new = w - η · ∇L', meaningZh: '梯度下降核心公式：新参数 = 旧参数 - 步长 × 坡度' },
+        ],
+        coreMentalModel:
+          '深度学习训练的闭环由四步组成：① 前向传播算预测值 → ② 损失函数 (Loss) 算误差海拔 → ③ 反向传播 (Backpropagation) 用链式法则算出每个参数的坡度梯度 → ④ 优化器按反梯度方向微调参数。',
+        keyTakeaways: [
+          '梯度指向函数增长最快的「上坡方向」，因此想要减小误差 Loss 必须减去梯度（往反方向下坡走）',
+          '越接近山谷底，坡度 ∇L 越小，迈出的步子也会自然变小，平稳停在最低点',
+          '工业界常用的 AdamW 优化器相当于给小球加上了「物理动量惯性」与「自适应步长」，过平地加速、过陡坡减速',
+        ],
+        codeOrFormulaSnippet:
+          'grad = 2 * (w - target_w);  w_next = w - learning_rate * grad  // 梯度下降参数更新',
+        flashcards: [
+          {
+            q: '如果训练大模型时把学习率 (Learning Rate) 设得过大，会发生什么现象？',
+            a: '一步迈得太远直接跨过误差山谷底跳到对面更高的山坡上，导致 Loss 剧烈震荡甚至发散爆炸 (NaN)。',
+          },
+        ],
+        quiz: {
+          questionZh: '【小白闯关】当前模型参数在 w = 1.0 处，算出误差山坡的斜率（梯度）是 -4.0（说明往右是下坡）。根据公式 w_new = w - η·∇L，参数 w 接下来会怎么变？',
+          optionsZh: [
+            'A. 参数 w 变大（往右走，靠近 w=3.0 的山谷底）',
+            'B. 参数 w 变小（往左爬上更高的山坡）',
+            'C. 参数 w 保持 1.0 永远不动',
+            'D. 直接把梯度清零',
+          ],
+          correctIndex: 0,
+          explanationZh:
+            '答对了！因为梯度是负数 (-4.0)，公式里减去一个负数等于加上正数，所以参数 w 会往右增大，顺着下坡滑向谷底 w=3.0！',
+        },
+      },
+
+      // ==================== AI-004 ====================
+      'node-ai-004-rnn-attn': {
+        nodeId: 'node-ai-004-rnn-attn',
+        stageLevel: 1,
+        animationKind: 'rnn-vs-attention',
+        beginnerAnalogyZh:
+          '🌱 小白大白话：在 Transformer 诞生前，统治 AI 界的是 RNN（循环神经网络）。RNN 读长句子就像玩「排队传声筒」：第 1 个词传给第 2 个，第 2 个传给第 3 个……传到第 100 个词时，开头说的话早就忘得一干二净！而 Transformer 的 **注意力机制 (Attention)** 彻底掀翻了传声筒，改成了「微信群直接 @ 某人」——无论句子多长，末尾的词都能拉一条绿色专线直接读取开头任意词的完整信息！',
+        guidedStepsZh: [
+          '第 1 步：看上半部分【传统 RNN 传声筒】——信号从句首「小猫」一格格往右传，亮度和记忆保留率从 100% 暴跌到 11%',
+          '第 2 步：看下半部分【Attention 全局直连】——句尾的「它」直接拉出一条高光专线跨越整句连向「小猫」，记忆保留率 96%！',
+          '第 3 步：点击切换句子长度（短句 4 词 / 中句 8 词 / 长文 16 词），观察距离拉长时 RNN 如何彻底失忆而 Attention 稳如泰山！',
+        ],
+        formulaBreakdownZh: [
+          { symbol: 'RNN Path Length = O(N)', meaningZh: '相隔 N 个词的两个字，在 RNN 里要经过 N 次串行接力才能通上话，极易梯度消失' },
+          { symbol: 'Attention Path Length = O(1)', meaningZh: '在注意力机制里，任意两个词无论隔多远，永远是 1 步直连对话！' },
+          { symbol: 'Parallelism (并行度)', meaningZh: 'RNN 必须等前一个字算完才能算后一个字；Attention 可以让整句所有词同时在 GPU 上并行计算！' },
+        ],
+        coreMentalModel:
+          'Transformer 淘汰 RNN 的两大杀手锏：① 任意两位置交互路径长度从 O(N) 降为常数 O(1)，彻底解决长距离依赖遗忘；② 摆脱时间步串行依赖，训练时整篇文本可利用 GPU 矩阵乘一次性并行算完。',
+        keyTakeaways: [
+          '比如句子「那只昨天在花园里追蝴蝶的**小猫**肚子饿了，所以喂了**它**」——判断「它」指代谁，必须跨越十几个词找回「小猫」',
+          'RNN 把历史全部硬塞进一个固定长度的隐状态向量里，像用一个小行李箱装整座图书馆，必然丢信息',
+          'Attention 不压缩历史，而是保留每个词的独立向量，需要时按相关性动态检索（软寻址）',
+        ],
+        codeOrFormulaSnippet:
+          'RNN: h_t = tanh(W * h_{t-1} + U * x_t) [串行O(N)]  vs  Attention: Y = Softmax(QK^T)V [直连O(1)]',
+        flashcards: [
+          {
+            q: '为什么 Transformer 训练大模型的速度比当年的 RNN / LSTM 快上百倍？',
+            a: '因为 RNN 第 t 步必须苦等第 t-1 步算完，GPU 算力无法并行；而 Transformer 的 Self-Attention 可以把整句话所有词拼成矩阵一次性并行算完！',
+          },
+        ],
+        quiz: {
+          questionZh: '【小白闯关】在一篇 2000 字的文章末尾出现代词「它」，指向文章第 1 段的「小猫」。在 Attention 机制中，末尾的「它」需要经过几步传递才能读取到第 1 段「小猫」的信息？',
+          optionsZh: [
+            'A. 需要挨个经过中间 1999 个词的接力传递',
+            'B. 只需 1 步（O(1) 全局直连），直接用 Query 和「小猫」的 Key 匹配读取 Value',
+            'C. 根本无法读取超过 100 字以前的信息',
+            'D. 必须把前文全部删掉才能读取',
+          ],
+          correctIndex: 1,
+          explanationZh:
+            '完全正确！无论两个词相隔 5 个字还是 5000 个字，在 Self-Attention 里它们之间永远只有 1 步点积直连（O(1) 路径长度）！',
+        },
+      },
+
+      // ==================== AI-101 ====================
       'node-transformer': {
         nodeId: 'node-transformer',
+        stageLevel: 2,
         animationKind: 'self-attention',
+        beginnerAnalogyZh:
+          '🌱 小白大白话：进了图书馆怎么找资料？每个词都分身出三个角色：**Query (Q)** 是你手里写的「检索小纸条」，**Key (K)** 是书架上每本书脊贴的「分类标签」，**Value (V)** 是书里真正的「干货内容」。拿着你的 Q 纸条去和所有书的 K 标签做比对（算内积打分），哪本书标签最匹配（Softmax 权重最高），就把哪本书的 V 干货多抄一点回来！',
+        guidedStepsZh: [
+          '第 1 步：点击上方任意 Query 发起词（如「AI」或「学」），观察它发出的金色检索光束连向哪些词',
+          '第 2 步：切换「H1·语义指代 / H2·邻近局部 / H3·全局句首」三个注意力头，看不同专家头如何关注不同语法关系',
+          '第 3 步：切换温度 τ = 0.4（尖锐聚焦）vs τ = 1.6（雨露均沾），并观察右侧 2D 复平面里 RoPE 位置指针的旋转角度！',
+        ],
+        formulaBreakdownZh: [
+          { symbol: 'Q, K, V', meaningZh: 'Query（检索提问）、Key（候选标签）、Value（实际内容），均由词向量乘以各自权重矩阵得到' },
+          { symbol: 'Q · K^T / √d_k', meaningZh: '相关性打分：Q 和 K 越像内积越大；除以 √d_k 是为了防止分数太大把 Softmax 撑爆' },
+          { symbol: 'RoPE (e^{i·mθ})', meaningZh: '旋转位置编码：第 m 个词旋转 mθ 角度，让点积自动只取决于两词相隔几个身位 (m-n)' },
+        ],
         coreMentalModel:
           'Self-Attention 的本质是「动态软寻址字典」：每个词发出 Query 向量去和所有词的 Key 做内积匹配，经过 RoPE 复平面旋转注入相对位置 (m-n)θ 后，再用 Softmax(·/τ) 归一化成权重对 Value 加权求和。',
         keyTakeaways: [
@@ -315,9 +700,116 @@ export const CATALOG_CHAPTER_PACKS: readonly KnowledgeChapterPack[] = [
             '正确！Logits 除以更小的 τ 会放大得分差距，经过指数函数 exp(x/τ) 后，最高分词权重接近 100%，分布变得极度尖锐。',
         },
       },
+
+      // ==================== AI-105 ====================
+      'node-ai-105-lora-rag': {
+        nodeId: 'node-ai-105-lora-rag',
+        stageLevel: 3,
+        animationKind: 'lora-rag',
+        beginnerAnalogyZh:
+          '🌱 小白大白话：通用大模型虽然博学，但它没看过你们公司的内部文档，重训一次又要花几百万美元。怎么办？有两个省钱绝招：① **RAG（检索增强生成）** 就像「让学霸带着你的笔记本去开卷考试」——提问前先用向量搜索找出相关的 3 段私有笔记塞进 Prompt 里；② **LoRA（低秩微调）** 就像「不动新华字典原书，只在旁边贴几张薄薄的便利贴」——冻结原模型 99% 的权重，只训练一对极小的瘦长矩阵 A 和 B（不到 1% 参数），就能教会它专属行话与格式！',
+        guidedStepsZh: [
+          '第 1 步：点击切换「📚 RAG 开卷检索通道」、「🩹 LoRA 低秩旁路微调通道」与「⚡ RAG + LoRA 双剑合璧」',
+          '第 2 步：调节 LoRA 的秩 `Rank r = 4 / 8 / 16`，观察旁路矩阵 `A(d×r) × B(r×d)` 相比原矩阵 `W_0(4096×4096)` 省下了多少倍显存',
+          '第 3 步：观察推理阶段 LoRA 如何通过 `W_merged = W_0 + B·A` 直接合并进原权重，实现 **0 额外推理延迟**！',
+        ],
+        formulaBreakdownZh: [
+          { symbol: 'W_0 ∈ R^{d×d} (Frozen)', meaningZh: '冻结的预训练大模型原始权重（不计算梯度、不占优化器显存）' },
+          { symbol: 'ΔW = B · A (r ≪ d)', meaningZh: 'LoRA 旁路：用瘦高矩阵 B(d×r) 乘以扁平矩阵 A(r×d)，参数量从 d² 骤降为 2dr' },
+          { symbol: 'Top-K Chunks (RAG)', meaningZh: '从本地向量数据库里检索出余弦相似度最高的 K 段私有文档切片注入上下文' },
+        ],
+        coreMentalModel:
+          '大模型领域适配黄金法则：「外挂新知识用 RAG，内化新技能/语气格式用 LoRA」。LoRA 利用微调权重变化量 ΔW 的「低内在秩 (Low Intrinsic Rank)」假设，将可训练参数压缩 100–1000 倍，并在推理时无损合并回主干矩阵。',
+        keyTakeaways: [
+          '当 d=4096、秩 r=8 时，原矩阵有 1677 万参数，而 LoRA 的 A+B 仅有 6.5 万参数（可训练参数减少 99.6%！）',
+          'RAG 无需训练即可实时更新知识库且可溯源防幻觉；LoRA 则擅长改变模型遵循特定输出格式、代码风格与领域推理习惯',
+          '推理部署时，直接算好 W_final = W_0 + (α/r)·B·A 覆盖原矩阵，推理速度与原模型一模一样（零额外延迟）',
+        ],
+        codeOrFormulaSnippet:
+          'h = W_0 @ x + (alpha / r) * (B @ (A @ x))  // 训练时冻结 W_0 只训 A, B；推理时直接合并 W = W_0 + B@A',
+        flashcards: [
+          {
+            q: '为什么 LoRA 微调后的模型在上线推理时不会增加任何额外计算延迟？',
+            a: '因为矩阵加法满足分配律 W_0·x + B·A·x = (W_0 + B·A)·x，上线前直接把 B·A 乘好加进 W_0 里即可，推理时依然只做一次矩阵乘。',
+          },
+        ],
+        quiz: {
+          questionZh: '【实战闯关】如果你的需求是「让客服机器人每天都能准确回答今天刚发布的最新商品价格与库存」，最先应该采用什么方案？',
+          optionsZh: [
+            'A. 每天从头预训练一次千亿参数大模型',
+            'B. 使用 RAG（检索增强生成），将最新商品库切片向量化，提问时实时检索注入上下文',
+            'C. 把温度参数调到 2.5 让模型自由发挥猜价格',
+            'D. 删除模型的词表',
+          ],
+          correctIndex: 1,
+          explanationZh:
+            '非常准确！高频变动、要求精准溯源的事实性数据最适合用 RAG「开卷考试」实时检索；而固定话术风格则适合搭配 LoRA 微调。',
+        },
+      },
+
+      // ==================== AI-701 ====================
+      'node-ai-701-quant': {
+        nodeId: 'node-ai-701-quant',
+        stageLevel: 3,
+        animationKind: 'quantization-smooth',
+        beginnerAnalogyZh:
+          '🌱 小白大白话：为什么 70 亿参数模型原本要 14GB 显存，量化后只要 3.8GB 就能在普通笔记本上飞快运行？想象搬家打包：**FP16** 是给每个数字配一个豪华大木箱（占 16 比特，能精确表示 `3.14159`）；而 **INT4 量化** 是把数字四舍五入放进 16 个紧凑的小塑料盒里（只占 4 比特，体积直接缩小 4 倍！）。唯一的麻烦是如果队伍里突然冒出一个身高 3 米的「巨人离群值 (Outlier)」，会把刻度撑爆导致普通人全被挤成一团——**SmoothQuant / AWQ** 就是先把巨人的身高勻一半给权重，让所有人都舒舒服服住进小盒子里！',
+        guidedStepsZh: [
+          '第 1 步：点击切换精度档位 `FP16 (14.0 GB)` → `INT8 (7.0 GB)` → `INT4 (3.8 GB)`，观察模型体积与显存条如何缩减 75%',
+          '第 2 步：观察中间的量化刻度尺——当存在「激活值离群尖峰 (Outlier = 48.0)」时，普通小数值被严重挤压丢失精度',
+          '第 3 步：点击开启「✨ 开启 SmoothQuant 离群值平滑迁移」，看尖峰如何被数学等价摊平、量化误差瞬间从 18.4% 降到 0.9%！',
+        ],
+        formulaBreakdownZh: [
+          { symbol: 'Scale Δ = (X_max - X_min) / (2^b - 1)', meaningZh: '量化步长（每个小格子的宽度）：最大值越大，格子越粗，精度损失越大' },
+          { symbol: 'Q(x) = round(x / Δ)', meaningZh: '把连续的小数四舍五入映射成整数格子编号（INT8 是 -128..127，INT4 是 -8..7）' },
+          { symbol: 'Y = (X · diag(s)^{-1}) · (diag(s) · W)', meaningZh: 'SmoothQuant 恒等变换：给激活值 X 除以缩放因子 s 压平尖峰，同时给权重 W 乘以 s，乘积结果分毫不差！' },
+        ],
+        coreMentalModel:
+          '模型量化 (Quantization) 将高精度浮点数 (FP16/BF16) 线性映射到低比特整数网格 (INT8/INT4/FP4)。针对激活值通道常出现极端离群值 (Outliers) 撑大步长 Δ 的痛点，SmoothQuant/AWQ 通过跨层等价缩放与显著权重保护实现近乎无损的 4-bit 压缩。',
+        keyTakeaways: [
+          'LLM 推理的 Decode 阶段受限于显存带宽（搬运权重的时间远大于计算时间），INT4 量化不仅省 75% 显存，还能让搬运速度提速 3 倍以上！',
+          '大模型参数量超过 6.7B 后，少数固定通道会出现比普通值大 100 倍的激活离群值 (Activation Outliers)',
+          'AWQ (Activation-aware Weight Quantization) 发现只需保护对大激活值最敏感的 1% 权重通道，就能大幅降低 INT4 困惑度损失',
+        ],
+        codeOrFormulaSnippet:
+          'X_smooth = X / s;  W_smooth = W * s;  W_int4 = clamp(round(W_smooth / scale), -8, 7)',
+        flashcards: [
+          {
+            q: '为什么把大模型从 FP16 量化为 INT4 后，不仅显存占用降为 1/4，连生成文字的速度也变快了 2~3 倍？',
+            a: '因为单 Token 生成是典型的显存带宽受限 (Memory-bound) 任务，耗时主要花在从显存搬运权重到计算单元上；权重体积缩小为 1/4 后，显存搬运耗时大幅缩短！',
+          },
+        ],
+        quiz: {
+          questionZh: '【实战闯关】SmoothQuant 是如何在不改变矩阵乘法最终结果 Y = X·W 的前提下，消除激活值 X 中的极端离群尖峰的？',
+          optionsZh: [
+            'A. 直接把超过 10 的数字全部删掉变成 0',
+            'B. 给激活值 X 除以平滑因子 s 把尖峰压低，同时给权重 W 乘以相同的 s，利用 (X/s)·(s·W) = X·W 保持数学结果严格相等',
+            'C. 把 INT4 改回 FP64',
+            'D. 停止运行注意力层',
+          ],
+          correctIndex: 1,
+          explanationZh:
+            '太赞了！一边除以 s、另一边乘以 s，两边难度中和，既压平了激活值尖峰方便量化，又在数学上严格恒等！',
+        },
+      },
+
+      // ==================== AI-201 ====================
       'node-kv-cache': {
         nodeId: 'node-kv-cache',
+        stageLevel: 4,
         animationKind: 'paged-attention',
+        beginnerAnalogyZh:
+          '🌱 小白大白话：传统显存分配就像「餐厅包厢死板订座」——哪怕只来 2 个人吃饭，只要他说“也许一会儿还有朋友来”，餐厅就得给他死死空出一张 32 人大圆桌，导致 60% 以上的座位全空着浪费！而 **vLLM PagedAttention** 改成了「4 人小方桌按需拼桌」——来 4 个词坐满一桌，第 5 个词来了再新开一桌，哪怕两桌在餐厅里不挨着，服务员拿一张「桌号对应表 (Block Table)」就能串起来，座位浪费瞬间降到 4% 以内！',
+        guidedStepsZh: [
+          '第 1 步：点击「＋ 生成 1 个 Token」，观察每满 4 个词如何动态申请一个新的非连续物理页框（P#7 → P#2 → P#11）',
+          '第 2 步：点击切换「✓ CoW 前缀共享开启」，看多个用户共享同一段 System Prompt 时如何直接复用物理块 P#7（引用计数 RefCnt=2）',
+          '第 3 步：对比下方红色传统预分配浪费条 vs 绿色 PagedAttention 极低碎片条！',
+        ],
+        formulaBreakdownZh: [
+          { symbol: 'BLOCK_SIZE (如 4 或 16)', meaningZh: '每个物理显存小方桌能坐几个 Token 的 KV 向量' },
+          { symbol: 'logical_idx // BLOCK_SIZE', meaningZh: '算出第几个词应该去查页表的第几行（逻辑页号）' },
+          { symbol: 'RefCnt (引用计数)', meaningZh: '当前物理块被几个并发对话共同使用；只有当某人要改写时才触发写时复制 (Copy-on-Write)' },
+        ],
         coreMentalModel:
           '借鉴操作系统虚拟内存分页思想，将连续的逻辑 KV Cache 切分为固定大小（如每块 4 或 16 个 Token）的物理 KV Block，通过 Block Table 动态映射，彻底消灭预分配碎片。',
         keyTakeaways: [
@@ -346,9 +838,23 @@ export const CATALOG_CHAPTER_PACKS: readonly KnowledgeChapterPack[] = [
             '正确！由于物理块是按需逐块分配的，前面已填满的块利用率为 100%，只有最末尾一个块可能未满，浪费率 < 4%。',
         },
       },
+
+      // ==================== AI-301 ====================
       'node-speculative': {
         nodeId: 'node-speculative',
+        stageLevel: 4,
         animationKind: 'speculative-decoding',
+        beginnerAnalogyZh:
+          '🌱 小白大白话：请一位年薪千万的顶级大教授（70B 大模型）亲自一个字一个字敲键盘太慢了，但大教授「一眼批改一整行字」的速度和他「自己敲一个字」的速度几乎一样快！所以我们配一个手速飞快的实习生（1B Draft 小模型）先一口气连猜 4 个词，交由大教授用 1 次过目同时批改这 4 个词——猜对的全部保留，猜错的那一处大教授顺手改成正确词！既省了 2~3 倍时间，写出来的文章质量又 100% 是大教授本人的水准！',
+        guidedStepsZh: [
+          '第 1 步：选择实习生小模型单次快猜步数 `γ = 3 / 4 / 5`',
+          '第 2 步：点击「切换全部命中 / 中途拒绝并重采样」，观察当第 k 个词被拒绝时，前面 k-1 个绿牌词如何稳稳保留，且大教授当场给出橙色修正词！',
+        ],
+        formulaBreakdownZh: [
+          { symbol: 'γ (Draft Steps)', meaningZh: '实习生小模型每次连续快速往前猜几个候选词' },
+          { symbol: 'α (Acceptance Rate)', meaningZh: '实习生猜的词被大教授点头认可的平均通过率（通常 70%~85%）' },
+          { symbol: 'γ + 1 (Max Output)', meaningZh: '如果 γ 个词全猜对，大教授在最后一个位置还能免费多吐出 1 个新词，单步净赚 γ+1 个词！' },
+        ],
         coreMentalModel:
           '利用 GPU 在单 Token Decode 时算力大量闲置（显存带宽受限）的特性：先用极快的小模型（Draft）连续猜 γ 个词，再让大模型（Target）用 1 次前向传播同时验证这 γ 个词，实现 2–3 倍无损加速。',
         keyTakeaways: [
@@ -377,9 +883,23 @@ export const CATALOG_CHAPTER_PACKS: readonly KnowledgeChapterPack[] = [
             '正确！大模型在并行验证 γ 个候选词的同时，最后一个位置的前向输出还能直接多采样出 1 个新词，因此最多产出 γ + 1 = 5 个 Token！',
         },
       },
+
+      // ==================== AI-401 ====================
       'node-flash-attn': {
         nodeId: 'node-flash-attn',
+        stageLevel: 4,
         animationKind: 'flash-attention',
+        beginnerAnalogyZh:
+          '🌱 小白大白话：把 GPU 想象成一位大厨：**片上 SRAM** 是大厨手边只有巴掌大但伸手即拿的「切菜案板」（速度 19 TB/s 极快），而 **HBM 显存** 是远在走廊尽头的「地下大冷库」（速度慢 10 倍）。传统 Attention 算完一步半成品就要跑回地下冷库放一次、再跑回来拿一次，时间全耽误在路上了！**FlashAttention** 则是把食材切成一盘一盘的小分块 (Tile)，端上案板后一口气切完炒完直接出锅，中间绝不往返地下冷库！',
+        guidedStepsZh: [
+          '第 1 步：点击 `KV Tile #1 .. #4` 或「推进至下一个 SRAM 分块」，观察数据块如何流式进入片上 SRAM',
+          '第 2 步：观察每个分块里的 `m`（当前最高分）和 `α = exp(m_old - m_new)`（在线修正系数）如何动态刷新历史累加结果',
+        ],
+        formulaBreakdownZh: [
+          { symbol: 'm_new = max(m_old, rowmax(S_ij))', meaningZh: '每端来一盘新食材 (Tile)，看看有没有比之前更高的最高分 m' },
+          { symbol: 'exp(m_old - m_new)', meaningZh: '在线重缩放因子：如果发现了新最高分，只需把之前算好的旧总和乘上这个系数就能无缝对齐！' },
+          { symbol: 'O(N²) → O(N) HBM 访存', meaningZh: '彻底消灭巨大的 N×N 注意力中间矩阵落盘，显存读写减少 5~9 倍' },
+        ],
         coreMentalModel:
           'GPU 的片上 SRAM 带宽（~19 TB/s）比 HBM 显存带宽（~1.5 TB/s）快 10 倍以上。FlashAttention 通过分块 (Tiling) + 在线 Softmax 递推，在 SRAM 内一次性完成 QKV 归约，避免把巨大的 N×N 注意力矩阵写回 HBM。',
         keyTakeaways: [
@@ -408,9 +928,24 @@ export const CATALOG_CHAPTER_PACKS: readonly KnowledgeChapterPack[] = [
             '正确！Attention 是典型的 Memory-bound 算子，FlashAttention 用极少量的片上额外重缩放计算换取了数量级的 HBM 带宽节省，而且结果 100% 精确无损。',
         },
       },
+
+      // ==================== AI-501 ====================
       'node-moe-router': {
         nodeId: 'node-moe-router',
+        stageLevel: 4,
         animationKind: 'moe-routing',
+        beginnerAnalogyZh:
+          '🌱 小白大白话：传统稠密大模型像「让全医院所有科室的主任一起会诊每一次普通感冒」——虽然医术高，但每次出诊费贵得吓人！而 **MoE（混合专家模型）** 就像医院门口设了一个超聪明的「分诊台 (Router)」：先由一位全科医生（**常驻共享专家 S0**）看基本体征，再由分诊台根据你的问题是写代码、算数学还是聊金融，精准点名 2 位专科主任（**Top-K 路由专家**）出诊，其余专家安心休息！既有全院 671B 的顶级医术储备，每次挂号却只需付 37B 的算力账单！',
+        guidedStepsZh: [
+          '第 1 步：点击切换不同领域输入 Token（代码 `def_attn()` / 数学 `∇L_aux` / 硬件 `NVLink` / 金融 `夏普比率`），看分诊台点亮了哪几个专科专家',
+          '第 2 步：切换 `Top-1 / Top-2 / Top-3`，观察激活参数量与节省算力百分比的变化',
+          '第 3 步：开关「动态偏置负载均衡」，体会如何防止所有病人全挤向同一个网红专家！',
+        ],
+        formulaBreakdownZh: [
+          { symbol: 'SharedExpert(x)', meaningZh: '常驻全科专家：每个 Token 必经之路，负责通用语法与基础常识' },
+          { symbol: 'TopK(Softmax(x·W_g + b))', meaningZh: '门控分诊台：给所有专科专家打分，加上负载均衡偏置 b 后挑出前 K 名' },
+          { symbol: 'Active 37B / Total 671B', meaningZh: '总参数容量 6710 亿，但处理每个词实际只激活 370 亿参数（省去 94% 算力）' },
+        ],
         coreMentalModel:
           '稀疏混合专家 (Sparse MoE) 将庞大的 FFN 拆分为多个独立 Expert 子网络。每个 Token 经过轻量级 Router 门控打分后，仅激活得分最高的 Top-K 个路由专家（加固定共享专家），实现「超大参数容量、超低单步推理FLOPs」。',
         keyTakeaways: [
@@ -439,18 +974,32 @@ export const CATALOG_CHAPTER_PACKS: readonly KnowledgeChapterPack[] = [
             '正确！通过动态微调每个专家的路由偏置项 bias，既能实现均匀负载分流，又避免了传统辅助损失干扰主语言模型损失梯度。',
         },
       },
+
+      // ==================== AI-601 ====================
       'node-3d-parallel': {
         nodeId: 'node-3d-parallel',
+        stageLevel: 4,
         animationKind: 'distributed-parallel',
+        beginnerAnalogyZh:
+          '🌱 小白大白话：训练大模型就像 8 个人合写一本巨型百科全书。如果按传统 **数据并行 (Baseline DP)**，8 个人桌上都得摆一套完整的字典、完整的草稿纸和完整的参考书（每张卡重复占 112GB 显存，瞬间爆显存！）。而 **ZeRO-1/2/3** 则是「8 个人把参考书、草稿纸和字典拆开，每人只管 1/8 页，谁写到哪一页大家临时传阅一下」，单卡显存直接从 112GB 暴降到 14.1GB！',
+        guidedStepsZh: [
+          '第 1 步：依次点击 `Baseline (无ZeRO)` → `ZeRO-1` → `ZeRO-2` → `ZeRO-3`，看三块显存卡片（参数 / 梯度 / Adam优化器状态）如何被逐级切分 8 份',
+          '第 2 步：切换 `1F1B 微批次 M = 4 / 8 / 16`，观察流水线并行气泡率如何随微批次增加而摊薄！',
+        ],
+        formulaBreakdownZh: [
+          { symbol: '2B + 2B + 12B = 16B/param', meaningZh: '混合精度下每个参数占 16 字节：FP16 参数 2B + FP16 梯度 2B + FP32 Adam 状态 12B' },
+          { symbol: 'ZeRO-1 / 2 / 3', meaningZh: '分别按数据并行卡数 N 切分：1 阶切优化器(12B)、2 阶加切梯度(2B)、3 阶连参数(2B)一起切' },
+          { symbol: 'Bubble = (P - 1) / (P - 1 + M)', meaningZh: '流水线空闲气泡占比：微批次数 M 越多，GPU 空等气泡越小' },
+        ],
         coreMentalModel:
           '大模型分布式训练需协同三大维度：张量并行 (TP) 切分单层矩阵乘（需极高带宽 NVLink）、流水线并行 (PP) 按层切分模型并通过 1F1B 微批次调度压缩气泡、数据并行 (DP + ZeRO-1/2/3) 切分优化器状态/梯度/参数以消除冗余副本。',
         keyTakeaways: [
           '混合精度训练下，1B 参数模型仅模型状态就占 16 Bytes/param（FP16 参数 2B + 梯度 2B + FP32 Adam 状态 12B）',
           'ZeRO-1 切分优化器状态（省 4x），ZeRO-2 切分优化器+梯度（省 8x），ZeRO-3 连参数一并切分（线性随卡数缩减）',
-          '1F1B 流水线调度让前向与反向微批次交错执行，气泡率等于 (P - 1) / M（M 为微批次数，P 为流水线级数）',
+          '1F1B 流水线调度让前向与反向微批次交错执行，气泡率等于 (P - 1) / (P - 1 + M)',
         ],
         codeOrFormulaSnippet:
-          'BubbleRatio = (PP_Stages - 1) / MicroBatches;  ModelStateBytes = Params * (2 + 2 + 12 / ZeRO_Factor)',
+          'BubbleRatio = (PP_Stages - 1) / (PP_Stages - 1 + MicroBatches);  ModelStateBytes = Params * (2 + 2 + 12 / ZeRO_Factor)',
         flashcards: [
           {
             q: '为什么张量并行 (TP) 通常限制在单机 8 卡 NVLink 内部，而不跨机使用？',
@@ -486,6 +1035,9 @@ export const CATALOG_CHAPTER_PACKS: readonly KnowledgeChapterPack[] = [
     chapters: {
       'node-cuda-mem': {
         nodeId: 'node-cuda-mem',
+        stageLevel: 2,
+        beginnerAnalogyZh:
+          '🌱 小白大白话：CPU 算数据就像木匠干活——寄存器和 L1 缓存是木匠「围裙口袋里的螺丝刀」（1 秒钟就能拿到），而内存条是「100 米外仓库里的工具箱」。如果每次只拿一颗螺丝钉就跑一趟仓库，时间全浪费在跑路上了！所以 CPU 每次去仓库都会顺手把一整排工具盒（64 字节 Cache Line）一起端过来！',
         coreMentalModel:
           '程序性能往往取决于局部性原理（时间局部性 + 空间局部性）：L1/L2 Cache 与主存延迟相差近百倍。',
         keyTakeaways: [
@@ -515,6 +1067,9 @@ export const CATALOG_CHAPTER_PACKS: readonly KnowledgeChapterPack[] = [
       },
       'node-raft': {
         nodeId: 'node-raft',
+        stageLevel: 3,
+        beginnerAnalogyZh:
+          '🌱 小白大白话：两台断网的手机各自记了 5 笔账，连上 Wi-Fi 后怎么合并才不会打架？秘诀是给每笔账单发一个全球唯一的身份证号 (UUID) 和时间戳，合并时「遇到相同身份证号只留一份（幂等律），不同身份证号全收下再按时间排队（交换律）」——不管谁先发给谁，两边算出来的总账永远一模一样！这就是 CRDT 无冲突合并！',
         coreMentalModel:
           '将分布式一致性拆解为三个正交子问题：Leader 选举、日志复制与安全性约束；而客户端离线优先应用则优先采用幂等合并 (CRDT)。',
         keyTakeaways: [
@@ -559,6 +1114,9 @@ export const CATALOG_CHAPTER_PACKS: readonly KnowledgeChapterPack[] = [
     chapters: {
       'node-kelly-dca': {
         nodeId: 'node-kelly-dca',
+        stageLevel: 2,
+        beginnerAnalogyZh:
+          '🌱 小白大白话：为什么投资里「少亏钱」比「某一年暴赚」更重要？假如你有 10 万块，第一年跌了 50% 变成 5 万，第二年就算涨了 50% 也只有 7.5 万（还倒亏 25%）！这就叫「波动率税」。所以家庭理财最稳的滚雪球公式是：每月发工资先存下固定定投（本金引擎）+ 股债均衡控制最大回撤！',
         coreMentalModel:
           '长期财富增长 = 稳定的月度净储蓄现金流 × 合理赔率资产配置 × 时间复利，严控回撤比追求短期高收益更关键。',
         keyTakeaways: [
@@ -587,6 +1145,376 @@ export const CATALOG_CHAPTER_PACKS: readonly KnowledgeChapterPack[] = [
 ];
 
 export const KNOWLEDGE_STORAGE_KEY = 'viastela.knowledge_graph.v1';
+
+// ============================================================================
+// ★ STAGE 1 BEGINNER SIMULATIONS (AI-001 ~ AI-004) & STAGE 3 SIMULATIONS (AI-105, AI-701)
+// ============================================================================
+
+/**
+ * Interactive Simulation AI-001: Tokenization & Next-Token Probability Solitaire
+ */
+export function computeTokenNextWordSimulation(input: {
+  generatedStep: number;
+  samplingMode: 'greedy' | 'top-p';
+}): {
+  baseTokens: { text: string; id: number; color: string }[];
+  generatedTokens: { text: string; id: number; probPct: number }[];
+  candidates: { token: string; tokenId: number; probPct: number; chosen: boolean }[];
+  fullSentence: string;
+  stepDescZh: string;
+} {
+  const baseTokens = [
+    { text: '学习', id: 1024, color: '#38bdf8' },
+    { text: 'AI', id: 2048, color: '#f5b942' },
+    { text: '最棒的', id: 4096, color: '#34d399' },
+    { text: '方式', id: 5120, color: '#f472b6' },
+    { text: '是', id: 618, color: '#a78bfa' },
+  ];
+
+  const greedyPath = [
+    {
+      chosen: { text: '动手', id: 7301, probPct: 54 },
+      pool: [
+        { token: '动手', tokenId: 7301, probPct: 54 },
+        { token: '边玩', tokenId: 7399, probPct: 26 },
+        { token: '阅读', tokenId: 8102, probPct: 14 },
+        { token: '背诵', tokenId: 9011, probPct: 6 },
+      ],
+    },
+    {
+      chosen: { text: '交互', id: 8821, probPct: 61 },
+      pool: [
+        { token: '交互', tokenId: 8821, probPct: 61 },
+        { token: '拆解', tokenId: 8840, probPct: 24 },
+        { token: '写码', tokenId: 8901, probPct: 10 },
+        { token: '刷题', tokenId: 9100, probPct: 5 },
+      ],
+    },
+    {
+      chosen: { text: '看动画', id: 9527, probPct: 68 },
+      pool: [
+        { token: '看动画', tokenId: 9527, probPct: 68 },
+        { token: '做实验', tokenId: 9600, probPct: 20 },
+        { token: '画图谱', tokenId: 9712, probPct: 9 },
+        { token: '记笔记', tokenId: 9805, probPct: 3 },
+      ],
+    },
+    {
+      chosen: { text: '！', id: 101, probPct: 88 },
+      pool: [
+        { token: '！', tokenId: 101, probPct: 88 },
+        { token: '。', tokenId: 102, probPct: 10 },
+        { token: '~', tokenId: 103, probPct: 2 },
+      ],
+    },
+  ];
+
+  const topPPath = [
+    {
+      chosen: { text: '边玩', id: 7399, probPct: 26 },
+      pool: greedyPath[0]!.pool,
+    },
+    {
+      chosen: { text: '拆解', id: 8840, probPct: 24 },
+      pool: greedyPath[1]!.pool,
+    },
+    {
+      chosen: { text: '做实验', id: 9600, probPct: 20 },
+      pool: greedyPath[2]!.pool,
+    },
+    {
+      chosen: { text: '！', id: 101, probPct: 88 },
+      pool: greedyPath[3]!.pool,
+    },
+  ];
+
+  const path = input.samplingMode === 'greedy' ? greedyPath : topPPath;
+  const step = Math.max(0, Math.min(path.length - 1, input.generatedStep));
+  const generatedTokens = path.slice(0, step + 1).map((p) => p.chosen);
+  const currentStepData = path[step]!;
+  const candidates = currentStepData.pool.map((c) => ({
+    ...c,
+    chosen: c.token === currentStepData.chosen.text,
+  }));
+
+  const fullSentence =
+    baseTokens.map((t) => t.text).join('') + generatedTokens.map((t) => t.text).join('');
+
+  return {
+    baseTokens,
+    generatedTokens,
+    candidates,
+    fullSentence,
+    stepDescZh: `第 ${step + 1}/4 步接龙：模型看到前文「${baseTokens.map((t) => t.text).join('')}${generatedTokens
+      .slice(0, -1)
+      .map((t) => t.text)
+      .join('')}」，通过 ${
+      input.samplingMode === 'greedy' ? 'Greedy 贪婪选择最高概率词' : 'Top-P 核采样抽中高潜创意词'
+    } 吐出 Token「${currentStepData.chosen.text} (#${currentStepData.chosen.id}, 概率 ${currentStepData.chosen.probPct}%)」，并将其拼回句尾准备猜下一个词！`,
+  };
+}
+
+/**
+ * Interactive Simulation AI-002: Word Embedding 2D Semantic Galaxy & Vector Arithmetic
+ */
+export function computeWordEmbeddingSimulation(input: {
+  clusterId: 'pets' | 'coffee' | 'tech';
+  showRoyaltyAnalogy: boolean;
+}): {
+  points: {
+    word: string;
+    x: number;
+    y: number;
+    dims: [number, number, number]; // [生物/活力, 皇家/社交, 科技/算力]
+    color: string;
+  }[];
+  cosineSimilarity: number;
+  pairLabelZh: string;
+  summaryZh: string;
+} {
+  if (input.showRoyaltyAnalogy) {
+    const points = [
+      { word: '国王 (King)', x: 28, y: 24, dims: [0.85, 0.96, 0.12] as [number, number, number], color: '#f5b942' },
+      { word: '男人 (Man)', x: 24, y: 74, dims: [0.86, 0.18, 0.15] as [number, number, number], color: '#38bdf8' },
+      { word: '女人 (Woman)', x: 74, y: 72, dims: [0.88, 0.20, 0.14] as [number, number, number], color: '#f472b6' },
+      { word: '女王 (Queen)', x: 78, y: 22, dims: [0.87, 0.95, 0.11] as [number, number, number], color: '#34d399' },
+    ];
+    return {
+      points,
+      cosineSimilarity: 0.97,
+      pairLabelZh: 'v(国王) - v(男人) + v(女人) ≈ v(女王)',
+      summaryZh:
+        '✨ 向量加减法奇迹：「国王 [0.85, 0.96]」减去「男人 [0.86, 0.18]」得到纯粹的「皇室属性向量 [0, +0.78]」，再加上「女人 [0.88, 0.20]」，箭头终点精准落在「女王 [0.87, 0.95]」（余弦相似度 0.97）！',
+    };
+  }
+
+  const allPoints = [
+    { word: '小猫', x: 18, y: 26, dims: [0.95, 0.45, 0.05] as [number, number, number], color: '#34d399' },
+    { word: '小狗', x: 26, y: 32, dims: [0.92, 0.52, 0.06] as [number, number, number], color: '#34d399' },
+    { word: '拿铁', x: 52, y: 68, dims: [0.35, 0.88, 0.18] as [number, number, number], color: '#f5b942' },
+    { word: '美式咖啡', x: 60, y: 74, dims: [0.30, 0.84, 0.22] as [number, number, number], color: '#f5b942' },
+    { word: 'GPU显卡', x: 84, y: 28, dims: [0.04, 0.15, 0.98] as [number, number, number], color: '#38bdf8' },
+    { word: 'Transformer', x: 78, y: 36, dims: [0.06, 0.20, 0.95] as [number, number, number], color: '#38bdf8' },
+  ];
+
+  const meta =
+    input.clusterId === 'pets'
+      ? { sim: 0.98, pair: 'cos(小猫, 小狗) = 0.98 · 距离极近' }
+      : input.clusterId === 'coffee'
+        ? { sim: 0.96, pair: 'cos(拿铁, 美式咖啡) = 0.96 · 同属饮品星团' }
+        : { sim: 0.95, pair: 'cos(GPU显卡, Transformer) = 0.95 · 同属 AI 算力星团' };
+
+  return {
+    points: allPoints,
+    cosineSimilarity: meta.sim,
+    pairLabelZh: meta.pair,
+    summaryZh: `语义相近的词拥有相似的多维打分卡（Embedding 向量），在几何空间中自然聚集成星团；而跨领域词（如「小猫」与「GPU显卡」）夹角接近 90°，余弦相似度仅 0.09！`,
+  };
+}
+
+/**
+ * Interactive Simulation AI-003: Neuron Weight, Loss Valley & Gradient Descent
+ */
+export function computeNeuronGradientSimulation(input: {
+  stepCount: number;
+  learningRate: number;
+}): {
+  targetWeight: number;
+  currentWeight: number;
+  currentLoss: number;
+  currentGradient: number;
+  trajectory: { step: number; w: number; loss: number }[];
+  statusZh: string;
+  stepDescZh: string;
+} {
+  const targetWeight = 3.0;
+  const lr = Math.max(0.05, Math.min(0.95, input.learningRate));
+  const steps = Math.max(0, Math.min(8, input.stepCount));
+
+  let w = 0.2; // Initial random guess
+  const trajectory: { step: number; w: number; loss: number }[] = [
+    { step: 0, w: Number(w.toFixed(2)), loss: Number(((w - targetWeight) ** 2).toFixed(2)) },
+  ];
+
+  for (let s = 1; s <= steps; s += 1) {
+    const grad = 2 * (w - targetWeight);
+    w = w - lr * grad;
+    trajectory.push({
+      step: s,
+      w: Number(w.toFixed(2)),
+      loss: Number(((w - targetWeight) ** 2).toFixed(2)),
+    });
+  }
+
+  const last = trajectory[trajectory.length - 1]!;
+  const currentGradient = Number((2 * (last.w - targetWeight)).toFixed(2));
+  const statusZh =
+    lr > 0.75
+      ? '⚠️ 学习率过大 (η=0.92)：一步迈太远跨过谷底，在山谷两侧剧烈震荡！'
+      : lr < 0.12
+        ? '🐢 学习率偏小 (η=0.08)：每次只挪一小步，下山收敛较慢但很平稳'
+        : '✅ 黄金学习率 (η=0.25)：顺着斜率稳步滑入 w=3.0 零误差山谷底！';
+
+  return {
+    targetWeight,
+    currentWeight: last.w,
+    currentLoss: last.loss,
+    currentGradient,
+    trajectory,
+    statusZh,
+    stepDescZh: `第 ${steps} 步更新：当前参数 w=${last.w}（目标最优解 w=3.0），误差海拔 Loss=${last.loss}，脚下山坡斜率 ∇L=${currentGradient}。${statusZh}`,
+  };
+}
+
+/**
+ * Interactive Simulation AI-004: RNN Sequential Decay vs Attention Direct Link
+ */
+export function computeRnnVsAttentionSimulation(input: {
+  sentenceLength: 4 | 8 | 16;
+}): {
+  sentenceLength: 4 | 8 | 16;
+  rnnRetentionPct: number;
+  attentionRetentionPct: number;
+  rnnStepsRequired: number;
+  attentionStepsRequired: number;
+  tokens: string[];
+  summaryZh: string;
+} {
+  const len = input.sentenceLength;
+  const rnnRetentionPct = len === 4 ? 62 : len === 8 ? 28 : 7;
+  const attentionRetentionPct = len === 4 ? 98 : len === 8 ? 97 : 96;
+
+  const sample4 = ['小猫', '饿了', '喂了', '它'];
+  const sample8 = ['小猫', '在院子', '追蝴蝶', '跑累了', '肚子', '很饿', '就喂了', '它'];
+  const sample16 = [
+    '小猫',
+    '昨天',
+    '清晨',
+    '在花园',
+    '草地上',
+    '欢快地',
+    '追逐着',
+    '彩色的',
+    '小蝴蝶',
+    '跑了一天',
+    '精疲力尽',
+    '肚子咕咕',
+    '直叫唤',
+    '于是主人',
+    '赶紧喂了',
+    '它',
+  ];
+
+  const tokens = len === 4 ? sample4 : len === 8 ? sample8 : sample16;
+
+  return {
+    sentenceLength: len,
+    rnnRetentionPct,
+    attentionRetentionPct,
+    rnnStepsRequired: len - 1,
+    attentionStepsRequired: 1,
+    tokens,
+    summaryZh: `当句长 L=${len} 词时：传统 RNN 需要串行接力传递 ${len - 1} 次，句首「小猫」传到句尾「它」时记忆仅剩 ${rnnRetentionPct}%；而 Attention 无论隔多远永远是 1 步直连 (O(1))，记忆保留高达 ${attentionRetentionPct}%！`,
+  };
+}
+
+/**
+ * Interactive Simulation AI-105: RAG vs LoRA Low-Rank Adaptation
+ */
+export function computeLoraRagSimulation(input: {
+  mode: 'rag' | 'lora' | 'hybrid';
+  loraRank: 4 | 8 | 16;
+}): {
+  mode: 'rag' | 'lora' | 'hybrid';
+  loraRank: number;
+  hiddenDim: number;
+  fullParamsMillion: number;
+  loraParamsMillion: number;
+  paramSavingPct: number;
+  extraInferenceLatencyMs: number;
+  summaryZh: string;
+} {
+  const hiddenDim = 4096;
+  const fullParamsMillion = Number(((hiddenDim * hiddenDim) / 1_000_000).toFixed(2)); // 16.78M
+  const loraParamsMillion = Number(((2 * hiddenDim * input.loraRank) / 1_000_000).toFixed(3));
+  const paramSavingPct = Number(((1 - loraParamsMillion / fullParamsMillion) * 100).toFixed(2));
+  const extraInferenceLatencyMs = input.mode === 'lora' ? 0 : 12;
+
+  const modeDesc =
+    input.mode === 'rag'
+      ? '📚 纯 RAG 模式：从向量库实时检索 Top-3 私有文档切片塞入 Prompt，无需训练即可回答最新动态事实'
+      : input.mode === 'lora'
+        ? `🩹 纯 LoRA 模式 (Rank r=${input.loraRank})：冻结主干矩阵 W_0 (16.78M 参数)，仅训练旁路低秩矩阵 A×B (${loraParamsMillion}M 参数，节省 ${paramSavingPct}% 显存)，上线合并后 0 额外推理延迟`
+        : `⚡ RAG + LoRA 双剑合璧：用 RAG 实时挂载最新私有知识库防幻觉，同时用 LoRA (r=${input.loraRank}) 内化专业领域推理风格与固定 JSON 输出格式！`;
+
+  return {
+    mode: input.mode,
+    loraRank: input.loraRank,
+    hiddenDim,
+    fullParamsMillion,
+    loraParamsMillion,
+    paramSavingPct,
+    extraInferenceLatencyMs,
+    summaryZh: modeDesc,
+  };
+}
+
+/**
+ * Interactive Simulation AI-701: FP16 -> INT4 Quantization & SmoothQuant Outlier Smoothing
+ */
+export function computeQuantizationSimulation(input: {
+  precision: 'fp16' | 'int8' | 'int4';
+  smoothOutliers: boolean;
+}): {
+  precision: 'fp16' | 'int8' | 'int4';
+  smoothOutliers: boolean;
+  modelVramGb: number;
+  speedupFactor: number;
+  quantErrorPct: number;
+  activationChannels: { name: string; rawVal: number; smoothedVal: number }[];
+  summaryZh: string;
+} {
+  const modelVramGb =
+    input.precision === 'fp16' ? 14.0 : input.precision === 'int8' ? 7.0 : 3.8;
+  const speedupFactor =
+    input.precision === 'fp16' ? 1.0 : input.precision === 'int8' ? 1.8 : 2.9;
+
+  const quantErrorPct =
+    input.precision === 'fp16'
+      ? 0.0
+      : input.precision === 'int8'
+        ? input.smoothOutliers
+          ? 0.2
+          : 4.6
+        : input.smoothOutliers
+          ? 0.9
+          : 18.4;
+
+  const activationChannels = [
+    { name: 'Ch#1 常规', rawVal: 1.2, smoothedVal: 1.2 },
+    { name: 'Ch#2 常规', rawVal: -0.9, smoothedVal: -0.9 },
+    { name: 'Ch#3 离群尖峰!', rawVal: 48.0, smoothedVal: input.smoothOutliers ? 3.2 : 48.0 },
+    { name: 'Ch#4 常规', rawVal: 1.5, smoothedVal: 1.5 },
+  ];
+
+  return {
+    precision: input.precision,
+    smoothOutliers: input.smoothOutliers,
+    modelVramGb,
+    speedupFactor,
+    quantErrorPct,
+    activationChannels,
+    summaryZh: `7B 模型在 ${input.precision.toUpperCase()} 精度下：显存从 14.0 GB 降至 ${modelVramGb} GB（解码提速 ${speedupFactor}x）。${
+      input.smoothOutliers
+        ? `开启 SmoothQuant 后，Ch#3 的 48.0 极端离群尖峰被等价分摊给权重矩阵，量化误差从 18.4% 骤降至 ${quantErrorPct}%！`
+        : `未平滑离群值时，Ch#3 的 48.0 尖峰把量化刻度尺撑得过大，导致普通小数值精度受损（误差 ${quantErrorPct}%）。`
+    }`,
+  };
+}
+
+// ============================================================================
+// ★ STAGE 2 & STAGE 4 SIMULATIONS (AI-101 ~ AI-601)
+// ============================================================================
 
 /**
  * Interactive Simulation 1: Self-Attention Q/K/V, Multi-Head & RoPE Rotation Frame
@@ -620,7 +1548,6 @@ export function computeAttentionSimulation(input: {
   ] as const;
 
   const headMatrices: readonly (readonly (readonly number[])[])[] = [
-    // Head 0: Semantic alignment
     [
       [2.6, 1.4, 0.9, 0.8, 1.9, 1.7],
       [1.3, 2.4, 1.8, 1.6, 2.1, 1.2],
@@ -629,7 +1556,6 @@ export function computeAttentionSimulation(input: {
       [1.8, 1.5, 2.0, 2.1, 2.8, 2.9],
       [1.6, 1.1, 1.9, 1.8, 2.7, 3.1],
     ],
-    // Head 1: Local window (attends strongly to i-1 and i)
     [
       [3.0, 2.1, 0.6, 0.5, 0.5, 0.5],
       [2.5, 2.8, 1.9, 0.6, 0.5, 0.5],
@@ -638,7 +1564,6 @@ export function computeAttentionSimulation(input: {
       [0.5, 0.6, 0.9, 2.7, 2.9, 2.2],
       [0.5, 0.5, 0.7, 1.1, 2.8, 3.1],
     ],
-    // Head 2: Global anchor & verb-object link
     [
       [3.2, 1.1, 1.0, 1.0, 1.5, 1.6],
       [2.6, 2.0, 1.2, 1.1, 1.4, 1.3],
@@ -968,7 +1893,6 @@ export function computeDistributedParallelSimulation(input: {
   const dpWorldSize = 8;
   const ppStages = input.ppStages ?? 4;
   const m = Math.max(4, Math.min(16, input.microBatches));
-  // Baseline 7B model in mixed precision: Params=14GB, Grads=14GB, Optim=84GB => Total 112GB
   const baseParamGb = 14;
   const baseGradGb = 14;
   const baseOptimGb = 84;
@@ -1013,9 +1937,14 @@ export function readKnowledgeGraphState(): KnowledgeGraphState {
     if (!raw) return memoryKnowledgeState;
     const parsed = JSON.parse(raw) as Partial<KnowledgeGraphState>;
     if (!parsed || !Array.isArray(parsed.nodes)) return memoryKnowledgeState;
+    const defaultMap = new Map(DEFAULT_KNOWLEDGE_NODES.map((dn) => [dn.id, dn]));
     const existingIds = new Set(parsed.nodes.map((n) => n.id));
+    const upgradedExisting = parsed.nodes.map((n) => {
+      const def = defaultMap.get(n.id);
+      return def ? { ...def, status: n.status, studyMinutes: n.studyMinutes, reviewLevel: n.reviewLevel, userNote: n.userNote } : { ...n, stageLevel: n.stageLevel ?? 2 };
+    });
     const mergedNodes = [
-      ...parsed.nodes,
+      ...upgradedExisting,
       ...DEFAULT_KNOWLEDGE_NODES.filter((dn) => !existingIds.has(dn.id)),
     ];
     const installed = Array.isArray(parsed.installedPackIds)
@@ -1137,6 +2066,7 @@ export function importCustomMarkdownKnowledgeNode(input: {
   const newNode: KnowledgeNode = {
     id: nodeId,
     domainId: input.domainId,
+    stageLevel: 3,
     code: `USR-${cur.nodes.length + 1}`,
     title: cleanTitle,
     summary: (lines[0] ?? cleanTitle).slice(0, 60),
@@ -1153,6 +2083,8 @@ export function importCustomMarkdownKnowledgeNode(input: {
 
   const customContent: KnowledgeChapterContent = {
     nodeId,
+    stageLevel: 3,
+    beginnerAnalogyZh: `🌱 自定义双链笔记节点：${lines[0] ?? cleanTitle}`,
     coreMentalModel: lines[0] ?? cleanTitle,
     keyTakeaways: lines.slice(0, 4),
     codeOrFormulaSnippet: lines.find((l) => /[=(){};]/.test(l)) ?? `// ${cleanTitle} 核心锚点`,

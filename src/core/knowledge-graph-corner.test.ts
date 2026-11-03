@@ -15,27 +15,39 @@ import {
   computeDistributedParallelSimulation,
   computeFlashAttentionSimulation,
   computeKnowledgeGraphStats,
+  computeLoraRagSimulation,
   computeMoeRoutingSimulation,
+  computeNeuronGradientSimulation,
   computePagedAttentionSimulation,
+  computeQuantizationSimulation,
+  computeRnnVsAttentionSimulation,
   computeSpeculativeDecodingSimulation,
   computeStudioUnlockables,
+  computeTokenNextWordSimulation,
+  computeWordEmbeddingSimulation,
   exportChapterPackJson,
   importCustomMarkdownKnowledgeNode,
   installKnowledgeChapterPack,
+  LEARNING_STAGES,
   offloadKnowledgeChapterPack,
   updateKnowledgeNodeProgress,
 } from './knowledge-graph-corner';
 
-describe('Study Corner Knowledge Graph, 6 AI Interactive Animation Labs & Offline Chapter Packs', () => {
-  it('ships a lightweight skeleton index and supports on-demand chapter pack install & offload without losing mastery progress', () => {
+describe('Study Corner Knowledge Graph, 12 Progressive AI Interactive Animation Labs & Beginner-to-Pro Pedagogy', () => {
+  it('ships a 4-stage progressive curriculum (L1 Beginner to L4 Systems) and supports on-demand chapter pack install & offload', () => {
+    expect(LEARNING_STAGES).toHaveLength(4);
     const initial = buildDefaultKnowledgeState();
     const stats0 = computeKnowledgeGraphStats(initial);
-    expect(stats0.totalNodes).toBeGreaterThanOrEqual(9);
+    expect(stats0.totalNodes).toBeGreaterThanOrEqual(15);
     expect(stats0.installedPacksCount).toBe(1);
     expect(stats0.storageKey).toBe('viastela.knowledge_graph.v1');
-    expect(initial.offlineContents['node-transformer']?.animationKind).toBe('self-attention');
-    expect(initial.offlineContents['node-transformer']?.quiz?.correctIndex).toBe(1);
-    expect(initial.offlineContents['node-raft']).toBeUndefined();
+
+    // Stage 1 beginner lesson AI-001 has zero-jargon analogy, guided steps, and formula dictionary
+    const lesson1 = initial.offlineContents['node-ai-001-token'];
+    expect(lesson1?.animationKind).toBe('token-next-word');
+    expect(lesson1?.beginnerAnalogyZh).toContain('词语接龙');
+    expect(lesson1?.guidedStepsZh?.length).toBeGreaterThanOrEqual(3);
+    expect(lesson1?.formulaBreakdownZh?.length).toBeGreaterThanOrEqual(2);
 
     // Install CS Systems pack on demand
     const { state: afterInstall, pack } = installKnowledgeChapterPack('pack-cs-systems');
@@ -59,7 +71,43 @@ describe('Study Corner Knowledge Graph, 6 AI Interactive Animation Labs & Offlin
     expect(exportedJson).toContain('ai-infra-interactive.pack.json');
   });
 
-  it('computes all 6 interactive AI animation frames (Self-Attention+RoPE, PagedAttention, Speculative, FlashAttention, MoE, 3D Parallelism)', () => {
+  it('computes Stage 1 beginner simulations (AI-001 Token Solitaire, AI-002 Word Embedding, AI-003 Gradient Descent, AI-004 RNN vs Attention) and Stage 3 (LoRA/RAG & INT4 Quantization)', () => {
+    const tokSim = computeTokenNextWordSimulation({ generatedStep: 2, samplingMode: 'greedy' });
+    expect(tokSim.generatedTokens).toHaveLength(3);
+    expect(tokSim.fullSentence).toContain('看动画');
+
+    const embedRoyalty = computeWordEmbeddingSimulation({
+      clusterId: 'pets',
+      showRoyaltyAnalogy: true,
+    });
+    expect(embedRoyalty.cosineSimilarity).toBeGreaterThan(0.9);
+    expect(embedRoyalty.pairLabelZh).toContain('女王');
+
+    const gradGood = computeNeuronGradientSimulation({ stepCount: 6, learningRate: 0.25 });
+    const gradOscillate = computeNeuronGradientSimulation({ stepCount: 6, learningRate: 0.92 });
+    expect(gradGood.currentLoss).toBeLessThan(gradOscillate.currentLoss);
+
+    const rnnLong = computeRnnVsAttentionSimulation({ sentenceLength: 16 });
+    expect(rnnLong.attentionRetentionPct).toBeGreaterThan(rnnLong.rnnRetentionPct);
+    expect(rnnLong.attentionStepsRequired).toBe(1);
+
+    const loraSim = computeLoraRagSimulation({ mode: 'lora', loraRank: 8 });
+    expect(loraSim.paramSavingPct).toBeGreaterThan(99);
+    expect(loraSim.extraInferenceLatencyMs).toBe(0);
+
+    const quantUnsmoothed = computeQuantizationSimulation({
+      precision: 'int4',
+      smoothOutliers: false,
+    });
+    const quantSmoothed = computeQuantizationSimulation({
+      precision: 'int4',
+      smoothOutliers: true,
+    });
+    expect(quantSmoothed.modelVramGb).toBe(3.8);
+    expect(quantSmoothed.quantErrorPct).toBeLessThan(quantUnsmoothed.quantErrorPct);
+  });
+
+  it('computes Stage 2 & Stage 4 interactive AI animation frames (Self-Attention+RoPE, PagedAttention, Speculative, FlashAttention, MoE, 3D Parallelism)', () => {
     const sharpAttn = computeAttentionSimulation({
       focusTokenIdx: 5,
       stepIdx: 2,
@@ -99,7 +147,7 @@ describe('Study Corner Knowledge Graph, 6 AI Interactive Animation Labs & Offlin
       topK: 2,
       loadBalanceEnabled: true,
     });
-    expect(moe.experts.filter((e) => e.selected).length).toBe(3); // 1 shared + Top-2 routed
+    expect(moe.experts.filter((e) => e.selected).length).toBe(3);
     expect(moe.activeParamsBillion).toBeLessThan(moe.totalParamsBillion);
 
     const zero0 = computeDistributedParallelSimulation({
