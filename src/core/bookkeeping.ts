@@ -99,7 +99,10 @@ export type QuickLedgerPreset = {
   icon: string;
   zh: string;
   en: string;
+  /** Fixed price (when isFixedPrice is true) or default suggested reference price */
   amountCny: number;
+  /** If true, clicking logs immediately with amountCny; if false, clicking opens quick amount input */
+  isFixedPrice?: boolean;
   categoryId: LedgerCategoryId;
   accountId: LedgerAccountId;
   owner?: LedgerOwnerId;
@@ -112,6 +115,7 @@ export type BookkeepingState = {
   recurringRules: RecurringLedgerRule[];
   wealthPlan: WealthPlanConfig;
   coupleProfile: CoupleTeamProfile;
+  quickPresets?: QuickLedgerPreset[];
 };
 
 export type MonthlyBookkeepingSummary = {
@@ -334,13 +338,36 @@ export const LEDGER_ACCOUNTS: readonly LedgerAccountMeta[] = [
 
 export const QUICK_LEDGER_PRESETS: readonly QuickLedgerPreset[] = [
   {
+    id: 'preset-transit',
+    icon: '行',
+    zh: '地铁通勤',
+    en: 'Subway',
+    amountCny: 3,
+    isFixedPrice: true,
+    categoryId: 'transit',
+    accountId: 'applepay',
+    owner: 'me',
+  },
+  {
     id: 'preset-coffee',
     icon: '饮',
     zh: '冰美式/拿铁',
     en: 'Iced Latte',
     amountCny: 18,
+    isFixedPrice: false,
     categoryId: 'coffee',
     accountId: 'wechat',
+    owner: 'me',
+  },
+  {
+    id: 'preset-lunch',
+    icon: '餐',
+    zh: '工作午餐',
+    en: 'Work Lunch',
+    amountCny: 36,
+    isFixedPrice: false,
+    categoryId: 'dining',
+    accountId: 'alipay',
     owner: 'me',
   },
   {
@@ -349,29 +376,10 @@ export const QUICK_LEDGER_PRESETS: readonly QuickLedgerPreset[] = [
     zh: '伴侣茶饮甜品',
     en: 'Partner Tea',
     amountCny: 22,
+    isFixedPrice: false,
     categoryId: 'coffee',
     accountId: 'wechat',
     owner: 'partner',
-  },
-  {
-    id: 'preset-lunch',
-    icon: '餐',
-    zh: '工作午餐',
-    en: 'Work Lunch',
-    amountCny: 36,
-    categoryId: 'dining',
-    accountId: 'alipay',
-    owner: 'me',
-  },
-  {
-    id: 'preset-transit',
-    icon: '行',
-    zh: '地铁通勤',
-    en: 'Subway',
-    amountCny: 6,
-    categoryId: 'transit',
-    accountId: 'applepay',
-    owner: 'me',
   },
   {
     id: 'preset-grocery',
@@ -379,6 +387,7 @@ export const QUICK_LEDGER_PRESETS: readonly QuickLedgerPreset[] = [
     zh: '家庭生鲜采购',
     en: 'Groceries',
     amountCny: 128,
+    isFixedPrice: false,
     categoryId: 'shopping',
     accountId: 'alipay',
     owner: 'shared',
@@ -389,6 +398,7 @@ export const QUICK_LEDGER_PRESETS: readonly QuickLedgerPreset[] = [
     zh: '周末双人晚餐',
     en: 'Couple Dinner',
     amountCny: 268,
+    isFixedPrice: false,
     categoryId: 'dining',
     accountId: 'bank',
     owner: 'shared',
@@ -467,6 +477,7 @@ export const DEFAULT_BOOKKEEPING_STATE: BookkeepingState = {
   recurringRules: [...DEFAULT_RECURRING_RULES],
   wealthPlan: { ...DEFAULT_WEALTH_PLAN },
   coupleProfile: { ...DEFAULT_COUPLE_PROFILE },
+  quickPresets: [...QUICK_LEDGER_PRESETS],
   transactions: [
     {
       id: 'tx-seed-1',

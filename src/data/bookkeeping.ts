@@ -5,6 +5,7 @@ import {
   DEFAULT_COUPLE_PROFILE,
   DEFAULT_RECURRING_RULES,
   DEFAULT_WEALTH_PLAN,
+  getLedgerCategoryMeta,
   type LedgerAccountId,
   type LedgerCategoryId,
   type LedgerEntryKind,
@@ -12,6 +13,8 @@ import {
   type LedgerTransaction,
   materializeDueRecurringRules,
   mergePartnerBookkeepingState,
+  QUICK_LEDGER_PRESETS,
+  type QuickLedgerPreset,
   type RecurringLedgerRule,
   type WealthPlanConfig,
 } from '@/core/bookkeeping';
@@ -36,6 +39,27 @@ let txSequence = 0;
 function createTxId(prefix = 'tx'): string {
   txSequence += 1;
   return `${prefix}-${Date.now()}-${txSequence}`;
+}
+
+function normalizeQuickPresets(raw: unknown): QuickLedgerPreset[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return [...QUICK_LEDGER_PRESETS];
+  }
+  return raw.map((item) => {
+    const p = item as QuickLedgerPreset;
+    // Migrate legacy subway preset to fixed 3 CNY if isFixedPrice was never explicitly defined
+    if (p.id === 'preset-transit' && typeof p.isFixedPrice === 'undefined') {
+      return {
+        ...p,
+        amountCny: 3,
+        isFixedPrice: true,
+      };
+    }
+    return {
+      ...p,
+      isFixedPrice: Boolean(p.isFixedPrice),
+    };
+  });
 }
 
 export function readBookkeepingState(): BookkeepingState {
@@ -68,6 +92,7 @@ export function readBookkeepingState(): BookkeepingState {
         ...DEFAULT_COUPLE_PROFILE,
         ...(parsed.coupleProfile ?? {}),
       },
+      quickPresets: normalizeQuickPresets(parsed.quickPresets),
     };
   } catch {
     return DEFAULT_BOOKKEEPING_STATE;
@@ -168,6 +193,55 @@ export function updateCoupleTeamProfile(patch: Partial<CoupleTeamProfile>): Book
     },
   };
   return writeBookkeepingState(next);
+}
+
+export function saveQuickLedgerPreset(input: {
+  id?: string;
+  zh: string;
+  en?: string;
+  amountCny: number;
+  isFixedPrice: boolean;
+  categoryId: LedgerCategoryId;
+  accountId: LedgerAccountId;
+  owner: LedgerOwnerId;
+}): BookkeepingState {
+  const cur = readBookkeepingState();
+  const list = cur.quickPresets ?? [...QUICK_LEDGER_PRESETS];
+  const catMeta = getLedgerCategoryMeta(input.categoryId);
+  const cleanZh = input.zh.trim() || catMeta.zh;
+  const cleanEn = input.en?.trim() || cleanZh;
+  const cleanAmount = Math.max(0.1, Math.round(input.amountCny * 100) / 100);
+
+  const presetObj: QuickLedgerPreset = {
+    id: input.id ?? createTxId('preset'),
+    icon: catMeta.icon,
+    zh: cleanZh,
+    en: cleanEn,
+    amountCny: cleanAmount,
+    isFixedPrice: input.isFixedPrice,
+    categoryId: input.categoryId,
+    accountId: input.accountId,
+    owner: input.owner,
+  };
+
+  const exists = list.some((p) => p.id === presetObj.id);
+  const nextPresets = exists
+    ? list.map((p) => (p.id === presetObj.id ? presetObj : p))
+    : [...list, presetObj];
+
+  return writeBookkeepingState({
+    ...cur,
+    quickPresets: nextPresets,
+  });
+}
+
+export function removeQuickLedgerPreset(id: string): BookkeepingState {
+  const cur = readBookkeepingState();
+  const list = cur.quickPresets ?? [...QUICK_LEDGER_PRESETS];
+  return writeBookkeepingState({
+    ...cur,
+    quickPresets: list.filter((p) => p.id !== id),
+  });
 }
 
 export function addRecurringLedgerRule(input: {

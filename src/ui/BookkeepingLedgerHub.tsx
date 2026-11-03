@@ -33,7 +33,9 @@ import {
   importPartnerBookkeepingJson,
   readBookkeepingState,
   removeLedgerTransaction,
+  removeQuickLedgerPreset,
   removeRecurringLedgerRule,
+  saveQuickLedgerPreset,
   subscribeBookkeepingStore,
   toggleRecurringLedgerRule,
   updateCoupleTeamProfile,
@@ -554,6 +556,17 @@ export function BookkeepingLedgerHub({
   const [myNameDraft, setMyNameDraft] = useState(state.coupleProfile.myName);
   const [partnerNameDraft, setPartnerNameDraft] = useState(state.coupleProfile.partnerName);
 
+  // Quick Preset Amount Prompt & Custom Preset Manager
+  const [activePresetPrompt, setActivePresetPrompt] = useState<QuickLedgerPreset | null>(null);
+  const [presetAmountDraft, setPresetAmountDraft] = useState('');
+  const [showPresetManager, setShowPresetManager] = useState(false);
+  const [newPresetTitle, setNewPresetTitle] = useState('');
+  const [newPresetPrice, setNewPresetPrice] = useState('');
+  const [newPresetFixed, setNewPresetFixed] = useState(true);
+  const [newPresetCategory, setNewPresetCategory] = useState<LedgerCategoryId>('transit');
+  const [newPresetAccount, setNewPresetAccount] = useState<LedgerAccountId>('applepay');
+  const [newPresetOwner, setNewPresetOwner] = useState<LedgerOwnerId>('me');
+
   useEffect(() => {
     ensureRangeSliderCss();
     const unsub = subscribeBookkeepingStore(() => {
@@ -736,11 +749,13 @@ export function BookkeepingLedgerHub({
     });
   }
 
-  function handlePresetOneTap(preset: QuickLedgerPreset) {
+  const quickPresets = state.quickPresets ?? QUICK_LEDGER_PRESETS;
+
+  function executePresetLog(preset: QuickLedgerPreset, finalAmountCny: number) {
     const owner = preset.owner ?? selectedOwner;
     const { state: next, added } = addLedgerTransaction({
       kind: 'expense',
-      amountCny: preset.amountCny,
+      amountCny: finalAmountCny,
       categoryId: preset.categoryId,
       accountId: preset.accountId,
       owner,
@@ -749,14 +764,96 @@ export function BookkeepingLedgerHub({
     });
     setState(next);
     setLastAddedTxId(added.id);
+    setActivePresetPrompt(null);
+    setPresetAmountDraft('');
     playCashRegisterTick('expense');
     recordPledgeReward(`闪记：${preset.zh}`, localDay, 10);
     const ownerMeta = getOwnerBadgeMeta(owner, state.coupleProfile);
     showToast({
       text: t(
-        `已闪记 [${ownerMeta.zh}]：${preset.zh} -¥${preset.amountCny}`,
-        `1-Tap Logged [${ownerMeta.en}]: ${preset.en} -¥${preset.amountCny}`,
+        `已入账 [${ownerMeta.zh}]：${preset.zh} -¥${finalAmountCny}`,
+        `Logged [${ownerMeta.en}]: ${preset.en} -¥${finalAmountCny}`,
       ),
+    });
+  }
+
+  function handlePresetClick(preset: QuickLedgerPreset) {
+    // Truly fixed-price item (e.g. Subway ¥3): 1-tap instant log
+    if (preset.isFixedPrice) {
+      executePresetLog(preset, preset.amountCny);
+      return;
+    }
+    // Variable-price shortcut: open inline quick-amount prompt & pre-fill form
+    setEntryKind('expense');
+    setSelectedCategory(preset.categoryId);
+    setSelectedAccount(preset.accountId);
+    if (preset.owner) setSelectedOwner(preset.owner);
+    setNoteInput(t(preset.zh, preset.en));
+    setActivePresetPrompt((prev) => (prev?.id === preset.id ? null : preset));
+    setPresetAmountDraft('');
+  }
+
+  function handleConfirmPresetPromptAmount(customAmt?: number) {
+    if (!activePresetPrompt) return;
+    const amt = customAmt ?? evaluateAmountExpression(presetAmountDraft);
+    if (!amt || amt <= 0) {
+      showToast({
+        text: t(`请输入「${activePresetPrompt.zh}」本次金额`, `Enter amount for ${activePresetPrompt.en}`),
+        tone: 'error',
+      });
+      return;
+    }
+    executePresetLog(activePresetPrompt, amt);
+  }
+
+  function handlePinActivePresetAsFixedPrice() {
+    if (!activePresetPrompt) return;
+    const amt = evaluateAmountExpression(presetAmountDraft) ?? activePresetPrompt.amountCny;
+    if (!amt || amt <= 0) return;
+    const next = saveQuickLedgerPreset({
+      id: activePresetPrompt.id,
+      zh: activePresetPrompt.zh,
+      en: activePresetPrompt.en,
+      amountCny: amt,
+      isFixedPrice: true,
+      categoryId: activePresetPrompt.categoryId,
+      accountId: activePresetPrompt.accountId,
+      owner: activePresetPrompt.owner ?? 'me',
+    });
+    setState(next);
+    setActivePresetPrompt(null);
+    setPresetAmountDraft('');
+    showToast({
+      text: t(
+        `已将「${activePresetPrompt.zh}」设为固定价格 ¥${amt}，后续点击将直接入账`,
+        `Set "${activePresetPrompt.en}" to fixed ¥${amt} (1-tap log)`,
+      ),
+    });
+  }
+
+  function handleAddNewPresetItem() {
+    const title = newPresetTitle.trim();
+    if (!title) {
+      showToast({ text: t('请输入常用项名称（如：公交 / 早餐）', 'Enter shortcut name'), tone: 'error' });
+      return;
+    }
+    const parsedAmt = evaluateAmountExpression(newPresetPrice) ?? 10;
+    const next = saveQuickLedgerPreset({
+      zh: title,
+      en: title,
+      amountCny: parsedAmt,
+      isFixedPrice: newPresetFixed,
+      categoryId: newPresetCategory,
+      accountId: newPresetAccount,
+      owner: newPresetOwner,
+    });
+    setState(next);
+    setNewPresetTitle('');
+    setNewPresetPrice('');
+    showToast({
+      text: newPresetFixed
+        ? t(`已新增固定价常用品：${title} ¥${parsedAmt}`, `Added fixed shortcut: ${title} ¥${parsedAmt}`)
+        : t(`已新增快捷项：${title}（点击后输入金额）`, `Added shortcut: ${title} (prompts for amount)`),
     });
   }
 
@@ -1327,32 +1424,441 @@ export function BookkeepingLedgerHub({
 
           <View style={styles.presetRow}>
             <Text variant="caption" style={{ color: pal.muted, fontSize: 10.5 }}>
-              {t('常用快记：', 'Presets:')}
+              {t('常用快记：', 'Shortcuts:')}
             </Text>
-            {QUICK_LEDGER_PRESETS.map((preset) => (
-              <Pressable
-                key={preset.id}
-                accessibilityRole="button"
-                accessibilityLabel={`一键闪记 ${preset.zh} ${preset.amountCny}元`}
-                onPress={() => handlePresetOneTap(preset)}
-                style={({ pressed }) => [
-                  styles.presetChip,
-                  {
-                    backgroundColor: pal.pillBg,
-                    borderColor: pal.border,
-                    transform: [{ scale: pressed ? 0.94 : 1 }],
-                  },
-                ]}
-              >
-                <Text variant="caption" style={{ color: pal.ink, fontSize: 11, fontWeight: '600' }}>
-                  {`${t(preset.zh, preset.en)} `}
-                  <Text variant="caption" style={{ color: pal.goldText, fontWeight: '700', fontSize: 11 }}>
-                    {`¥${preset.amountCny}`}
+            {quickPresets.map((preset) => {
+              const isFixed = Boolean(preset.isFixedPrice);
+              const isPrompting = activePresetPrompt?.id === preset.id;
+              return (
+                <Pressable
+                  key={preset.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    isFixed
+                      ? `固定价闪记 ${preset.zh} ${preset.amountCny}元`
+                      : `点击输入 ${preset.zh} 金额`
+                  }
+                  onPress={() => handlePresetClick(preset)}
+                  style={({ pressed }) => [
+                    styles.presetChip,
+                    {
+                      backgroundColor: isPrompting
+                        ? pal.pillActiveBg
+                        : isFixed
+                          ? `${pal.emerald}16`
+                          : pal.pillBg,
+                      borderColor: isPrompting
+                        ? pal.gold
+                        : isFixed
+                          ? pal.emerald
+                          : pal.border,
+                      transform: [{ scale: pressed ? 0.94 : 1 }],
+                    },
+                  ]}
+                >
+                  <Text variant="caption" style={{ color: pal.ink, fontSize: 11, fontWeight: '600' }}>
+                    {`${t(preset.zh, preset.en)} `}
+                    <Text
+                      variant="caption"
+                      style={{
+                        color: isFixed ? pal.emerald : pal.goldText,
+                        fontWeight: '700',
+                        fontSize: 10.5,
+                      }}
+                    >
+                      {isFixed ? `¥${preset.amountCny}` : t('· 填金额', '· Amount')}
+                    </Text>
                   </Text>
-                </Text>
-              </Pressable>
-            ))}
+                </Pressable>
+              );
+            })}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="设置常用品与固定价格"
+              onPress={() => setShowPresetManager((prev) => !prev)}
+              style={({ pressed }) => [
+                styles.presetChip,
+                {
+                  backgroundColor: showPresetManager ? pal.pillActiveBg : pal.pillBg,
+                  borderColor: showPresetManager ? pal.gold : pal.border,
+                  transform: [{ scale: pressed ? 0.95 : 1 }],
+                },
+              ]}
+            >
+              <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700' }}>
+                {showPresetManager ? t('收起设置 ▲', 'Done ▲') : t('设置常用品 ✎', 'Configure ✎')}
+              </Text>
+            </Pressable>
           </View>
+
+          {/* Instant Inline Amount Entry Bar when a variable-price shortcut is clicked */}
+          {activePresetPrompt ? (
+            <View
+              style={[
+                styles.drawerPanel,
+                {
+                  backgroundColor: pal.cardBg,
+                  borderColor: pal.goldBorder,
+                  borderWidth: 1,
+                  borderRadius: 10,
+                  paddingVertical: 10,
+                  paddingHorizontal: 12,
+                },
+              ]}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <View style={[styles.monogramCircle, { backgroundColor: `${pal.gold}22`, width: 22, height: 22, borderRadius: 6 }]}>
+                    <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '800' }}>
+                      {activePresetPrompt.icon}
+                    </Text>
+                  </View>
+                  <Text variant="caption" style={{ color: pal.ink, fontSize: 11.5, fontWeight: '700' }}>
+                    {t(`快记「${activePresetPrompt.zh}」`, `Quick Log "${activePresetPrompt.en}"`)}
+                  </Text>
+                  <Text variant="caption" style={{ color: pal.muted, fontSize: 10.5 }}>
+                    {`${getLedgerAccountMeta(activePresetPrompt.accountId).zh} · ${getOwnerBadgeMeta(activePresetPrompt.owner ?? selectedOwner, state.coupleProfile).zh}`}
+                  </Text>
+                </View>
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  {[
+                    Math.max(1, Math.round(activePresetPrompt.amountCny * 0.7)),
+                    activePresetPrompt.amountCny,
+                    Math.round(activePresetPrompt.amountCny * 1.25),
+                    Math.round(activePresetPrompt.amountCny * 1.6),
+                  ]
+                    .filter((v, i, arr) => arr.indexOf(v) === i)
+                    .map((cand) => (
+                      <Pressable
+                        key={`cand-${cand}`}
+                        onPress={() => handleConfirmPresetPromptAmount(cand)}
+                        style={[styles.microBtn, { backgroundColor: pal.pillBg, borderColor: pal.border }]}
+                      >
+                        <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
+                          {`¥${cand}`}
+                        </Text>
+                      </Pressable>
+                    ))}
+                </View>
+              </View>
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <TextInput
+                  value={presetAmountDraft}
+                  onChangeText={setPresetAmountDraft}
+                  onSubmitEditing={() => handleConfirmPresetPromptAmount()}
+                  autoFocus
+                  placeholder={t(`输入本次金额（参考 ¥${activePresetPrompt.amountCny}，支持 25+8 算式）…`, `Enter amount (ref ¥${activePresetPrompt.amountCny})…`)}
+                  placeholderTextColor={pal.muted}
+                  style={[
+                    styles.smartInput,
+                    {
+                      height: 34,
+                      minWidth: 180,
+                      backgroundColor: pal.inputBg,
+                      borderColor: pal.gold,
+                      color: pal.ink,
+                      fontFamily: theme.fontFamily.mono,
+                    },
+                    Platform.OS === 'web' ? ({ outlineStyle: 'none' } as unknown as ViewStyle) : null,
+                  ]}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="确认快捷金额入账"
+                  onPress={() => handleConfirmPresetPromptAmount()}
+                  style={[styles.smartSubmitBtn, { height: 34, backgroundColor: pal.pillActiveBg, borderColor: pal.gold }]}
+                >
+                  <Text variant="caption" style={{ color: pal.goldText, fontSize: 11, fontWeight: '700' }}>
+                    {t('确认入账', 'Confirm Log')}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="将当前金额设为固定价格常用品"
+                  onPress={handlePinActivePresetAsFixedPrice}
+                  style={[styles.microBtn, { height: 34, justifyContent: 'center', backgroundColor: `${pal.emerald}18`, borderColor: pal.emerald }]}
+                >
+                  <Text variant="caption" style={{ color: pal.emerald, fontSize: 10.5, fontWeight: '700' }}>
+                    {t(
+                      `设为固定价 ¥${evaluateAmountExpression(presetAmountDraft) ?? activePresetPrompt.amountCny}`,
+                      `Pin Fixed ¥${evaluateAmountExpression(presetAmountDraft) ?? activePresetPrompt.amountCny}`,
+                    )}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setActivePresetPrompt(null)}
+                  style={[styles.microBtn, { height: 34, justifyContent: 'center', backgroundColor: pal.pillBg, borderColor: pal.border }]}
+                >
+                  <Text variant="caption" style={{ color: pal.muted, fontSize: 10.5 }}>
+                    {t('取消', 'Cancel')}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
+
+          {/* Custom Preset & Fixed-Price Manager Drawer */}
+          {showPresetManager ? (
+            <View
+              style={[
+                styles.drawerPanel,
+                {
+                  backgroundColor: pal.cardBg,
+                  borderColor: pal.border,
+                  borderWidth: 1,
+                  borderRadius: 10,
+                  paddingVertical: 10,
+                  paddingHorizontal: 12,
+                },
+              ]}
+            >
+              <Text variant="caption" style={{ color: pal.goldText, fontSize: 11.5, fontWeight: '700' }}>
+                {t(
+                  '常用品与固定价格设置（标记为「固定价」如地铁 ¥3 点击直接入账；标记为「填金额」点击后弹出金额框）',
+                  'Shortcut Settings (Fixed-price items log in 1 tap; variable items prompt for amount on click)',
+                )}
+              </Text>
+              <View style={{ gap: 6 }}>
+                {quickPresets.map((item) => {
+                  const isFixed = Boolean(item.isFixedPrice);
+                  return (
+                    <View
+                      key={`cfg-${item.id}`}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: 8,
+                        paddingVertical: 5,
+                        paddingHorizontal: 8,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor: pal.border,
+                        backgroundColor: pal.cardElevated,
+                      }}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text variant="caption" style={{ color: pal.ink, fontSize: 11, fontWeight: '700' }}>
+                          {t(item.zh, item.en)}
+                        </Text>
+                        <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>
+                          {`${getLedgerCategoryMeta(item.categoryId).zh} · ${getLedgerAccountMeta(item.accountId).zh} · ${getOwnerBadgeMeta(item.owner ?? 'me', state.coupleProfile).zh}`}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Pressable
+                          onPress={() => {
+                            const next = saveQuickLedgerPreset({
+                              id: item.id,
+                              zh: item.zh,
+                              en: item.en,
+                              amountCny: item.amountCny,
+                              isFixedPrice: !isFixed,
+                              categoryId: item.categoryId,
+                              accountId: item.accountId,
+                              owner: item.owner ?? 'me',
+                            });
+                            setState(next);
+                          }}
+                          style={[
+                            styles.microBtn,
+                            {
+                              backgroundColor: isFixed ? `${pal.emerald}20` : pal.pillBg,
+                              borderColor: isFixed ? pal.emerald : pal.border,
+                            },
+                          ]}
+                        >
+                          <Text
+                            variant="caption"
+                            style={{
+                              color: isFixed ? pal.emerald : pal.sub,
+                              fontSize: 10,
+                              fontWeight: '700',
+                            }}
+                          >
+                            {isFixed ? t(`固定价 ¥${item.amountCny} · 一键直记`, `Fixed ¥${item.amountCny}`) : t(`点击填金额 (参考 ¥${item.amountCny})`, `Prompt Amount (¥${item.amountCny})`)}
+                          </Text>
+                        </Pressable>
+                        {[3, 4, 6, 9.9, 18, 35].map((quickVal) => (
+                          <Pressable
+                            key={`qv-${item.id}-${quickVal}`}
+                            onPress={() => {
+                              const next = saveQuickLedgerPreset({
+                                id: item.id,
+                                zh: item.zh,
+                                en: item.en,
+                                amountCny: quickVal,
+                                isFixedPrice: true,
+                                categoryId: item.categoryId,
+                                accountId: item.accountId,
+                                owner: item.owner ?? 'me',
+                              });
+                              setState(next);
+                            }}
+                            style={[
+                              styles.microBtn,
+                              {
+                                paddingHorizontal: 6,
+                                paddingVertical: 2,
+                                backgroundColor: isFixed && item.amountCny === quickVal ? pal.pillActiveBg : pal.pillBg,
+                                borderColor: isFixed && item.amountCny === quickVal ? pal.gold : pal.border,
+                              },
+                            ]}
+                          >
+                            <Text variant="caption" style={{ color: pal.goldText, fontSize: 9.5, fontFamily: theme.fontFamily.mono }}>
+                              {`¥${quickVal}`}
+                            </Text>
+                          </Pressable>
+                        ))}
+                        <Pressable
+                          onPress={() => setState(removeQuickLedgerPreset(item.id))}
+                          style={[styles.microBtn, { paddingHorizontal: 6, paddingVertical: 2, backgroundColor: pal.pillBg, borderColor: pal.border }]}
+                        >
+                          <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>
+                            ×
+                          </Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+
+              {/* Add New Custom Shortcut Row */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                <TextInput
+                  value={newPresetTitle}
+                  onChangeText={setNewPresetTitle}
+                  placeholder={t('新增常用品名称（如：地铁通勤 / 早餐豆浆）', 'New item name (e.g. Subway / Soy Milk)')}
+                  placeholderTextColor={pal.muted}
+                  style={[
+                    styles.smartInput,
+                    {
+                      height: 30,
+                      minWidth: 160,
+                      fontSize: 11,
+                      backgroundColor: pal.inputBg,
+                      borderColor: pal.border,
+                      color: pal.ink,
+                    },
+                  ]}
+                />
+                <TextInput
+                  value={newPresetPrice}
+                  onChangeText={setNewPresetPrice}
+                  placeholder={t('金额 ¥3', '¥3')}
+                  placeholderTextColor={pal.muted}
+                  style={[
+                    styles.budgetInput,
+                    {
+                      height: 30,
+                      width: 72,
+                      fontSize: 11,
+                      backgroundColor: pal.inputBg,
+                      borderColor: pal.border,
+                      color: pal.goldText,
+                    },
+                  ]}
+                />
+                <Pressable
+                  onPress={() => setNewPresetFixed((prev) => !prev)}
+                  style={[
+                    styles.microBtn,
+                    {
+                      height: 30,
+                      justifyContent: 'center',
+                      backgroundColor: newPresetFixed ? `${pal.emerald}20` : pal.pillBg,
+                      borderColor: newPresetFixed ? pal.emerald : pal.border,
+                    },
+                  ]}
+                >
+                  <Text variant="caption" style={{ color: newPresetFixed ? pal.emerald : pal.sub, fontSize: 10.5, fontWeight: '700' }}>
+                    {newPresetFixed ? t('模式：固定价格直记', 'Mode: Fixed Price') : t('模式：点击后输入金额', 'Mode: Prompt Amount')}
+                  </Text>
+                </Pressable>
+                {(['transit', 'coffee', 'dining', 'shopping'] as LedgerCategoryId[]).map((cid) => {
+                  const c = getLedgerCategoryMeta(cid);
+                  const active = newPresetCategory === cid;
+                  return (
+                    <Pressable
+                      key={`np-cat-${cid}`}
+                      onPress={() => setNewPresetCategory(cid)}
+                      style={[
+                        styles.microBtn,
+                        {
+                          height: 30,
+                          justifyContent: 'center',
+                          backgroundColor: active ? pal.pillActiveBg : pal.pillBg,
+                          borderColor: active ? pal.gold : pal.border,
+                        },
+                      ]}
+                    >
+                      <Text variant="caption" style={{ color: active ? pal.goldText : pal.sub, fontSize: 10 }}>
+                        {c.zh}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+                {(['applepay', 'wechat', 'alipay'] as LedgerAccountId[]).map((aid) => {
+                  const a = getLedgerAccountMeta(aid);
+                  const active = newPresetAccount === aid;
+                  return (
+                    <Pressable
+                      key={`np-acc-${aid}`}
+                      onPress={() => setNewPresetAccount(aid)}
+                      style={[
+                        styles.microBtn,
+                        {
+                          height: 30,
+                          justifyContent: 'center',
+                          backgroundColor: active ? pal.pillActiveBg : pal.pillBg,
+                          borderColor: active ? pal.gold : pal.border,
+                        },
+                      ]}
+                    >
+                      <Text variant="caption" style={{ color: active ? pal.goldText : pal.sub, fontSize: 10 }}>
+                        {a.zh}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+                {(['me', 'partner', 'shared'] as LedgerOwnerId[]).map((oid) => {
+                  const o = getOwnerBadgeMeta(oid, state.coupleProfile);
+                  const active = newPresetOwner === oid;
+                  return (
+                    <Pressable
+                      key={`np-own-${oid}`}
+                      onPress={() => setNewPresetOwner(oid)}
+                      style={[
+                        styles.microBtn,
+                        {
+                          height: 30,
+                          justifyContent: 'center',
+                          backgroundColor: active ? `${o.color}22` : pal.pillBg,
+                          borderColor: active ? o.color : pal.border,
+                        },
+                      ]}
+                    >
+                      <Text variant="caption" style={{ color: active ? o.color : pal.sub, fontSize: 10 }}>
+                        {o.zh}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+                <Pressable
+                  onPress={handleAddNewPresetItem}
+                  style={[styles.microBtn, { height: 30, justifyContent: 'center', backgroundColor: pal.pillActiveBg, borderColor: pal.gold }]}
+                >
+                  <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700' }}>
+                    {t('＋ 保存常用项', '＋ Add Shortcut')}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
         </View>
       </View>
 

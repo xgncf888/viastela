@@ -124,4 +124,15 @@ describe('bookkeeping core engine', () => {
     expect(breakdown.length).toBeGreaterThan(0);
     expect(breakdown[0]?.category.id).toBe('shopping');
   });
+
+  it('pre-configures Subway as a fixed ¥3 1-tap shortcut while keeping variable items in prompt mode', () => {
+    const presets = DEFAULT_BOOKKEEPING_STATE.quickPresets ?? [];
+    const subway = presets.find((p) => p.id === 'preset-transit');
+    expect(subway).toBeDefined();
+    expect(subway?.amountCny).toBe(3);
+    expect(subway?.isFixedPrice).toBe(true);
+
+    const lunch = presets.find((p) => p.id === 'preset-lunch');
+    expect(lunch?.isFixedPrice).toBe(false);
+  });
 });
