@@ -2,6 +2,13 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { Platform, Pressable, View } from 'react-native';
 
 import { assetSaveNotice } from '@/core/asset-errors';
+import {
+  type BookkeepingState,
+  computeAccountBalances,
+  computeMultiLedgerPoolBreakdown,
+  computeWealthGoalTrajectory,
+} from '@/core/bookkeeping';
+import { readBookkeepingState, subscribeBookkeepingStore } from '@/data/bookkeeping';
 import { deletedAccountUndo } from '@/core/asset-form';
 import { dashboardTotalUsd } from '@/core/asset-summary';
 import { balanceAfterUsd, balanceUsdRate } from '@/core/balance-write';
@@ -119,9 +126,15 @@ export function AssetsScreen() {
   const [refreshError, setRefreshError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [ready, setReady] = useState<Ready | null>(null);
+  const [ledgerState, setLedgerState] = useState(readBookkeepingState);
   const [sheet, setSheet] = useState<
     null | 'account' | 'balances' | 'holding' | 'assumptions' | 'goal' | { kind: 'balance'; accountId: string } | { kind: 'holding'; id: string }
   >(null);
+  useEffect(() => {
+    return subscribeBookkeepingStore(() => {
+      setLedgerState(readBookkeepingState());
+    });
+  }, []);
   const userId = session?.userId ?? null;
   const readyRef = useRef<Ready | null>(null);
   const reloadRef = useRef<() => Promise<void>>(async () => undefined);
@@ -275,6 +288,7 @@ export function AssetsScreen() {
             ) : null
           }
         />
+        <CnyLedgerBridgeCard ledgerState={ledgerState} masked={masked} />
         <LoadingRegion
           name="资产"
           loading={loading && ready === null}
@@ -1080,6 +1094,59 @@ function eventTitle(event: AssetEventRow): string {
   if (event.kind === 'holding_changed') return `调整了 ${event.symbol ?? ''} 持仓`.trim();
   if (event.kind === 'goal_changed') return '修改了目标';
   return '资产变动';
+}
+
+function CnyLedgerBridgeCard({
+  ledgerState,
+  masked,
+}: {
+  ledgerState: BookkeepingState;
+  masked: boolean;
+}) {
+  const wallets = computeAccountBalances(
+    ledgerState.transactions,
+    ledgerState.accountInitialBalances,
+  );
+  const walletTotalCny = wallets.reduce((sum, w) => sum + w.balanceCny, 0);
+  const pool = computeMultiLedgerPoolBreakdown(ledgerState, '2026-11');
+  const traj = computeWealthGoalTrajectory({
+    wealthPlan: ledgerState.wealthPlan,
+    recurringRules: ledgerState.recurringRules,
+    fallbackMonthlyIncomeCny: pool.pooledMonthIncomeCny || 30000,
+  });
+  const liquidPlusSavedCny = Math.round(walletTotalCny + ledgerState.wealthPlan.currentSavedCny);
+
+  return (
+    <Card>
+      <Stack gap="xs">
+        <Row justify="between" align="center" gap="sm" wrap>
+          <Text variant="heading">人民币账本资金池与四大账户实时结余（¥ CNY）</Text>
+          <Text variant="caption" tone="muted">
+            {`已合池 ${pool.items.filter((i) => i.book.includeInPool).length}/${pool.items.length} 个账本`}
+          </Text>
+        </Row>
+        <Divider />
+        <Row justify="between" align="center" gap="sm" wrap>
+          <Text variant="label">记账账户 + 定投本金合计</Text>
+          <MaskedAmount
+            text={`¥${liquidPlusSavedCny.toLocaleString('en-US')}`}
+            masked={masked}
+            variant="heading"
+          />
+        </Row>
+        <Row justify="between" align="center" gap="sm" wrap>
+          {wallets.map((w) => (
+            <Text key={w.account.id} variant="caption" tone="muted">
+              {`${w.account.zh}: ¥${w.balanceCny.toLocaleString('en-US')}`}
+            </Text>
+          ))}
+        </Row>
+        <Text variant="muted">
+          {`多账本合池月净流 ${pool.pooledNetCashflowCny >= 0 ? '+' : ''}¥${pool.pooledNetCashflowCny.toLocaleString('en-US')} · 定投 ${traj.investRatePct}% 预计 ${traj.estimatedGoalYearMonth} 达成 ¥${Math.round(traj.targetWealthCny / 10000)}万目标`}
+        </Text>
+      </Stack>
+    </Card>
+  );
 }
 
 function AssetsSkeleton() {

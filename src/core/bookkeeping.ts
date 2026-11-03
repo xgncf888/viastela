@@ -177,6 +177,8 @@ export type BookkeepingState = {
   quickPresets?: QuickLedgerPreset[];
   ledgerBooks?: LedgerBook[];
   chatMessages?: CoupleChatMessage[];
+  /** User-configurable starting balances (底仓) per account */ 
+  accountInitialBalances?: Partial<Record<LedgerAccountId, number>>;
 };
 
 export type MonthlyBookkeepingSummary = {
@@ -1365,8 +1367,10 @@ export function computeDailySpendBars(
 
 export function computeAccountBalances(
   transactions: readonly LedgerTransaction[],
+  customInitialBalances?: Partial<Record<LedgerAccountId, number>>,
 ): {
   account: LedgerAccountMeta;
+  initialBalanceCny: number;
   balanceCny: number;
   monthExpenseCny: number;
   monthIncomeCny: number;
@@ -1385,9 +1389,14 @@ export function computeAccountBalances(
         monthInc += tx.amountCny;
       }
     }
+    const baseInit =
+      typeof customInitialBalances?.[acc.id] === 'number' && Number.isFinite(customInitialBalances[acc.id])
+        ? customInitialBalances[acc.id]!
+        : acc.initialBalanceCny;
     return {
       account: acc,
-      balanceCny: Math.round((acc.initialBalanceCny + delta) * 100) / 100,
+      initialBalanceCny: baseInit,
+      balanceCny: Math.round((baseInit + delta) * 100) / 100,
       monthExpenseCny: Math.round(monthExp * 100) / 100,
       monthIncomeCny: Math.round(monthInc * 100) / 100,
     };

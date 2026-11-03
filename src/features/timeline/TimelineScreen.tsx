@@ -1,7 +1,14 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
+import {
+  getLedgerAccountMeta,
+  getLedgerBookMeta,
+  getLedgerCategoryMeta,
+  getOwnerBadgeMeta,
+} from '@/core/bookkeeping';
 import { computeLocalDay, currentTimeZone } from '@/core/local-day';
+import { readBookkeepingState, subscribeBookkeepingStore } from '@/data/bookkeeping';
 import { timelineSaveNotice } from '@/core/timeline-errors';
 import type { TimelineCursor } from '@/core/timeline-day';
 import { nextTimelineLoad } from '@/core/timeline-load';
@@ -72,12 +79,19 @@ export function TimelineScreen() {
   const [seed, setSeed] = useState<JournalSeed | null>(null);
   const [deletedNotice, setDeletedNotice] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [ledgerState, setLedgerState] = useState(readBookkeepingState);
+  const [showAllLedgerTx, setShowAllLedgerTx] = useState(false);
   const generation = useRef(0);
   const readyRef = useRef(false);
   const filterRef = useRef(filter);
   useEffect(() => {
     filterRef.current = filter;
   }, [filter]);
+  useEffect(() => {
+    return subscribeBookkeepingStore(() => {
+      setLedgerState(readBookkeepingState());
+    });
+  }, []);
 
   const settle = useCallback((hadContent: boolean, ok: boolean) => {
     const next = nextTimelineLoad(hadContent, ok);
@@ -270,6 +284,39 @@ export function TimelineScreen() {
           }
         >
           <Stack gap="lg">
+            {(filter === 'all' || filter === 'money') && ledgerState.transactions.length > 0 ? (
+              <Card>
+                <Stack gap="xs">
+                  <Row justify="between" align="center" gap="sm" wrap>
+                    <Text variant="heading">记账流水与多账本动态（¥ CNY）</Text>
+                    <Button
+                      label={showAllLedgerTx ? '收起流水' : '展开全部'}
+                      variant="secondary"
+                      size="mini"
+                      onPress={() => setShowAllLedgerTx((prev) => !prev)}
+                    />
+                  </Row>
+                  <Divider />
+                  {ledgerState.transactions.slice(0, showAllLedgerTx ? 30 : 5).map((tx, idx) => {
+                    const cat = getLedgerCategoryMeta(tx.categoryId);
+                    const acc = getLedgerAccountMeta(tx.accountId);
+                    const book = getLedgerBookMeta(tx.ledgerId, ledgerState.ledgerBooks);
+                    const owner = getOwnerBadgeMeta(tx.owner, ledgerState.coupleProfile);
+                    const amountStr = `${tx.kind === 'expense' ? '-' : '+'}¥${tx.amountCny.toFixed(2)}`;
+                    return (
+                      <Fragment key={tx.id}>
+                        {idx > 0 ? <Divider /> : null}
+                        <TimelineItem
+                          title={`[${book.zh} · ${owner.zh}] ${tx.note}`}
+                          detail={<MaskedAmount text={`${cat.zh} · ${acc.zh} · ${amountStr}`} masked={masked} variant="muted" tone="muted" />}
+                          time={tx.localDay}
+                        />
+                      </Fragment>
+                    );
+                  })}
+                </Stack>
+              </Card>
+            ) : null}
             {groups.length === 0 ? (
               <Card>
                 <EmptyState title="还没有记录" description="" action={<Button label="写一条日志" variant="secondary" onPress={openCreate} />} />

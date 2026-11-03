@@ -2159,7 +2159,8 @@ export function IsometricStudioStage({
     localDay,
   ];
 
-  const latestUserBlock = todayBlocks[todayBlocks.length - 1] ?? null;
+  // Build 100% Real-Data-Driven 3-Day Time-Block Columns (前天 / 昨天 / 今天)
+  const colLabels = [t('前天记录', '2 Days Ago'), t('昨日记录', 'Yesterday'), t('今日主轴', 'Today')];
 
   const matrixColumns: {
     dayKey: string;
@@ -2175,117 +2176,85 @@ export function IsometricStudioStage({
       marginTop: number;
       sparkle?: boolean;
     }[];
-  }[] = [
-    {
-      dayKey: colDays[0]!,
-      headerLeft: colDays[0]!.slice(8),
-      headerRight: t('晨间/专注', 'AM Focus'),
-      blocks: [
-        {
-          id: 'mc-1-a',
-          realBlockId: latestUserBlock?.id,
-          title: latestUserBlock
-            ? latestUserBlock.title
-            : t('深度架构与论文精读', 'Deep Architecture & Paper Reading'),
-          timeRange: latestUserBlock
-            ? `${formatMinuteOfDay(latestUserBlock.startMinute)} – ${formatMinuteOfDay(latestUserBlock.endMinute)}`
-            : '09:00 – 13:00',
-          tone: 'terracotta',
-          height: 62,
-          marginTop: 18,
-          sparkle: true,
-        },
-        {
-          id: 'mc-1-b',
-          title: t('系统复盘与核心研发', 'System Review & Core R&D'),
-          timeRange: '13:30 – 16:30',
-          tone: 'terracotta',
-          height: 56,
-          marginTop: 6,
-        },
-        {
-          id: 'mc-1-c',
-          title: t('力量与有氧代谢训练', 'Strength & Metabolic Conditioning'),
-          timeRange: '17:00 – 18:30',
-          tone: 'emerald',
-          height: 44,
-          marginTop: 10,
-          sparkle: true,
-        },
-      ],
-    },
-    {
-      dayKey: colDays[1]!,
-      headerLeft: colDays[1]!.slice(8),
-      headerRight: t('一万小时', '10,000h'),
-      blocks: [
-        {
-          id: 'mc-2-a',
-          title: t('+ 10,000h 计时打卡', '+ 10,000h Focus Check-In'),
-          timeRange: '08:30',
-          tone: 'pill',
-          height: 24,
-          marginTop: 18,
-        },
-        {
-          id: 'mc-2-b',
-          title:
-            trainingSetsCount > 0
-              ? t(`今日训练 (${trainingSetsCount} 组)`, `Today's Workout (${trainingSetsCount} sets)`)
-              : t('核心力量与心肺激活', 'Core Strength & Cardio'),
-          timeRange: '11:30 – 14:00',
-          tone: 'emerald',
-          height: 68,
-          marginTop: 34,
-          sparkle: true,
-        },
-        {
-          id: 'mc-2-c',
-          title: t('晚间阅读与心愿复盘', 'Evening Reading & Wish Review'),
-          timeRange: '19:30 – 21:30',
-          tone: 'golden',
-          height: 52,
-          marginTop: 22,
-        },
-      ],
-    },
-    {
-      dayKey: colDays[2]!,
-      headerLeft: colDays[2]!.slice(8),
-      headerRight: t('今日主轴', 'Today'),
-      blocks: [
-        ...todayBlocks.slice(-2).map((tb, idx) => ({
+  }[] = colDays.map((dayKey, colIdx) => {
+    const dayRealBlocks = timeBlocks
+      .filter((b) => b.localDay === dayKey)
+      .sort((a, b) => a.startMinute - b.startMinute);
+
+    if (dayRealBlocks.length > 0) {
+      return {
+        dayKey: dayKey!,
+        headerLeft: dayKey!.slice(8),
+        headerRight: `${colLabels[colIdx]} (${dayRealBlocks.length})`,
+        blocks: dayRealBlocks.slice(-4).map((tb, idx) => ({
           id: `real-${tb.id}`,
           realBlockId: tb.id,
           title: tb.title,
-          timeRange: `${formatMinuteOfDay(tb.startMinute)} – ${formatMinuteOfDay(tb.endMinute)}`,
-          tone: (tb.category === 'fitness' ? 'emerald' : 'golden') as 'emerald' | 'golden',
-          height: 54,
-          marginTop: idx === 0 ? 6 : 6,
+          timeRange: `${formatMinuteOfDay(tb.startMinute)} – ${formatMinuteOfDay(tb.endMinute)} (${tb.durationMinutes}m)`,
+          tone:
+            tb.category === 'fitness'
+              ? 'emerald'
+              : tb.category === 'study'
+                ? 'terracotta'
+                : 'golden',
+          height: Math.max(44, Math.min(88, Math.round(tb.durationMinutes * 0.9))),
+          marginTop: idx === 0 ? 12 : 8,
           sparkle: true,
         })),
+      };
+    }
+
+    // When no real blocks exist yet on that day, show honest live status + 1-click prompt
+    if (colIdx === 2) {
+      return {
+        dayKey: dayKey!,
+        headerLeft: dayKey!.slice(8),
+        headerRight: t('今日主轴', 'Today'),
+        blocks: [
+          {
+            id: 'mc-today-focus',
+            title:
+              studyMinutes > 0
+                ? t(`今日专注累计 ${studyMinutes}m（翻书 P.${stageState.bookPage}）`, `Focused ${studyMinutes}m (P.${stageState.bookPage})`)
+                : t(`在读 ${stageState.bookTitle.slice(0, 10)} P.${stageState.bookPage}`, `Reading P.${stageState.bookPage}`),
+            timeRange: t('点击翻书或上方输入时间块即刻记录', 'Flip book or type above to log'),
+            tone: 'golden',
+            height: 64,
+            marginTop: 12,
+            sparkle: studyMinutes > 0,
+          },
+          {
+            id: 'mc-today-workout',
+            title:
+              trainingSetsCount > 0 || workoutReps > 0
+                ? t(`今日训练 ${trainingSetsCount} 组 · 动作累计 x${workoutReps}`, `Workout ${trainingSetsCount} sets · Reps x${workoutReps}`)
+                : t('点击活力体态小人或 1m 面板记录训练', 'Tap athlete or 1m scrub to log workout'),
+            timeRange: t('实时联动状态', 'Live State'),
+            tone: 'emerald',
+            height: 58,
+            marginTop: 8,
+            sparkle: trainingSetsCount > 0 || workoutReps > 0,
+          },
+        ],
+      };
+    }
+
+    return {
+      dayKey: dayKey!,
+      headerLeft: dayKey!.slice(8),
+      headerRight: colLabels[colIdx]!,
+      blocks: [
         {
-          id: 'mc-3-a',
-          title:
-            studyMinutes > 0
-              ? t(`今日已专注 ${studyMinutes}m`, `Focused ${studyMinutes}m Today`)
-              : t('10,000h 沉浸创造时间块', '10,000h Deep Creation Block'),
-          timeRange: '08:00 – 13:30',
-          tone: 'golden',
-          height: todayBlocks.length > 0 ? 68 : 112,
-          marginTop: 6,
-        },
-        {
-          id: 'mc-3-b',
-          title: t('OKR 关键结果推进与归档', 'OKR Key Results & Review'),
-          timeRange: '14:30 – 18:30',
-          tone: 'golden',
-          height: 68,
-          marginTop: 6,
+          id: `mc-empty-${dayKey}`,
+          title: t(`${dayKey!.slice(5)} 暂无时间块记录`, `No blocks logged on ${dayKey!.slice(5)}`),
+          timeRange: t('点左侧时刻尺可补录该日 45m 时间块', 'Tap ruler on left to log a 45m block'),
+          tone: colIdx === 0 ? 'terracotta' : 'pill',
+          height: 56,
+          marginTop: 18,
         },
       ],
-    },
-  ];
+    };
+  });
 
   const selectedBlockObj =
     matrixColumns.flatMap((c) => c.blocks).find((b) => b.id === selectedBlockId) ?? null;

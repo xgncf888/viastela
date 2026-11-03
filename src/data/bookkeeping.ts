@@ -1,4 +1,9 @@
-import { isPlaceholderLocalSupabaseUrl, isSupabaseConfigured } from '@/config/env';
+import {
+  isPlaceholderLocalSupabaseUrl,
+  isSupabaseConfigured,
+  readCustomSupabaseConfig,
+  saveCustomSupabaseEnv,
+} from '@/config/env';
 import {
   type BookkeepingState,
   type CoupleChatMessage,
@@ -129,9 +134,13 @@ export function readBookkeepingState(): BookkeepingState {
       quickPresets: normalizeQuickPresets(parsed.quickPresets),
       ledgerBooks: normalizeLedgerBooks(parsed.ledgerBooks),
       chatMessages:
-        Array.isArray(parsed.chatMessages) && parsed.chatMessages.length > 0
+        Array.isArray(parsed.chatMessages)
           ? parsed.chatMessages
           : [...DEFAULT_COUPLE_CHAT_MESSAGES],
+      accountInitialBalances:
+        parsed.accountInitialBalances && typeof parsed.accountInitialBalances === 'object'
+          ? parsed.accountInitialBalances
+          : {},
     };
   } catch {
     return DEFAULT_BOOKKEEPING_STATE;
@@ -156,6 +165,25 @@ export function writeBookkeepingState(state: BookkeepingState): BookkeepingState
  */
 let activeBroadcastChannel: BroadcastChannel | null = null;
 let activeRoomKey = '';
+
+export function getCoupleSyncStatus(): {
+  isCloudRealtime: boolean;
+  customUrl: string;
+  customAnonKey: string;
+} {
+  const custom = readCustomSupabaseConfig();
+  const isCloud = isSupabaseConfigured() && !isPlaceholderLocalSupabaseUrl();
+  return {
+    isCloudRealtime: isCloud,
+    customUrl: custom?.url ?? '',
+    customAnonKey: custom?.anonKey ?? '',
+  };
+}
+
+export function saveCoupleCloudRelayConfig(url: string, anonKey: string): void {
+  saveCustomSupabaseEnv(url, anonKey);
+  emitChange();
+}
 
 export function connectCoupleRealtimeRoom(
   roomCode: string,
@@ -281,6 +309,32 @@ export function removeLedgerTransaction(id: string): BookkeepingState {
     transactions: cur.transactions.filter((tx) => tx.id !== id),
   };
   return writeBookkeepingState(next);
+}
+
+export function updateAccountInitialBalance(
+  accountId: LedgerAccountId,
+  initialBalanceCny: number,
+): BookkeepingState {
+  const cur = readBookkeepingState();
+  const clean = Math.max(0, Math.round(initialBalanceCny * 100) / 100);
+  return writeBookkeepingState({
+    ...cur,
+    accountInitialBalances: {
+      ...(cur.accountInitialBalances ?? {}),
+      [accountId]: clean,
+    },
+  });
+}
+
+export function clearDemoBookkeepingData(): BookkeepingState {
+  const cur = readBookkeepingState();
+  const realTx = cur.transactions.filter((tx) => !tx.id.startsWith('tx-seed-'));
+  const realChat = (cur.chatMessages ?? []).filter((m) => !m.id.startsWith('chat-seed-'));
+  return writeBookkeepingState({
+    ...cur,
+    transactions: realTx,
+    chatMessages: realChat,
+  });
 }
 
 export function updateMonthlyBudgetCny(budgetCny: number, ledgerId?: LedgerBookId): BookkeepingState {

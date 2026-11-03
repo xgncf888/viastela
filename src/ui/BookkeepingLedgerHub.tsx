@@ -38,14 +38,17 @@ import {
   addLedgerTransaction,
   addRecurringLedgerRule,
   bindCoupleFriendAndRoom,
+  clearDemoBookkeepingData,
   connectCoupleRealtimeRoom,
   ensureRecurringRulesApplied,
+  getCoupleSyncStatus,
   importPartnerBookkeepingJson,
   readBookkeepingState,
   removeLedgerBook,
   removeLedgerTransaction,
   removeQuickLedgerPreset,
   removeRecurringLedgerRule,
+  saveCoupleCloudRelayConfig,
   saveLedgerBook,
   saveQuickLedgerPreset,
   sendCoupleChatMessage,
@@ -53,6 +56,7 @@ import {
   subscribeBookkeepingStore,
   toggleLedgerBookPoolInclusion,
   toggleRecurringLedgerRule,
+  updateAccountInitialBalance,
   updateCoupleTeamProfile,
   updateMonthlyBudgetCny,
   updateWealthPlanConfig,
@@ -597,6 +601,14 @@ export function BookkeepingLedgerHub({
   const [friendCodeDraft, setFriendCodeDraft] = useState(state.coupleProfile.partnerFriendCode || 'VS-6612');
   const [roomCodeDraft, setRoomCodeDraft] = useState(state.coupleProfile.roomCode || 'LOVE-88');
   const [showFriendPairBox, setShowFriendPairBox] = useState(false);
+  const [syncStatus, setSyncStatus] = useState(getCoupleSyncStatus);
+  const [cloudUrlDraft, setCloudUrlDraft] = useState(() => getCoupleSyncStatus().customUrl);
+  const [cloudKeyDraft, setCloudKeyDraft] = useState(() => getCoupleSyncStatus().customAnonKey);
+  const [editingAccountInitId, setEditingAccountInitId] = useState<LedgerAccountId | null>(null);
+  const [accountInitDraft, setAccountInitDraft] = useState('');
+  const [expandCompactDetails, setExpandCompactDetails] = useState(false);
+  const showFullPanels = !compact || expandCompactDetails;
+  const hasDemoSeeds = state.transactions.some((tx) => tx.id.startsWith('tx-seed-'));
 
   useEffect(() => {
     ensureRangeSliderCss();
@@ -726,8 +738,8 @@ export function BookkeepingLedgerHub({
     [ownerFilteredTransactions, localDay],
   );
   const accountBalances = useMemo(
-    () => computeAccountBalances(ownerFilteredTransactions),
-    [ownerFilteredTransactions],
+    () => computeAccountBalances(ownerFilteredTransactions, state.accountInitialBalances),
+    [ownerFilteredTransactions, state.accountInitialBalances],
   );
 
   const visibleCategories = useMemo(
@@ -1260,14 +1272,41 @@ export function BookkeepingLedgerHub({
               styles.microBtn,
               {
                 backgroundColor: showFriendPairBox ? pal.pillActiveBg : pal.pillBg,
-                borderColor: state.coupleProfile.friendBound ? pal.emerald : pal.border,
+                borderColor: syncStatus.isCloudRealtime ? pal.emerald : pal.goldBorder,
               },
             ]}
           >
-            <Text variant="caption" style={{ color: state.coupleProfile.friendBound ? pal.emerald : pal.ink, fontSize: 10.5, fontWeight: '700' }}>
-              {t(`好友已联机 #${state.coupleProfile.roomCode || 'LOVE-88'}`, `Room #${state.coupleProfile.roomCode || 'LOVE-88'}`)}
+            <Text
+              variant="caption"
+              style={{
+                color: syncStatus.isCloudRealtime ? pal.emerald : pal.goldText,
+                fontSize: 10.5,
+                fontWeight: '700',
+              }}
+            >
+              {syncStatus.isCloudRealtime
+                ? t(`云端在线 #${state.coupleProfile.roomCode || 'LOVE-88'}`, `Cloud #${state.coupleProfile.roomCode || 'LOVE-88'}`)
+                : t(`本机房间 #${state.coupleProfile.roomCode || 'LOVE-88'} [配云端]`, `Local #${state.coupleProfile.roomCode || 'LOVE-88'}`)}
             </Text>
           </Pressable>
+          {hasDemoSeeds ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="一键清空内置演示数据并开启真实账本"
+              onPress={() => {
+                const next = clearDemoBookkeepingData();
+                setState(next);
+                showToast({
+                  text: t('已清空全部内置演示账单，现在可开始记录你的真实收支', 'Cleared demo seed transactions'),
+                });
+              }}
+              style={[styles.microBtn, { backgroundColor: `${pal.terracotta}18`, borderColor: pal.terracotta }]}
+            >
+              <Text variant="caption" style={{ color: pal.terracotta, fontSize: 10.5, fontWeight: '700' }}>
+                {t('清空演示数据', 'Clear Demo')}
+              </Text>
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="打开App内双人聊天与账单互动窗口"
@@ -1648,6 +1687,43 @@ export function BookkeepingLedgerHub({
             >
               <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700' }}>
                 {t('绑定好友并开启实时合池同步', 'Bind Friend & Sync')}
+              </Text>
+            </Pressable>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+            <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>
+              {syncStatus.isCloudRealtime
+                ? t('当前状态：已连接跨设备云端 Realtime 通道（异地双机秒级直连）', 'Status: Cloud Realtime Connected')
+                : t('当前状态：本机双窗口 Broadcast 同步（填写 Supabase URL 与 Anon Key 即可开启异地双手机实时直连）：', 'Status: Local Broadcast (Enter Supabase URL & Key for cross-device cloud sync):')}
+            </Text>
+            <TextInput
+              value={cloudUrlDraft}
+              onChangeText={setCloudUrlDraft}
+              placeholder="https://xxxx.supabase.co"
+              placeholderTextColor={pal.muted}
+              style={[styles.smartInput, { height: 28, minWidth: 170, fontSize: 10.5, backgroundColor: pal.inputBg, borderColor: pal.border, color: pal.ink }]}
+            />
+            <TextInput
+              value={cloudKeyDraft}
+              onChangeText={setCloudKeyDraft}
+              placeholder="Supabase Public Anon Key"
+              placeholderTextColor={pal.muted}
+              style={[styles.smartInput, { height: 28, minWidth: 170, fontSize: 10.5, backgroundColor: pal.inputBg, borderColor: pal.border, color: pal.ink }]}
+            />
+            <Pressable
+              onPress={() => {
+                saveCoupleCloudRelayConfig(cloudUrlDraft, cloudKeyDraft);
+                setSyncStatus(getCoupleSyncStatus());
+                showToast({
+                  text: cloudUrlDraft.trim()
+                    ? t('已保存云端联机配置，已切换至跨设备实时同步模式', 'Saved cloud relay config')
+                    : t('已切回本机离线同步模式', 'Switched to local mode'),
+                });
+              }}
+              style={[styles.microBtn, { height: 28, justifyContent: 'center', backgroundColor: pal.pillBg, borderColor: pal.emerald }]}
+            >
+              <Text variant="caption" style={{ color: pal.emerald, fontSize: 10, fontWeight: '700' }}>
+                {t('保存云端配置', 'Save Cloud Relay')}
               </Text>
             </Pressable>
           </View>
@@ -2469,8 +2545,23 @@ export function BookkeepingLedgerHub({
         </View>
       </View>
 
+      {compact ? (
+        <View style={{ paddingHorizontal: 14, paddingTop: 10, alignItems: 'flex-end' }}>
+          <Pressable
+            onPress={() => setExpandCompactDetails((prev) => !prev)}
+            style={[styles.microBtn, { backgroundColor: pal.pillActiveBg, borderColor: pal.gold }]}
+          >
+            <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700' }}>
+              {expandCompactDetails
+                ? t('收起财富曲线与完整流水明细 ▲', 'Hide Full Ledger & Curve ▲')
+                : t('展开财富曲线、分类键盘与完整流水明细 ▼', 'Expand Full Ledger & Curve ▼')}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       {/* 1.5. Continuous Slidable Salary × Investment Ratio -> Target Wealth Trajectory Curve Card */}
-      {!compact ? (
+      {showFullPanels ? (
         <View style={[styles.wealthCardWrap, { backgroundColor: pal.cardBg, borderColor: pal.goldBorder }]}>
           <View style={styles.sectionTitleRow}>
             <View style={{ gap: 3, flex: 1 }}>
@@ -2633,7 +2724,7 @@ export function BookkeepingLedgerHub({
       ) : null}
 
       {/* 2. Main Split Workspace: Left Interactive Category Keypad & Right Analytics/Stream */}
-      {!compact ? (
+      {showFullPanels ? (
         <View style={styles.mainSplitGrid}>
           {/* Left Column: Visual Category Grid + Built-in Calculator Keypad + Recurring Rules */}
           <View style={[styles.leftPanelCard, { backgroundColor: pal.cardBg, borderColor: pal.border }]}>
@@ -3012,18 +3103,18 @@ export function BookkeepingLedgerHub({
               </View>
             </View>
 
-            {/* Account Wallet Balances */}
+            {/* Account Wallet Balances with Editable Initial Balance (底仓) */}
             <View style={styles.walletSection}>
               <Text variant="caption" style={{ color: pal.muted, fontSize: 11, fontWeight: '600' }}>
-                {t('账户资金结余（点击按账户筛选）', 'Account Wallets (Tap to filter)')}
+                {t('账户资金结余（点卡片按账户筛选 · 点「底仓」修改初始余额）', 'Account Wallets (Tap to filter · Edit base balance)')}
               </Text>
               <View style={styles.walletGrid}>
-                {accountBalances.map(({ account, balanceCny, monthExpenseCny }) => {
+                {accountBalances.map(({ account, initialBalanceCny, balanceCny, monthExpenseCny }) => {
                   const isFiltered = filterAcc === account.id;
+                  const isEditingInit = editingAccountInitId === account.id;
                   return (
-                    <Pressable
+                    <View
                       key={account.id}
-                      onPress={() => setFilterAcc((prev) => (prev === account.id ? 'all' : account.id))}
                       style={[
                         styles.walletCard,
                         {
@@ -3033,25 +3124,76 @@ export function BookkeepingLedgerHub({
                       ]}
                     >
                       <View style={styles.metricHeaderRow}>
-                        <Text variant="caption" style={{ color: pal.ink, fontWeight: '700', fontSize: 11 }}>
-                          {t(account.zh, account.en)}
-                        </Text>
-                        <Text variant="caption" style={{ color: pal.muted, fontSize: 9.5, fontFamily: theme.fontFamily.mono }}>
-                          {`-¥${monthExpenseCny.toFixed(0)}`}
-                        </Text>
+                        <Pressable onPress={() => setFilterAcc((prev) => (prev === account.id ? 'all' : account.id))}>
+                          <Text variant="caption" style={{ color: pal.ink, fontWeight: '700', fontSize: 11 }}>
+                            {t(account.zh, account.en)}
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`修改 ${account.zh} 初始底仓余额`}
+                          onPress={() => {
+                            if (isEditingInit) {
+                              setEditingAccountInitId(null);
+                            } else {
+                              setEditingAccountInitId(account.id);
+                              setAccountInitDraft(String(initialBalanceCny));
+                            }
+                          }}
+                        >
+                          <Text variant="caption" style={{ color: pal.goldText, fontSize: 9.5, fontFamily: theme.fontFamily.mono }}>
+                            {t(`底仓 ¥${initialBalanceCny} [改]`, `Base ¥${initialBalanceCny}`)}
+                          </Text>
+                        </Pressable>
                       </View>
-                      <Text
-                        variant="label"
-                        style={{
-                          color: pal.goldText,
-                          fontFamily: theme.fontFamily.mono,
-                          fontSize: 12.5,
-                          fontWeight: '700',
-                        }}
-                      >
-                        {`¥${balanceCny.toLocaleString('en-US')}`}
-                      </Text>
-                    </Pressable>
+                      {isEditingInit ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                          <TextInput
+                            value={accountInitDraft}
+                            onChangeText={setAccountInitDraft}
+                            onSubmitEditing={() => {
+                              const val = evaluateAmountExpression(accountInitDraft) ?? 0;
+                              setState(updateAccountInitialBalance(account.id, val));
+                              setEditingAccountInitId(null);
+                              showToast({ text: t(`已更新 ${account.zh} 初始底仓为 ¥${val}`, `Updated ${account.en} base to ¥${val}`) });
+                            }}
+                            placeholder="0"
+                            style={[styles.miniNameInput, { flex: 1, height: 24, backgroundColor: pal.inputBg, borderColor: pal.gold, color: pal.ink }]}
+                          />
+                          <Pressable
+                            onPress={() => {
+                              const val = evaluateAmountExpression(accountInitDraft) ?? 0;
+                              setState(updateAccountInitialBalance(account.id, val));
+                              setEditingAccountInitId(null);
+                              showToast({ text: t(`已更新 ${account.zh} 初始底仓为 ¥${val}`, `Updated ${account.en} base to ¥${val}`) });
+                            }}
+                            style={[styles.microBtn, { paddingHorizontal: 6, paddingVertical: 2, backgroundColor: pal.pillActiveBg, borderColor: pal.gold }]}
+                          >
+                            <Text variant="caption" style={{ color: pal.goldText, fontSize: 9.5, fontWeight: '700' }}>✓</Text>
+                          </Pressable>
+                        </View>
+                      ) : (
+                        <Pressable
+                          onPress={() => setFilterAcc((prev) => (prev === account.id ? 'all' : account.id))}
+                          style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}
+                        >
+                          <Text
+                            variant="label"
+                            style={{
+                              color: pal.goldText,
+                              fontFamily: theme.fontFamily.mono,
+                              fontSize: 12.5,
+                              fontWeight: '700',
+                            }}
+                          >
+                            {`¥${balanceCny.toLocaleString('en-US')}`}
+                          </Text>
+                          <Text variant="caption" style={{ color: pal.muted, fontSize: 9.5, fontFamily: theme.fontFamily.mono }}>
+                            {`${t('月支', 'Out')} -¥${monthExpenseCny.toFixed(0)}`}
+                          </Text>
+                        </Pressable>
+                      )}
+                    </View>
                   );
                 })}
               </View>
