@@ -71,6 +71,28 @@ describe('Study Corner Hardcover Book Reader, In-App Research Browser, 17 Chapte
     });
     expect(browserExec.results.length).toBeGreaterThanOrEqual(1);
     expect(browserExec.results.some((r) => r.title.includes('DeepSeek'))).toBe(true);
+
+    // ArXiv, GitHub, and Google/Bing multi-engine search
+    const arxivExec = await executeInAppBrowserSearch({
+      query: 'Transformer',
+      engine: 'arxiv',
+      state,
+    });
+    expect(arxivExec.results.some((r) => r.sourceKind === 'arxiv')).toBe(true);
+
+    const ghExec = await executeInAppBrowserSearch({
+      query: 'vLLM',
+      engine: 'github',
+      state,
+    });
+    expect(ghExec.results.some((r) => r.sourceKind === 'github')).toBe(true);
+
+    const googleExec = await executeInAppBrowserSearch({
+      query: 'FlashAttention',
+      engine: 'google-web',
+      state,
+    });
+    expect(googleExec.results.some((r) => r.sourceKind === 'google-web')).toBe(true);
   });
 
   it('ships a 4-volume 17-chapter illustrated book with multi-paragraph long-form essays and on-demand pack management', () => {

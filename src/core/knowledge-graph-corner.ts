@@ -2817,16 +2817,31 @@ export function computeStudioUnlockables(input: {
 }
 
 // ============================================================================
-// ★ IN-APP RESEARCH BROWSER & DIRECT SEARCH ENGINE (🌐 书院内嵌探索浏览器 · 全网/本地双引擎直搜)
+// ★ STANDALONE MULTI-ENGINE BROWSER (🌐 独立探索浏览器 · ArXiv / GitHub / Google / Wiki / HN / 本地聚合直搜)
 // ============================================================================
 
-export type BrowserSearchEngineId = 'smart-all' | 'wiki-zh' | 'hn-tech' | 'local-book';
+export type BrowserSearchEngineId =
+  | 'smart-all'
+  | 'arxiv'
+  | 'github'
+  | 'google-web'
+  | 'wiki-zh'
+  | 'hn-tech'
+  | 'local-book';
 
 export type BrowserViewMode = 'reader' | 'webview';
 
 export type BrowserSearchResultItem = {
   id: string;
-  sourceKind: 'local-chapter' | 'local-news' | 'wikipedia' | 'hackernews' | 'web-url';
+  sourceKind:
+    | 'arxiv'
+    | 'github'
+    | 'google-web'
+    | 'wikipedia'
+    | 'hackernews'
+    | 'local-chapter'
+    | 'local-news'
+    | 'web-url';
   sourceBadgeZh: string;
   title: string;
   snippet: string;
@@ -2837,16 +2852,60 @@ export type BrowserSearchResultItem = {
   readMinutes: number;
   relatedNodeId?: string;
   relatedNodeCode?: string;
+  metaTagZh?: string;
 };
 
 export type BrowserBookmarkItem = {
   id: string;
   title: string;
   url: string;
-  snippet: string;
-  sourceBadgeZh: string;
-  savedAt: string;
+  engineId: BrowserSearchEngineId;
+  queryOrUrl: string;
+  badgeZh: string;
 };
+
+export const DEFAULT_BROWSER_BOOKMARKS: readonly BrowserBookmarkItem[] = [
+  {
+    id: 'bm-arxiv-cs-ai',
+    title: '📄 ArXiv CS.AI 最新论文',
+    url: 'https://arxiv.org/list/cs.AI/recent',
+    engineId: 'arxiv',
+    queryOrUrl: 'DeepSeek R1 Transformer',
+    badgeZh: 'ArXiv',
+  },
+  {
+    id: 'bm-github-llm',
+    title: '🐙 GitHub 高星大模型开源库',
+    url: 'https://github.com/trending',
+    engineId: 'github',
+    queryOrUrl: 'vLLM DeepSeek MCP',
+    badgeZh: 'GitHub',
+  },
+  {
+    id: 'bm-google-scholar',
+    title: '🔍 Google / Bing 全网检索',
+    url: 'https://www.google.com',
+    engineId: 'google-web',
+    queryOrUrl: 'FlashAttention-3 GPU Kernel',
+    badgeZh: 'Google',
+  },
+  {
+    id: 'bm-wiki-ai',
+    title: '📚 维基百科 · 机器学习',
+    url: 'https://zh.m.wikipedia.org/wiki/Transformer模型',
+    engineId: 'wiki-zh',
+    queryOrUrl: 'Transformer',
+    badgeZh: 'Wiki',
+  },
+  {
+    id: 'bm-hn-front',
+    title: '💻 Hacker News 极客热榜',
+    url: 'https://news.ycombinator.com',
+    engineId: 'hn-tech',
+    queryOrUrl: 'LLM Agent',
+    badgeZh: 'HN',
+  },
+] as const;
 
 export const BROWSER_SEARCH_ENGINES: readonly {
   id: BrowserSearchEngineId;
@@ -2858,29 +2917,50 @@ export const BROWSER_SEARCH_ENGINES: readonly {
   {
     id: 'smart-all',
     icon: '⚡',
-    zh: '全网 + 书院聚合直搜',
-    en: 'Smart All-in-One Search',
-    descZh: '同时检索本书 17 章典籍、晨报长文、中文/英文维基百科与 Hacker News 极客社区',
+    zh: '全网聚合直搜',
+    en: 'All-in-One Meta Search',
+    descZh: '一键并发检索 ArXiv 论文、GitHub 开源仓库、Google/Bing 网页、维基百科、HackerNews 与本地知识库',
+  },
+  {
+    id: 'arxiv',
+    icon: '📄',
+    zh: 'ArXiv 论文',
+    en: 'ArXiv Papers',
+    descZh: '直连 ArXiv 预印本论文库，提取论文标题、作者、摘要与 PDF 原文链接并支持净读排版',
+  },
+  {
+    id: 'github',
+    icon: '🐙',
+    zh: 'GitHub 开源',
+    en: 'GitHub Repos',
+    descZh: '直连 GitHub 开源代码库检索，展示 ⭐ Star 数、主语言、架构亮点与仓库直达',
+  },
+  {
+    id: 'google-web',
+    icon: '🔍',
+    zh: 'Google / Bing 网页',
+    en: 'Google / Bing / DDG',
+    descZh: '聚合 Google、Bing、DuckDuckGo 与 Semantic Scholar 全网搜索引擎直达与内嵌预览',
   },
   {
     id: 'wiki-zh',
     icon: '📚',
-    zh: '维基百科直搜',
-    en: 'Wikipedia Encyclopedia',
-    descZh: '实时检索 Wikipedia 百科词条并自动洗稿转换为「纸书衬线体净读页」或内嵌网页',
+    zh: '维基百科',
+    en: 'Wikipedia',
+    descZh: '实时检索 Wikipedia 百科词条并自动转换为衬线体净读页或内嵌网页',
   },
   {
     id: 'hn-tech',
     icon: '💻',
-    zh: 'HackerNews 极客热帖',
-    en: 'Hacker News Tech Search',
+    zh: 'HackerNews',
+    en: 'Hacker News',
     descZh: '直连 Algolia HN 极客引擎，按高赞积分检索全球最新 AI / 开源 / 架构技术讨论',
   },
   {
     id: 'local-book',
     icon: '📖',
-    zh: '仅搜书院内建典籍',
-    en: 'Local Book & Graph Only',
+    zh: '本地知识库',
+    en: 'Local Knowledge',
     descZh: '100% 纯离线 0 毫秒检索本机 17 章精装读本、公式字典、闪卡与书院晨报',
   },
 ] as const;
@@ -2888,14 +2968,186 @@ export const BROWSER_SEARCH_ENGINES: readonly {
 export const BROWSER_HOT_QUERIES: readonly {
   label: string;
   query: string;
+  engine?: BrowserSearchEngineId;
 }[] = [
-  { label: '🔥 Transformer 注意力', query: 'Transformer' },
-  { label: '🧠 DeepSeek R1 强化学习', query: 'DeepSeek' },
-  { label: '🔌 MCP 协议与 Agent', query: 'MCP' },
-  { label: '⚡ vLLM 显存分页', query: 'PagedAttention' },
-  { label: '📉 INT4 模型量化', query: '量化' },
-  { label: '💰 凯利公式与杠铃定投', query: '复利' },
-  { label: '🔄 CRDT 离线同步', query: 'CRDT' },
+  { label: '📄 DeepSeek-R1 论文', query: 'DeepSeek-R1', engine: 'arxiv' },
+  { label: '🐙 vLLM / MCP 开源库', query: 'vLLM MCP', engine: 'github' },
+  { label: '🔍 FlashAttention-3 原理', query: 'FlashAttention', engine: 'google-web' },
+  { label: '🔥 Transformer 注意力', query: 'Transformer', engine: 'smart-all' },
+  { label: '💻 LLM Agent 极客讨论', query: 'LLM Agent', engine: 'hn-tech' },
+  { label: '📉 INT4 量化与显存', query: '量化', engine: 'smart-all' },
+] as const;
+
+/**
+ * Curated Landmark ArXiv Papers Index (so ArXiv search works instantaneously even offline or before API responds)
+ */
+const CURATED_ARXIV_PAPERS: readonly {
+  arxivId: string;
+  title: string;
+  authors: string;
+  year: number;
+  categories: string;
+  abstractZh: string;
+  keyContributionsZh: string[];
+  keywords: string[];
+  relatedNodeId?: string;
+}[] = [
+  {
+    arxivId: '1706.03762',
+    title: 'Attention Is All You Need (Transformer 开山之作)',
+    authors: 'Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit et al. (Google Brain)',
+    year: 2017,
+    categories: 'cs.CL / cs.LG',
+    abstractZh:
+      '本文提出了完全基于自注意力机制（Self-Attention）的 Transformer 架构，彻底摒弃了循环神经网络（RNN）和卷积结构。实验证明该架构具有极高的并行训练效率，并在机器翻译与序列建模任务上刷新了 SOTA。',
+    keyContributionsZh: [
+      '提出缩放点积注意力：Attention(Q,K,V) = softmax(QK^T / √d_k)V，把任意两词之间的交互距离缩短为 O(1)。',
+      '提出多头注意力（Multi-Head Attention），让不同子空间同时捕捉语法指代、语义关联与长程上下文。',
+      '奠定了后续 GPT、BERT、Llama、DeepSeek 等所有现代大语言模型的底层架构基石。',
+    ],
+    keywords: ['transformer', 'attention', '注意力', 'vaswani', 'self-attention', 'gpt', '1706.03762'],
+    relatedNodeId: 'node-transformer',
+  },
+  {
+    arxivId: '2501.12948',
+    title: 'DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning',
+    authors: 'DeepSeek-AI Research Team',
+    year: 2025,
+    categories: 'cs.AI / cs.CL',
+    abstractZh:
+      '本文展示了无需人工标注思维链监督微调（SFT），仅通过大规模组相对策略优化（GRPO）纯强化学习，大模型就能自发涌现出长思维链反思（Aha Moment）、自我纠错与复杂数学代码推理能力。',
+    keyContributionsZh: [
+      '采用 GRPO（Group Relative Policy Optimization）组内均值基线替代高显存开销的 Critic 价值网络，大幅降低强化学习训练成本。',
+      '验证了基于规则的准确性奖励（Rule-based Reward）在数学证明与代码生成上的高鲁棒性，避免了奖励模型被投机钻空子（Reward Hacking）。',
+      '开源了从 671B 蒸馏至 1.5B-70B 的全系列高推理密度小模型权重。',
+    ],
+    keywords: ['deepseek', 'r1', 'grpo', '强化学习', 'reasoning', '思维链', '2501.12948', 'moe'],
+    relatedNodeId: 'node-ai-109-rl-r1',
+  },
+  {
+    arxivId: '2205.14135',
+    title: 'FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness',
+    authors: 'Tri Dao, Daniel Y. Fu, Stefano Ermon, Atri Rudra, Christopher Ré (Stanford)',
+    year: 2022,
+    categories: 'cs.LG / cs.DC',
+    abstractZh:
+      '针对标准自注意力机制在长序列下受限于 GPU HBM 显存读写带宽（Memory-Bound）的问题，FlashAttention 利用分块计算（Tiling）与在线 Softmax 技巧，在片上高速 SRAM 内一次性完成注意力归约，避免将 N×N 中间矩阵写回 HBM。',
+    keyContributionsZh: [
+      '通过 Online Softmax 递推局部最大值 m(x) 与归一化分母 l(x)，实现零精度损失的精确注意力（Exact Attention）。',
+      '将 HBM 显存访问量降低数倍，在长序列训练与推理上实现 2~4 倍端到端加速，显存占用从 O(N²) 降至 O(N)。',
+    ],
+    keywords: ['flashattention', 'flash', 'sram', 'hbm', '显存', 'tiling', '分块', '2205.14135', 'attention'],
+    relatedNodeId: 'node-ai-401-flash',
+  },
+  {
+    arxivId: '2309.06180',
+    title: 'Efficient Memory Management for Large Language Model Serving with PagedAttention (vLLM)',
+    authors: 'Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Ion Stoica et al. (UC Berkeley)',
+    year: 2023,
+    categories: 'cs.OS / cs.LG',
+    abstractZh:
+      '受操作系统虚拟内存分页机制启发，本文提出 PagedAttention 与高吞吐推理引擎 vLLM，将连续的 KV Cache 拆分为固定大小的物理显存块（Blocks），彻底消除显存内外碎片并支持多请求写时复制（Copy-on-Write）前缀共享。',
+    keyContributionsZh: [
+      '将 KV Cache 显存浪费率从传统连续分配的 60%~80% 压低至 4% 以内，允许单卡并发批次扩大 2~4 倍。',
+      '支持 System Prompt 公共前缀零拷贝共享，成为当前工业界大模型推理部署的事实标准。',
+    ],
+    keywords: ['vllm', 'pagedattention', 'kv cache', '分页', '显存', '推理', '2309.06180'],
+    relatedNodeId: 'node-ai-201-paged',
+  },
+  {
+    arxivId: '2106.09685',
+    title: 'LoRA: Low-Rank Adaptation of Large Language Models',
+    authors: 'Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu et al.',
+    year: 2021,
+    categories: 'cs.CL / cs.LG',
+    abstractZh:
+      '提出低秩自适应微调（LoRA），在冻结预训练大模型原有参数矩阵 W_0 的前提下，仅在旁路注入秩 r 极小的低秩分解矩阵 ΔW = B·A，将可训练参数量与显存开销削减 99% 以上且不增加任何推理延迟。',
+    keyContributionsZh: [
+      '证明大模型在下游任务微调时的权重更新矩阵具有极低的「内在秩（Intrinsic Rank）」。',
+      '微调完成后可直接通过 W = W_0 + B·A 合并回原权重，切换垂类任务仅需替换几 MB 的 LoRA 适配器插件。',
+    ],
+    keywords: ['lora', '微调', 'fine-tuning', 'low-rank', '低秩', 'rag', '2106.09685'],
+    relatedNodeId: 'node-ai-105-lora-rag',
+  },
+] as const;
+
+/**
+ * Curated Open-Source GitHub Repositories Index (instant fallback + merged with live GitHub API)
+ */
+const CURATED_GITHUB_REPOS: readonly {
+  fullName: string;
+  starsText: string;
+  language: string;
+  descriptionZh: string;
+  highlightsZh: string[];
+  keywords: string[];
+  relatedNodeId?: string;
+}[] = [
+  {
+    fullName: 'vllm-project/vllm',
+    starsText: '42.8k ⭐',
+    language: 'Python / CUDA',
+    descriptionZh:
+      '高吞吐、高显存利用率的大语言模型推理与服务引擎，核心搭载 PagedAttention、Continuous Batching、投机解码与 FP8/INT4 量化内核。',
+    highlightsZh: [
+      '内置 PagedAttention 非连续物理块映射表，将 KV Cache 显存利用率提升至 96% 以上。',
+      '原生兼容 OpenAI API 协议，支持 DeepSeek、Llama、Qwen 等主流开源模型一键高并发部署。',
+    ],
+    keywords: ['vllm', 'pagedattention', 'inference', '推理', 'cuda', 'kv cache', 'llm'],
+    relatedNodeId: 'node-ai-201-paged',
+  },
+  {
+    fullName: 'deepseek-ai/DeepSeek-R1',
+    starsText: '68.5k ⭐',
+    language: 'Python / PyTorch',
+    descriptionZh:
+      'DeepSeek 开源推理大模型官方仓库，包含 DeepSeek-R1-Zero 与 DeepSeek-R1 技术报告、GRPO 强化学习训练流程及 1.5B~70B 蒸馏模型卡片。',
+    highlightsZh: [
+      '公开了纯强化学习（GRPO）激发长思维链自省与验证的完整方法论。',
+      'MIT 开源协议，允许商用、二次微调与蒸馏。',
+    ],
+    keywords: ['deepseek', 'r1', 'grpo', 'moe', '强化学习', 'reasoning', 'llm'],
+    relatedNodeId: 'node-ai-109-rl-r1',
+  },
+  {
+    fullName: 'modelcontextprotocol/servers',
+    starsText: '29.4k ⭐',
+    language: 'TypeScript / Python',
+    descriptionZh:
+      'Model Context Protocol (MCP) 官方参考工具服务集合，让 AI Agent 像插拔 USB-C 外设一样安全连接本地文件系统、Git、SQLite、GitHub 与浏览器。',
+    highlightsZh: [
+      '标准化 Resources（资源读取）、Tools（工具调用）与 Prompts（提示模板）三大原语。',
+      '基于本地 stdio 管道或 SSE 通信，无需公网中转即可赋予智能体本地沙箱执行力。',
+    ],
+    keywords: ['mcp', 'agent', '智能体', 'tool', 'modelcontextprotocol', 'anthropic', 'typescript'],
+    relatedNodeId: 'node-ai-108-agent',
+  },
+  {
+    fullName: 'Dao-AILab/flash-attention',
+    starsText: '16.9k ⭐',
+    language: 'CUDA / C++ / Python',
+    descriptionZh:
+      'Stanford Tri Dao 团队开源的 IO 感知精确注意力加速库（含 FlashAttention-2 与 Hopper 架构异步流水线 FlashAttention-3）。',
+    highlightsZh: [
+      '利用 GPU SRAM 分块（Tiling）与 Online Softmax 避免读写 N×N 注意力矩阵。',
+      '在 H100 上结合 Warp Specialization 与 FP8 达到接近硬件峰值的计算利用率。',
+    ],
+    keywords: ['flashattention', 'flash', 'attention', 'cuda', 'sram', 'transformer', '注意力'],
+    relatedNodeId: 'node-ai-401-flash',
+  },
+  {
+    fullName: 'ggerganov/llama.cpp',
+    starsText: '74.2k ⭐',
+    language: 'C / C++ / Metal',
+    descriptionZh:
+      '纯 C/C++ 无依赖本地大模型推理框架，支持 Apple Silicon Metal 统一内存加速与 GGUF INT4/INT8 混合精度量化。',
+    highlightsZh: [
+      '让 MacBook 与消费级终端设备无需独立显卡即可流畅运行 7B~70B 量化大模型。',
+      '引领了端侧 AI 本地优先（Local-First）与零云端隐私泄漏的开源生态。',
+    ],
+    keywords: ['llama.cpp', 'gguf', '量化', 'int4', 'metal', 'local', 'c++', 'transformer'],
+    relatedNodeId: 'node-ai-701-quant',
+  },
 ] as const;
 
 /**
@@ -2929,12 +3181,34 @@ export function resolveBrowserOmniboxInput(
   const encoded = encodeURIComponent(q);
   const wikiUrl = `https://zh.m.wikipedia.org/wiki/Special:Search?search=${encoded}`;
   const hnUrl = `https://hn.algolia.com/?q=${encoded}`;
+  const arxivUrl = `https://arxiv.org/search/?query=${encoded}&searchtype=all`;
+  const githubUrl = `https://github.com/search?q=${encoded}&type=repositories`;
+  const googleUrl = `https://www.google.com/search?q=${encoded}`;
+  const bingEmbedUrl = `https://www.bing.com/search?q=${encoded}`;
+
+  const targetUrl =
+    engine === 'arxiv'
+      ? arxivUrl
+      : engine === 'github'
+        ? githubUrl
+        : engine === 'google-web'
+          ? googleUrl
+          : engine === 'hn-tech'
+            ? hnUrl
+            : wikiUrl;
+
+  const embedUrl =
+    engine === 'google-web'
+      ? bingEmbedUrl
+      : engine === 'arxiv'
+        ? arxivUrl
+        : wikiUrl;
 
   return {
     kind: 'search',
     cleanQuery: q,
-    targetUrl: engine === 'hn-tech' ? hnUrl : wikiUrl,
-    embedUrl: wikiUrl,
+    targetUrl,
+    embedUrl,
   };
 }
 
@@ -2975,7 +3249,7 @@ export function searchLocalKnowledgeAndNews(
       results.push({
         id: `local-ch-${node.id}`,
         sourceKind: 'local-chapter',
-        sourceBadgeZh: `📖 本书第 ${node.stageLevel} 卷 · ${node.code}`,
+        sourceBadgeZh: `📖 本地读本 · ${node.code}`,
         title: `${node.code} · ${node.title.replace(/^【[^】]+】/, '')}`,
         snippet: (content?.beginnerAnalogyZh ?? node.summary).replace(/^🌱\s*小白大白话：/, ''),
         paragraphs,
@@ -3005,7 +3279,7 @@ export function searchLocalKnowledgeAndNews(
       results.push({
         id: `local-news-${news.id}`,
         sourceKind: 'local-news',
-        sourceBadgeZh: `📰 书院晨报 · ${news.sourceName}`,
+        sourceBadgeZh: `📰 精选资讯 · ${news.sourceName}`,
         title: news.titleZh,
         snippet: news.summaryZh,
         paragraphs: [...news.paragraphsZh],
@@ -3022,8 +3296,8 @@ export function searchLocalKnowledgeAndNews(
 }
 
 /**
- * Live CORS-safe public search via Wikipedia API (`origin=*`) and Hacker News Algolia API,
- * seamlessly merging with local book & digest results and gracefully degrading when offline.
+ * Searches curated + live ArXiv papers, GitHub open-source repositories, Google/Bing/DDG web engines,
+ * Wikipedia API (`origin=*`), Hacker News Algolia API, and local knowledge base.
  */
 export async function executeInAppBrowserSearch(input: {
   query: string;
@@ -3042,14 +3316,14 @@ export async function executeInAppBrowserSearch(input: {
       sourceKind: 'web-url',
       sourceBadgeZh: '🌐 网页直达链接',
       title: resolved.cleanQuery,
-      snippet: `正在书院内嵌浏览器中打开网址：${resolved.targetUrl}`,
+      snippet: `正在内嵌浏览器中打开网址：${resolved.targetUrl}`,
       paragraphs: [
-        `网址链接：${resolved.targetUrl}`,
-        '你可以切换到「🖥 网页视图」直接浏览该网页，或将页面中的精华段落复制摘录进你的个人知识图谱。',
+        `目标网址：${resolved.targetUrl}`,
+        '你可以切换到「🖥 网页原貌窗口」直接浏览该网页，或将页面中的精华段落一键收录进你的个人知识图谱。',
       ],
       url: resolved.targetUrl,
       embedUrl: resolved.embedUrl,
-      signalScore: 90,
+      signalScore: 92,
       readMinutes: 4,
     };
     return {
@@ -3059,115 +3333,305 @@ export async function executeInAppBrowserSearch(input: {
     };
   }
 
-  const localResults =
-    input.engine === 'wiki-zh' || input.engine === 'hn-tech'
-      ? searchLocalKnowledgeAndNews(resolved.cleanQuery, input.state).slice(0, 2)
-      : searchLocalKnowledgeAndNews(resolved.cleanQuery, input.state);
+  const qLower = resolved.cleanQuery.toLowerCase();
+  const encoded = encodeURIComponent(resolved.cleanQuery);
+  const results: BrowserSearchResultItem[] = [];
+  let liveFetchedCount = 0;
 
-  if (input.engine === 'local-book' || typeof fetch === 'undefined') {
+  // 1. ArXiv Papers Search (Curated Landmark Papers + Live export.arxiv.org Atom XML API)
+  if (input.engine === 'smart-all' || input.engine === 'arxiv') {
+    const matchedArxiv = CURATED_ARXIV_PAPERS.filter(
+      (p) =>
+        p.title.toLowerCase().includes(qLower) ||
+        p.abstractZh.toLowerCase().includes(qLower) ||
+        p.keywords.some((k) => qLower.includes(k) || k.includes(qLower)),
+    );
+    const papersToShow = matchedArxiv.length > 0 ? matchedArxiv : CURATED_ARXIV_PAPERS.slice(0, 2);
+    for (const p of papersToShow) {
+      const absUrl = `https://arxiv.org/abs/${p.arxivId}`;
+      const pdfUrl = `https://arxiv.org/pdf/${p.arxivId}`;
+      results.push({
+        id: `arxiv-curated-${p.arxivId}`,
+        sourceKind: 'arxiv',
+        sourceBadgeZh: `📄 ArXiv:${p.arxivId} · ${p.categories}`,
+        title: `${p.title} (${p.year})`,
+        snippet: `作者：${p.authors} —— ${p.abstractZh}`,
+        paragraphs: [
+          `【论文编号与链接】arXiv:${p.arxivId} ｜ 摘要页：${absUrl} ｜ PDF 全文：${pdfUrl}`,
+          `【作者团队】${p.authors}`,
+          `【核心摘要】${p.abstractZh}`,
+          ...p.keyContributionsZh.map((c, idx) => `【核心贡献 ${idx + 1}】${c}`),
+        ],
+        url: absUrl,
+        embedUrl: absUrl,
+        signalScore: 99,
+        readMinutes: 8,
+        relatedNodeId: p.relatedNodeId,
+        metaTagZh: `PDF: ${pdfUrl}`,
+      });
+    }
+
+    if (typeof fetch !== 'undefined') {
+      try {
+        const arxivApiUrl = `https://export.arxiv.org/api/query?search_query=all:${encoded}&start=0&max_results=3`;
+        const resp = await fetch(arxivApiUrl);
+        if (resp.ok) {
+          const xml = await resp.text();
+          const entries = [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)];
+          for (const match of entries) {
+            const block = match[1] ?? '';
+            const idMatch = block.match(/<id>([\s\S]*?)<\/id>/)?.[1]?.trim() ?? '';
+            const titleMatch =
+              block
+                .match(/<title>([\s\S]*?)<\/title>/)?.[1]
+                ?.replace(/\s+/g, ' ')
+                .trim() ?? '';
+            const summaryMatch =
+              block
+                .match(/<summary>([\s\S]*?)<\/summary>/)?.[1]
+                ?.replace(/\s+/g, ' ')
+                .trim() ?? '';
+            if (!titleMatch || !idMatch) continue;
+            const arxivShortId = idMatch.split('/abs/')[1] ?? idMatch;
+            if (results.some((r) => r.id.includes(arxivShortId))) continue;
+            liveFetchedCount += 1;
+            results.push({
+              id: `arxiv-live-${arxivShortId}`,
+              sourceKind: 'arxiv',
+              sourceBadgeZh: `📄 ArXiv 实时论文 · ${arxivShortId}`,
+              title: titleMatch,
+              snippet: summaryMatch.slice(0, 220),
+              paragraphs: [
+                `【ArXiv 实时检索论文】${titleMatch}`,
+                `【原文摘要】${summaryMatch}`,
+                `【论文直达】摘要页：${idMatch} ｜ PDF：${idMatch.replace('/abs/', '/pdf/')}`,
+              ],
+              url: idMatch,
+              embedUrl: idMatch,
+              signalScore: 96,
+              readMinutes: 7,
+            });
+          }
+        }
+      } catch {
+        // Offline or CORS fallback already covered by curated ArXiv papers
+      }
+    }
+  }
+
+  // 2. GitHub Open-Source Repositories Search (Curated Top Repos + Live api.github.com/search/repositories)
+  if (input.engine === 'smart-all' || input.engine === 'github') {
+    const matchedRepos = CURATED_GITHUB_REPOS.filter(
+      (r) =>
+        r.fullName.toLowerCase().includes(qLower) ||
+        r.descriptionZh.toLowerCase().includes(qLower) ||
+        r.keywords.some((k) => qLower.includes(k) || k.includes(qLower)),
+    );
+    const reposToShow = matchedRepos.length > 0 ? matchedRepos : CURATED_GITHUB_REPOS.slice(0, 2);
+    for (const repo of reposToShow) {
+      const repoUrl = `https://github.com/${repo.fullName}`;
+      results.push({
+        id: `gh-curated-${repo.fullName}`,
+        sourceKind: 'github',
+        sourceBadgeZh: `🐙 GitHub · ${repo.starsText} · ${repo.language}`,
+        title: `${repo.fullName} — 开源代码仓库`,
+        snippet: repo.descriptionZh,
+        paragraphs: [
+          `【GitHub 仓库地址】${repoUrl} （${repo.starsText} · 主语言：${repo.language}）`,
+          `【项目定位】${repo.descriptionZh}`,
+          ...repo.highlightsZh.map((h, i) => `【架构亮点 ${i + 1}】${h}`),
+        ],
+        url: repoUrl,
+        embedUrl: `https://zh.m.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(repo.fullName.split('/')[1] ?? repo.fullName)}`,
+        signalScore: 96,
+        readMinutes: 5,
+        relatedNodeId: repo.relatedNodeId,
+      });
+    }
+
+    if (typeof fetch !== 'undefined') {
+      try {
+        const ghApiUrl = `https://api.github.com/search/repositories?q=${encoded}&sort=stars&order=desc&per_page=3`;
+        const resp = await fetch(ghApiUrl, {
+          headers: { Accept: 'application/vnd.github+json' },
+        });
+        if (resp.ok) {
+          const data = (await resp.json()) as {
+            items?: {
+              id: number;
+              full_name: string;
+              html_url: string;
+              description?: string;
+              stargazers_count?: number;
+              forks_count?: number;
+              language?: string;
+            }[];
+          };
+          for (const item of data.items ?? []) {
+            if (results.some((r) => r.url.toLowerCase() === item.html_url.toLowerCase())) continue;
+            const stars = item.stargazers_count ?? 0;
+            const forks = item.forks_count ?? 0;
+            const desc = item.description ?? 'GitHub 热门开源仓库';
+            liveFetchedCount += 1;
+            results.push({
+              id: `gh-live-${item.id}`,
+              sourceKind: 'github',
+              sourceBadgeZh: `🐙 GitHub 实时 · ⭐ ${stars.toLocaleString()} · ${item.language ?? 'Code'}`,
+              title: `${item.full_name}`,
+              snippet: desc,
+              paragraphs: [
+                `【GitHub 实时高星仓库】${item.full_name}（⭐ ${stars.toLocaleString()} Stars · 🍴 ${forks.toLocaleString()} Forks · 语言：${item.language ?? 'Multi'}）`,
+                `【仓库简介】${desc}`,
+                `【直达地址】${item.html_url}`,
+              ],
+              url: item.html_url,
+              embedUrl: item.html_url,
+              signalScore: 94,
+              readMinutes: 5,
+            });
+          }
+        }
+      } catch {
+        // Offline or rate-limit fallback handled gracefully
+      }
+    }
+  }
+
+  // 3. Google / Bing / DuckDuckGo / Semantic Scholar Multi-Engine Web Search Hub
+  if (input.engine === 'smart-all' || input.engine === 'google-web') {
+    const googleSearchUrl = `https://www.google.com/search?q=${encoded}`;
+    const bingSearchUrl = `https://www.bing.com/search?q=${encoded}`;
+    const ddgSearchUrl = `https://duckduckgo.com/?q=${encoded}`;
+    const scholarUrl = `https://scholar.google.com/scholar?q=${encoded}`;
+
+    results.push({
+      id: `google-web-${encoded}`,
+      sourceKind: 'google-web',
+      sourceBadgeZh: '🔍 Google / Bing / Scholar 全网直达',
+      title: `全网搜索「${resolved.cleanQuery}」— Google / Bing / Google Scholar / DuckDuckGo`,
+      snippet: `一键在 Google、Bing、Google 学术或 DuckDuckGo 中检索「${resolved.cleanQuery}」，或切换到「🖥 网页原貌窗口」直接在内嵌引擎中浏览结果。`,
+      paragraphs: [
+        `🔍 Google 网页搜索：${googleSearchUrl}`,
+        `🎓 Google Scholar 谷歌学术检索：${scholarUrl}`,
+        `🌐 Bing 必应搜索（支持内嵌窗口直接浏览）：${bingSearchUrl}`,
+        `🦆 DuckDuckGo 隐私搜索：${ddgSearchUrl}`,
+        '提示：点击右上角「🖥 网页原貌窗口」可在应用内直接浏览网页搜索结果，或点击「↗ 在新标签页打开原网页」跳转外部浏览器。',
+      ],
+      url: googleSearchUrl,
+      embedUrl: bingSearchUrl,
+      signalScore: 93,
+      readMinutes: 3,
+    });
+  }
+
+  // 4. Live Wikipedia Public Search API (CORS-enabled via origin=*)
+  if (input.engine === 'smart-all' || input.engine === 'wiki-zh') {
+    if (typeof fetch !== 'undefined') {
+      try {
+        const wikiApiUrl = `https://zh.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encoded}&utf8=&format=json&origin=*&srlimit=3`;
+        const resp = await fetch(wikiApiUrl);
+        if (resp.ok) {
+          const data = (await resp.json()) as {
+            query?: {
+              search?: { pageid: number; title: string; snippet: string }[];
+            };
+          };
+          for (const w of data.query?.search ?? []) {
+            const cleanSnippet = w.snippet
+              .replace(/<[^>]+>/g, '')
+              .replace(/&quot;/g, '"')
+              .replace(/&amp;/g, '&');
+            const pageUrl = `https://zh.m.wikipedia.org/wiki/${encodeURIComponent(w.title)}`;
+            const scored = scoreArticleSignalToNoise({ title: w.title, body: cleanSnippet });
+            liveFetchedCount += 1;
+            results.push({
+              id: `wiki-${w.pageid}`,
+              sourceKind: 'wikipedia',
+              sourceBadgeZh: '📚 维基百科 · 实时词条',
+              title: `${w.title} — 维基百科自由的百科全书`,
+              snippet: cleanSnippet,
+              paragraphs: [
+                cleanSnippet,
+                `词条来源：中文维基百科《${w.title}》（${pageUrl}）。`,
+                '提示：点击上方「🖥 网页原貌窗口」可直接在内嵌浏览器中滚动阅读完整维基百科词条；或点击下方「📌 一键收录进我的知识图谱」将其永久保存为本地离线节点！',
+              ],
+              url: pageUrl,
+              embedUrl: pageUrl,
+              signalScore: Math.max(88, scored.signalScore),
+              readMinutes: 5,
+            });
+          }
+        }
+      } catch {
+        // Graceful offline fallback
+      }
+    }
+  }
+
+  // 5. Live Hacker News Algolia Public Search API (CORS-enabled)
+  if (input.engine === 'smart-all' || input.engine === 'hn-tech') {
+    if (typeof fetch !== 'undefined') {
+      try {
+        const hnApiUrl = `https://hn.algolia.com/api/v1/search?query=${encoded}&tags=story&hitsPerPage=3`;
+        const resp = await fetch(hnApiUrl);
+        if (resp.ok) {
+          const data = (await resp.json()) as {
+            hits?: {
+              objectID: string;
+              title?: string;
+              url?: string;
+              points?: number;
+              num_comments?: number;
+              author?: string;
+            }[];
+          };
+          for (const h of data.hits ?? []) {
+            if (!h.title) continue;
+            const hnStoryUrl = h.url || `https://news.ycombinator.com/item?id=${h.objectID}`;
+            const pts = h.points ?? 50;
+            const comments = h.num_comments ?? 10;
+            const summaryLine = `Hacker News 极客社区高赞讨论（👍 ${pts} 赞 · 💬 ${comments} 条技术评论 · 作者 @${h.author ?? 'geek'}）。`;
+            liveFetchedCount += 1;
+            results.push({
+              id: `hn-${h.objectID}`,
+              sourceKind: 'hackernews',
+              sourceBadgeZh: `💻 Hacker News · 👍 ${pts}`,
+              title: h.title,
+              snippet: summaryLine,
+              paragraphs: [
+                summaryLine,
+                `原文链接：${hnStoryUrl}`,
+                `讨论串地址：https://news.ycombinator.com/item?id=${h.objectID}`,
+              ],
+              url: hnStoryUrl,
+              embedUrl: `https://www.bing.com/search?q=${encodeURIComponent(h.title)}`,
+              signalScore: Math.min(99, 85 + Math.round(pts / 50)),
+              readMinutes: 4,
+            });
+          }
+        }
+      } catch {
+        // Graceful offline fallback
+      }
+    }
+  }
+
+  // 6. Local Knowledge Base & Book Chapters
+  const localMatches = searchLocalKnowledgeAndNews(resolved.cleanQuery, input.state);
+  if (input.engine === 'local-book') {
     return {
-      results: localResults,
+      results: localMatches,
       resolvedOmnibox: resolved,
       liveFetchedCount: 0,
     };
   }
 
-  const liveResults: BrowserSearchResultItem[] = [];
-  const encoded = encodeURIComponent(resolved.cleanQuery);
-
-  // 1. Live Wikipedia Public Search API (CORS-enabled via origin=*)
-  if (input.engine === 'smart-all' || input.engine === 'wiki-zh') {
-    try {
-      const wikiApiUrl = `https://zh.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encoded}&utf8=&format=json&origin=*&srlimit=4`;
-      const resp = await fetch(wikiApiUrl);
-      if (resp.ok) {
-        const data = (await resp.json()) as {
-          query?: {
-            search?: { pageid: number; title: string; snippet: string }[];
-          };
-        };
-        const items = data.query?.search ?? [];
-        for (const w of items) {
-          const cleanSnippet = w.snippet
-            .replace(/<[^>]+>/g, '')
-            .replace(/&quot;/g, '"')
-            .replace(/&amp;/g, '&');
-          const pageUrl = `https://zh.m.wikipedia.org/wiki/${encodeURIComponent(w.title)}`;
-          const scored = scoreArticleSignalToNoise({ title: w.title, body: cleanSnippet });
-          liveResults.push({
-            id: `wiki-${w.pageid}`,
-            sourceKind: 'wikipedia',
-            sourceBadgeZh: '📚 维基百科 · 实时词条',
-            title: `${w.title} — 维基百科自由的百科全书`,
-            snippet: cleanSnippet,
-            paragraphs: [
-              cleanSnippet,
-              `词条来源：中文维基百科《${w.title}》（${pageUrl}）。`,
-              '提示：点击上方「🖥 切换网页原貌窗口」可直接在书院内嵌浏览器中滚动阅读完整维基百科词条与参考文献；或点击下方「📌 一键摘录进我的知识图谱」将其永久保存为本地离线节点！',
-            ],
-            url: pageUrl,
-            embedUrl: pageUrl,
-            signalScore: Math.max(88, scored.signalScore),
-            readMinutes: 5,
-          });
-        }
-      }
-    } catch {
-      // Graceful offline fallback
-    }
-  }
-
-  // 2. Live Hacker News Algolia Public Search API (CORS-enabled)
-  if (input.engine === 'smart-all' || input.engine === 'hn-tech') {
-    try {
-      const hnApiUrl = `https://hn.algolia.com/api/v1/search?query=${encoded}&tags=story&hitsPerPage=4`;
-      const resp = await fetch(hnApiUrl);
-      if (resp.ok) {
-        const data = (await resp.json()) as {
-          hits?: {
-            objectID: string;
-            title?: string;
-            url?: string;
-            points?: number;
-            num_comments?: number;
-            author?: string;
-          }[];
-        };
-        for (const h of data.hits ?? []) {
-          if (!h.title) continue;
-          const hnStoryUrl = h.url || `https://news.ycombinator.com/item?id=${h.objectID}`;
-          const pts = h.points ?? 50;
-          const comments = h.num_comments ?? 10;
-          const summaryLine = `Hacker News 极客社区高赞讨论（👍 ${pts} 赞 · 💬 ${comments} 条技术评论 · 作者 @${h.author ?? 'geek'}）。`;
-          liveResults.push({
-            id: `hn-${h.objectID}`,
-            sourceKind: 'hackernews',
-            sourceBadgeZh: `💻 Hacker News · 👍 ${pts}`,
-            title: h.title,
-            snippet: summaryLine,
-            paragraphs: [
-              summaryLine,
-              `原文链接：${hnStoryUrl}`,
-              `讨论串地址：https://news.ycombinator.com/item?id=${h.objectID}`,
-              '你可以通过下方「📌 一键摘录进我的知识图谱」将该极客前沿话题收入个人书院，随时离线批注研读。',
-            ],
-            url: hnStoryUrl,
-            embedUrl: `https://zh.m.wikipedia.org/wiki/Special:Search?search=${encoded}`,
-            signalScore: Math.min(99, 85 + Math.round(pts / 50)),
-            readMinutes: 4,
-          });
-        }
-      }
-    } catch {
-      // Graceful offline fallback
-    }
-  }
-
-  const combined = [...localResults, ...liveResults];
+  const combined = [...results, ...localMatches];
   return {
     results: combined,
     resolvedOmnibox: resolved,
-    liveFetchedCount: liveResults.length,
+    liveFetchedCount,
   };
 }
+
 
