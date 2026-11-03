@@ -62,7 +62,7 @@ const INFO_PLIST = `<?xml version="1.0" encoding="UTF-8"?>
 
 const ICON_SWIFT = `import Cocoa
 
-func drawAstrolabeIcon(size: Int) -> Data? {
+func drawAstrolabeIcon(size: Int, fullBleed: Bool = false) -> Data? {
     let s = CGFloat(size)
     guard let rep = NSBitmapImageRep(
         bitmapDataPlanes: nil,
@@ -81,35 +81,48 @@ func drawAstrolabeIcon(size: Int) -> Data? {
     NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
     guard let ctx = NSGraphicsContext.current?.cgContext else { return nil }
 
-    let inset = s * 0.088
-    let box = CGRect(x: inset, y: inset, width: s - inset * 2, height: s - inset * 2)
-    let radius = box.width * 0.225
-    let squircle = CGPath(roundedRect: box, cornerWidth: radius, cornerHeight: radius, transform: nil)
     let colorSpace = CGColorSpaceCreateDeviceRGB()
-
-    // 1. Deep Obsidian Black Squircle Base (#0A0B0E -> #14161D) + Glowing Molten Gold Rim (Charioteer Sister Series)
-    ctx.saveGState()
-    ctx.setShadow(offset: CGSize(width: 0, height: -s * 0.02), blur: s * 0.045, color: NSColor(calibratedWhite: 0, alpha: 0.72).cgColor)
-    ctx.addPath(squircle)
-    ctx.setFillColor(NSColor(calibratedRed: 0.035, green: 0.038, blue: 0.048, alpha: 1.0).cgColor)
-    ctx.fillPath()
-    ctx.restoreGState()
-
-    ctx.saveGState()
-    ctx.addPath(squircle)
-    ctx.clip()
     let bgColors = [
         NSColor(calibratedRed: 0.082, green: 0.088, blue: 0.114, alpha: 1.0).cgColor,
         NSColor(calibratedRed: 0.027, green: 0.030, blue: 0.038, alpha: 1.0).cgColor
     ] as CFArray
-    if let grad = CGGradient(colorsSpace: colorSpace, colors: bgColors, locations: [0.0, 1.0]) {
-        ctx.drawLinearGradient(grad, start: CGPoint(x: s * 0.5, y: box.maxY), end: CGPoint(x: s * 0.5, y: box.minY), options: [])
+
+    if fullBleed {
+        let fullBox = CGRect(x: 0, y: 0, width: s, height: s)
+        ctx.setFillColor(NSColor(calibratedRed: 0.035, green: 0.038, blue: 0.048, alpha: 1.0).cgColor)
+        ctx.fill(fullBox)
+        if let grad = CGGradient(colorsSpace: colorSpace, colors: bgColors, locations: [0.0, 1.0]) {
+            ctx.drawLinearGradient(grad, start: CGPoint(x: s * 0.5, y: s), end: CGPoint(x: s * 0.5, y: 0), options: [])
+        }
+        ctx.translateBy(x: s * 0.5, y: s * 0.5)
+        ctx.scaleBy(x: 1.12, y: 1.12)
+        ctx.translateBy(x: -s * 0.5, y: -s * 0.5)
+    } else {
+        let inset = s * 0.088
+        let box = CGRect(x: inset, y: inset, width: s - inset * 2, height: s - inset * 2)
+        let radius = box.width * 0.225
+        let squircle = CGPath(roundedRect: box, cornerWidth: radius, cornerHeight: radius, transform: nil)
+
+        // 1. Deep Obsidian Black Squircle Base (#0A0B0E -> #14161D) + Glowing Molten Gold Rim (Charioteer Sister Series)
+        ctx.saveGState()
+        ctx.setShadow(offset: CGSize(width: 0, height: -s * 0.02), blur: s * 0.045, color: NSColor(calibratedWhite: 0, alpha: 0.72).cgColor)
+        ctx.addPath(squircle)
+        ctx.setFillColor(NSColor(calibratedRed: 0.035, green: 0.038, blue: 0.048, alpha: 1.0).cgColor)
+        ctx.fillPath()
+        ctx.restoreGState()
+
+        ctx.saveGState()
+        ctx.addPath(squircle)
+        ctx.clip()
+        if let grad = CGGradient(colorsSpace: colorSpace, colors: bgColors, locations: [0.0, 1.0]) {
+            ctx.drawLinearGradient(grad, start: CGPoint(x: s * 0.5, y: box.maxY), end: CGPoint(x: s * 0.5, y: box.minY), options: [])
+        }
+        ctx.addPath(squircle)
+        ctx.setStrokeColor(NSColor(calibratedRed: 0.92, green: 0.78, blue: 0.36, alpha: 0.92).cgColor)
+        ctx.setLineWidth(s * 0.011)
+        ctx.strokePath()
+        ctx.restoreGState()
     }
-    ctx.addPath(squircle)
-    ctx.setStrokeColor(NSColor(calibratedRed: 0.92, green: 0.78, blue: 0.36, alpha: 0.92).cgColor)
-    ctx.setLineWidth(s * 0.011)
-    ctx.strokePath()
-    ctx.restoreGState()
 
     let center = CGPoint(x: s * 0.5, y: s * 0.5)
     let outerRingR = s * 0.362
@@ -291,8 +304,11 @@ func drawAstrolabeIcon(size: Int) -> Data? {
     return rep.representation(using: .png, properties: [:])
 }
 
-if let data = drawAstrolabeIcon(size: 1024) {
+if let data = drawAstrolabeIcon(size: 1024, fullBleed: false) {
     try? data.write(to: URL(fileURLWithPath: CommandLine.arguments[1]))
+}
+if CommandLine.arguments.count > 2, let mobileData = drawAstrolabeIcon(size: 1024, fullBleed: true) {
+    try? mobileData.write(to: URL(fileURLWithPath: CommandLine.arguments[2]))
 }
 `;
 
@@ -1210,9 +1226,10 @@ function main() {
   const swiftFile = path.join(tmpDir, 'AppHost.swift');
   const binPath = path.join(MACOS_DIR, EXEC_NAME);
   const iconOutPath = path.join(RESOURCES_DIR, 'AppIcon.png');
+  const mobileIconOutPath = path.join(RESOURCES_DIR, 'MobileIcon.png');
   try {
     writeFileSync(iconSwiftFile, ICON_SWIFT, 'utf8');
-    execFileSync('swift', [iconSwiftFile, iconOutPath], { stdio: 'inherit' });
+    execFileSync('swift', [iconSwiftFile, iconOutPath, mobileIconOutPath], { stdio: 'inherit' });
     try {
       const iconsetDir = path.join(tmpDir, 'AppIcon.iconset');
       mkdirSync(iconsetDir, { recursive: true });
@@ -1221,6 +1238,7 @@ function main() {
       }
       execFileSync('iconutil', ['-c', 'icns', iconsetDir, '-o', path.join(RESOURCES_DIR, 'AppIcon.icns')], { stdio: 'ignore' });
     } catch {}
+    const fullBleedSrc = existsSync(mobileIconOutPath) ? mobileIconOutPath : iconOutPath;
     const assetTargets = [
       path.join(ROOT, 'assets', 'icon.png'),
       path.join(ROOT, 'assets', 'splash-icon.png'),
@@ -1229,11 +1247,21 @@ function main() {
     ];
     for (const target of assetTargets) {
       try {
-        execFileSync('cp', [iconOutPath, target]);
+        execFileSync('cp', [fullBleedSrc, target]);
       } catch {
         // Ignore if parent target is not writable in CI.
       }
     }
+    try {
+      const pubIconsDir = path.join(ROOT, 'public', 'icons');
+      if (existsSync(pubIconsDir)) {
+        execFileSync('sips', ['-z', '180', '180', fullBleedSrc, '--out', path.join(pubIconsDir, 'apple-touch-icon.png')], { stdio: 'ignore' });
+        execFileSync('sips', ['-z', '512', '512', fullBleedSrc, '--out', path.join(pubIconsDir, 'icon-512.png')], { stdio: 'ignore' });
+        execFileSync('sips', ['-z', '512', '512', fullBleedSrc, '--out', path.join(pubIconsDir, 'icon-maskable-512.png')], { stdio: 'ignore' });
+        execFileSync('sips', ['-z', '192', '192', fullBleedSrc, '--out', path.join(pubIconsDir, 'icon-192.png')], { stdio: 'ignore' });
+        execFileSync('sips', ['-z', '192', '192', fullBleedSrc, '--out', path.join(pubIconsDir, 'icon-maskable-192.png')], { stdio: 'ignore' });
+      }
+    } catch {}
     writeFileSync(swiftFile, SWIFT_SOURCE, 'utf8');
     execFileSync('swiftc', ['-O', swiftFile, '-framework', 'Cocoa', '-framework', 'WebKit', '-o', binPath], {
       stdio: 'inherit',

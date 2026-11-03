@@ -67,6 +67,7 @@ import { parseQuickBookkeepingInput } from '@/core/bookkeeping';
 import { addLedgerTransaction } from '@/data/bookkeeping';
 
 import { BookkeepingLedgerHub } from './BookkeepingLedgerHub';
+import { KnowledgeGraphCornerHub } from './KnowledgeGraphCornerHub';
 import { useI18n } from './use-i18n';
 
 import { Text } from './Text';
@@ -1507,7 +1508,7 @@ export function IsometricStudioStage({
   const [masteryGoals, setMasteryGoals] = useState<MasteryGoal[]>(readMasteryGoals);
   const [timer, setTimer] = useState<ActiveTimerSession>(readActiveTimer);
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [lowerWorkspaceTab, setLowerWorkspaceTab] = useState<'matrix' | 'okr' | 'split'>('matrix');
+  const [lowerWorkspaceTab, setLowerWorkspaceTab] = useState<'matrix' | 'okr' | 'knowledge' | 'split'>('matrix');
 
   useEffect(() => {
     ensureStageFxKeyframes();
@@ -3151,12 +3152,13 @@ export function IsometricStudioStage({
             <Text variant="caption" style={{ color: pal.muted, fontSize: 11, fontWeight: '600' }}>
               {t('专注工作区视图：', 'Workspace View:')}
             </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               {(
                 [
                   { id: 'matrix', label: t('24H 时间块矩阵', '24H Time Matrix') },
                   { id: 'okr', label: t('OKR & 365星图', 'OKR & Heatmap') },
-                  { id: 'split', label: t('双栏同屏', 'Split View') },
+                  { id: 'knowledge', label: t('学习角 · 知识图谱', 'Knowledge Graph') },
+                  { id: 'split', label: t('全展同屏', 'All Split') },
                 ] as const
               ).map((tab) => {
                 const active = lowerWorkspaceTab === tab.id;
@@ -3988,6 +3990,24 @@ export function IsometricStudioStage({
             </View>
             ) : null}
           </View>
+          {lowerWorkspaceTab === 'knowledge' || lowerWorkspaceTab === 'split' ? (
+            <View style={{ paddingHorizontal: 14, paddingBottom: 12 }}>
+              <KnowledgeGraphCornerHub
+                localDay={localDay}
+                totalStudyMinutesLive={trackedMinsToday}
+                onLogStudyMinutes={(title, mins) => {
+                  incrementOrAddTimeBlock({
+                    localDay,
+                    category: 'study',
+                    title: `知识图谱：${title}`,
+                    deltaMinutes: mins,
+                  });
+                  setTimeBlocks(readTimeBlocks());
+                  triggerStageBurst('focus', `+${mins}m 知识图谱`, pal.goldAccent, 'page');
+                }}
+              />
+            </View>
+          ) : null}
         </View>
       ) : null}
 

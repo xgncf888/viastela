@@ -1742,3 +1742,159 @@ export function formatLedgerCsv(
   });
   return [header, ...rows].join('\n');
 }
+
+/**
+ * 1. 「消费复利后悔药」模拟器 (Compound Regret Pill Calculator)
+ * Calculates what an impulse expense (single or recurring monthly) becomes in 5 / 10 / 20 years.
+ */
+export function computeCompoundRegretPill(input: {
+  amountCny: number;
+  annualReturnPct?: number;
+  isMonthlyHabit?: boolean;
+}): {
+  amountCny: number;
+  annualReturnPct: number;
+  in5YearsCny: number;
+  in10YearsCny: number;
+  in20YearsCny: number;
+  headlineZh: string;
+} {
+  const amt = Math.max(1, input.amountCny);
+  const r = Math.max(0.01, (input.annualReturnPct ?? 8) / 100);
+  const mRate = r / 12;
+
+  const calc = (years: number) => {
+    if (input.isMonthlyHabit) {
+      const n = years * 12;
+      return Math.round(amt * ((Math.pow(1 + mRate, n) - 1) / mRate));
+    }
+    return Math.round(amt * Math.pow(1 + r, years));
+  };
+
+  const in5YearsCny = calc(5);
+  const in10YearsCny = calc(10);
+  const in20YearsCny = calc(20);
+
+  const headlineZh = input.isMonthlyHabit
+    ? `若每月省下这笔 ¥${amt.toFixed(0)} 转入定投（年化 ${input.annualReturnPct ?? 8}%），5 年后变 ¥${in5YearsCny.toLocaleString('en-US')}，10 年后变 ¥${in10YearsCny.toLocaleString('en-US')}，20 年后变 ¥${in20YearsCny.toLocaleString('en-US')}！`
+    : `若省下这笔 ¥${amt.toFixed(0)} 单笔复利 10 年可达 ¥${in10YearsCny.toLocaleString('en-US')}（若每月少花一次，10 年定投可达 ¥${Math.round(amt * ((Math.pow(1 + mRate, 120) - 1) / mRate)).toLocaleString('en-US')}）`;
+
+  return {
+    amountCny: amt,
+    annualReturnPct: input.annualReturnPct ?? 8,
+    in5YearsCny,
+    in10YearsCny,
+    in20YearsCny,
+    headlineZh,
+  };
+}
+
+/**
+ * 2. 双人「心愿扭蛋机 / 周末约会盲盒」 (Couple Wish Gacha / Weekend Date Blind Box)
+ */
+export type CoupleGachaPrize = {
+  id: string;
+  tier: 'SSR' | 'SR' | 'R';
+  titleZh: string;
+  titleEn: string;
+  descZh: string;
+  costWishCny: number;
+};
+
+export const COUPLE_GACHA_PRIZES: readonly CoupleGachaPrize[] = [
+  {
+    id: 'gacha-chore-free',
+    tier: 'SR',
+    titleZh: '免做家务一日特权券',
+    titleEn: '1-Day Chore-Free Pass',
+    descZh: '凭此券可指定伴侣全包今日洗碗、整理与家务一次',
+    costWishCny: 50,
+  },
+  {
+    id: 'gacha-massage',
+    tier: 'SR',
+    titleZh: '双人肩颈 SPA 按摩 30 分钟',
+    titleEn: '30m Couple Massage',
+    descZh: '周末居家或门店肩颈放松体验一次',
+    costWishCny: 50,
+  },
+  {
+    id: 'gacha-cheat-meal',
+    tier: 'R',
+    titleZh: '免做饭夜宵/火锅自由券',
+    titleEn: 'Hotpot Cheat Meal Pass',
+    descZh: '从「旅行心愿专账」批出 ¥200 免检夜宵额度',
+    costWishCny: 50,
+  },
+  {
+    id: 'gacha-travel-boost',
+    tier: 'SSR',
+    titleZh: '周末周边微度假基金解锁',
+    titleEn: 'Weekend Getaway Unlock',
+    descZh: '解锁双人周边自驾/酒店心愿专账 ¥500 额度',
+    costWishCny: 50,
+  },
+  {
+    id: 'gacha-coffee-treat',
+    tier: 'R',
+    titleZh: '伴侣专送精品手冲咖啡券',
+    titleEn: 'Partner Coffee Delivery',
+    descZh: '明天早上由伴侣负责点单或手冲一杯冰美式/拿铁',
+    costWishCny: 50,
+  },
+];
+
+export function spinCoupleWishGacha(seedIndex?: number): CoupleGachaPrize {
+  const idx =
+    typeof seedIndex === 'number'
+      ? Math.abs(seedIndex) % COUPLE_GACHA_PRIZES.length
+      : Math.floor(Math.random() * COUPLE_GACHA_PRIZES.length);
+  return COUPLE_GACHA_PRIZES[idx] ?? COUPLE_GACHA_PRIZES[0]!;
+}
+
+/**
+ * 3. 月度「复古热敏小票」账单海报生成器 (Retro Thermal Receipt Generator)
+ */
+export function buildRetroThermalReceipt(input: {
+  summary: MonthlyBookkeepingSummary;
+  settlement: CoupleMonthlySettlement;
+  health: MonthlyFinancialHealth;
+  topCategories: readonly CategoryBreakdownItem[];
+  coupleNames: string;
+}): {
+  receiptNo: string;
+  lines: string[];
+  plainText: string;
+} {
+  const receiptNo = `VS-${input.summary.yearMonth.replace('-', '')}-8829`;
+  const lines = [
+    `================================`,
+    `   STARWAY · 家庭双人热敏账单   `,
+    `   NO: ${receiptNo} (${input.summary.yearMonth})`,
+    `   CO-OP: ${input.coupleNames}`,
+    `--------------------------------`,
+    `月度总收入:       +¥${input.summary.totalIncomeCny.toFixed(2)}`,
+    `月度总支出:       -¥${input.summary.totalExpenseCny.toFixed(2)}`,
+    `月度净结余:       ${input.summary.netCashflowCny >= 0 ? '+' : ''}¥${input.summary.netCashflowCny.toFixed(2)}`,
+    `--------------------------------`,
+    `[分类 TOP 明细]`,
+    ...input.topCategories.slice(0, 4).map(
+      (c) => `· ${c.category.zh.padEnd(8, ' ')} ¥${c.amountCny.toFixed(2)} (${c.sharePct}%)`,
+    ),
+    `--------------------------------`,
+    `财务体检评级:     [${input.health.grade}级 · ${input.health.healthScore}分]`,
+    `净储蓄率: ${input.health.savingsRatePct}%  | 恩格尔: ${input.health.engelCoefficientPct}%`,
+    `拿铁因子: ¥${input.health.latteFactorCny.toFixed(0)} (${input.health.latteFactorPct}%)`,
+    `--------------------------------`,
+    `[双人清算结论]`,
+    `${input.settlement.summaryZh}`,
+    `================================`,
+    `  |||| |||| || ||||| ||| |||||| `,
+    `      KEEP COMPOUNDING 10000H   `,
+  ];
+  return {
+    receiptNo,
+    lines,
+    plainText: lines.join('\n'),
+  };
+}

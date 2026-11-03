@@ -3,8 +3,10 @@ import { Platform, Pressable, Share, StyleSheet, TextInput, View, type ViewStyle
 
 import {
   type BookkeepingState,
+  buildRetroThermalReceipt,
   computeAccountBalances,
   computeCategoryBreakdown,
+  computeCompoundRegretPill,
   computeCoupleSettlement,
   computeDailySpendBars,
   computeMonthlyBookkeepingSummary,
@@ -12,6 +14,7 @@ import {
   computeMultiLedgerPoolBreakdown,
   computeWealthGoalTrajectory,
   type CoupleChatMessage,
+  type CoupleGachaPrize,
   type CoupleSplitMode,
   DEFAULT_COUPLE_CHAT_MESSAGES,
   DEFAULT_LEDGER_BOOKS,
@@ -37,6 +40,7 @@ import {
   type QuickLedgerPreset,
   type RecurringLedgerRule,
   shiftYearMonth,
+  spinCoupleWishGacha,
 } from '@/core/bookkeeping';
 import { formatMonthDay, weekdayLabel } from '@/core/local-day';
 import {
@@ -647,6 +651,11 @@ export function BookkeepingLedgerHub({
   const [coupleSplitMode, setCoupleSplitMode] = useState<CoupleSplitMode>('income_ratio');
   const [showCsvImportBox, setShowCsvImportBox] = useState(false);
   const [csvDraftText, setCsvDraftText] = useState('');
+
+  // 3 Fun Interactive Features: Compound Regret Pill, Couple Wish Gacha, and Retro Thermal Receipt
+  const [regretHabitMode, setRegretHabitMode] = useState(true);
+  const [lastGachaPrize, setLastGachaPrize] = useState<CoupleGachaPrize | null>(null);
+  const [showThermalReceipt, setShowThermalReceipt] = useState(false);
 
   useEffect(() => {
     ensureRangeSliderCss();
@@ -1525,7 +1534,79 @@ export function BookkeepingLedgerHub({
                 </Text>
               </Pressable>
             ) : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="抽取双人心愿扭蛋盲盒"
+              onPress={() => {
+                const prize = spinCoupleWishGacha();
+                setLastGachaPrize(prize);
+                playCashRegisterTick('income');
+                const next = sendCoupleChatMessage({
+                  sender: 'me',
+                  text: `【心愿扭蛋机抽中 ${prize.tier}】「${prize.titleZh}」—— ${prize.descZh}！`,
+                });
+                setState(next);
+                showToast({
+                  text: t(`抽中 [${prize.tier}] 心愿盲盒：${prize.titleZh}！已同步至双人聊天`, `Pulled [${prize.tier}]: ${prize.titleEn}`),
+                });
+              }}
+              style={[styles.microBtn, { backgroundColor: `${pal.pink}20`, borderColor: pal.pink }]}
+            >
+              <Text variant="caption" style={{ color: pal.pink, fontSize: 10.5, fontWeight: '700' }}>
+                {t('✦ 抽双人心愿扭蛋', '✦ Spin Couple Gacha')}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="生成当月复古热敏小票账单海报"
+              onPress={() => setShowThermalReceipt((prev) => !prev)}
+              style={[styles.microBtn, { backgroundColor: showThermalReceipt ? pal.pillActiveBg : pal.pillBg, borderColor: showThermalReceipt ? pal.gold : pal.border }]}
+            >
+              <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700' }}>
+                {showThermalReceipt ? t('收起热敏小票 ▲', 'Close Receipt ▲') : t('打印月度热敏小票', 'Thermal Receipt')}
+              </Text>
+            </Pressable>
           </View>
+          {lastGachaPrize ? (
+            <View style={[styles.dayGroupCard, { padding: 8, backgroundColor: `${pal.pink}14`, borderColor: pal.pink }]}>
+              <Text variant="caption" style={{ color: pal.ink, fontSize: 11, fontWeight: '700' }}>
+                {`✦ 最新扭蛋掉落 [${lastGachaPrize.tier}]：${lastGachaPrize.titleZh} — ${lastGachaPrize.descZh}`}
+              </Text>
+            </View>
+          ) : null}
+          {showThermalReceipt ? (
+            <View
+              style={{
+                padding: 12,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderStyle: 'dashed',
+                borderColor: pal.gold,
+                backgroundColor: isDark ? '#1c1917' : '#fffdf7',
+                gap: 3,
+              }}
+            >
+              {buildRetroThermalReceipt({
+                summary,
+                settlement: coupleSettlement,
+                health: financialHealth,
+                topCategories: categoryBreakdown,
+                coupleNames: `${state.coupleProfile.myName} & ${state.coupleProfile.partnerName}`,
+              }).lines.map((line, idx) => (
+                <Text
+                  key={idx}
+                  variant="caption"
+                  style={{
+                    fontFamily: theme.fontFamily.mono,
+                    fontSize: 10.5,
+                    color: isDark ? '#fde68a' : '#292524',
+                  }}
+                >
+                  {line}
+                </Text>
+              ))}
+            </View>
+          ) : null}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
             <Text variant="caption" style={{ color: pal.sub, fontSize: 11, fontFamily: theme.fontFamily.mono }}>
               {t(
@@ -3665,6 +3746,43 @@ export function BookkeepingLedgerHub({
                 <Text variant="caption" style={{ color: pal.sub, fontSize: 10.5 }}>
                   {t(financialHealth.diagnosisZh, financialHealth.diagnosisEn)}
                 </Text>
+                {/* Compound Regret Pill Simulator (消费复利后悔药) */}
+                <View
+                  style={{
+                    marginTop: 4,
+                    padding: 8,
+                    borderRadius: 6,
+                    borderWidth: 1,
+                    borderColor: pal.border,
+                    backgroundColor: pal.cardBg,
+                    gap: 4,
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                    <Text variant="caption" style={{ color: pal.terracotta, fontSize: 10.5, fontWeight: '700' }}>
+                      {t('「消费复利后悔药」模拟器', 'Compound Regret Pill Calculator')}
+                    </Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="切换消费复利后悔药计算模式"
+                      onPress={() => setRegretHabitMode((prev) => !prev)}
+                      style={[styles.microBtn, { paddingHorizontal: 6, paddingVertical: 1.5, backgroundColor: pal.pillBg, borderColor: pal.border }]}
+                    >
+                      <Text variant="caption" style={{ color: pal.goldText, fontSize: 9.5, fontWeight: '700' }}>
+                        {regretHabitMode ? t('当前：按每月习惯复利', 'Mode: Monthly Habit') : t('当前：按单笔消费复利', 'Mode: Single Spend')}
+                      </Text>
+                    </Pressable>
+                  </View>
+                  <Text variant="caption" style={{ color: pal.ink, fontSize: 10.5, fontFamily: theme.fontFamily.mono }}>
+                    {
+                      computeCompoundRegretPill({
+                        amountCny: Math.max(25, financialHealth.latteFactorCny || 120),
+                        annualReturnPct: state.wealthPlan.annualReturnPct,
+                        isMonthlyHabit: regretHabitMode,
+                      }).headlineZh
+                    }
+                  </Text>
+                </View>
               </View>
               <View style={styles.sectionTitleRow}>
                 <Text variant="label" style={{ color: pal.ink, fontSize: 13.5, fontWeight: '700' }}>
