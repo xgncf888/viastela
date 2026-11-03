@@ -7,18 +7,26 @@ import {
   computeCategoryBreakdown,
   computeDailySpendBars,
   computeMonthlyBookkeepingSummary,
+  computeMultiLedgerPoolBreakdown,
   computeWealthGoalTrajectory,
+  type CoupleChatMessage,
+  DEFAULT_COUPLE_CHAT_MESSAGES,
+  DEFAULT_LEDGER_BOOKS,
   evaluateAmountExpression,
+  filterTransactionsByLedgerScope,
   formatLedgerCsv,
   getLedgerAccountMeta,
+  getLedgerBookMeta,
   getLedgerCategoryMeta,
   getOwnerBadgeMeta,
   LEDGER_ACCOUNTS,
   LEDGER_CATEGORIES,
   type LedgerAccountId,
+  type LedgerBookId,
   type LedgerCategoryId,
   type LedgerEntryKind,
   type LedgerOwnerId,
+  type LedgerScopeId,
   type LedgerTransaction,
   parseAutoLogUrlParams,
   parseQuickBookkeepingInput,
@@ -29,14 +37,21 @@ import { formatMonthDay, weekdayLabel } from '@/core/local-day';
 import {
   addLedgerTransaction,
   addRecurringLedgerRule,
+  bindCoupleFriendAndRoom,
+  connectCoupleRealtimeRoom,
   ensureRecurringRulesApplied,
   importPartnerBookkeepingJson,
   readBookkeepingState,
+  removeLedgerBook,
   removeLedgerTransaction,
   removeQuickLedgerPreset,
   removeRecurringLedgerRule,
+  saveLedgerBook,
   saveQuickLedgerPreset,
+  sendCoupleChatMessage,
+  simulatePartnerLiveSyncEvent,
   subscribeBookkeepingStore,
+  toggleLedgerBookPoolInclusion,
   toggleRecurringLedgerRule,
   updateCoupleTeamProfile,
   updateMonthlyBudgetCny,
@@ -567,11 +582,37 @@ export function BookkeepingLedgerHub({
   const [newPresetAccount, setNewPresetAccount] = useState<LedgerAccountId>('applepay');
   const [newPresetOwner, setNewPresetOwner] = useState<LedgerOwnerId>('me');
 
+  // Multi-Ledger & Pooled Funds View ('pool' aggregates all pooled ledgers, or specific ledgerId)
+  const [activeLedgerScope, setActiveLedgerScope] = useState<LedgerScopeId>('pool');
+  const [targetWriteLedgerId, setTargetWriteLedgerId] = useState<LedgerBookId>('ledger-daily');
+  const [showLedgerManager, setShowLedgerManager] = useState(false);
+  const [newBookTitle, setNewBookTitle] = useState('');
+  const [newBookBudget, setNewBookBudget] = useState('3000');
+  const [newBookIncludePool, setNewBookIncludePool] = useState(true);
+
+  // In-App Friend Pairing & Couple Chat Drawer
+  const [showCoupleChatDrawer, setShowCoupleChatDrawer] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [quotedTxForChat, setQuotedTxForChat] = useState<CoupleChatMessage['linkedTx'] | undefined>(undefined);
+  const [friendCodeDraft, setFriendCodeDraft] = useState(state.coupleProfile.partnerFriendCode || 'VS-6612');
+  const [roomCodeDraft, setRoomCodeDraft] = useState(state.coupleProfile.roomCode || 'LOVE-88');
+  const [showFriendPairBox, setShowFriendPairBox] = useState(false);
+
   useEffect(() => {
     ensureRangeSliderCss();
-    const unsub = subscribeBookkeepingStore(() => {
+    const unsubStore = subscribeBookkeepingStore(() => {
       setState(readBookkeepingState());
     });
+    const unsubRealtime = connectCoupleRealtimeRoom(
+      state.coupleProfile.roomCode || 'LOVE-88',
+      (incoming) => {
+        const rawJson = JSON.stringify(incoming);
+        const { addedTxCount, addedChatCount } = importPartnerBookkeepingJson(rawJson);
+        if (addedTxCount > 0 || addedChatCount > 0) {
+          playCashRegisterTick('income');
+        }
+      },
+    );
     ensureRecurringRulesApplied(localDay);
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.search) {
       const parsedUrlTx = parseAutoLogUrlParams(window.location.search);
@@ -592,8 +633,11 @@ export function BookkeepingLedgerHub({
         }
       }
     }
-    return unsub;
-  }, [localDay]);
+    return () => {
+      unsubStore();
+      unsubRealtime();
+    };
+  }, [localDay, state.coupleProfile.roomCode]);
 
   const pal = isDark
     ? {
@@ -637,27 +681,40 @@ export function BookkeepingLedgerHub({
         inputBg: '#f4f1ea',
       };
 
+  const ledgerBooks = state.ledgerBooks && state.ledgerBooks.length > 0 ? state.ledgerBooks : DEFAULT_LEDGER_BOOKS;
+  const chatMessages = state.chatMessages ?? DEFAULT_COUPLE_CHAT_MESSAGES;
+  const effectiveWriteLedgerId = activeLedgerScope === 'pool' ? targetWriteLedgerId : activeLedgerScope;
+
   const summary = useMemo(
-    () => computeMonthlyBookkeepingSummary(state, localDay),
-    [state, localDay],
+    () => computeMonthlyBookkeepingSummary(state, localDay, activeLedgerScope),
+    [state, localDay, activeLedgerScope],
+  );
+  const poolBreakdown = useMemo(
+    () => computeMultiLedgerPoolBreakdown(state, summary.yearMonth),
+    [state, summary.yearMonth],
   );
   const wealthTrajectory = useMemo(
     () =>
       computeWealthGoalTrajectory({
         wealthPlan: state.wealthPlan,
         recurringRules: state.recurringRules,
-        fallbackMonthlyIncomeCny: summary.totalIncomeCny || 30000,
+        fallbackMonthlyIncomeCny: poolBreakdown.pooledMonthIncomeCny || summary.totalIncomeCny || 30000,
         currentYearMonth: summary.yearMonth,
       }),
-    [state.wealthPlan, state.recurringRules, summary.totalIncomeCny, summary.yearMonth],
+    [state.wealthPlan, state.recurringRules, poolBreakdown.pooledMonthIncomeCny, summary.totalIncomeCny, summary.yearMonth],
+  );
+
+  const scopeFilteredTransactions = useMemo(
+    () => filterTransactionsByLedgerScope(state.transactions, ledgerBooks, activeLedgerScope),
+    [state.transactions, ledgerBooks, activeLedgerScope],
   );
 
   const ownerFilteredTransactions = useMemo(
     () =>
       filterOwner === 'all'
-        ? state.transactions
-        : state.transactions.filter((tx) => (tx.owner ?? 'me') === filterOwner),
-    [state.transactions, filterOwner],
+        ? scopeFilteredTransactions
+        : scopeFilteredTransactions.filter((tx) => (tx.owner ?? 'me') === filterOwner),
+    [scopeFilteredTransactions, filterOwner],
   );
 
   const categoryBreakdown = useMemo(
@@ -687,7 +744,8 @@ export function BookkeepingLedgerHub({
       if (q) {
         const cat = getLedgerCategoryMeta(tx.categoryId);
         const acc = getLedgerAccountMeta(tx.accountId);
-        const hay = `${tx.note} ${cat.zh} ${cat.en} ${acc.zh} ${acc.en} ${tx.amountCny}`.toLowerCase();
+        const book = getLedgerBookMeta(tx.ledgerId, ledgerBooks);
+        const hay = `${tx.note} ${cat.zh} ${cat.en} ${acc.zh} ${acc.en} ${book.zh} ${tx.amountCny}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -711,7 +769,7 @@ export function BookkeepingLedgerHub({
     }
 
     return [...map.values()].sort((a, b) => b.localDay.localeCompare(a.localDay));
-  }, [ownerFilteredTransactions, filterCat, filterAcc, filterDay, searchQuery]);
+  }, [ownerFilteredTransactions, filterCat, filterAcc, filterDay, searchQuery, ledgerBooks]);
 
   function handleSmartNaturalSubmit() {
     const parsed = parseQuickBookkeepingInput(
@@ -732,6 +790,7 @@ export function BookkeepingLedgerHub({
     }
     const { state: next, added } = addLedgerTransaction({
       ...parsed,
+      ledgerId: effectiveWriteLedgerId,
       localDay: filterDay ?? localDay,
     });
     setState(next);
@@ -741,10 +800,11 @@ export function BookkeepingLedgerHub({
     recordPledgeReward(`记账打卡：${parsed.note} ¥${parsed.amountCny}`, localDay, 10);
     const cat = getLedgerCategoryMeta(parsed.categoryId);
     const ownerMeta = getOwnerBadgeMeta(parsed.owner, state.coupleProfile);
+    const bookMeta = getLedgerBookMeta(added.ledgerId, ledgerBooks);
     showToast({
       text: t(
-        `已入账 [${ownerMeta.zh}]：${cat.zh} · ${parsed.note} ${parsed.kind === 'expense' ? '-' : '+'}¥${parsed.amountCny.toFixed(2)}`,
-        `Logged [${ownerMeta.en}]: ${parsed.note} ${parsed.kind === 'expense' ? '-' : '+'}¥${parsed.amountCny.toFixed(2)}`,
+        `已入账 [${bookMeta.zh} · ${ownerMeta.zh}]：${cat.zh} · ${parsed.note} ${parsed.kind === 'expense' ? '-' : '+'}¥${parsed.amountCny.toFixed(2)}`,
+        `Logged [${bookMeta.en} · ${ownerMeta.en}]: ${parsed.note} ${parsed.kind === 'expense' ? '-' : '+'}¥${parsed.amountCny.toFixed(2)}`,
       ),
     });
   }
@@ -753,12 +813,14 @@ export function BookkeepingLedgerHub({
 
   function executePresetLog(preset: QuickLedgerPreset, finalAmountCny: number) {
     const owner = preset.owner ?? selectedOwner;
+    const ledgerId = activeLedgerScope === 'pool' ? (preset.ledgerId ?? targetWriteLedgerId) : activeLedgerScope;
     const { state: next, added } = addLedgerTransaction({
       kind: 'expense',
       amountCny: finalAmountCny,
       categoryId: preset.categoryId,
       accountId: preset.accountId,
       owner,
+      ledgerId,
       note: t(preset.zh, preset.en),
       localDay: filterDay ?? localDay,
     });
@@ -874,6 +936,7 @@ export function BookkeepingLedgerHub({
       categoryId: selectedCategory,
       accountId: selectedAccount,
       owner: selectedOwner,
+      ledgerId: effectiveWriteLedgerId,
       note: cleanNote,
       localDay: filterDay ?? localDay,
     });
@@ -884,10 +947,11 @@ export function BookkeepingLedgerHub({
     playCashRegisterTick(entryKind);
     recordPledgeReward(`记账：${cleanNote}`, localDay, 10);
     const ownerMeta = getOwnerBadgeMeta(selectedOwner, state.coupleProfile);
+    const bookMeta = getLedgerBookMeta(added.ledgerId, ledgerBooks);
     showToast({
       text: t(
-        `已记入账本 [${ownerMeta.zh}]：${cleanNote} ${entryKind === 'expense' ? '-' : '+'}¥${amountCny.toFixed(2)}`,
-        `Saved [${ownerMeta.en}]: ${cleanNote} ${entryKind === 'expense' ? '-' : '+'}¥${amountCny.toFixed(2)}`,
+        `已记入「${bookMeta.zh}」[${ownerMeta.zh}]：${cleanNote} ${entryKind === 'expense' ? '-' : '+'}¥${amountCny.toFixed(2)}`,
+        `Saved to ${bookMeta.en} [${ownerMeta.en}]: ${cleanNote} ${entryKind === 'expense' ? '-' : '+'}¥${amountCny.toFixed(2)}`,
       ),
     });
   }
@@ -904,17 +968,71 @@ export function BookkeepingLedgerHub({
   function handleSaveBudget() {
     const num = Number.parseInt(budgetDraft, 10);
     if (Number.isFinite(num) && num >= 100) {
-      const next = updateMonthlyBudgetCny(num);
+      const targetLedger = activeLedgerScope === 'pool' ? undefined : activeLedgerScope;
+      const next = updateMonthlyBudgetCny(num, targetLedger);
       setState(next);
-      setBudgetDraft(String(next.monthlyBudgetCny));
+      setBudgetDraft(String(num));
       showToast({
         text: t(
-          `本月预算已更新为 ¥${next.monthlyBudgetCny.toLocaleString('en-US')}`,
-          `Monthly budget set to ¥${next.monthlyBudgetCny.toLocaleString('en-US')}`,
+          `月预算已更新为 ¥${num.toLocaleString('en-US')}`,
+          `Monthly budget updated to ¥${num.toLocaleString('en-US')}`,
         ),
       });
     }
     setEditingBudget(false);
+  }
+
+  function handleCreateLedgerBook() {
+    const title = newBookTitle.trim();
+    if (!title) {
+      showToast({ text: t('请输入新账本名称（如：装修专账 / 育儿账本）', 'Enter new ledger name'), tone: 'error' });
+      return;
+    }
+    const budget = Number.parseInt(newBookBudget, 10) || 3000;
+    const next = saveLedgerBook({
+      zh: title,
+      en: title,
+      monthlyBudgetCny: budget,
+      includeInPool: newBookIncludePool,
+    });
+    setState(next);
+    setNewBookTitle('');
+    showToast({
+      text: t(
+        `已新建账本「${title}」（${newBookIncludePool ? '已纳入家庭资金合池统计' : '独立核算'}）`,
+        `Created ledger "${title}"`,
+      ),
+    });
+  }
+
+  function handleSendChat() {
+    if (!chatInput.trim()) return;
+    const next = sendCoupleChatMessage({
+      sender: 'me',
+      text: chatInput.trim(),
+      linkedTx: quotedTxForChat,
+    });
+    setState(next);
+    setChatInput('');
+    setQuotedTxForChat(undefined);
+    playCashRegisterTick('income');
+  }
+
+  function handleBindFriendRoom() {
+    const next = bindCoupleFriendAndRoom({
+      partnerFriendCode: friendCodeDraft,
+      roomCode: roomCodeDraft,
+      partnerName: state.coupleProfile.partnerName,
+    });
+    setState(next);
+    setShowFriendPairBox(false);
+    playCashRegisterTick('income');
+    showToast({
+      text: t(
+        `已绑定伴侣好友码 ${friendCodeDraft.toUpperCase()} · 联机房间 #${roomCodeDraft.toUpperCase()}`,
+        `Bound friend ${friendCodeDraft.toUpperCase()} in room #${roomCodeDraft.toUpperCase()}`,
+      ),
+    });
   }
 
   function handleAddNewRecurringRule() {
@@ -1136,12 +1254,44 @@ export function BookkeepingLedgerHub({
           })}
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel="打开双人好友配对与联机房间"
+            onPress={() => setShowFriendPairBox((prev) => !prev)}
+            style={[
+              styles.microBtn,
+              {
+                backgroundColor: showFriendPairBox ? pal.pillActiveBg : pal.pillBg,
+                borderColor: state.coupleProfile.friendBound ? pal.emerald : pal.border,
+              },
+            ]}
+          >
+            <Text variant="caption" style={{ color: state.coupleProfile.friendBound ? pal.emerald : pal.ink, fontSize: 10.5, fontWeight: '700' }}>
+              {t(`好友已联机 #${state.coupleProfile.roomCode || 'LOVE-88'}`, `Room #${state.coupleProfile.roomCode || 'LOVE-88'}`)}
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="打开App内双人聊天与账单互动窗口"
+            onPress={() => setShowCoupleChatDrawer((prev) => !prev)}
+            style={[
+              styles.microBtn,
+              {
+                backgroundColor: showCoupleChatDrawer ? `${pal.pink}24` : pal.pillBg,
+                borderColor: pal.pink,
+              },
+            ]}
+          >
+            <Text variant="caption" style={{ color: pal.pink, fontSize: 10.5, fontWeight: '700' }}>
+              {t(`双人聊天 (${chatMessages.length})`, `Couple Chat (${chatMessages.length})`)}
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
             accessibilityLabel="复制双人账本同步码发给老婆"
             onPress={() => void handleCopyPartnerSyncCode()}
             style={[styles.microBtn, { backgroundColor: pal.pillBg, borderColor: pal.border }]}
           >
             <Text variant="caption" style={{ color: pal.ink, fontSize: 10.5, fontWeight: '600' }}>
-              {t(`导出给${state.coupleProfile.partnerName}`, 'Share Sync')}
+              {t('备份同步码', 'Backup Sync')}
             </Text>
           </Pressable>
           <Pressable
@@ -1151,7 +1301,7 @@ export function BookkeepingLedgerHub({
             style={[styles.microBtn, { backgroundColor: pal.pillBg, borderColor: pal.border }]}
           >
             <Text variant="caption" style={{ color: pal.ink, fontSize: 10.5, fontWeight: '600' }}>
-              {t(`合并${state.coupleProfile.partnerName}账单`, 'Merge Partner')}
+              {t('导入合并', 'Import')}
             </Text>
           </Pressable>
           <Pressable
@@ -1166,6 +1316,463 @@ export function BookkeepingLedgerHub({
           </Pressable>
         </View>
       </View>
+
+      {/* 0.1 Multi-Ledger Switcher & Pooled Funds Aggregation Bar (多账本管理 + 资金合池统计) */}
+      <View
+        style={[
+          styles.coupleBanner,
+          {
+            backgroundColor: pal.cardBg,
+            borderBottomColor: pal.border,
+            paddingVertical: 8,
+          },
+        ]}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, flex: 1 }}>
+          <Text variant="caption" style={{ color: pal.muted, fontSize: 10.5, fontWeight: '600' }}>
+            {t('多账本与合池：', 'Ledgers & Pool:')}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="切换至全账本资金合池统计总览"
+            onPress={() => setActiveLedgerScope('pool')}
+            style={[
+              styles.microBtn,
+              {
+                backgroundColor: activeLedgerScope === 'pool' ? pal.pillActiveBg : pal.pillBg,
+                borderColor: activeLedgerScope === 'pool' ? pal.gold : pal.border,
+              },
+            ]}
+          >
+            <Text
+              variant="caption"
+              style={{
+                color: activeLedgerScope === 'pool' ? pal.goldText : pal.ink,
+                fontSize: 11,
+                fontWeight: activeLedgerScope === 'pool' ? '700' : '600',
+              }}
+            >
+              {t(`合池总览 (${summary.pooledLedgerCount}/${ledgerBooks.length} 账本合池)`, `Fund Pool (${summary.pooledLedgerCount}/${ledgerBooks.length})`)}
+            </Text>
+          </Pressable>
+
+          {ledgerBooks.map((book) => {
+            const isSelected = activeLedgerScope === book.id;
+            return (
+              <Pressable
+                key={book.id}
+                accessibilityRole="button"
+                accessibilityLabel={`切换至账本 ${book.zh}`}
+                onPress={() => {
+                  setActiveLedgerScope(book.id);
+                  setTargetWriteLedgerId(book.id);
+                }}
+                style={[
+                  styles.microBtn,
+                  {
+                    backgroundColor: isSelected ? `${book.color}22` : pal.pillBg,
+                    borderColor: isSelected ? book.color : pal.border,
+                  },
+                ]}
+              >
+                <Text
+                  variant="caption"
+                  style={{
+                    color: isSelected ? book.color : pal.ink,
+                    fontSize: 11,
+                    fontWeight: isSelected ? '700' : '500',
+                  }}
+                >
+                  {`[${book.icon}] ${t(book.zh, book.en)}${book.includeInPool ? '' : t(' (独立)', ' (Solo)')}`}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {activeLedgerScope === 'pool' ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>
+                {t('新账单记入：', 'Log into:')}
+              </Text>
+              {ledgerBooks.map((book) => {
+                const isTarget = targetWriteLedgerId === book.id;
+                return (
+                  <Pressable
+                    key={`target-${book.id}`}
+                    onPress={() => setTargetWriteLedgerId(book.id)}
+                    style={[
+                      styles.microBtn,
+                      {
+                        paddingHorizontal: 6,
+                        paddingVertical: 2,
+                        backgroundColor: isTarget ? pal.pillActiveBg : pal.pillBg,
+                        borderColor: isTarget ? pal.gold : pal.border,
+                      },
+                    ]}
+                  >
+                    <Text variant="caption" style={{ color: isTarget ? pal.goldText : pal.sub, fontSize: 9.5, fontWeight: isTarget ? '700' : '500' }}>
+                      {book.zh.slice(0, 4)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="管理多账本与资金合池开关"
+            onPress={() => setShowLedgerManager((prev) => !prev)}
+            style={[
+              styles.microBtn,
+              {
+                backgroundColor: showLedgerManager ? pal.pillActiveBg : pal.pillBg,
+                borderColor: showLedgerManager ? pal.gold : pal.border,
+              },
+            ]}
+          >
+            <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700' }}>
+              {showLedgerManager ? t('收起账本管理 ▲', 'Close Ledgers ▲') : t('多账本与合池管理 ✎', 'Manage Ledgers ✎')}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+
+      {/* Optional Drawer 0A: Multi-Ledger & Pooled Funds Breakdown Panel */}
+      {showLedgerManager || activeLedgerScope === 'pool' ? (
+        <View style={[styles.drawerPanel, { backgroundColor: pal.cardElevated, borderBottomColor: pal.border, paddingVertical: 10 }]}>
+          <View style={styles.sectionTitleRow}>
+            <Text variant="caption" style={{ color: pal.goldText, fontSize: 11.5, fontWeight: '700' }}>
+              {t(
+                `多账本资金合池统计（当前合池总月支出 ¥${poolBreakdown.pooledMonthExpenseCny.toLocaleString('en-US')} / 合池总预算 ¥${poolBreakdown.pooledMonthlyBudgetCny.toLocaleString('en-US')} · 合池净现金流 ${poolBreakdown.pooledNetCashflowCny >= 0 ? '+' : ''}¥${poolBreakdown.pooledNetCashflowCny.toLocaleString('en-US')}）`,
+                `Multi-Ledger Fund Pool (Pooled Spend ¥${poolBreakdown.pooledMonthExpenseCny.toLocaleString('en-US')} / Pooled Budget ¥${poolBreakdown.pooledMonthlyBudgetCny.toLocaleString('en-US')})`,
+              )}
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {poolBreakdown.items.map((item) => {
+              const isCurrent = activeLedgerScope === item.book.id;
+              return (
+                <View
+                  key={`pool-card-${item.book.id}`}
+                  style={{
+                    flex: 1,
+                    minWidth: 205,
+                    padding: 9,
+                    borderRadius: 9,
+                    borderWidth: 1,
+                    borderColor: isCurrent ? item.book.color : pal.border,
+                    backgroundColor: pal.cardBg,
+                    gap: 4,
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                    <Pressable
+                      onPress={() => {
+                        setActiveLedgerScope(item.book.id);
+                        setTargetWriteLedgerId(item.book.id);
+                      }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
+                    >
+                      <View style={[styles.monogramCircle, { width: 20, height: 20, backgroundColor: `${item.book.color}20`, borderColor: item.book.color }]}>
+                        <Text variant="caption" style={{ color: item.book.color, fontSize: 10, fontWeight: '800' }}>
+                          {item.book.icon}
+                        </Text>
+                      </View>
+                      <Text variant="caption" style={{ color: pal.ink, fontSize: 11.5, fontWeight: '700' }}>
+                        {t(item.book.zh, item.book.en)}
+                      </Text>
+                    </Pressable>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`切换 ${item.book.zh} 是否纳入资金合池`}
+                        onPress={() => setState(toggleLedgerBookPoolInclusion(item.book.id))}
+                        style={[
+                          styles.microBtn,
+                          {
+                            paddingHorizontal: 6,
+                            paddingVertical: 2,
+                            backgroundColor: item.book.includeInPool ? `${pal.emerald}18` : pal.pillBg,
+                            borderColor: item.book.includeInPool ? pal.emerald : pal.border,
+                          },
+                        ]}
+                      >
+                        <Text variant="caption" style={{ color: item.book.includeInPool ? pal.emerald : pal.muted, fontSize: 9.5, fontWeight: '700' }}>
+                          {item.book.includeInPool ? t('✓ 已合池', '✓ Pooled') : t('独立核算', 'Solo')}
+                        </Text>
+                      </Pressable>
+                      {item.book.id !== 'ledger-daily' && showLedgerManager ? (
+                        <Pressable
+                          onPress={() => {
+                            setState(removeLedgerBook(item.book.id));
+                            if (activeLedgerScope === item.book.id) setActiveLedgerScope('pool');
+                          }}
+                          style={[styles.microBtn, { paddingHorizontal: 5, paddingVertical: 2, backgroundColor: pal.pillBg, borderColor: pal.border }]}
+                        >
+                          <Text variant="caption" style={{ color: pal.muted, fontSize: 9.5 }}>×</Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                    <Text variant="caption" style={{ color: pal.ink, fontFamily: theme.fontFamily.mono, fontSize: 12, fontWeight: '700' }}>
+                      {`${t('支', 'Out')} ¥${item.monthExpenseCny.toLocaleString('en-US')} / ¥${item.book.monthlyBudgetCny.toLocaleString('en-US')}`}
+                    </Text>
+                    <Text variant="caption" style={{ color: pal.muted, fontSize: 9.5, fontFamily: theme.fontFamily.mono }}>
+                      {item.book.includeInPool
+                        ? t(`占合池 ${item.poolExpenseSharePct}% · ${item.txCount}笔`, `${item.poolExpenseSharePct}% of pool`)
+                        : t(`独立账本 · ${item.txCount}笔`, `${item.txCount} tx`)}
+                    </Text>
+                  </View>
+                  <View style={[styles.budgetProgressTrack, { height: 5, backgroundColor: pal.pillBg }]}>
+                    <View
+                      style={[
+                        styles.budgetProgressFill,
+                        {
+                          width: `${Math.min(100, Math.max(4, item.budgetUsedPct))}%`,
+                          backgroundColor: item.budgetUsedPct > 100 ? pal.danger : item.book.color,
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+
+          {showLedgerManager ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+              <TextInput
+                value={newBookTitle}
+                onChangeText={setNewBookTitle}
+                placeholder={t('新建账本名称（如：装修专账 / 个人零花账本）…', 'New ledger name…')}
+                placeholderTextColor={pal.muted}
+                style={[
+                  styles.smartInput,
+                  { height: 30, minWidth: 180, fontSize: 11, backgroundColor: pal.inputBg, borderColor: pal.border, color: pal.ink },
+                ]}
+              />
+              <TextInput
+                value={newBookBudget}
+                onChangeText={setNewBookBudget}
+                placeholder={t('月预算 ¥3000', 'Budget ¥3000')}
+                placeholderTextColor={pal.muted}
+                style={[
+                  styles.budgetInput,
+                  { height: 30, width: 90, fontSize: 11, backgroundColor: pal.inputBg, borderColor: pal.border, color: pal.goldText },
+                ]}
+              />
+              <Pressable
+                onPress={() => setNewBookIncludePool((prev) => !prev)}
+                style={[
+                  styles.microBtn,
+                  {
+                    height: 30,
+                    justifyContent: 'center',
+                    backgroundColor: newBookIncludePool ? `${pal.emerald}18` : pal.pillBg,
+                    borderColor: newBookIncludePool ? pal.emerald : pal.border,
+                  },
+                ]}
+              >
+                <Text variant="caption" style={{ color: newBookIncludePool ? pal.emerald : pal.sub, fontSize: 10.5, fontWeight: '700' }}>
+                  {newBookIncludePool ? t('纳入资金合池统计', 'Include in Pool') : t('独立账本不合池', 'Exclude from Pool')}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleCreateLedgerBook}
+                style={[styles.microBtn, { height: 30, justifyContent: 'center', backgroundColor: pal.pillActiveBg, borderColor: pal.gold }]}
+              >
+                <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700' }}>
+                  {t('＋ 新建账本', '＋ Create Ledger')}
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
+      {/* Optional Drawer 0B: In-App Friend Pairing & Room Binding */}
+      {showFriendPairBox ? (
+        <View style={[styles.drawerPanel, { backgroundColor: pal.cardElevated, borderBottomColor: pal.border }]}>
+          <View style={styles.sectionTitleRow}>
+            <Text variant="caption" style={{ color: pal.emerald, fontSize: 11.5, fontWeight: '700' }}>
+              {t(
+                `App 内加好友与双人联机配对（我的好友码：${state.coupleProfile.myFriendCode || 'VS-8829'} · 当前伴侣：${state.coupleProfile.partnerName} ${state.coupleProfile.partnerFriendCode || 'VS-6612'}）`,
+                `In-App Friend Pairing (My Code: ${state.coupleProfile.myFriendCode || 'VS-8829'})`,
+              )}
+            </Text>
+            <Pressable
+              onPress={() => {
+                const { addedTx } = simulatePartnerLiveSyncEvent(localDay);
+                setState(readBookkeepingState());
+                setShowCoupleChatDrawer(true);
+                playCashRegisterTick('income');
+                showToast({
+                  text: t(
+                    `收到来自${state.coupleProfile.partnerName}的实时同步账单「${addedTx.note} -¥${addedTx.amountCny}」与聊天消息`,
+                    `Received live partner bill & chat message`,
+                  ),
+                });
+              }}
+              style={[styles.microBtn, { backgroundColor: `${pal.emerald}20`, borderColor: pal.emerald }]}
+            >
+              <Text variant="caption" style={{ color: pal.emerald, fontSize: 10.5, fontWeight: '700' }}>
+                {t(`测试收到${state.coupleProfile.partnerName}实时记账与消息`, 'Simulate Partner Live Sync')}
+              </Text>
+            </Pressable>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <Text variant="caption" style={{ color: pal.sub, fontSize: 10.5 }}>
+              {t('对方好友码：', 'Partner Friend Code:')}
+            </Text>
+            <TextInput
+              value={friendCodeDraft}
+              onChangeText={setFriendCodeDraft}
+              placeholder="VS-6612"
+              style={[styles.budgetInput, { height: 30, width: 92, backgroundColor: pal.inputBg, borderColor: pal.border, color: pal.ink }]}
+            />
+            <Text variant="caption" style={{ color: pal.sub, fontSize: 10.5 }}>
+              {t('双人联机房间号：', 'Shared Room Code:')}
+            </Text>
+            <TextInput
+              value={roomCodeDraft}
+              onChangeText={setRoomCodeDraft}
+              placeholder="LOVE-88"
+              style={[styles.budgetInput, { height: 30, width: 92, backgroundColor: pal.inputBg, borderColor: pal.gold, color: pal.goldText }]}
+            />
+            <Pressable
+              onPress={handleBindFriendRoom}
+              style={[styles.microBtn, { height: 30, justifyContent: 'center', backgroundColor: pal.pillActiveBg, borderColor: pal.gold }]}
+            >
+              <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700' }}>
+                {t('绑定好友并开启实时合池同步', 'Bind Friend & Sync')}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
+      {/* Optional Drawer 0C: In-App Couple Chat & Bill Comment Stream */}
+      {showCoupleChatDrawer ? (
+        <View style={[styles.drawerPanel, { backgroundColor: pal.cardElevated, borderBottomColor: pal.border, gap: 8 }]}>
+          <View style={styles.sectionTitleRow}>
+            <Text variant="caption" style={{ color: pal.pink, fontSize: 12, fontWeight: '700' }}>
+              {t(
+                `${state.coupleProfile.myName} & ${state.coupleProfile.partnerName} · App 内双人聊天与账单留言（房间 #${state.coupleProfile.roomCode || 'LOVE-88'}）`,
+                `In-App Couple Chat & Bill Notes (#${state.coupleProfile.roomCode || 'LOVE-88'})`,
+              )}
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+              {[
+                t('今日账单已记完，合池结余很稳', 'Daily bills logged, pool looks solid'),
+                t('这笔算进我们的旅行心愿专账吧', 'Let us put this in our Travel Ledger'),
+                t('周末双人晚餐预算还很充足', 'Plenty of budget for weekend dinner'),
+              ].map((quickMsg) => (
+                <Pressable
+                  key={quickMsg}
+                  onPress={() => {
+                    const next = sendCoupleChatMessage({ sender: 'me', text: quickMsg, linkedTx: quotedTxForChat });
+                    setState(next);
+                    setQuotedTxForChat(undefined);
+                    playCashRegisterTick('income');
+                  }}
+                  style={[styles.microBtn, { backgroundColor: pal.pillBg, borderColor: pal.border }]}
+                >
+                  <Text variant="caption" style={{ color: pal.sub, fontSize: 10 }}>
+                    {quickMsg}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <View style={{ gap: 6, maxHeight: 210 }}>
+            {chatMessages.slice(-6).map((msg) => {
+              const isMe = msg.sender === 'me';
+              const isSys = msg.sender === 'system';
+              return (
+                <View
+                  key={msg.id}
+                  style={{
+                    alignSelf: isSys ? 'center' : isMe ? 'flex-end' : 'flex-start',
+                    maxWidth: isSys ? '95%' : '82%',
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 9,
+                    borderWidth: 1,
+                    borderColor: isSys ? pal.border : isMe ? pal.goldBorder : pal.pinkBorder,
+                    backgroundColor: isSys ? pal.pillBg : isMe ? pal.pillActiveBg : `${pal.pink}16`,
+                    gap: 3,
+                  }}
+                >
+                  {!isSys ? (
+                    <Text variant="caption" style={{ color: isMe ? pal.goldText : pal.pink, fontSize: 9.5, fontWeight: '700' }}>
+                      {`${msg.senderName} · ${msg.createdAt.slice(11, 16)}`}
+                    </Text>
+                  ) : null}
+                  {msg.linkedTx ? (
+                    <View
+                      style={{
+                        paddingHorizontal: 7,
+                        paddingVertical: 3,
+                        borderRadius: 5,
+                        backgroundColor: pal.cardBg,
+                        borderLeftWidth: 2,
+                        borderLeftColor: pal.gold,
+                      }}
+                    >
+                      <Text variant="caption" style={{ color: pal.muted, fontSize: 9.5, fontFamily: theme.fontFamily.mono }}>
+                        {`关联账单：${msg.linkedTx.ledgerTitle ? `[${msg.linkedTx.ledgerTitle}] ` : ''}${msg.linkedTx.note} ${msg.linkedTx.kind === 'expense' ? '-' : '+'}¥${msg.linkedTx.amountCny}`}
+                      </Text>
+                    </View>
+                  ) : null}
+                  <Text variant="caption" style={{ color: pal.ink, fontSize: 11.5 }}>
+                    {msg.text}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+
+          {quotedTxForChat ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: pal.cardBg, borderWidth: 1, borderColor: pal.goldBorder }}>
+              <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5 }}>
+                {`正在引用账单留言：[${quotedTxForChat.ledgerTitle ?? '账本'}] ${quotedTxForChat.note} ¥${quotedTxForChat.amountCny}`}
+              </Text>
+              <Pressable onPress={() => setQuotedTxForChat(undefined)}>
+                <Text variant="caption" style={{ color: pal.muted, fontSize: 10.5 }}>× 取消引用</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TextInput
+              value={chatInput}
+              onChangeText={setChatInput}
+              onSubmitEditing={handleSendChat}
+              placeholder={t(`给${state.coupleProfile.partnerName}发消息或讨论账单…`, 'Message your partner…')}
+              placeholderTextColor={pal.muted}
+              style={[
+                styles.smartInput,
+                { height: 34, backgroundColor: pal.inputBg, borderColor: pal.pinkBorder, color: pal.ink },
+                Platform.OS === 'web' ? ({ outlineStyle: 'none' } as unknown as ViewStyle) : null,
+              ]}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="发送双人聊天消息"
+              onPress={handleSendChat}
+              style={[styles.smartSubmitBtn, { height: 34, backgroundColor: `${pal.pink}24`, borderColor: pal.pink }]}
+            >
+              <Text variant="caption" style={{ color: pal.pink, fontSize: 11, fontWeight: '700' }}>
+                {t('发送消息', 'Send')}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
 
       {/* Optional Drawer A: Partner Sync Merge Box */}
       {showPartnerMergeBox ? (
@@ -2621,6 +3228,7 @@ export function BookkeepingLedgerHub({
                         const cat = getLedgerCategoryMeta(tx.categoryId);
                         const acc = getLedgerAccountMeta(tx.accountId);
                         const ownerMeta = getOwnerBadgeMeta(tx.owner, state.coupleProfile);
+                        const bookMeta = getLedgerBookMeta(tx.ledgerId, ledgerBooks);
                         return (
                           <View key={tx.id} style={styles.txRow}>
                             <View style={styles.txLeft}>
@@ -2635,7 +3243,7 @@ export function BookkeepingLedgerHub({
                                 </Text>
                               </View>
                               <View style={{ gap: 1 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
                                   <Text variant="caption" style={{ color: pal.ink, fontSize: 12, fontWeight: '600' }}>
                                     {tx.note}
                                   </Text>
@@ -2647,6 +3255,16 @@ export function BookkeepingLedgerHub({
                                   >
                                     <Text variant="caption" style={{ color: ownerMeta.color, fontSize: 9, fontWeight: '700' }}>
                                       {ownerMeta.zh}
+                                    </Text>
+                                  </View>
+                                  <View
+                                    style={[
+                                      styles.ownerMiniTag,
+                                      { backgroundColor: `${bookMeta.color}16`, borderColor: `${bookMeta.color}55` },
+                                    ]}
+                                  >
+                                    <Text variant="caption" style={{ color: bookMeta.color, fontSize: 9, fontWeight: '700' }}>
+                                      {t(bookMeta.zh, bookMeta.en)}
                                     </Text>
                                   </View>
                                 </View>
@@ -2667,6 +3285,25 @@ export function BookkeepingLedgerHub({
                               >
                                 {`${tx.kind === 'expense' ? '-' : '+'}¥${tx.amountCny.toFixed(2)}`}
                               </Text>
+                              <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel={`对账单 ${tx.note} 发送双人聊天留言`}
+                                onPress={() => {
+                                  setQuotedTxForChat({
+                                    txId: tx.id,
+                                    note: tx.note,
+                                    amountCny: tx.amountCny,
+                                    kind: tx.kind,
+                                    ledgerTitle: bookMeta.zh,
+                                  });
+                                  setShowCoupleChatDrawer(true);
+                                }}
+                                style={[styles.microBtn, { paddingHorizontal: 6, paddingVertical: 2, backgroundColor: pal.pillBg, borderColor: pal.border }]}
+                              >
+                                <Text variant="caption" style={{ color: pal.sub, fontSize: 9.5 }}>
+                                  {t('留言', 'Chat')}
+                                </Text>
+                              </Pressable>
                               <Pressable
                                 accessibilityRole="button"
                                 accessibilityLabel={`删除账单 ${tx.note}`}

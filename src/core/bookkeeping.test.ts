@@ -3,9 +3,11 @@ import { describe, expect, it } from '@jest/globals';
 import {
   computeCategoryBreakdown,
   computeMonthlyBookkeepingSummary,
+  computeMultiLedgerPoolBreakdown,
   computeWealthGoalTrajectory,
   DEFAULT_BOOKKEEPING_STATE,
   evaluateAmountExpression,
+  filterTransactionsByLedgerScope,
   materializeDueRecurringRules,
   mergePartnerBookkeepingState,
   parseAutoLogUrlParams,
@@ -134,5 +136,22 @@ describe('bookkeeping core engine', () => {
 
     const lunch = presets.find((p) => p.id === 'preset-lunch');
     expect(lunch?.isFixedPrice).toBe(false);
+  });
+
+  it('aggregates multi-ledger fund pools and filters by individual ledger or pooled scope', () => {
+    const pool = computeMultiLedgerPoolBreakdown(DEFAULT_BOOKKEEPING_STATE, '2026-11');
+    // 3 default ledgers: 6000 + 3000 + 2000 = 11000 pooled budget
+    expect(pool.items.length).toBe(3);
+    expect(pool.pooledMonthlyBudgetCny).toBe(11000);
+    expect(pool.pooledMonthExpenseCny).toBe(337);
+
+    const books = DEFAULT_BOOKKEEPING_STATE.ledgerBooks ?? [];
+    const travelOnly = filterTransactionsByLedgerScope(
+      DEFAULT_BOOKKEEPING_STATE.transactions,
+      books,
+      'ledger-travel',
+    );
+    expect(travelOnly.length).toBe(1);
+    expect(travelOnly[0]?.amountCny).toBe(38);
   });
 });

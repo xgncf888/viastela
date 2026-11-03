@@ -1,7 +1,8 @@
 /**
  * Core domain model, natural-language parser, iOS Shortcuts URL auto-logger,
  * recurring rules engine, Salary × Investment Ratio -> Target Wealth Compounding
- * Trajectory calculator, and Couple Co-Op non-destructive sync engine.
+ * Trajectory calculator, Multi-Ledger & Pooled Funds aggregation engine,
+ * and Couple Co-Op Friend Pairing + In-App Chat engine.
  */
 
 import { addDaysToLocalDay } from './life-milestones-okr';
@@ -25,6 +26,35 @@ export type LedgerCategoryId =
   | 'bonus';
 
 export type LedgerAccountId = 'alipay' | 'wechat' | 'bank' | 'applepay';
+
+/** Multi-ledger ID (e.g. 'ledger-daily', 'ledger-travel', 'ledger-invest', or custom) */
+export type LedgerBookId = string;
+
+/** Scope selector: 'pool' aggregates all ledgers with includeInPool === true, or a specific ledger ID */
+export type LedgerScopeId = 'pool' | LedgerBookId;
+
+export type LedgerBook = {
+  id: LedgerBookId;
+  /** Clean 1-char typographic monogram (e.g. '家', '旅', '投', '专') */
+  icon: string;
+  zh: string;
+  en: string;
+  monthlyBudgetCny: number;
+  /** Whether this ledger's cashflow & budget are pooled into the unified family fund pool (资金合池统计) */
+  includeInPool: boolean;
+  color: string;
+};
+
+export type LedgerPoolBreakdownItem = {
+  book: LedgerBook;
+  monthExpenseCny: number;
+  monthIncomeCny: number;
+  netCashflowCny: number;
+  totalHistoricalNetCny: number;
+  budgetUsedPct: number;
+  poolExpenseSharePct: number;
+  txCount: number;
+};
 
 export type LedgerCategoryMeta = {
   id: LedgerCategoryId;
@@ -58,6 +88,8 @@ export type LedgerTransaction = {
   localDay: string;
   createdAt: string;
   owner?: LedgerOwnerId;
+  /** Which ledger book this transaction belongs to (defaults to 'ledger-daily') */
+  ledgerId?: LedgerBookId;
   recurringRuleId?: string;
 };
 
@@ -71,6 +103,7 @@ export type RecurringLedgerRule = {
   /** Day of month (1..28) when this recurring item triggers automatically */
   dayOfMonth: number;
   owner: LedgerOwnerId;
+  ledgerId?: LedgerBookId;
   enabled: boolean;
   lastAppliedYearMonth?: string | null;
 };
@@ -92,6 +125,31 @@ export type CoupleTeamProfile = {
   partnerName: string;
   jointWishTitle: string;
   teamStreakDays: number;
+  /** Unique friend code for in-app friend adding */
+  myFriendCode: string;
+  /** Bound partner friend code */
+  partnerFriendCode: string;
+  /** Shared 6-char real-time room code for live ledger & chat sync */
+  roomCode: string;
+  /** Whether a partner friend is actively bound */
+  friendBound: boolean;
+  /** Whether new bills & chat messages auto-sync in real time */
+  autoSyncEnabled: boolean;
+};
+
+export type CoupleChatMessage = {
+  id: string;
+  sender: 'me' | 'partner' | 'system';
+  senderName: string;
+  text: string;
+  createdAt: string;
+  linkedTx?: {
+    txId: string;
+    note: string;
+    amountCny: number;
+    kind: LedgerEntryKind;
+    ledgerTitle?: string;
+  };
 };
 
 export type QuickLedgerPreset = {
@@ -106,6 +164,7 @@ export type QuickLedgerPreset = {
   categoryId: LedgerCategoryId;
   accountId: LedgerAccountId;
   owner?: LedgerOwnerId;
+  ledgerId?: LedgerBookId;
 };
 
 export type BookkeepingState = {
@@ -116,6 +175,8 @@ export type BookkeepingState = {
   wealthPlan: WealthPlanConfig;
   coupleProfile: CoupleTeamProfile;
   quickPresets?: QuickLedgerPreset[];
+  ledgerBooks?: LedgerBook[];
+  chatMessages?: CoupleChatMessage[];
 };
 
 export type MonthlyBookkeepingSummary = {
@@ -131,6 +192,7 @@ export type MonthlyBookkeepingSummary = {
   daysLeftInMonth: number;
   dailySafeToSpendCny: number;
   isOverBudget: boolean;
+  pooledLedgerCount: number;
   byOwner: {
     meExpenseCny: number;
     partnerExpenseCny: number;
@@ -185,6 +247,36 @@ export type WealthGoalTrajectory = {
     gainCny: number;
   }[];
 };
+
+export const DEFAULT_LEDGER_BOOKS: readonly LedgerBook[] = [
+  {
+    id: 'ledger-daily',
+    icon: '家',
+    zh: '日常家庭账本',
+    en: 'Household Daily',
+    monthlyBudgetCny: 6000,
+    includeInPool: true,
+    color: '#f5b942',
+  },
+  {
+    id: 'ledger-travel',
+    icon: '旅',
+    zh: '旅行心愿专账',
+    en: 'Travel & Wish',
+    monthlyBudgetCny: 3000,
+    includeInPool: true,
+    color: '#38bdf8',
+  },
+  {
+    id: 'ledger-invest',
+    icon: '投',
+    zh: '长期定投专账',
+    en: 'Wealth & Invest',
+    monthlyBudgetCny: 2000,
+    includeInPool: true,
+    color: '#34d399',
+  },
+];
 
 export const LEDGER_CATEGORIES: readonly LedgerCategoryMeta[] = [
   {
@@ -347,6 +439,7 @@ export const QUICK_LEDGER_PRESETS: readonly QuickLedgerPreset[] = [
     categoryId: 'transit',
     accountId: 'applepay',
     owner: 'me',
+    ledgerId: 'ledger-daily',
   },
   {
     id: 'preset-coffee',
@@ -358,6 +451,7 @@ export const QUICK_LEDGER_PRESETS: readonly QuickLedgerPreset[] = [
     categoryId: 'coffee',
     accountId: 'wechat',
     owner: 'me',
+    ledgerId: 'ledger-daily',
   },
   {
     id: 'preset-lunch',
@@ -369,6 +463,7 @@ export const QUICK_LEDGER_PRESETS: readonly QuickLedgerPreset[] = [
     categoryId: 'dining',
     accountId: 'alipay',
     owner: 'me',
+    ledgerId: 'ledger-daily',
   },
   {
     id: 'preset-boba',
@@ -380,6 +475,7 @@ export const QUICK_LEDGER_PRESETS: readonly QuickLedgerPreset[] = [
     categoryId: 'coffee',
     accountId: 'wechat',
     owner: 'partner',
+    ledgerId: 'ledger-daily',
   },
   {
     id: 'preset-grocery',
@@ -391,6 +487,7 @@ export const QUICK_LEDGER_PRESETS: readonly QuickLedgerPreset[] = [
     categoryId: 'shopping',
     accountId: 'alipay',
     owner: 'shared',
+    ledgerId: 'ledger-daily',
   },
   {
     id: 'preset-date',
@@ -402,6 +499,7 @@ export const QUICK_LEDGER_PRESETS: readonly QuickLedgerPreset[] = [
     categoryId: 'dining',
     accountId: 'bank',
     owner: 'shared',
+    ledgerId: 'ledger-travel',
   },
 ];
 
@@ -415,6 +513,7 @@ export const DEFAULT_RECURRING_RULES: readonly RecurringLedgerRule[] = [
     accountId: 'bank',
     dayOfMonth: 1,
     owner: 'me',
+    ledgerId: 'ledger-daily',
     enabled: true,
     lastAppliedYearMonth: '2026-11',
   },
@@ -427,6 +526,7 @@ export const DEFAULT_RECURRING_RULES: readonly RecurringLedgerRule[] = [
     accountId: 'bank',
     dayOfMonth: 1,
     owner: 'partner',
+    ledgerId: 'ledger-daily',
     enabled: true,
     lastAppliedYearMonth: '2026-11',
   },
@@ -439,6 +539,7 @@ export const DEFAULT_RECURRING_RULES: readonly RecurringLedgerRule[] = [
     accountId: 'bank',
     dayOfMonth: 5,
     owner: 'shared',
+    ledgerId: 'ledger-daily',
     enabled: true,
     lastAppliedYearMonth: null,
   },
@@ -451,6 +552,7 @@ export const DEFAULT_RECURRING_RULES: readonly RecurringLedgerRule[] = [
     accountId: 'applepay',
     dayOfMonth: 15,
     owner: 'shared',
+    ledgerId: 'ledger-daily',
     enabled: true,
     lastAppliedYearMonth: null,
   },
@@ -469,7 +571,36 @@ export const DEFAULT_COUPLE_PROFILE: CoupleTeamProfile = {
   partnerName: '老婆',
   jointWishTitle: '家庭共同旅行基金',
   teamStreakDays: 12,
+  myFriendCode: 'VS-8829',
+  partnerFriendCode: 'VS-6612',
+  roomCode: 'LOVE-88',
+  friendBound: true,
+  autoSyncEnabled: true,
 };
+
+export const DEFAULT_COUPLE_CHAT_MESSAGES: readonly CoupleChatMessage[] = [
+  {
+    id: 'chat-seed-1',
+    sender: 'partner',
+    senderName: '老婆',
+    text: '盒马买的牛排和蓝莓我已经记在「日常家庭账本」啦，周末纪念日晚餐我们可以记到「旅行心愿专账」里。',
+    createdAt: '2026-11-01T18:25:00.000Z',
+    linkedTx: {
+      txId: 'tx-seed-2',
+      note: '盒马生鲜牛排与蓝莓双人采购',
+      amountCny: 168,
+      kind: 'expense',
+      ledgerTitle: '日常家庭账本',
+    },
+  },
+  {
+    id: 'chat-seed-2',
+    sender: 'me',
+    senderName: '我',
+    text: '收到，这个月我们把定投比例调到 45%，三个账本资金合池统计下来结余很稳。',
+    createdAt: '2026-11-02T20:10:00.000Z',
+  },
+];
 
 export const DEFAULT_BOOKKEEPING_STATE: BookkeepingState = {
   monthlyBudgetCny: 6000,
@@ -478,6 +609,8 @@ export const DEFAULT_BOOKKEEPING_STATE: BookkeepingState = {
   wealthPlan: { ...DEFAULT_WEALTH_PLAN },
   coupleProfile: { ...DEFAULT_COUPLE_PROFILE },
   quickPresets: [...QUICK_LEDGER_PRESETS],
+  ledgerBooks: [...DEFAULT_LEDGER_BOOKS],
+  chatMessages: [...DEFAULT_COUPLE_CHAT_MESSAGES],
   transactions: [
     {
       id: 'tx-seed-1',
@@ -489,6 +622,7 @@ export const DEFAULT_BOOKKEEPING_STATE: BookkeepingState = {
       localDay: '2026-11-01',
       createdAt: '2026-11-01T09:30:00.000Z',
       owner: 'me',
+      ledgerId: 'ledger-daily',
       recurringRuleId: 'rec-my-salary',
     },
     {
@@ -501,6 +635,7 @@ export const DEFAULT_BOOKKEEPING_STATE: BookkeepingState = {
       localDay: '2026-11-01',
       createdAt: '2026-11-01T09:35:00.000Z',
       owner: 'partner',
+      ledgerId: 'ledger-daily',
       recurringRuleId: 'rec-partner-salary',
     },
     {
@@ -513,6 +648,7 @@ export const DEFAULT_BOOKKEEPING_STATE: BookkeepingState = {
       localDay: '2026-11-01',
       createdAt: '2026-11-01T18:20:00.000Z',
       owner: 'shared',
+      ledgerId: 'ledger-daily',
     },
     {
       id: 'tx-seed-3',
@@ -524,6 +660,7 @@ export const DEFAULT_BOOKKEEPING_STATE: BookkeepingState = {
       localDay: '2026-11-02',
       createdAt: '2026-11-02T11:10:00.000Z',
       owner: 'me',
+      ledgerId: 'ledger-invest',
     },
     {
       id: 'tx-seed-4',
@@ -535,6 +672,7 @@ export const DEFAULT_BOOKKEEPING_STATE: BookkeepingState = {
       localDay: '2026-11-02',
       createdAt: '2026-11-02T12:40:00.000Z',
       owner: 'partner',
+      ledgerId: 'ledger-daily',
     },
     {
       id: 'tx-seed-5',
@@ -546,6 +684,7 @@ export const DEFAULT_BOOKKEEPING_STATE: BookkeepingState = {
       localDay: '2026-11-03',
       createdAt: '2026-11-03T09:15:00.000Z',
       owner: 'me',
+      ledgerId: 'ledger-daily',
     },
     {
       id: 'tx-seed-6',
@@ -557,9 +696,116 @@ export const DEFAULT_BOOKKEEPING_STATE: BookkeepingState = {
       localDay: '2026-11-03',
       createdAt: '2026-11-03T12:30:00.000Z',
       owner: 'me',
+      ledgerId: 'ledger-travel',
     },
   ],
 };
+
+export function getLedgerBookMeta(
+  ledgerId: LedgerBookId | undefined,
+  books: readonly LedgerBook[] = DEFAULT_LEDGER_BOOKS,
+): LedgerBook {
+  const id = ledgerId || 'ledger-daily';
+  return books.find((b) => b.id === id) ?? books[0] ?? DEFAULT_LEDGER_BOOKS[0]!;
+}
+
+/**
+ * Filters transactions according to the active ledger scope:
+ * - `'pool'`: includes transactions from all ledgers where `includeInPool === true`
+ * - `<ledgerId>`: includes only transactions belonging to that specific ledger
+ */
+export function filterTransactionsByLedgerScope(
+  transactions: readonly LedgerTransaction[],
+  books: readonly LedgerBook[],
+  scope: LedgerScopeId,
+): LedgerTransaction[] {
+  if (scope === 'pool') {
+    const pooledIds = new Set(books.filter((b) => b.includeInPool).map((b) => b.id));
+    // Always keep at least 'ledger-daily' if all were unchecked
+    if (pooledIds.size === 0 && books[0]) {
+      pooledIds.add(books[0].id);
+    }
+    return transactions.filter((tx) => pooledIds.has(tx.ledgerId ?? 'ledger-daily'));
+  }
+  return transactions.filter((tx) => (tx.ledgerId ?? 'ledger-daily') === scope);
+}
+
+/**
+ * Computes per-ledger cashflow, budget utilization, and share of the family fund pool.
+ */
+export function computeMultiLedgerPoolBreakdown(
+  state: BookkeepingState,
+  yearMonth: string,
+): {
+  items: LedgerPoolBreakdownItem[];
+  pooledMonthlyBudgetCny: number;
+  pooledMonthExpenseCny: number;
+  pooledMonthIncomeCny: number;
+  pooledNetCashflowCny: number;
+} {
+  const books = state.ledgerBooks && state.ledgerBooks.length > 0 ? state.ledgerBooks : DEFAULT_LEDGER_BOOKS;
+  let pooledMonthlyBudgetCny = 0;
+  let pooledMonthExpenseCny = 0;
+  let pooledMonthIncomeCny = 0;
+
+  const rawStats = books.map((book) => {
+    let monthExp = 0;
+    let monthInc = 0;
+    let histNet = 0;
+    let count = 0;
+    for (const tx of state.transactions) {
+      const txLedger = tx.ledgerId ?? 'ledger-daily';
+      if (txLedger !== book.id) continue;
+      count += 1;
+      if (tx.kind === 'expense') histNet -= tx.amountCny;
+      else histNet += tx.amountCny;
+
+      if (tx.localDay.startsWith(yearMonth)) {
+        if (tx.kind === 'expense') monthExp += tx.amountCny;
+        else monthInc += tx.amountCny;
+      }
+    }
+    monthExp = Math.round(monthExp * 100) / 100;
+    monthInc = Math.round(monthInc * 100) / 100;
+    histNet = Math.round(histNet * 100) / 100;
+
+    if (book.includeInPool) {
+      pooledMonthlyBudgetCny += book.monthlyBudgetCny;
+      pooledMonthExpenseCny += monthExp;
+      pooledMonthIncomeCny += monthInc;
+    }
+
+    return {
+      book,
+      monthExpenseCny: monthExp,
+      monthIncomeCny: monthInc,
+      netCashflowCny: Math.round((monthInc - monthExp) * 100) / 100,
+      totalHistoricalNetCny: histNet,
+      budgetUsedPct:
+        book.monthlyBudgetCny > 0 ? Math.min(999, Math.round((monthExp / book.monthlyBudgetCny) * 100)) : 0,
+      txCount: count,
+    };
+  });
+
+  pooledMonthExpenseCny = Math.round(pooledMonthExpenseCny * 100) / 100;
+  pooledMonthIncomeCny = Math.round(pooledMonthIncomeCny * 100) / 100;
+
+  const items: LedgerPoolBreakdownItem[] = rawStats.map((s) => ({
+    ...s,
+    poolExpenseSharePct:
+      s.book.includeInPool && pooledMonthExpenseCny > 0
+        ? Math.max(1, Math.round((s.monthExpenseCny / pooledMonthExpenseCny) * 100))
+        : 0,
+  }));
+
+  return {
+    items,
+    pooledMonthlyBudgetCny: Math.max(100, pooledMonthlyBudgetCny || state.monthlyBudgetCny || 6000),
+    pooledMonthExpenseCny,
+    pooledMonthIncomeCny,
+    pooledNetCashflowCny: Math.round((pooledMonthIncomeCny - pooledMonthExpenseCny) * 100) / 100,
+  };
+}
 
 export function getLedgerCategoryMeta(id: LedgerCategoryId): LedgerCategoryMeta {
   return LEDGER_CATEGORIES.find((c) => c.id === id) ?? LEDGER_CATEGORIES[0]!;
@@ -761,6 +1007,7 @@ export function materializeDueRecurringRules(
       localDay: ruleLocalDay,
       createdAt: `${ruleLocalDay}T09:00:00.000Z`,
       owner: rule.owner,
+      ledgerId: rule.ledgerId ?? 'ledger-daily',
       recurringRuleId: rule.id,
     });
     return {
@@ -897,7 +1144,7 @@ export function computeWealthGoalTrajectory(input: {
 export function mergePartnerBookkeepingState(
   local: BookkeepingState,
   incoming: Partial<BookkeepingState>,
-): { merged: BookkeepingState; addedTxCount: number } {
+): { merged: BookkeepingState; addedTxCount: number; addedChatCount: number } {
   const existingIds = new Set(local.transactions.map((t) => t.id));
   const incomingTx = Array.isArray(incoming.transactions) ? incoming.transactions : [];
   const newTx: LedgerTransaction[] = [];
@@ -908,6 +1155,7 @@ export function mergePartnerBookkeepingState(
     newTx.push({
       ...tx,
       owner: tx.owner ?? 'partner',
+      ledgerId: tx.ledgerId ?? 'ledger-daily',
     });
   }
 
@@ -915,12 +1163,39 @@ export function mergePartnerBookkeepingState(
     b.createdAt.localeCompare(a.createdAt),
   );
 
+  // Also non-destructively merge chat messages and custom ledgers
+  const localChats = local.chatMessages ?? [...DEFAULT_COUPLE_CHAT_MESSAGES];
+  const existingChatIds = new Set(localChats.map((m) => m.id));
+  const incomingChats = Array.isArray(incoming.chatMessages) ? incoming.chatMessages : [];
+  const newChats: CoupleChatMessage[] = [];
+  for (const msg of incomingChats) {
+    if (!msg || typeof msg.id !== 'string' || existingChatIds.has(msg.id)) continue;
+    existingChatIds.add(msg.id);
+    newChats.push(msg);
+  }
+  const combinedChats = [...localChats, ...newChats].sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt),
+  );
+
+  const localBooks = local.ledgerBooks ?? [...DEFAULT_LEDGER_BOOKS];
+  const existingBookIds = new Set(localBooks.map((b) => b.id));
+  const incomingBooks = Array.isArray(incoming.ledgerBooks) ? incoming.ledgerBooks : [];
+  const mergedBooks = [...localBooks];
+  for (const b of incomingBooks) {
+    if (!b || typeof b.id !== 'string' || existingBookIds.has(b.id)) continue;
+    existingBookIds.add(b.id);
+    mergedBooks.push(b);
+  }
+
   return {
     merged: {
       ...local,
       transactions: combinedTx,
+      chatMessages: combinedChats,
+      ledgerBooks: mergedBooks,
     },
     addedTxCount: newTx.length,
+    addedChatCount: newChats.length,
   };
 }
 
@@ -935,6 +1210,7 @@ function daysInYearMonth(yearMonth: string): number {
 export function computeMonthlyBookkeepingSummary(
   state: BookkeepingState,
   todayLocalDay: string,
+  scope: LedgerScopeId = 'pool',
 ): MonthlyBookkeepingSummary {
   const yearMonth = /^\d{4}-\d{2}/.test(todayLocalDay) ? todayLocalDay.slice(0, 7) : '2026-11';
   const dayOfMonth = /^\d{4}-\d{2}-\d{2}$/.test(todayLocalDay)
@@ -942,6 +1218,12 @@ export function computeMonthlyBookkeepingSummary(
     : 1;
   const totalDays = daysInYearMonth(yearMonth);
   const daysLeftInMonth = Math.max(1, totalDays - dayOfMonth + 1);
+
+  const books = state.ledgerBooks && state.ledgerBooks.length > 0 ? state.ledgerBooks : DEFAULT_LEDGER_BOOKS;
+  const scopedTransactions =
+     state.ledgerBooks && state.ledgerBooks.length > 0
+      ? filterTransactionsByLedgerScope(state.transactions, books, scope)
+      : state.transactions;
 
   let totalExpenseCny = 0;
   let totalIncomeCny = 0;
@@ -953,7 +1235,7 @@ export function computeMonthlyBookkeepingSummary(
   let meIncomeCny = 0;
   let partnerIncomeCny = 0;
 
-  for (const tx of state.transactions) {
+  for (const tx of scopedTransactions) {
     if (tx.localDay.startsWith(yearMonth)) {
       const owner = tx.owner ?? 'me';
       if (tx.kind === 'expense') {
@@ -981,7 +1263,11 @@ export function computeMonthlyBookkeepingSummary(
   todayExpenseCny = Math.round(todayExpenseCny * 100) / 100;
   todayIncomeCny = Math.round(todayIncomeCny * 100) / 100;
 
-  const monthlyBudgetCny = Math.max(100, state.monthlyBudgetCny || 6000);
+  const activeBook = scope === 'pool' ? null : books.find((b) => b.id === scope);
+  const monthlyBudgetCny = Math.max(
+    100,
+    activeBook ? activeBook.monthlyBudgetCny : state.monthlyBudgetCny || 6000,
+  );
   const remainingBudgetCny = Math.round((monthlyBudgetCny - totalExpenseCny) * 100) / 100;
   const budgetUsedPct = Math.min(999, Math.round((totalExpenseCny / monthlyBudgetCny) * 100));
   const dailySafeToSpendCny = Math.max(0, Math.round(remainingBudgetCny / daysLeftInMonth));
@@ -999,6 +1285,7 @@ export function computeMonthlyBookkeepingSummary(
     daysLeftInMonth,
     dailySafeToSpendCny,
     isOverBudget: totalExpenseCny > monthlyBudgetCny,
+    pooledLedgerCount: books.filter((b) => b.includeInPool).length,
     byOwner: {
       meExpenseCny: Math.round(meExpenseCny * 100) / 100,
       partnerExpenseCny: Math.round(partnerExpenseCny * 100) / 100,
@@ -1107,15 +1394,19 @@ export function computeAccountBalances(
   });
 }
 
-export function formatLedgerCsv(transactions: readonly LedgerTransaction[]): string {
-  const header = 'Date,Type,Owner,Category,Account,Amount(CNY),Note';
+export function formatLedgerCsv(
+  transactions: readonly LedgerTransaction[],
+  books: readonly LedgerBook[] = DEFAULT_LEDGER_BOOKS,
+): string {
+  const header = 'Date,Ledger,Type,Owner,Category,Account,Amount(CNY),Note';
   const rows = transactions.map((tx) => {
+    const book = getLedgerBookMeta(tx.ledgerId, books);
     const cat = getLedgerCategoryMeta(tx.categoryId);
     const acc = getLedgerAccountMeta(tx.accountId);
     const ownerMeta = getOwnerBadgeMeta(tx.owner);
     const safeNote = `"${(tx.note || '').replace(/"/g, '""')}"`;
     const signedAmount = tx.kind === 'expense' ? `-${tx.amountCny.toFixed(2)}` : `+${tx.amountCny.toFixed(2)}`;
-    return `${tx.localDay},${tx.kind},${ownerMeta.zh},${cat.zh},${acc.zh},${signedAmount},${safeNote}`;
+    return `${tx.localDay},${book.zh},${tx.kind},${ownerMeta.zh},${cat.zh},${acc.zh},${signedAmount},${safeNote}`;
   });
   return [header, ...rows].join('\n');
 }
