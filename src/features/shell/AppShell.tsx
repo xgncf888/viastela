@@ -10,8 +10,10 @@ import {
   detectRuntimeHostMode,
   type RuntimeHostMode,
 } from '@/core/charioteer-plugin';
-import { useI18n } from '@/ui/use-i18n';
+import { computeMonthlyBookkeepingSummary } from '@/core/bookkeeping';
 import { computeLocalDay, formatMonthDay } from '@/core/local-day';
+import { readBookkeepingState, subscribeBookkeepingStore } from '@/data/bookkeeping';
+import { useI18n } from '@/ui/use-i18n';
 import { studyRecordsOnDay } from '@/core/study';
 import { trainingSetsOnDay } from '@/core/training';
 import { formatKg, latestRecord, recordsOnDay } from '@/core/weight-stats';
@@ -98,7 +100,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [scopeOpen, setScopeOpen] = useState(false);
   const [hostAttached, setHostAttached] = useState(false);
+  const [bkState, setBkState] = useState(readBookkeepingState);
   const current = armed && armed.route === routeTab ? armed.id : routeTab;
+
+  useEffect(() => {
+    return subscribeBookkeepingStore(() => {
+      setBkState(readBookkeepingState());
+    });
+  }, []);
 
   const weight = useWeight();
   const training = useTraining();
@@ -121,16 +130,23 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const todayBadge = loggedCount > 0 ? `${loggedCount}/3` : formatMonthDay(accountingDay);
   const trendBadge = lastWeight ? `${formatKg(lastWeight.weightKg)}kg` : '⌘3';
+  const ledgerSummary = useMemo(
+    () => computeMonthlyBookkeepingSummary(bkState, accountingDay, 'pool'),
+    [bkState, accountingDay],
+  );
+  const ledgerBadge =
+    ledgerSummary.totalExpenseCny > 0 ? `-¥${Math.round(ledgerSummary.totalExpenseCny)}` : '¥ 账本';
+  const assetsBadge = `¥${Math.round(bkState.wealthPlan.currentSavedCny / 10000)}w`;
 
   const manifest = useMemo(
     () =>
       buildCharioteerPluginManifest({
         today: todayBadge,
-        assets: 'USD',
+        assets: assetsBadge,
         trend: trendBadge,
         timeline: locale === 'en' ? 'Log' : '台账',
       }),
-    [locale, todayBadge, trendBadge],
+    [assetsBadge, locale, todayBadge, trendBadge],
   );
 
   const runtimeMode: RuntimeHostMode = useMemo(() => {
@@ -164,8 +180,16 @@ export function AppShell({ children }: { children: ReactNode }) {
       openRecordSheet(undefined, 'block');
       return true;
     }
+    if (commandId.endsWith('.quickRecordLedger')) {
+      openRecordSheet(undefined, 'ledger');
+      return true;
+    }
     if (commandId.endsWith('.navigateToday')) {
       router.replace('/');
+      return true;
+    }
+    if (commandId.endsWith('.navigateLedger')) {
+      router.replace('/ledger');
       return true;
     }
     if (commandId.endsWith('.navigateAssets')) {
@@ -314,6 +338,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           openRecordSheet(undefined, 'block');
           return;
         }
+        if (event.shiftKey && lower === 'b') {
+          event.preventDefault();
+          openRecordSheet(undefined, 'ledger');
+          return;
+        }
         if (!event.shiftKey) {
           const index = Number.parseInt(event.key, 10) - 1;
           if (index >= 0 && index < TABS.length) {
@@ -346,8 +375,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
     if (tabId === 'ledger') {
       return {
-        text: '¥ 账本',
-        tone: 'live',
+        text: ledgerBadge,
+        tone: ledgerSummary.isOverBudget ? 'alert' : 'live',
       };
     }
     if (tabId === 'trend') {
@@ -356,7 +385,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         tone: lastWeight ? 'neutral' : 'shortcut',
       };
     }
-    if (tabId === 'assets') return { text: 'USD', tone: 'neutral' };
+    if (tabId === 'assets') return { text: assetsBadge, tone: 'neutral' };
     if (tabId === 'timeline') return { text: '⌘5', tone: 'shortcut' };
     return { text: 'v1.0', tone: 'live' };
   }

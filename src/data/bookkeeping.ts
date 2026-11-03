@@ -98,11 +98,13 @@ function normalizeLedgerBooks(raw: unknown): LedgerBook[] {
   });
 }
 
+let memoryFallbackState: BookkeepingState = DEFAULT_BOOKKEEPING_STATE;
+
 export function readBookkeepingState(): BookkeepingState {
   try {
-    if (typeof localStorage === 'undefined') return DEFAULT_BOOKKEEPING_STATE;
+    if (typeof localStorage === 'undefined') return memoryFallbackState;
     const raw = localStorage.getItem(BOOKKEEPING_STORAGE_KEY);
-    if (!raw) return DEFAULT_BOOKKEEPING_STATE;
+    if (!raw) return memoryFallbackState;
     const parsed = JSON.parse(raw) as Partial<BookkeepingState>;
     if (!parsed || typeof parsed !== 'object') return DEFAULT_BOOKKEEPING_STATE;
     return {
@@ -143,11 +145,12 @@ export function readBookkeepingState(): BookkeepingState {
           : {},
     };
   } catch {
-    return DEFAULT_BOOKKEEPING_STATE;
+    return memoryFallbackState;
   }
 }
 
 export function writeBookkeepingState(state: BookkeepingState): BookkeepingState {
+  memoryFallbackState = state;
   try {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(BOOKKEEPING_STORAGE_KEY, JSON.stringify(state));
@@ -300,6 +303,40 @@ export function addLedgerTransaction(input: {
   writeBookkeepingState(next);
   broadcastStateToPartner(next);
   return { state: next, added };
+}
+
+export function updateLedgerTransaction(
+  id: string,
+  patch: Partial<
+    Pick<
+      LedgerTransaction,
+      'kind' | 'amountCny' | 'categoryId' | 'accountId' | 'note' | 'localDay' | 'owner' | 'ledgerId'
+    >
+  >,
+): BookkeepingState {
+  const cur = readBookkeepingState();
+  const nextTx = cur.transactions.map((tx) => {
+    if (tx.id !== id) return tx;
+    const nextAmount =
+      typeof patch.amountCny === 'number' && Number.isFinite(patch.amountCny)
+        ? Math.max(0.01, Math.round(patch.amountCny * 100) / 100)
+        : tx.amountCny;
+    const nextNote =
+      typeof patch.note === 'string' ? patch.note.trim() || tx.note : tx.note;
+    return {
+      ...tx,
+      ...patch,
+      amountCny: nextAmount,
+      note: nextNote,
+    };
+  });
+  const next: BookkeepingState = {
+    ...cur,
+    transactions: nextTx,
+  };
+  writeBookkeepingState(next);
+  broadcastStateToPartner(next);
+  return next;
 }
 
 export function removeLedgerTransaction(id: string): BookkeepingState {
@@ -632,6 +669,59 @@ export function addRecurringLedgerRule(input: {
     recurringRules: [rule, ...cur.recurringRules],
   };
   return writeBookkeepingState(next);
+}
+
+export function updateRecurringLedgerRule(
+  id: string,
+  patch: Partial<
+    Pick<
+      RecurringLedgerRule,
+      'title' | 'kind' | 'amountCny' | 'categoryId' | 'accountId' | 'dayOfMonth' | 'owner' | 'ledgerId' | 'enabled'
+    >
+  >,
+): BookkeepingState {
+  const cur = readBookkeepingState();
+  let updatedRule: RecurringLedgerRule | null = null;
+  const nextRules = cur.recurringRules.map((r) => {
+    if (r.id !== id) return r;
+    const cleanAmount =
+      typeof patch.amountCny === 'number' && Number.isFinite(patch.amountCny)
+        ? Math.max(1, Math.round(patch.amountCny))
+        : r.amountCny;
+    const cleanDay =
+      typeof patch.dayOfMonth === 'number' && Number.isFinite(patch.dayOfMonth)
+        ? Math.max(1, Math.min(28, Math.round(patch.dayOfMonth)))
+        : r.dayOfMonth;
+    const cleanTitle =
+      typeof patch.title === 'string' ? patch.title.trim() || r.title : r.title;
+    updatedRule = {
+      ...r,
+      ...patch,
+      title: cleanTitle,
+      amountCny: cleanAmount,
+      dayOfMonth: cleanDay,
+    };
+    return updatedRule;
+  });
+  const nextTransactions = updatedRule
+    ? cur.transactions.map((tx) => {
+        if (tx.recurringRuleId !== id) return tx;
+        return {
+          ...tx,
+          kind: updatedRule!.kind,
+          amountCny: updatedRule!.amountCny,
+          categoryId: updatedRule!.categoryId,
+          accountId: updatedRule!.accountId,
+          owner: updatedRule!.owner,
+          ledgerId: updatedRule!.ledgerId ?? tx.ledgerId,
+        };
+      })
+    : cur.transactions;
+  return writeBookkeepingState({
+    ...cur,
+    recurringRules: nextRules,
+    transactions: nextTransactions,
+  });
 }
 
 export function toggleRecurringLedgerRule(id: string): BookkeepingState {

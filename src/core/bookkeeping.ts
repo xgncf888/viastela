@@ -1209,17 +1209,36 @@ function daysInYearMonth(yearMonth: string): number {
   return new Date(Date.UTC(y, m, 0)).getUTCDate();
 }
 
+export function shiftYearMonth(yearMonth: string, deltaMonths: number): string {
+  const [yStr, mStr] = (yearMonth || '2026-11').split('-');
+  const y = Number.parseInt(yStr ?? '2026', 10) || 2026;
+  const m = Number.parseInt(mStr ?? '11', 10) || 11;
+  const totalMonths = y * 12 + (m - 1) + deltaMonths;
+  const nextY = Math.floor(totalMonths / 12);
+  const nextM = ((totalMonths % 12) + 12) % 12 + 1;
+  return `${nextY}-${String(nextM).padStart(2, '0')}`;
+}
+
 export function computeMonthlyBookkeepingSummary(
   state: BookkeepingState,
   todayLocalDay: string,
   scope: LedgerScopeId = 'pool',
+  targetYearMonth?: string,
 ): MonthlyBookkeepingSummary {
-  const yearMonth = /^\d{4}-\d{2}/.test(todayLocalDay) ? todayLocalDay.slice(0, 7) : '2026-11';
-  const dayOfMonth = /^\d{4}-\d{2}-\d{2}$/.test(todayLocalDay)
-    ? Math.max(1, Number.parseInt(todayLocalDay.slice(8, 10), 10))
-    : 1;
+  const todayYm = /^\d{4}-\d{2}/.test(todayLocalDay) ? todayLocalDay.slice(0, 7) : '2026-11';
+  const yearMonth =
+    targetYearMonth && /^\d{4}-\d{2}$/.test(targetYearMonth) ? targetYearMonth : todayYm;
+  const isCurrentMonth = yearMonth === todayYm;
+  const dayOfMonth =
+    isCurrentMonth && /^\d{4}-\d{2}-\d{2}$/.test(todayLocalDay)
+      ? Math.max(1, Number.parseInt(todayLocalDay.slice(8, 10), 10))
+      : 1;
   const totalDays = daysInYearMonth(yearMonth);
-  const daysLeftInMonth = Math.max(1, totalDays - dayOfMonth + 1);
+  const daysLeftInMonth = isCurrentMonth
+    ? Math.max(1, totalDays - dayOfMonth + 1)
+    : yearMonth < todayYm
+      ? 1
+      : totalDays;
 
   const books = state.ledgerBooks && state.ledgerBooks.length > 0 ? state.ledgerBooks : DEFAULT_LEDGER_BOOKS;
   const scopedTransactions =

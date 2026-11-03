@@ -150,9 +150,21 @@ export function buildCharioteerPluginManifest(
           category: 'record',
         },
         {
+          id: `${brand.slug}.quickRecordLedger`,
+          title: '快速记录日常收支账单 (¥)',
+          shortcut: '⇧⌘B',
+          category: 'record',
+        },
+        {
           id: `${brand.slug}.navigateToday`,
           title: '切换至 今日节律工作台',
           shortcut: '⌘1',
+          category: 'navigate',
+        },
+        {
+          id: `${brand.slug}.navigateLedger`,
+          title: '切换至 家庭多账本与财富中枢',
+          shortcut: '⌘2',
           category: 'navigate',
         },
         {

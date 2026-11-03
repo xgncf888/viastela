@@ -32,6 +32,8 @@ import {
   parseQuickBookkeepingInput,
   QUICK_LEDGER_PRESETS,
   type QuickLedgerPreset,
+  type RecurringLedgerRule,
+  shiftYearMonth,
 } from '@/core/bookkeeping';
 import { formatMonthDay, weekdayLabel } from '@/core/local-day';
 import {
@@ -58,7 +60,9 @@ import {
   toggleRecurringLedgerRule,
   updateAccountInitialBalance,
   updateCoupleTeamProfile,
+  updateLedgerTransaction,
   updateMonthlyBudgetCny,
+  updateRecurringLedgerRule,
   updateWealthPlanConfig,
 } from '@/data/bookkeeping';
 import { recordPledgeReward } from '@/data/life-gamification';
@@ -613,6 +617,27 @@ export function BookkeepingLedgerHub({
   const showFullPanels = !compact || expandCompactDetails;
   const hasDemoSeeds = state.transactions.some((tx) => tx.id.startsWith('tx-seed-'));
 
+  // Month switcher state (defaults to current month from localDay)
+  const currentYm = useMemo(() => (/^\d{4}-\d{2}/.test(localDay) ? localDay.slice(0, 7) : '2026-11'), [localDay]);
+  const [selectedYearMonth, setSelectedYearMonth] = useState<string>(currentYm);
+
+  // Inline Transaction Edit state
+  const [editingTxId, setEditingTxId] = useState<string | null>(null);
+  const [editTxAmount, setEditTxAmount] = useState('');
+  const [editTxNote, setEditTxNote] = useState('');
+  const [editTxCategory, setEditTxCategory] = useState<LedgerCategoryId>('dining');
+  const [editTxAccount, setEditTxAccount] = useState<LedgerAccountId>('wechat');
+  const [editTxOwner, setEditTxOwner] = useState<LedgerOwnerId>('me');
+  const [editTxLedgerId, setEditTxLedgerId] = useState<LedgerBookId>('ledger-daily');
+
+  // Inline Recurring Rule Edit state
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [editRuleTitle, setEditRuleTitle] = useState('');
+  const [editRuleAmount, setEditRuleAmount] = useState('');
+  const [editRuleDay, setEditRuleDay] = useState('1');
+  const [editRuleOwner, setEditRuleOwner] = useState<LedgerOwnerId>('me');
+  const [editRuleAccount, setEditRuleAccount] = useState<LedgerAccountId>('bank');
+
   useEffect(() => {
     ensureRangeSliderCss();
     const unsubStore = subscribeBookkeepingStore(() => {
@@ -701,8 +726,8 @@ export function BookkeepingLedgerHub({
   const effectiveWriteLedgerId = activeLedgerScope === 'pool' ? targetWriteLedgerId : activeLedgerScope;
 
   const summary = useMemo(
-    () => computeMonthlyBookkeepingSummary(state, localDay, activeLedgerScope),
-    [state, localDay, activeLedgerScope],
+    () => computeMonthlyBookkeepingSummary(state, localDay, activeLedgerScope, selectedYearMonth),
+    [state, localDay, activeLedgerScope, selectedYearMonth],
   );
   const poolBreakdown = useMemo(
     () => computeMultiLedgerPoolBreakdown(state, summary.yearMonth),
@@ -753,6 +778,7 @@ export function BookkeepingLedgerHub({
   const groupedDays = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     const filtered = ownerFilteredTransactions.filter((tx) => {
+      if (!q && !filterDay && !tx.localDay.startsWith(summary.yearMonth)) return false;
       if (filterCat !== 'all' && tx.categoryId !== filterCat) return false;
       if (filterAcc !== 'all' && tx.accountId !== filterAcc) return false;
       if (filterDay && tx.localDay !== filterDay) return false;
@@ -784,7 +810,83 @@ export function BookkeepingLedgerHub({
     }
 
     return [...map.values()].sort((a, b) => b.localDay.localeCompare(a.localDay));
-  }, [ownerFilteredTransactions, filterCat, filterAcc, filterDay, searchQuery, ledgerBooks]);
+  }, [ownerFilteredTransactions, filterCat, filterAcc, filterDay, searchQuery, ledgerBooks, summary.yearMonth]);
+
+  function startEditTransaction(tx: LedgerTransaction) {
+    if (editingTxId === tx.id) {
+      setEditingTxId(null);
+      return;
+    }
+    setEditingTxId(tx.id);
+    setEditTxAmount(String(tx.amountCny));
+    setEditTxNote(tx.note);
+    setEditTxCategory(tx.categoryId);
+    setEditTxAccount(tx.accountId);
+    setEditTxOwner(tx.owner ?? 'me');
+    setEditTxLedgerId(tx.ledgerId ?? 'ledger-daily');
+  }
+
+  function handleSaveTransactionEdit(tx: LedgerTransaction) {
+    const amt = evaluateAmountExpression(editTxAmount);
+    if (!amt || amt <= 0) {
+      showToast({ text: t('请输入有效金额', 'Enter valid amount'), tone: 'error' });
+      return;
+    }
+    const next = updateLedgerTransaction(tx.id, {
+      amountCny: amt,
+      note: editTxNote.trim() || tx.note,
+      categoryId: editTxCategory,
+      accountId: editTxAccount,
+      owner: editTxOwner,
+      ledgerId: editTxLedgerId,
+    });
+    setState(next);
+    setEditingTxId(null);
+    const book = getLedgerBookMeta(editTxLedgerId, ledgerBooks);
+    showToast({
+      text: t(
+        `已更新账单：${editTxNote.trim() || tx.note} ¥${amt.toFixed(2)}（${book.zh}）`,
+        `Updated transaction: ¥${amt.toFixed(2)} (${book.en})`,
+      ),
+    });
+  }
+
+  function startEditRecurringRule(rule: RecurringLedgerRule) {
+    if (editingRuleId === rule.id) {
+      setEditingRuleId(null);
+      return;
+    }
+    setEditingRuleId(rule.id);
+    setEditRuleTitle(rule.title);
+    setEditRuleAmount(String(rule.amountCny));
+    setEditRuleDay(String(rule.dayOfMonth));
+    setEditRuleOwner(rule.owner);
+    setEditRuleAccount(rule.accountId);
+  }
+
+  function handleSaveRecurringRuleEdit(rule: RecurringLedgerRule) {
+    const amt = evaluateAmountExpression(editRuleAmount);
+    if (!amt || amt <= 0) {
+      showToast({ text: t('请输入有效固定金额', 'Enter valid amount'), tone: 'error' });
+      return;
+    }
+    const day = Math.max(1, Math.min(28, Number.parseInt(editRuleDay, 10) || rule.dayOfMonth));
+    const next = updateRecurringLedgerRule(rule.id, {
+      title: editRuleTitle.trim() || rule.title,
+      amountCny: amt,
+      dayOfMonth: day,
+      owner: editRuleOwner,
+      accountId: editRuleAccount,
+    });
+    setState(next);
+    setEditingRuleId(null);
+    showToast({
+      text: t(
+        `已更新周期规则：${editRuleTitle.trim() || rule.title} 每月 ${day} 日 ¥${Math.round(amt)}`,
+        `Updated recurring rule: Day ${day} ¥${Math.round(amt)}`,
+      ),
+    });
+  }
 
   function handleSmartNaturalSubmit() {
     const parsed = parseQuickBookkeepingInput(
@@ -1919,9 +2021,48 @@ export function BookkeepingLedgerHub({
         <View style={styles.topMetricsRow}>
           <View style={[styles.metricCard, { backgroundColor: pal.cardBg, borderColor: pal.border }]}>
             <View style={styles.metricHeaderRow}>
-              <Text variant="caption" style={{ color: pal.muted, fontSize: 11 }}>
-                {t(`${summary.yearMonth} 本月累计支出`, `${summary.yearMonth} Monthly Spend`)}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="切换至上个月账单"
+                  onPress={() => {
+                    setFilterDay(null);
+                    setSelectedYearMonth((prev) => shiftYearMonth(prev, -1));
+                  }}
+                  style={[styles.microBtn, { paddingHorizontal: 5, paddingVertical: 1.5, backgroundColor: pal.pillBg, borderColor: pal.border }]}
+                >
+                  <Text variant="caption" style={{ color: pal.sub, fontSize: 10, fontWeight: '700' }}>◀</Text>
+                </Pressable>
+                <Text variant="caption" style={{ color: pal.muted, fontSize: 11, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                  {t(`${summary.yearMonth} 累计支出`, `${summary.yearMonth} Spend`)}
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="切换至下个月账单"
+                  onPress={() => {
+                    setFilterDay(null);
+                    setSelectedYearMonth((prev) => shiftYearMonth(prev, 1));
+                  }}
+                  style={[styles.microBtn, { paddingHorizontal: 5, paddingVertical: 1.5, backgroundColor: pal.pillBg, borderColor: pal.border }]}
+                >
+                  <Text variant="caption" style={{ color: pal.sub, fontSize: 10, fontWeight: '700' }}>▶</Text>
+                </Pressable>
+                {selectedYearMonth !== currentYm ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="回到当月账单"
+                    onPress={() => {
+                      setFilterDay(null);
+                      setSelectedYearMonth(currentYm);
+                    }}
+                    style={[styles.microBtn, { paddingHorizontal: 5, paddingVertical: 1.5, backgroundColor: pal.pillActiveBg, borderColor: pal.gold }]}
+                  >
+                    <Text variant="caption" style={{ color: pal.goldText, fontSize: 9.5, fontWeight: '700' }}>
+                      {t('回本月', 'Now')}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="修改本月预算额度"
@@ -3034,51 +3175,135 @@ export function BookkeepingLedgerHub({
               <View style={{ gap: 5 }}>
                 {state.recurringRules.map((rule) => {
                   const ownerMeta = getOwnerBadgeMeta(rule.owner, state.coupleProfile);
+                  const accMeta = getLedgerAccountMeta(rule.accountId);
+                  const isEditingRule = editingRuleId === rule.id;
                   return (
-                    <View
-                      key={rule.id}
-                      style={[
-                        styles.recurringRow,
-                        {
-                          backgroundColor: pal.cardElevated,
-                          borderColor: rule.enabled ? pal.border : 'transparent',
-                          opacity: rule.enabled ? 1 : 0.55,
-                        },
-                      ]}
-                    >
-                      <Pressable
-                        onPress={() => setState(toggleRecurringLedgerRule(rule.id))}
-                        style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                    <View key={rule.id} style={{ gap: 4 }}>
+                      <View
+                        style={[
+                          styles.recurringRow,
+                          {
+                            backgroundColor: pal.cardElevated,
+                            borderColor: isEditingRule ? pal.gold : rule.enabled ? pal.border : 'transparent',
+                            opacity: rule.enabled ? 1 : 0.55,
+                          },
+                        ]}
                       >
-                        <Text variant="caption" style={{ color: rule.enabled ? pal.emerald : pal.muted, fontSize: 11 }}>
-                          {rule.enabled ? '●' : '○'}
-                        </Text>
-                        <View style={{ flex: 1 }}>
-                          <Text variant="caption" style={{ color: pal.ink, fontSize: 11, fontWeight: '600' }} numberOfLines={1}>
-                            {rule.title}
+                        <Pressable
+                          onPress={() => setState(toggleRecurringLedgerRule(rule.id))}
+                          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                        >
+                          <Text variant="caption" style={{ color: rule.enabled ? pal.emerald : pal.muted, fontSize: 11 }}>
+                            {rule.enabled ? '●' : '○'}
                           </Text>
-                          <Text variant="caption" style={{ color: pal.muted, fontSize: 9.5 }}>
-                            {`${t(`每月 ${rule.dayOfMonth} 日`, `Day ${rule.dayOfMonth}`)} · ${ownerMeta.zh}`}
+                          <View style={{ flex: 1 }}>
+                            <Text variant="caption" style={{ color: pal.ink, fontSize: 11, fontWeight: '600' }} numberOfLines={1}>
+                              {rule.title}
+                            </Text>
+                            <Text variant="caption" style={{ color: pal.muted, fontSize: 9.5 }}>
+                              {`${t(`每月 ${rule.dayOfMonth} 日`, `Day ${rule.dayOfMonth}`)} · ${ownerMeta.zh} · ${accMeta.zh}`}
+                            </Text>
+                          </View>
+                        </Pressable>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`修改周期规则 ${rule.title} 金额与日期`}
+                          onPress={() => startEditRecurringRule(rule)}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                        >
+                          <Text
+                            variant="caption"
+                            style={{
+                              fontFamily: theme.fontFamily.mono,
+                              fontSize: 11,
+                              fontWeight: '700',
+                              color: rule.kind === 'income' ? pal.emerald : pal.ink,
+                            }}
+                          >
+                            {`${rule.kind === 'income' ? '+' : '-'}¥${rule.amountCny.toLocaleString('en-US')}`}
                           </Text>
+                          <Text variant="caption" style={{ color: pal.goldText, fontSize: 9.5, fontWeight: '700' }}>
+                            {isEditingRule ? t('收起', 'Close') : t('[改]', '[Edit]')}
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => setState(removeRecurringLedgerRule(rule.id))}
+                          style={[styles.deleteTxBtn, { backgroundColor: pal.pillBg }]}
+                        >
+                          <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>×</Text>
+                        </Pressable>
+                      </View>
+                      {isEditingRule ? (
+                        <View
+                          style={[
+                            styles.dayGroupCard,
+                            { padding: 8, gap: 6, backgroundColor: pal.cardBg, borderColor: pal.gold },
+                          ]}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <TextInput
+                              value={editRuleTitle}
+                              onChangeText={setEditRuleTitle}
+                              placeholder="规则名称"
+                              style={[styles.noteField, { flex: 1, minWidth: 110, height: 26, fontSize: 11, backgroundColor: pal.inputBg, borderColor: pal.border, color: pal.ink }]}
+                            />
+                            <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>每月</Text>
+                            <TextInput
+                              value={editRuleDay}
+                              onChangeText={setEditRuleDay}
+                              placeholder="1"
+                              style={[styles.miniNameInput, { width: 36, backgroundColor: pal.inputBg, borderColor: pal.border, color: pal.ink }]}
+                            />
+                            <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>日 · ¥</Text>
+                            <TextInput
+                              value={editRuleAmount}
+                              onChangeText={setEditRuleAmount}
+                              onSubmitEditing={() => handleSaveRecurringRuleEdit(rule)}
+                              placeholder="金额"
+                              style={[styles.miniNameInput, { width: 68, backgroundColor: pal.inputBg, borderColor: pal.gold, color: pal.ink }]}
+                            />
+                          </View>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+                            <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap' }}>
+                              {(['me', 'partner', 'shared'] as const).map((ow) => {
+                                const om = getOwnerBadgeMeta(ow, state.coupleProfile);
+                                const sel = editRuleOwner === ow;
+                                return (
+                                  <Pressable
+                                    key={ow}
+                                    onPress={() => setEditRuleOwner(ow)}
+                                    style={[styles.microBtn, { paddingHorizontal: 6, paddingVertical: 2, backgroundColor: sel ? pal.pillActiveBg : pal.pillBg, borderColor: sel ? pal.gold : pal.border }]}
+                                  >
+                                    <Text variant="caption" style={{ color: sel ? pal.goldText : pal.sub, fontSize: 9.5 }}>{om.zh}</Text>
+                                  </Pressable>
+                                );
+                              })}
+                              {LEDGER_ACCOUNTS.map((acc) => {
+                                const sel = editRuleAccount === acc.id;
+                                return (
+                                  <Pressable
+                                    key={acc.id}
+                                    onPress={() => setEditRuleAccount(acc.id)}
+                                    style={[styles.microBtn, { paddingHorizontal: 6, paddingVertical: 2, backgroundColor: sel ? `${acc.color}22` : pal.pillBg, borderColor: sel ? acc.color : pal.border }]}
+                                  >
+                                    <Text variant="caption" style={{ color: sel ? acc.color : pal.sub, fontSize: 9.5 }}>{acc.zh}</Text>
+                                  </Pressable>
+                                );
+                              })}
+                            </View>
+                            <Pressable
+                              accessibilityRole="button"
+                              accessibilityLabel={`保存周期规则 ${rule.title} 修改`}
+                              onPress={() => handleSaveRecurringRuleEdit(rule)}
+                              style={[styles.microBtn, { backgroundColor: pal.pillActiveBg, borderColor: pal.gold }]}
+                            >
+                              <Text variant="caption" style={{ color: pal.goldText, fontSize: 10, fontWeight: '700' }}>
+                                {t('保存规则', 'Save')}
+                              </Text>
+                            </Pressable>
+                          </View>
                         </View>
-                      </Pressable>
-                      <Text
-                        variant="caption"
-                        style={{
-                          fontFamily: theme.fontFamily.mono,
-                          fontSize: 11,
-                          fontWeight: '700',
-                          color: rule.kind === 'income' ? pal.emerald : pal.ink,
-                        }}
-                      >
-                        {`${rule.kind === 'income' ? '+' : '-'}¥${rule.amountCny.toLocaleString('en-US')}`}
-                      </Text>
-                      <Pressable
-                        onPress={() => setState(removeRecurringLedgerRule(rule.id))}
-                        style={[styles.deleteTxBtn, { backgroundColor: pal.pillBg }]}
-                      >
-                        <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>×</Text>
-                      </Pressable>
+                      ) : null}
                     </View>
                   );
                 })}
@@ -3394,97 +3619,219 @@ export function BookkeepingLedgerHub({
                         const acc = getLedgerAccountMeta(tx.accountId);
                         const ownerMeta = getOwnerBadgeMeta(tx.owner, state.coupleProfile);
                         const bookMeta = getLedgerBookMeta(tx.ledgerId, ledgerBooks);
+                        const isEditingTx = editingTxId === tx.id;
                         return (
-                          <View key={tx.id} style={styles.txRow}>
-                            <View style={styles.txLeft}>
-                              <View
-                                style={[
-                                  styles.txIconBadge,
-                                  { backgroundColor: `${cat.color}18`, borderColor: `${cat.color}55` },
-                                ]}
-                              >
-                                <Text variant="caption" style={{ fontSize: 11, fontWeight: '700', color: cat.color }}>
-                                  {cat.icon}
-                                </Text>
+                          <View key={tx.id}>
+                            <View style={styles.txRow}>
+                              <View style={styles.txLeft}>
+                                <View
+                                  style={[
+                                    styles.txIconBadge,
+                                    { backgroundColor: `${cat.color}18`, borderColor: `${cat.color}55` },
+                                  ]}
+                                >
+                                  <Text variant="caption" style={{ fontSize: 11, fontWeight: '700', color: cat.color }}>
+                                    {cat.icon}
+                                  </Text>
+                                </View>
+                                <View style={{ gap: 1 }}>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                                    <Text variant="caption" style={{ color: pal.ink, fontSize: 12, fontWeight: '600' }}>
+                                      {tx.note}
+                                    </Text>
+                                    <View
+                                      style={[
+                                        styles.ownerMiniTag,
+                                        { backgroundColor: `${ownerMeta.color}18`, borderColor: `${ownerMeta.color}55` },
+                                      ]}
+                                    >
+                                      <Text variant="caption" style={{ color: ownerMeta.color, fontSize: 9, fontWeight: '700' }}>
+                                        {ownerMeta.zh}
+                                      </Text>
+                                    </View>
+                                    <View
+                                      style={[
+                                        styles.ownerMiniTag,
+                                        { backgroundColor: `${bookMeta.color}16`, borderColor: `${bookMeta.color}55` },
+                                      ]}
+                                    >
+                                      <Text variant="caption" style={{ color: bookMeta.color, fontSize: 9, fontWeight: '700' }}>
+                                        {t(bookMeta.zh, bookMeta.en)}
+                                      </Text>
+                                    </View>
+                                  </View>
+                                  <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>
+                                    {`${t(cat.zh, cat.en)} · ${t(acc.zh, acc.en)}`}
+                                  </Text>
+                                </View>
                               </View>
-                              <View style={{ gap: 1 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-                                  <Text variant="caption" style={{ color: pal.ink, fontSize: 12, fontWeight: '600' }}>
-                                    {tx.note}
+                              <View style={styles.txRight}>
+                                <Pressable
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`编辑账单 ${tx.note}`}
+                                  onPress={() => startEditTransaction(tx)}
+                                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                                >
+                                  <Text
+                                    variant="label"
+                                    style={{
+                                      fontFamily: theme.fontFamily.mono,
+                                      fontSize: 12.5,
+                                      fontWeight: '700',
+                                      color: tx.kind === 'expense' ? pal.ink : pal.emerald,
+                                    }}
+                                  >
+                                    {`${tx.kind === 'expense' ? '-' : '+'}¥${tx.amountCny.toFixed(2)}`}
                                   </Text>
                                   <View
                                     style={[
-                                      styles.ownerMiniTag,
-                                      { backgroundColor: `${ownerMeta.color}18`, borderColor: `${ownerMeta.color}55` },
+                                      styles.microBtn,
+                                      {
+                                        paddingHorizontal: 5,
+                                        paddingVertical: 1.5,
+                                        backgroundColor: isEditingTx ? pal.pillActiveBg : pal.pillBg,
+                                        borderColor: isEditingTx ? pal.gold : pal.border,
+                                      },
                                     ]}
                                   >
-                                    <Text variant="caption" style={{ color: ownerMeta.color, fontSize: 9, fontWeight: '700' }}>
-                                      {ownerMeta.zh}
+                                    <Text variant="caption" style={{ color: isEditingTx ? pal.goldText : pal.sub, fontSize: 9.5 }}>
+                                      {isEditingTx ? t('收起', 'Close') : t('编辑', 'Edit')}
                                     </Text>
                                   </View>
-                                  <View
-                                    style={[
-                                      styles.ownerMiniTag,
-                                      { backgroundColor: `${bookMeta.color}16`, borderColor: `${bookMeta.color}55` },
-                                    ]}
-                                  >
-                                    <Text variant="caption" style={{ color: bookMeta.color, fontSize: 9, fontWeight: '700' }}>
-                                      {t(bookMeta.zh, bookMeta.en)}
-                                    </Text>
-                                  </View>
-                                </View>
-                                <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>
-                                  {`${t(cat.zh, cat.en)} · ${t(acc.zh, acc.en)}`}
-                                </Text>
+                                </Pressable>
+                                <Pressable
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`对账单 ${tx.note} 发送双人聊天留言`}
+                                  onPress={() => {
+                                    setQuotedTxForChat({
+                                      txId: tx.id,
+                                      note: tx.note,
+                                      amountCny: tx.amountCny,
+                                      kind: tx.kind,
+                                      ledgerTitle: bookMeta.zh,
+                                    });
+                                    setLedgerSubView('coop');
+                                    setShowCoupleChatDrawer(true);
+                                  }}
+                                  style={[styles.microBtn, { paddingHorizontal: 6, paddingVertical: 2, backgroundColor: pal.pillBg, borderColor: pal.border }]}
+                                >
+                                  <Text variant="caption" style={{ color: pal.sub, fontSize: 9.5 }}>
+                                    {t('留言', 'Chat')}
+                                  </Text>
+                                </Pressable>
+                                <Pressable
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`删除账单 ${tx.note}`}
+                                  onPress={() => {
+                                    const next = removeLedgerTransaction(tx.id);
+                                    setState(next);
+                                    playCashRegisterTick('undo');
+                                  }}
+                                  style={[styles.deleteTxBtn, { backgroundColor: pal.pillBg }]}
+                                >
+                                  <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>
+                                    ×
+                                  </Text>
+                                </Pressable>
                               </View>
                             </View>
-                            <View style={styles.txRight}>
-                              <Text
-                                variant="label"
+                            {isEditingTx ? (
+                              <View
                                 style={{
-                                  fontFamily: theme.fontFamily.mono,
-                                  fontSize: 12.5,
-                                  fontWeight: '700',
-                                  color: tx.kind === 'expense' ? pal.ink : pal.emerald,
+                                  paddingHorizontal: 10,
+                                  paddingVertical: 8,
+                                  gap: 6,
+                                  backgroundColor: pal.cardBg,
+                                  borderTopWidth: 1,
+                                  borderTopColor: pal.goldBorder,
                                 }}
                               >
-                                {`${tx.kind === 'expense' ? '-' : '+'}¥${tx.amountCny.toFixed(2)}`}
-                              </Text>
-                              <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel={`对账单 ${tx.note} 发送双人聊天留言`}
-                                onPress={() => {
-                                  setQuotedTxForChat({
-                                    txId: tx.id,
-                                    note: tx.note,
-                                    amountCny: tx.amountCny,
-                                    kind: tx.kind,
-                                    ledgerTitle: bookMeta.zh,
-                                  });
-                                  setLedgerSubView('coop');
-                                  setShowCoupleChatDrawer(true);
-                                }}
-                                style={[styles.microBtn, { paddingHorizontal: 6, paddingVertical: 2, backgroundColor: pal.pillBg, borderColor: pal.border }]}
-                              >
-                                <Text variant="caption" style={{ color: pal.sub, fontSize: 9.5 }}>
-                                  {t('留言', 'Chat')}
-                                </Text>
-                              </Pressable>
-                              <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel={`删除账单 ${tx.note}`}
-                                onPress={() => {
-                                  const next = removeLedgerTransaction(tx.id);
-                                  setState(next);
-                                  playCashRegisterTick('undo');
-                                }}
-                                style={[styles.deleteTxBtn, { backgroundColor: pal.pillBg }]}
-                              >
-                                <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>
-                                  ×
-                                </Text>
-                              </Pressable>
-                            </View>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                  <Text variant="caption" style={{ color: pal.goldText, fontSize: 10, fontWeight: '700' }}>¥</Text>
+                                  <TextInput
+                                    value={editTxAmount}
+                                    onChangeText={setEditTxAmount}
+                                    onSubmitEditing={() => handleSaveTransactionEdit(tx)}
+                                    placeholder="金额"
+                                    style={[styles.miniNameInput, { width: 68, backgroundColor: pal.inputBg, borderColor: pal.gold, color: pal.ink }]}
+                                  />
+                                  <TextInput
+                                    value={editTxNote}
+                                    onChangeText={setEditTxNote}
+                                    onSubmitEditing={() => handleSaveTransactionEdit(tx)}
+                                    placeholder="备注"
+                                    style={[styles.noteField, { flex: 1, minWidth: 120, height: 26, fontSize: 11, backgroundColor: pal.inputBg, borderColor: pal.border, color: pal.ink }]}
+                                  />
+                                  <Pressable
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`保存账单 ${tx.note} 修改`}
+                                    onPress={() => handleSaveTransactionEdit(tx)}
+                                    style={[styles.microBtn, { backgroundColor: pal.pillActiveBg, borderColor: pal.gold }]}
+                                  >
+                                    <Text variant="caption" style={{ color: pal.goldText, fontSize: 10, fontWeight: '700' }}>
+                                      {t('保存修改', 'Save')}
+                                    </Text>
+                                  </Pressable>
+                                </View>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                  <Text variant="caption" style={{ color: pal.muted, fontSize: 9.5 }}>{t('账本:', 'Book:')}</Text>
+                                  {ledgerBooks.map((b) => {
+                                    const sel = editTxLedgerId === b.id;
+                                    return (
+                                      <Pressable
+                                        key={b.id}
+                                        onPress={() => setEditTxLedgerId(b.id)}
+                                        style={[styles.microBtn, { paddingHorizontal: 6, paddingVertical: 1.5, backgroundColor: sel ? `${b.color}22` : pal.pillBg, borderColor: sel ? b.color : pal.border }]}
+                                      >
+                                        <Text variant="caption" style={{ color: sel ? b.color : pal.sub, fontSize: 9.5 }}>{`[${b.icon}] ${b.zh}`}</Text>
+                                      </Pressable>
+                                    );
+                                  })}
+                                  <Text variant="caption" style={{ color: pal.muted, fontSize: 9.5, marginLeft: 4 }}>{t('账户:', 'Acc:')}</Text>
+                                  {LEDGER_ACCOUNTS.map((a) => {
+                                    const sel = editTxAccount === a.id;
+                                    return (
+                                      <Pressable
+                                        key={a.id}
+                                        onPress={() => setEditTxAccount(a.id)}
+                                        style={[styles.microBtn, { paddingHorizontal: 6, paddingVertical: 1.5, backgroundColor: sel ? `${a.color}22` : pal.pillBg, borderColor: sel ? a.color : pal.border }]}
+                                      >
+                                        <Text variant="caption" style={{ color: sel ? a.color : pal.sub, fontSize: 9.5 }}>{a.zh}</Text>
+                                      </Pressable>
+                                    );
+                                  })}
+                                  <Text variant="caption" style={{ color: pal.muted, fontSize: 9.5, marginLeft: 4 }}>{t('归属:', 'By:')}</Text>
+                                  {(['me', 'partner', 'shared'] as const).map((ow) => {
+                                    const om = getOwnerBadgeMeta(ow, state.coupleProfile);
+                                    const sel = editTxOwner === ow;
+                                    return (
+                                      <Pressable
+                                        key={ow}
+                                        onPress={() => setEditTxOwner(ow)}
+                                        style={[styles.microBtn, { paddingHorizontal: 6, paddingVertical: 1.5, backgroundColor: sel ? pal.pillActiveBg : pal.pillBg, borderColor: sel ? pal.gold : pal.border }]}
+                                      >
+                                        <Text variant="caption" style={{ color: sel ? pal.goldText : pal.sub, fontSize: 9.5 }}>{om.zh}</Text>
+                                      </Pressable>
+                                    );
+                                  })}
+                                </View>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                  <Text variant="caption" style={{ color: pal.muted, fontSize: 9.5 }}>{t('分类:', 'Cat:')}</Text>
+                                  {LEDGER_CATEGORIES.filter((c) => c.kind === tx.kind).map((c) => {
+                                    const sel = editTxCategory === c.id;
+                                    return (
+                                      <Pressable
+                                        key={c.id}
+                                        onPress={() => setEditTxCategory(c.id)}
+                                        style={[styles.microBtn, { paddingHorizontal: 6, paddingVertical: 1.5, backgroundColor: sel ? `${c.color}22` : pal.pillBg, borderColor: sel ? c.color : pal.border }]}
+                                      >
+                                        <Text variant="caption" style={{ color: sel ? c.color : pal.sub, fontSize: 9.5 }}>{`[${c.icon}] ${c.zh}`}</Text>
+                                      </Pressable>
+                                    );
+                                  })}
+                                </View>
+                              </View>
+                            ) : null}
                           </View>
                         );
                       })}

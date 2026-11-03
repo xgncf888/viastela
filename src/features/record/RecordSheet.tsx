@@ -1,6 +1,23 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { type GestureResponderEvent, type LayoutChangeEvent, Platform, View } from 'react-native';
 
+import {
+  DEFAULT_LEDGER_BOOKS,
+  evaluateAmountExpression,
+  getLedgerBookMeta,
+  getLedgerCategoryMeta,
+  getOwnerBadgeMeta,
+  LEDGER_ACCOUNTS,
+  LEDGER_CATEGORIES,
+  type LedgerAccountId,
+  type LedgerBookId,
+  type LedgerCategoryId,
+  type LedgerEntryKind,
+  type LedgerOwnerId,
+  parseQuickBookkeepingInput,
+  QUICK_LEDGER_PRESETS,
+  type QuickLedgerPreset,
+} from '@/core/bookkeeping';
 import { createId } from '@/core/id';
 import { computeLocalDay, currentTimeZone, sheetAccountingHint } from '@/core/local-day';
 import {
@@ -39,6 +56,8 @@ import {
 } from '@/core/training';
 import { parseWeightKg } from '@/core/weight-input';
 import { formatKg, latestRecord } from '@/core/weight-stats';
+import { addLedgerTransaction, readBookkeepingState } from '@/data/bookkeeping';
+import { recordPledgeReward } from '@/data/life-gamification';
 import { addTimeBlock } from '@/data/time-block-tracker';
 import { saveJournal } from '@/data/timeline';
 import { useStudy } from '@/features/study/StudyProvider';
@@ -65,6 +84,7 @@ const TYPES = [
   { id: 'training', label: '训练' },
   { id: 'study', label: '学习' },
   { id: 'block', label: '时间块' },
+  { id: 'ledger', label: '记账 ¥' },
 ] as const;
 
 type TypeId = (typeof TYPES)[number]['id'];
@@ -114,6 +134,20 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
   const [blockMood, setBlockMood] = useState<number | null>(null);
   const [blockError, setBlockError] = useState<string | null>(null);
   const [blockSaving, setBlockSaving] = useState(false);
+
+  // Quick Bookkeeping state inside global RecordSheet
+  const bkState = readBookkeepingState();
+  const bkPresets = bkState.quickPresets ?? QUICK_LEDGER_PRESETS;
+  const bkBooks = bkState.ledgerBooks && bkState.ledgerBooks.length > 0 ? bkState.ledgerBooks : DEFAULT_LEDGER_BOOKS;
+  const [bkSmartInput, setBkSmartInput] = useState('');
+  const [bkKind, setBkKind] = useState<LedgerEntryKind>('expense');
+  const [bkCategory, setBkCategory] = useState<LedgerCategoryId>('dining');
+  const [bkAccount, setBkAccount] = useState<LedgerAccountId>('wechat');
+  const [bkOwner, setBkOwner] = useState<LedgerOwnerId>('me');
+  const [bkLedgerId, setBkLedgerId] = useState<LedgerBookId>('ledger-daily');
+  const [bkAmount, setBkAmount] = useState('');
+  const [bkNote, setBkNote] = useState('');
+  const [bkError, setBkError] = useState<string | null>(null);
 
   // 1-Minute Granularity Range State for Quick Time-Block Sheet
   const [blockRange, setBlockRange] = useState<{ startMinute: number; endMinute: number }>(() => {
@@ -349,6 +383,81 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
     } finally {
       setBlockSaving(false);
     }
+  }
+
+  function onSaveQuickLedgerPreset(preset: QuickLedgerPreset) {
+    if (preset.isFixedPrice) {
+      const owner = preset.owner ?? bkOwner;
+      const ledgerId = preset.ledgerId ?? bkLedgerId;
+      addLedgerTransaction({
+        kind: 'expense',
+        amountCny: preset.amountCny,
+        categoryId: preset.categoryId,
+        accountId: preset.accountId,
+        owner,
+        ledgerId,
+        note: preset.zh,
+        localDay: accountingDay,
+      });
+      recordPledgeReward(`闪记：${preset.zh}`, accountingDay, 10);
+      const ownerMeta = getOwnerBadgeMeta(owner, bkState.coupleProfile);
+      showToast({ text: `✓ 已入账 [${ownerMeta.zh}]：${preset.zh} -¥${preset.amountCny}` });
+      closeRecordSheet();
+      return;
+    }
+    setBkKind('expense');
+    setBkCategory(preset.categoryId);
+    setBkAccount(preset.accountId);
+    if (preset.owner) setBkOwner(preset.owner);
+    if (preset.ledgerId) setBkLedgerId(preset.ledgerId);
+    setBkNote(preset.zh);
+    setBkError(null);
+  }
+
+  function onSaveQuickLedger() {
+    if (bkSmartInput.trim()) {
+      const parsed = parseQuickBookkeepingInput(bkSmartInput, bkCategory, bkAccount, bkOwner);
+      if (!parsed) {
+        setBkError('请输入包含金额的内容，例如「瑞幸拿铁 18 微信」');
+        return;
+      }
+      const { added } = addLedgerTransaction({
+        ...parsed,
+        ledgerId: bkLedgerId,
+        localDay: accountingDay,
+      });
+      recordPledgeReward(`记账打卡：${parsed.note}`, accountingDay, 10);
+      const cat = getLedgerCategoryMeta(parsed.categoryId);
+      const book = getLedgerBookMeta(added.ledgerId, bkBooks);
+      showToast({
+        text: `✓ 已入账 [${book.zh}]：${cat.zh} · ${parsed.note} ${parsed.kind === 'expense' ? '-' : '+'}¥${parsed.amountCny.toFixed(2)}`,
+      });
+      closeRecordSheet();
+      return;
+    }
+    const amt = evaluateAmountExpression(bkAmount);
+    if (!amt || amt <= 0) {
+      setBkError('请输入有效金额或算式（如 35+18）');
+      return;
+    }
+    const cat = getLedgerCategoryMeta(bkCategory);
+    const cleanNote = bkNote.trim() || cat.zh;
+    const { added } = addLedgerTransaction({
+      kind: bkKind,
+      amountCny: amt,
+      categoryId: bkCategory,
+      accountId: bkAccount,
+      owner: bkOwner,
+      ledgerId: bkLedgerId,
+      note: cleanNote,
+      localDay: accountingDay,
+    });
+    recordPledgeReward(`记账打卡：${cleanNote}`, accountingDay, 10);
+    const book = getLedgerBookMeta(added.ledgerId, bkBooks);
+    showToast({
+      text: `✓ 已入账 [${book.zh}]：${cleanNote} ${bkKind === 'expense' ? '-' : '+'}¥${amt.toFixed(2)}`,
+    });
+    closeRecordSheet();
   }
 
   const blockSpanMins = Math.max(1, blockRange.endMinute - blockRange.startMinute);
@@ -724,10 +833,137 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
           />
           <Button label="保存" fill onPress={() => void onSaveStudy()} />
         </Stack>
+      ) : type === 'ledger' ? (
+        <Stack gap="ms">
+          <Stack gap="xs">
+            <Text variant="caption" tone="muted">
+              常用品快记（绿标固定价点击直接入账并关闭，其他点击自动带入分类并填金额）
+            </Text>
+            <Row gap="xs" wrap>
+              {bkPresets.map((preset) => (
+                <CockpitPillButton
+                  key={preset.id}
+                  label={
+                    preset.isFixedPrice
+                      ? `[${preset.icon}] ${preset.zh} ¥${preset.amountCny}`
+                      : `[${preset.icon}] ${preset.zh} · 填金额`
+                  }
+                  active={Boolean(preset.isFixedPrice) || bkNote === preset.zh}
+                  onPress={() => onSaveQuickLedgerPreset(preset)}
+                />
+              ))}
+            </Row>
+          </Stack>
+          <TextField
+            label="一句话智能记账（选填，输入后回车直接入账）"
+            value={bkSmartInput}
+            onChangeText={(next) => {
+              setBkSmartInput(next);
+              setBkError(null);
+            }}
+            onSubmitEditing={onSaveQuickLedger}
+            returnKeyType="done"
+            placeholder="例如：瑞幸冰美式 18 微信 / 老婆买奶茶 22"
+          />
+          <Row gap="sm" align="start">
+            <View style={{ flex: 1 }}>
+              <TextField
+                label="金额（¥，支持算式如 35+18）"
+                value={bkAmount}
+                onChangeText={(next) => {
+                  setBkAmount(next);
+                  setBkError(null);
+                }}
+                onSubmitEditing={onSaveQuickLedger}
+                returnKeyType="done"
+                placeholder="例如 36"
+                keyboardType="decimal-pad"
+                error={bkError}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <TextField
+                label="备注"
+                value={bkNote}
+                onChangeText={(next) => {
+                  setBkNote(next);
+                  setBkError(null);
+                }}
+                onSubmitEditing={onSaveQuickLedger}
+                returnKeyType="done"
+                placeholder="如：午餐 / 地铁"
+              />
+            </View>
+          </Row>
+          <Stack gap="xs">
+            <Text variant="caption">所属账本与收支类型</Text>
+            <Row gap="xs" wrap>
+              <Chip
+                label="支出"
+                selected={bkKind === 'expense'}
+                onPress={() => {
+                  setBkKind('expense');
+                  setBkCategory('dining');
+                }}
+              />
+              <Chip
+                label="收入"
+                selected={bkKind === 'income'}
+                onPress={() => {
+                  setBkKind('income');
+                  setBkCategory('salary');
+                }}
+              />
+              {bkBooks.map((b) => (
+                <Chip
+                  key={b.id}
+                  label={`[${b.icon}] ${b.zh}`}
+                  selected={bkLedgerId === b.id}
+                  onPress={() => setBkLedgerId(b.id)}
+                />
+              ))}
+            </Row>
+          </Stack>
+          <Stack gap="xs">
+            <Text variant="caption">分类与支付账户</Text>
+            <ChipGroup>
+              {LEDGER_CATEGORIES.filter((c) => c.kind === bkKind).map((cat) => (
+                <Chip
+                  key={cat.id}
+                  label={`[${cat.icon}] ${cat.zh}`}
+                  selected={bkCategory === cat.id}
+                  onPress={() => setBkCategory(cat.id)}
+                />
+              ))}
+            </ChipGroup>
+            <Row gap="xs" wrap>
+              {LEDGER_ACCOUNTS.map((acc) => (
+                <Chip
+                  key={acc.id}
+                  label={acc.zh}
+                  selected={bkAccount === acc.id}
+                  onPress={() => setBkAccount(acc.id)}
+                />
+              ))}
+              {(['me', 'partner', 'shared'] as const).map((ownerId) => {
+                const om = getOwnerBadgeMeta(ownerId, bkState.coupleProfile);
+                return (
+                  <Chip
+                    key={ownerId}
+                    label={`归属:${om.zh}`}
+                    selected={bkOwner === ownerId}
+                    onPress={() => setBkOwner(ownerId)}
+                  />
+                );
+              })}
+            </Row>
+          </Stack>
+          <Button label="保存账单" fill onPress={onSaveQuickLedger} />
+        </Stack>
       ) : (
         <Stack gap="ms">
           <Row justify="between" align="center" wrap>
-            <Text variant="heading">即将推出</Text>
+            <Text variant="heading">1 分钟时间块快切</Text>
             <TagChip
               label={`${formatMinuteOfDay(blockRange.startMinute)}–${formatMinuteOfDay(blockRange.endMinute)} (${blockSpanMins}m · 1m粒度)`}
               tone="owner"

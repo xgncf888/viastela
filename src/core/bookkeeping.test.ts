@@ -1,6 +1,11 @@
 import { describe, expect, it } from '@jest/globals';
 
 import {
+  addLedgerTransaction,
+  updateLedgerTransaction,
+  updateRecurringLedgerRule,
+} from '../data/bookkeeping';
+import {
   computeCategoryBreakdown,
   computeMonthlyBookkeepingSummary,
   computeMultiLedgerPoolBreakdown,
@@ -12,6 +17,7 @@ import {
   mergePartnerBookkeepingState,
   parseAutoLogUrlParams,
   parseQuickBookkeepingInput,
+  shiftYearMonth,
 } from './bookkeeping';
 
 describe('bookkeeping core engine', () => {
@@ -153,5 +159,50 @@ describe('bookkeeping core engine', () => {
     );
     expect(travelOnly.length).toBe(1);
     expect(travelOnly[0]?.amountCny).toBe(38);
+  });
+
+  it('shifts year-months cleanly and supports inline editing of transactions and recurring rules', () => {
+    expect(shiftYearMonth('2026-11', -1)).toBe('2026-10');
+    expect(shiftYearMonth('2026-01', -1)).toBe('2025-12');
+    expect(shiftYearMonth('2026-12', 1)).toBe('2027-01');
+
+    const octSummary = computeMonthlyBookkeepingSummary(
+      DEFAULT_BOOKKEEPING_STATE,
+      '2026-11-03',
+      'pool',
+      '2026-10',
+    );
+    expect(octSummary.yearMonth).toBe('2026-10');
+    expect(octSummary.totalExpenseCny).toBe(0);
+
+    const { added } = addLedgerTransaction({
+      kind: 'expense',
+      amountCny: 38,
+      categoryId: 'dining',
+      accountId: 'wechat',
+      note: '测试午餐',
+      localDay: '2026-11-03',
+      owner: 'me',
+      ledgerId: 'ledger-daily',
+    });
+    const afterEditTx = updateLedgerTransaction(added.id, {
+      amountCny: 35,
+      note: '更正午餐',
+      accountId: 'alipay',
+      ledgerId: 'ledger-travel',
+    });
+    const updatedTx = afterEditTx.transactions.find((t) => t.id === added.id);
+    expect(updatedTx?.amountCny).toBe(35);
+    expect(updatedTx?.note).toBe('更正午餐');
+    expect(updatedTx?.accountId).toBe('alipay');
+    expect(updatedTx?.ledgerId).toBe('ledger-travel');
+
+    const afterEditRule = updateRecurringLedgerRule('rec-my-salary', {
+      amountCny: 30000,
+      dayOfMonth: 5,
+    });
+    const updatedRule = afterEditRule.recurringRules.find((r) => r.id === 'rec-my-salary');
+    expect(updatedRule?.amountCny).toBe(30000);
+    expect(updatedRule?.dayOfMonth).toBe(5);
   });
 });
