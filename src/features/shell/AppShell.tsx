@@ -49,8 +49,8 @@ import {
 } from '@/ui/WorkbenchConsole';
 
 const TABS: readonly {
-  id: 'today' | 'ledger' | 'assets' | 'trend' | 'timeline' | 'me';
-  href: '/' | '/ledger' | '/assets' | '/trend' | '/timeline' | '/me';
+  id: 'today' | 'ledger' | 'study' | 'assets' | 'trend' | 'timeline' | 'me';
+  href: '/' | '/ledger' | '/study' | '/assets' | '/trend' | '/timeline' | '/me';
   label: string;
   enLabel: string;
   icon: NavIconKind;
@@ -58,16 +58,18 @@ const TABS: readonly {
 }[] = [
   { id: 'today', href: '/', label: '今日', enLabel: 'Today', icon: 'today', shortcut: '⌘1' },
   { id: 'ledger', href: '/ledger', label: '记账', enLabel: 'Ledger', icon: 'ledger', shortcut: '⌘2' },
-  { id: 'assets', href: '/assets', label: '资产', enLabel: 'Assets', icon: 'assets', shortcut: '⌘3' },
-  { id: 'trend', href: '/trend', label: '趋势', enLabel: 'Trends', icon: 'trend', shortcut: '⌘4' },
-  { id: 'timeline', href: '/timeline', label: '时间线', enLabel: 'Timeline', icon: 'timeline', shortcut: '⌘5' },
-  { id: 'me', href: '/me', label: '我的', enLabel: 'Profile', icon: 'me', shortcut: '⌘6' },
+  { id: 'study', href: '/study', label: '学习角', enLabel: 'Academy', icon: 'study', shortcut: '⌘3' },
+  { id: 'assets', href: '/assets', label: '资产', enLabel: 'Assets', icon: 'assets', shortcut: '⌘4' },
+  { id: 'trend', href: '/trend', label: '趋势', enLabel: 'Trends', icon: 'trend', shortcut: '⌘5' },
+  { id: 'timeline', href: '/timeline', label: '时间线', enLabel: 'Timeline', icon: 'timeline', shortcut: '⌘6' },
+  { id: 'me', href: '/me', label: '我的', enLabel: 'Profile', icon: 'me', shortcut: '⌘7' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
 
 function currentTab(pathname: string): TabId {
   if (pathname.startsWith('/ledger')) return 'ledger';
+  if (pathname.startsWith('/study')) return 'study';
   if (pathname.startsWith('/assets')) return 'assets';
   if (pathname.startsWith('/trend')) return 'trend';
   if (pathname.startsWith('/timeline')) return 'timeline';
@@ -190,6 +192,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
     if (commandId.endsWith('.navigateLedger')) {
       router.replace('/ledger');
+      return true;
+    }
+    if (commandId.endsWith('.navigateStudy')) {
+      router.replace('/study');
       return true;
     }
     if (commandId.endsWith('.navigateAssets')) {
@@ -379,6 +385,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         tone: ledgerSummary.isOverBudget ? 'alert' : 'live',
       };
     }
+    if (tabId === 'study') {
+      const todayMin = todayStudy.reduce((s, r) => s + r.durationMinutes, 0);
+      return {
+        text: todayMin > 0 ? `${todayMin}m` : '6 动画',
+        tone: todayMin > 0 ? 'live' : 'alert',
+      };
+    }
     if (tabId === 'trend') {
       return {
         text: trendBadge,
@@ -386,7 +399,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       };
     }
     if (tabId === 'assets') return { text: assetsBadge, tone: 'neutral' };
-    if (tabId === 'timeline') return { text: '⌘5', tone: 'shortcut' };
+    if (tabId === 'timeline') return { text: '⌘6', tone: 'shortcut' };
     return { text: 'v1.0', tone: 'live' };
   }
 

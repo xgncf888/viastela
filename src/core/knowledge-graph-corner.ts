@@ -8,7 +8,8 @@
  *   heavy chapter contents (mental models, code templates, interactive animation scripts, flashcards)
  *   are fetched/installed on-demand as modular Offline Chapter Packs and can be offloaded anytime
  *   without losing personal mastery progress or study time logs.
- * - 3Blue1Brown / Distill.pub: Step-by-step interactive animated simulations for AI Infra concepts.
+ * - 3Blue1Brown / Distill.pub / Brendan Bycroft LLM Viz: Step-by-step interactive animated simulations
+ *   for AI Infra & Distributed Systems concepts.
  */
 
 export type KnowledgeDomainId = 'ai-infra' | 'cs-systems' | 'wealth-quant' | 'product-arch';
@@ -20,11 +21,20 @@ export type KnowledgeFlashcard = {
   a: string;
 };
 
+export type KnowledgeQuizItem = {
+  questionZh: string;
+  optionsZh: readonly string[];
+  correctIndex: number;
+  explanationZh: string;
+};
+
 export type AiAnimationKind =
   | 'self-attention'
   | 'paged-attention'
   | 'speculative-decoding'
-  | 'flash-attention';
+  | 'flash-attention'
+  | 'moe-routing'
+  | 'distributed-parallel';
 
 export type KnowledgeChapterContent = {
   nodeId: string;
@@ -32,6 +42,7 @@ export type KnowledgeChapterContent = {
   keyTakeaways: readonly string[];
   codeOrFormulaSnippet: string;
   flashcards: readonly KnowledgeFlashcard[];
+  quiz?: KnowledgeQuizItem;
   animationKind?: AiAnimationKind;
 };
 
@@ -110,46 +121,46 @@ export const DEFAULT_KNOWLEDGE_NODES: readonly KnowledgeNode[] = [
     id: 'node-transformer',
     domainId: 'ai-infra',
     code: 'AI-101',
-    title: 'Transformer 与 Self-Attention 矩阵动画',
-    summary: 'Q/K/V 向量投影、缩放点积注意力热力图与温度 τ 分布动态演示',
-    x: 14,
-    y: 24,
+    title: 'Transformer 与 Self-Attention + RoPE 旋转动画',
+    summary: 'Q/K/V 多头投影、2D RoPE 复平面旋转编码与温度 τ 注意力热力分布动态演示',
+    x: 12,
+    y: 22,
     prerequisites: [],
     bidirectionalLinks: ['node-kv-cache', 'node-flash-attn', 'node-cuda-mem'],
     status: 'mastered',
     studyMinutes: 95,
     reviewLevel: 4,
-    userNote: '已完成手推 QK^T/sqrt(d_k) 梯度与显存占用公式。',
+    userNote: '已完成手推 QK^T/sqrt(d_k) 梯度与 RoPE 相对位置内积不变性推导。',
     packId: 'pack-ai-infra',
   },
   {
     id: 'node-kv-cache',
     domainId: 'ai-infra',
     code: 'AI-201',
-    title: 'KV Cache 与 vLLM PagedAttention 分页动画',
+    title: 'KV Cache 与 vLLM PagedAttention 显存分页动画',
     summary: '虚拟页表映射、非连续物理显存块分配与 Copy-on-Write 前缀共享动画',
-    x: 42,
-    y: 18,
+    x: 34,
+    y: 16,
     prerequisites: ['node-transformer'],
     bidirectionalLinks: ['node-transformer', 'node-speculative', 'node-flash-attn'],
     status: 'learning',
     studyMinutes: 60,
     reviewLevel: 2,
-    userNote: '类比操作系统虚拟内存页表，将显存浪费从 60%+ 降至 <4%。',
+    userNote: '类比操作系统虚拟内存页表，将显存浪费从 62%+ 降至 <4%。',
     packId: 'pack-ai-infra',
   },
   {
     id: 'node-speculative',
     domainId: 'ai-infra',
     code: 'AI-301',
-    title: '投机采样 (Speculative Decoding) 双模型动画',
+    title: '投机采样 (Speculative Decoding) 双轨竞速动画',
     summary: '小模型串行快猜 γ 步 + 大模型单次前向并行验证的无损加速动画',
-    x: 68,
-    y: 22,
+    x: 56,
+    y: 20,
     prerequisites: ['node-kv-cache'],
-    bidirectionalLinks: ['node-kv-cache', 'node-flash-attn'],
+    bidirectionalLinks: ['node-kv-cache', 'node-flash-attn', 'node-moe-router'],
     status: 'learning',
-    studyMinutes: 35,
+    studyMinutes: 45,
     reviewLevel: 2,
     userNote: '利用 Decode 阶段算力富余，1 次前向同时验证 γ 个候选词。',
     packId: 'pack-ai-infra',
@@ -160,24 +171,56 @@ export const DEFAULT_KNOWLEDGE_NODES: readonly KnowledgeNode[] = [
     code: 'AI-401',
     title: 'FlashAttention SRAM 分块与 Online Softmax 动画',
     summary: 'GPU HBM ⇄ 片上 SRAM Tiling 流水线与在线重缩放递推公式动画',
-    x: 88,
-    y: 34,
+    x: 76,
+    y: 18,
     prerequisites: ['node-transformer', 'node-kv-cache'],
-    bidirectionalLinks: ['node-transformer', 'node-cuda-mem'],
-    status: 'locked',
-    studyMinutes: 20,
-    reviewLevel: 1,
+    bidirectionalLinks: ['node-transformer', 'node-cuda-mem', 'node-3d-parallel'],
+    status: 'learning',
+    studyMinutes: 40,
+    reviewLevel: 2,
     userNote: '不把 N×N 注意力矩阵写回 HBM，直接片上流式归约。',
+    packId: 'pack-ai-infra',
+  },
+  {
+    id: 'node-moe-router',
+    domainId: 'ai-infra',
+    code: 'AI-501',
+    title: 'MoE 混合专家 Top-K 门控路由与负载均衡动画',
+    summary: 'DeepSeek/Mixtral 共享专家 + 路由专家激活与负载均衡辅助损失动画',
+    x: 64,
+    y: 46,
+    prerequisites: ['node-transformer'],
+    bidirectionalLinks: ['node-speculative', 'node-3d-parallel'],
+    status: 'learning',
+    studyMinutes: 30,
+    reviewLevel: 1,
+    userNote: '参数量扩展至 671B 而单 Token 仅激活 37B，兼顾容量与推理成本。',
+    packId: 'pack-ai-infra',
+  },
+  {
+    id: 'node-3d-parallel',
+    domainId: 'ai-infra',
+    code: 'AI-601',
+    title: '分布式 3D 并行 (TP/PP/DP) 与 ZeRO 显存切分动画',
+    summary: '1F1B 流水线气泡消除、NVLink 张量切分与 ZeRO-1/2/3 优化器状态分片动画',
+    x: 88,
+    y: 44,
+    prerequisites: ['node-flash-attn', 'node-moe-router'],
+    bidirectionalLinks: ['node-flash-attn', 'node-moe-router', 'node-raft'],
+    status: 'locked',
+    studyMinutes: 25,
+    reviewLevel: 1,
+    userNote: '节点内走 NVLink 做 TP，跨机走 RoCE/IB 做 PP 与 ZeRO-DP。',
     packId: 'pack-ai-infra',
   },
   {
     id: 'node-cuda-mem',
     domainId: 'cs-systems',
     code: 'SYS-101',
-    title: 'CPU/GPU 内存层次与 Cache Line 对齐',
+    title: 'CPU/GPU 内存层次与 Cache Line 伪共享剖析',
     summary: 'SRAM vs HBM 带宽差距、False Sharing 与零拷贝机制',
-    x: 22,
-    y: 72,
+    x: 20,
+    y: 76,
     prerequisites: [],
     bidirectionalLinks: ['node-transformer', 'node-raft'],
     status: 'mastered',
@@ -192,10 +235,10 @@ export const DEFAULT_KNOWLEDGE_NODES: readonly KnowledgeNode[] = [
     code: 'SYS-202',
     title: 'Raft 共识状态机与 Local-First CRDT',
     summary: 'Leader 选举、日志复制安全性与离线多端无冲突合并',
-    x: 52,
-    y: 76,
+    x: 50,
+    y: 80,
     prerequisites: ['node-cuda-mem'],
-    bidirectionalLinks: ['node-cuda-mem', 'node-kelly-dca'],
+    bidirectionalLinks: ['node-cuda-mem', 'node-kelly-dca', 'node-3d-parallel'],
     status: 'learning',
     studyMinutes: 45,
     reviewLevel: 2,
@@ -209,7 +252,7 @@ export const DEFAULT_KNOWLEDGE_NODES: readonly KnowledgeNode[] = [
     title: '凯利公式、股债再平衡与家庭现金流池',
     summary: '安全边际、定投微笑曲线、最大回撤控制与双人合池预算模型',
     x: 82,
-    y: 72,
+    y: 78,
     prerequisites: [],
     bidirectionalLinks: ['node-raft'],
     status: 'learning',
@@ -228,41 +271,57 @@ export const CATALOG_CHAPTER_PACKS: readonly KnowledgeChapterPack[] = [
     id: 'pack-ai-infra',
     domainId: 'ai-infra',
     icon: '智',
-    titleZh: 'AI Infra 交互式动画教学离线包',
-    titleEn: 'AI Infra Interactive Animation Pack',
-    version: 'v2.0',
-    sizeKb: 36,
-    nodeCount: 4,
+    titleZh: 'AI Infra 交互式动画教学离线包 (Pro)',
+    titleEn: 'AI Infra Interactive Animation Pack (Pro)',
+    version: 'v3.0',
+    sizeKb: 54,
+    nodeCount: 6,
     localFilePath: 'knowledge-packs/ai-infra-interactive.pack.json',
     descriptionZh:
-      '含 4 套可交互 SVG 教学动画（Self-Attention 热力连线、PagedAttention 显存分页、Speculative 投机采样、FlashAttention SRAM 分块）及闪卡。',
+      '含 6 套可交互 SVG 教学动画（Self-Attention + RoPE 复平面旋转、PagedAttention 显存分页、Speculative 投机采样、FlashAttention SRAM 分块、MoE Top-K 门控路由、3D 并行 & ZeRO 显存切分）、随堂自测与艾宾浩斯闪卡。',
     chapters: {
       'node-transformer': {
         nodeId: 'node-transformer',
         animationKind: 'self-attention',
         coreMentalModel:
-          'Self-Attention 的本质是「动态软寻址字典」：每个词发出 Query 向量去和所有词的 Key 做内积匹配，经过 Softmax(·/τ) 归一化成注意力权重后，对 Value 向量加权求和。',
+          'Self-Attention 的本质是「动态软寻址字典」：每个词发出 Query 向量去和所有词的 Key 做内积匹配，经过 RoPE 复平面旋转注入相对位置 (m-n)θ 后，再用 Softmax(·/τ) 归一化成权重对 Value 加权求和。',
         keyTakeaways: [
-          '除以 √d_k 是为了防止高维内积方差过大导致 Softmax 进入梯度饱和区',
-          '温度参数 τ 越小，注意力分布越尖锐（聚焦头部词）；τ 越大，分布越平缓均匀',
+          '除以 √d_k 是为了防止高维内积方差随维度增长，避免 Softmax 进入梯度接近 0 的饱和区',
+          'RoPE 通过对 Q_m、K_n 分别旋转 mθ 和 nθ 角度，使内积天然只依赖相对距离 (m - n)',
           'Prefill 阶段并行算整句属算力受限 (Compute-bound)，Decode 阶段逐词生成属显存带宽受限 (Memory-bound)',
         ],
         codeOrFormulaSnippet:
-          'Attention(Q, K, V) = softmax((Q @ K.T) / (sqrt(d_k) * tau)) @ V',
+          'Attention(Q, K, V) = softmax((RoPE(Q, m) @ RoPE(K, n).T) / (sqrt(d_k) * tau)) @ V',
         flashcards: [
           {
             q: '为什么 Scaled Dot-Product Attention 必须除以 √d_k？',
             a: '假设 Q、K 元素均值为 0、方差为 1，则内积方差为 d_k；除以 √d_k 将方差拉回 1，避免 Softmax 极化导致梯度消失。',
           },
+          {
+            q: 'RoPE 旋转位置编码如何用绝对位置操作实现相对位置感知？',
+            a: '利用复数内积性质 <R(mθ)q, R(nθ)k> = <q, R((n-m)θ)k>，旋转矩阵相乘后角度相减只剩相对距离 (m-n)。',
+          },
         ],
+        quiz: {
+          questionZh: '当把 Softmax 温度参数 τ 从 1.0 调低到 0.2 时，注意力权重分布会发生什么变化？',
+          optionsZh: [
+            'A. 权重趋于均匀分布，所有词平分注意力',
+            'B. 分布高度尖锐化（Approaching Argmax），注意力集中到得分最高的极少数 Token',
+            'C. Q 和 K 的向量维度自动减半',
+            'D. RoPE 旋转角度变为原来的 5 倍',
+          ],
+          correctIndex: 1,
+          explanationZh:
+            '正确！Logits 除以更小的 τ 会放大得分差距，经过指数函数 exp(x/τ) 后，最高分词权重接近 100%，分布变得极度尖锐。',
+        },
       },
       'node-kv-cache': {
         nodeId: 'node-kv-cache',
         animationKind: 'paged-attention',
         coreMentalModel:
-          '借鉴操作系统虚拟内存分页思想，将连续的逻辑 KV Cache 切分为固定大小（如每块 4 个 Token）的物理 KV Block，通过 Block Table 动态映射，彻底消灭预分配碎片。',
+          '借鉴操作系统虚拟内存分页思想，将连续的逻辑 KV Cache 切分为固定大小（如每块 4 或 16 个 Token）的物理 KV Block，通过 Block Table 动态映射，彻底消灭预分配碎片。',
         keyTakeaways: [
-          '传统连续显存预分配需按 Max_Seq_Len 预留，高达 60%–80% 显存被内部碎片浪费',
+          '传统连续显存预分配需按 Max_Seq_Len 预留，高达 60%–80% 显存被内部碎片与预留空位浪费',
           'PagedAttention 仅在最后一个未填满的 Block 产生极小内部碎片，显存利用率提升至 96%+',
           '多并发请求共享相同 System Prompt 时，通过引用计数 (RefCnt) + Copy-on-Write 实现零拷贝复用',
         ],
@@ -274,25 +333,49 @@ export const CATALOG_CHAPTER_PACKS: readonly KnowledgeChapterPack[] = [
             a: '多个请求的逻辑块指向同一个物理 KV 块并将引用计数 +1；当某请求需修改该块时才触发写时复制 (Copy-on-Write)。',
           },
         ],
+        quiz: {
+          questionZh: '在 vLLM PagedAttention 中，一个请求只有在什么情况下才会产生内部显存碎片？',
+          optionsZh: [
+            'A. 每个物理块都会产生 50% 碎片',
+            'B. 仅在序列最后一个尚未填满的物理 Block 中最多浪费 (BlockSize - 1) 个槽位',
+            'C. 当开启 Copy-on-Write 前缀共享时',
+            'D. 只有在 Batch Size = 1 时才会产生碎片',
+          ],
+          correctIndex: 1,
+          explanationZh:
+            '正确！由于物理块是按需逐块分配的，前面已填满的块利用率为 100%，只有最末尾一个块可能未满，浪费率 < 4%。',
+        },
       },
       'node-speculative': {
         nodeId: 'node-speculative',
         animationKind: 'speculative-decoding',
         coreMentalModel:
-          '利用 GPU 在单 Token Decode 时算力大量闲置的特性：先用极快的小模型（Draft）连续猜 γ 个词，再让大模型（Target）用 1 次前向传播同时验证这 γ 个词，实现 2–3 倍无损加速。',
+          '利用 GPU 在单 Token Decode 时算力大量闲置（显存带宽受限）的特性：先用极快的小模型（Draft）连续猜 γ 个词，再让大模型（Target）用 1 次前向传播同时验证这 γ 个词，实现 2–3 倍无损加速。',
         keyTakeaways: [
-          '验证阶段把 γ 个候选词拼成序列一次送入大模型，耗时与算 1 个词几乎相同',
-          '若第 k 个候选词被拒绝，直接从修正分布中重采样第 k 个词，前面 k-1 个词全部保留，且额外白送第 k 个正确词',
-          '每次大模型验证保底产出 1 个词、最高产出 γ+1 个词，数学上严格保持大模型原始分布',
+          '验证阶段把 γ 个候选词拼成序列一次送入大模型，由于 GPU 算力富余，耗时与算 1 个词几乎相同',
+          '若第 k 个候选词被拒绝，直接从修正分布 norm(max(0, p - q)) 中重采样第 k 个词，前面 k-1 个词全部保留',
+          '每次大模型验证保底产出 1 个词、最高产出 γ+1 个词，数学上严格保持大模型原始分布无损',
         ],
         codeOrFormulaSnippet:
           'ExpectedTokensPerStep = (1 - alpha^(gamma + 1)) / (1 - alpha)  // alpha 为单步接受率',
         flashcards: [
           {
             q: '如果 Draft 小模型猜的 γ=4 个词全错了，投机采样这一步产出了几个有效 Token？',
-            a: '依然至少产出 1 个有效 Token（由大模型在第一个被拒位置直接输出的概率分布采样得到）。',
+            a: '依然至少产出 1 个有效 Token（由大模型在第一个被拒位置直接输出的修正概率分布采样得到）。',
           },
         ],
+        quiz: {
+          questionZh: '若 Draft 小模型连续猜了 γ=4 个词且全部通过大模型验证，本次大模型前向传播一共能吐出几个新 Token？',
+          optionsZh: [
+            'A. 1 个 Token',
+            'B. 3 个 Token',
+            'C. 4 个 Token',
+            'D. 5 个 Token（γ + 1，含大模型在最后一个位置的免费 Bonus Token）',
+          ],
+          correctIndex: 3,
+          explanationZh:
+            '正确！大模型在并行验证 γ 个候选词的同时，最后一个位置的前向输出还能直接多采样出 1 个新词，因此最多产出 γ + 1 = 5 个 Token！',
+        },
       },
       'node-flash-attn': {
         nodeId: 'node-flash-attn',
@@ -312,6 +395,80 @@ export const CATALOG_CHAPTER_PACKS: readonly KnowledgeChapterPack[] = [
             a: '利用指数函数可分解性质 exp(x - m_new) = exp(x - m_old) * exp(m_old - m_new)，在遍历每个分块时在线重缩放历史分子与分母。',
           },
         ],
+        quiz: {
+          questionZh: 'FlashAttention 相较于标准 Attention，总 FLOPs（浮点计算次数）和实际运行速度分别如何变化？',
+          optionsZh: [
+            'A. FLOPs 大幅减少，所以速度变快',
+            'B. FLOPs 略微增加（因重缩放与反向重算），但因 HBM 显存读写减少 5–9 倍而显著加速',
+            'C. FLOPs 不变，仅通过近似丢弃小权重加速',
+            'D. 只减少显存占用，运行速度反而变慢',
+          ],
+          correctIndex: 1,
+          explanationZh:
+            '正确！Attention 是典型的 Memory-bound 算子，FlashAttention 用极少量的片上额外重缩放计算换取了数量级的 HBM 带宽节省，而且结果 100% 精确无损。',
+        },
+      },
+      'node-moe-router': {
+        nodeId: 'node-moe-router',
+        animationKind: 'moe-routing',
+        coreMentalModel:
+          '稀疏混合专家 (Sparse MoE) 将庞大的 FFN 拆分为多个独立 Expert 子网络。每个 Token 经过轻量级 Router 门控打分后，仅激活得分最高的 Top-K 个路由专家（加固定共享专家），实现「超大参数容量、超低单步推理FLOPs」。',
+        keyTakeaways: [
+          'DeepSeek-V2/V3 采用「细粒度专家切分 + 常驻共享专家 (Shared Expert)」，隔离通用知识与垂直领域知识',
+          '若不加约束，Router 极易坍缩为只选少数几个专家（赢家通吃），导致其余专家闲置与跨卡通信拥塞',
+          '通过 Auxiliary Load-Balancing Loss 或无辅助损失动态偏置 (Bias Term) 保证各专家负载均衡',
+        ],
+        codeOrFormulaSnippet:
+          'y = SharedFFN(x) + sum_{i in TopK(Softmax(x @ W_g + bias))} g_i * RoutedExpert_i(x)',
+        flashcards: [
+          {
+            q: '为什么 DeepSeekMoE 要把部分专家设为常驻激活的「共享专家 (Shared Experts)」？',
+            a: '让共享专家专门承载高频通用语法与常识，释放路由专家的参数容量去专注长尾专业领域，避免多个路由专家重复学习通用知识。',
+          },
+        ],
+        quiz: {
+          questionZh: '在 MoE 训练中，如果某个专家的负载持续过高（热门专家坍缩），无辅助损失负载均衡策略会如何调节？',
+          optionsZh: [
+            'A. 直接删除该专家的网络权重',
+            'B. 动态调低该热门专家的路由偏置项 b_i（或调高冷门专家偏置），引导后续 Token 分流',
+            'C. 把所有 Token 都广播给全部专家',
+            'D. 停止更新 Router 的全部参数',
+          ],
+          correctIndex: 1,
+          explanationZh:
+            '正确！通过动态微调每个专家的路由偏置项 bias，既能实现均匀负载分流，又避免了传统辅助损失干扰主语言模型损失梯度。',
+        },
+      },
+      'node-3d-parallel': {
+        nodeId: 'node-3d-parallel',
+        animationKind: 'distributed-parallel',
+        coreMentalModel:
+          '大模型分布式训练需协同三大维度：张量并行 (TP) 切分单层矩阵乘（需极高带宽 NVLink）、流水线并行 (PP) 按层切分模型并通过 1F1B 微批次调度压缩气泡、数据并行 (DP + ZeRO-1/2/3) 切分优化器状态/梯度/参数以消除冗余副本。',
+        keyTakeaways: [
+          '混合精度训练下，1B 参数模型仅模型状态就占 16 Bytes/param（FP16 参数 2B + 梯度 2B + FP32 Adam 状态 12B）',
+          'ZeRO-1 切分优化器状态（省 4x），ZeRO-2 切分优化器+梯度（省 8x），ZeRO-3 连参数一并切分（线性随卡数缩减）',
+          '1F1B 流水线调度让前向与反向微批次交错执行，气泡率等于 (P - 1) / M（M 为微批次数，P 为流水线级数）',
+        ],
+        codeOrFormulaSnippet:
+          'BubbleRatio = (PP_Stages - 1) / MicroBatches;  ModelStateBytes = Params * (2 + 2 + 12 / ZeRO_Factor)',
+        flashcards: [
+          {
+            q: '为什么张量并行 (TP) 通常限制在单机 8 卡 NVLink 内部，而不跨机使用？',
+            a: '因为 TP 在每一层的 Attention 和 MLP 前向/反向中都需要高频 AllReduce 同步激活值，跨机网卡带宽远低于 NVLink，通信延迟会成为严重瓶颈。',
+          },
+        ],
+        quiz: {
+          questionZh: '在 FP16 + Adam 混合精度训练中，每 1 个参数对应的 16 Bytes 模型状态里，占比最大的是哪一部分？',
+          optionsZh: [
+            'A. FP16 模型参数本身（2 Bytes）',
+            'B. FP16 梯度（2 Bytes）',
+            'C. FP32 优化器状态（Master Weights 4B + Momentum 4B + Variance 4B = 共 12 Bytes，占 75%）',
+            'D. 随机数种子（16 Bytes）',
+          ],
+          correctIndex: 2,
+          explanationZh:
+            '正确！Adam 优化器状态占了整整 12 Bytes（75%），因此 ZeRO-1 仅切分优化器状态就能立竿见影节省大半显存且通信开销极小。',
+        },
       },
     },
   },
@@ -321,7 +478,7 @@ export const CATALOG_CHAPTER_PACKS: readonly KnowledgeChapterPack[] = [
     icon: '核',
     titleZh: '计算机底层与分布式一致性离线包',
     titleEn: 'CS Systems & Distributed Consensus Pack',
-    version: 'v1.1',
+    version: 'v1.2',
     sizeKb: 24,
     nodeCount: 2,
     localFilePath: 'knowledge-packs/cs-systems-consensus.pack.json',
@@ -344,6 +501,17 @@ export const CATALOG_CHAPTER_PACKS: readonly KnowledgeChapterPack[] = [
             a: '两个线程修改不同变量，但变量位于同一个 64B Cache Line 中，导致缓存一致性协议频繁使整行失效。',
           },
         ],
+        quiz: {
+          questionZh: '消除多核并发计数器伪共享 (False Sharing) 最直接的工程手段是什么？',
+          optionsZh: [
+            'A. 把变量声明为全局变量',
+            'B. 使用 alignas(64) 对齐填充或每个线程先在 Thread-Local 变量累加最后汇总',
+            'C. 降低 CPU 主频',
+            'D. 把 int64_t 改成 int8_t',
+          ],
+          correctIndex: 1,
+          explanationZh: '正确！64 字节对齐填充可确保不同核心高频写的原子变量落在不同 Cache Line 上。',
+        },
       },
       'node-raft': {
         nodeId: 'node-raft',
@@ -362,6 +530,18 @@ export const CATALOG_CHAPTER_PACKS: readonly KnowledgeChapterPack[] = [
             a: '因为无需中心化锁协调，任意两端离线修改后按交换律/幂等律合并即可收敛到一致状态。',
           },
         ],
+        quiz: {
+          questionZh: '状态型 CRDT (CvRDT) 的合并函数 merge(A, B) 必须满足哪三条数学性质？',
+          optionsZh: [
+            'A. 交换律、结合律、幂等律 (Commutative, Associative, Idempotent)',
+            'B. 线性、正交、可逆',
+            'C. 单调递减、有界、连续',
+            'D. 仅需满足先进先出 (FIFO)',
+          ],
+          correctIndex: 0,
+          explanationZh:
+            '正确！满足交换律、结合律与幂等律后，无论副本消息乱序、重复送达还是离线重连，最终状态必然一致。',
+        },
       },
     },
   },
@@ -371,7 +551,7 @@ export const CATALOG_CHAPTER_PACKS: readonly KnowledgeChapterPack[] = [
     icon: '财',
     titleZh: '家庭量化配置与复利模型离线包',
     titleEn: 'Household Quant & Compounding Pack',
-    version: 'v1.0',
+    version: 'v1.1',
     sizeKb: 19,
     nodeCount: 1,
     localFilePath: 'knowledge-packs/wealth-quant-compounding.pack.json',
@@ -394,6 +574,13 @@ export const CATALOG_CHAPTER_PACKS: readonly KnowledgeChapterPack[] = [
             a: '几何复利收益受方差拖累（g ≈ μ - σ²/2），大幅回撤会严重侵蚀长期复利终值。',
           },
         ],
+        quiz: {
+          questionZh: '若某投资组合第一年下跌 50%，第二年上涨 50%，两年累计收益率为多少？',
+          optionsZh: ['A. 0%（不亏不赚）', 'B. -25%（本金仅剩 75%）', 'C. +25%', 'D. -10%'],
+          correctIndex: 1,
+          explanationZh:
+            '正确！1.0 × (1 - 0.5) × (1 + 0.5) = 0.75，亏损 25%。这就是「波动率税」的直观体现，控制最大回撤至关重要。',
+        },
       },
     },
   },
@@ -402,48 +589,83 @@ export const CATALOG_CHAPTER_PACKS: readonly KnowledgeChapterPack[] = [
 export const KNOWLEDGE_STORAGE_KEY = 'viastela.knowledge_graph.v1';
 
 /**
- * Interactive Simulation 1: Self-Attention Q/K/V & Temperature Softmax Frame
+ * Interactive Simulation 1: Self-Attention Q/K/V, Multi-Head & RoPE Rotation Frame
  */
 export function computeAttentionSimulation(input: {
   focusTokenIdx: number;
   stepIdx: number;
   temperature: number;
+  headIdx?: number;
 }): {
   tokens: readonly string[];
   focusTokenIdx: number;
+  headIdx: number;
+  headNameZh: string;
   stepIdx: number;
   stepTitleZh: string;
   stepDescZh: string;
   weightsPct: number[];
+  ropeAngleDeg: number;
   entropyInfoZh: string;
 } {
   const tokens = ['我', '在', '深', '度', '学', 'AI'] as const;
   const idx = Math.max(0, Math.min(tokens.length - 1, input.focusTokenIdx));
+  const headIdx = Math.max(0, Math.min(2, input.headIdx ?? 0));
   const tau = Math.max(0.2, Math.min(2.5, input.temperature));
 
-  const rawLogitsMatrix: readonly (readonly number[])[] = [
-    [2.6, 1.4, 0.9, 0.8, 1.9, 1.7],
-    [1.3, 2.4, 1.8, 1.6, 2.1, 1.2],
-    [0.8, 1.2, 2.7, 2.5, 2.2, 1.9],
-    [0.7, 1.1, 2.5, 2.6, 2.3, 1.8],
-    [1.8, 1.5, 2.0, 2.1, 2.8, 2.9],
-    [1.6, 1.1, 1.9, 1.8, 2.7, 3.1],
+  const headNames = [
+    'Head #1 · 语义核心指代头',
+    'Head #2 · 邻近局部语法头',
+    'Head #3 · 全局句首锚定头',
+  ] as const;
+
+  const headMatrices: readonly (readonly (readonly number[])[])[] = [
+    // Head 0: Semantic alignment
+    [
+      [2.6, 1.4, 0.9, 0.8, 1.9, 1.7],
+      [1.3, 2.4, 1.8, 1.6, 2.1, 1.2],
+      [0.8, 1.2, 2.7, 2.5, 2.2, 1.9],
+      [0.7, 1.1, 2.5, 2.6, 2.3, 1.8],
+      [1.8, 1.5, 2.0, 2.1, 2.8, 2.9],
+      [1.6, 1.1, 1.9, 1.8, 2.7, 3.1],
+    ],
+    // Head 1: Local window (attends strongly to i-1 and i)
+    [
+      [3.0, 2.1, 0.6, 0.5, 0.5, 0.5],
+      [2.5, 2.8, 1.9, 0.6, 0.5, 0.5],
+      [0.7, 2.6, 2.9, 2.0, 0.6, 0.5],
+      [0.5, 0.8, 2.7, 2.9, 2.1, 0.6],
+      [0.5, 0.6, 0.9, 2.7, 2.9, 2.2],
+      [0.5, 0.5, 0.7, 1.1, 2.8, 3.1],
+    ],
+    // Head 2: Global anchor & verb-object link
+    [
+      [3.2, 1.1, 1.0, 1.0, 1.5, 1.6],
+      [2.6, 2.0, 1.2, 1.1, 1.4, 1.3],
+      [2.4, 1.2, 2.1, 2.2, 1.5, 1.8],
+      [2.3, 1.1, 2.2, 2.1, 1.6, 1.9],
+      [2.5, 1.3, 1.5, 1.5, 2.2, 2.8],
+      [2.7, 1.2, 1.8, 1.7, 2.6, 2.9],
+    ],
   ];
-  const row = rawLogitsMatrix[idx] ?? rawLogitsMatrix[5]!;
+
+  const matrix = headMatrices[headIdx] ?? headMatrices[0]!;
+  const row = matrix[idx] ?? matrix[5]!;
   const scaled = row.map((v) => v / tau);
   const maxVal = Math.max(...scaled);
   const exps = scaled.map((v) => Math.exp(v - maxVal));
   const sumExp = exps.reduce((a, b) => a + b, 0) || 1;
   const weightsPct = exps.map((e) => Math.round((e / sumExp) * 100));
+  const ropeAngleDeg = idx * 32;
 
   const steps: { title: string; desc: string }[] = [
     {
-      title: '步骤 1/4 · Token 向量投影 (Q, K, V) 与 RoPE 旋转编码',
-      desc: `当前选中词「${tokens[idx]}」通过线性层映射出 Query 检索向量，并乘以复数旋转矩阵注入相对位置信息。`,
+      title: `步骤 1/4 · Q/K/V 线性投影与 RoPE 复平面旋转 (${ropeAngleDeg}°)`,
+      desc: `词「${tokens[idx]}」(位置 m=${idx}) 映射出 Q/K/V 向量，并在 2D 复平面逆时针旋转 mθ = ${ropeAngleDeg}°，使点积天然感知相对距离 (m-n)。`,
     },
     {
       title: '步骤 2/4 · 缩放点积打分 S = (Q · K^T) / √d_k',
-      desc: `「${tokens[idx]}」的 Query 与句中全部 6 个词的 Key 并行计算内积，并除以 √d_k 稳定梯度方差。`,
+      desc: `在「${headNames[headIdx]}」中，「${tokens[idx]}」的 Query 与全部 6 个词的 Key 并行计算内积，除以 √d_k 稳定方差。`,
     },
     {
       title: `步骤 3/4 · 温度缩放 Softmax 归一化 (当前 τ = ${tau.toFixed(1)})`,
@@ -456,21 +678,24 @@ export function computeAttentionSimulation(input: {
     },
     {
       title: '步骤 4/4 · Value 向量加权求和输出 Context Representation',
-      desc: `按注意力权重 [${weightsPct.map((w) => `${w}%`).join(', ')}] 对各词 Value 加权求和，得到融合上下文后的新表征。`,
+      desc: `按注意力权重 [${weightsPct.map((w) => `${w}%`).join(', ')}] 对各词 Value 加权求和，拼接多头输出得到上下文表征。`,
     },
   ];
 
   const stepObj = steps[Math.max(0, Math.min(3, input.stepIdx))] ?? steps[0]!;
   const maxWeight = Math.max(...weightsPct);
-  const entropyInfoZh = `最高注意力权重 ${maxWeight}% · 温度 τ=${tau.toFixed(1)}`;
+  const entropyInfoZh = `${headNames[headIdx]} · 峰值权重 ${maxWeight}% · RoPE 旋转 ${ropeAngleDeg}°`;
 
   return {
     tokens,
     focusTokenIdx: idx,
+    headIdx,
+    headNameZh: headNames[headIdx]!,
     stepIdx: Math.max(0, Math.min(3, input.stepIdx)),
     stepTitleZh: stepObj.title,
     stepDescZh: stepObj.desc,
     weightsPct,
+    ropeAngleDeg,
     entropyInfoZh,
   };
 }
@@ -602,6 +827,7 @@ export function computeFlashAttentionSimulation(input: {
   totalTiles: number;
   runningMax: number;
   runningSumExp: number;
+  rescaleFactor: number;
   standardHbmReadsMb: number;
   flashHbmReadsMb: number;
   ioReductionFactor: number;
@@ -610,6 +836,9 @@ export function computeFlashAttentionSimulation(input: {
   const totalTiles = 4;
   const idx = Math.max(0, Math.min(totalTiles - 1, input.activeTileIdx));
   const maxProgression = [1.8, 2.4, 2.4, 3.1];
+  const prevMax = idx === 0 ? 1.8 : maxProgression[idx - 1]!;
+  const curMax = maxProgression[idx]!;
+  const rescaleFactor = Number(Math.exp(prevMax - curMax).toFixed(2));
   const sumProgression = [3.2, 7.8, 12.4, 18.6];
   const standardHbmReadsMb = 128;
   const flashHbmReadsMb = 16;
@@ -617,12 +846,152 @@ export function computeFlashAttentionSimulation(input: {
   return {
     activeTileIdx: idx,
     totalTiles,
-    runningMax: maxProgression[idx]!,
+    runningMax: curMax,
     runningSumExp: sumProgression[idx]!,
+    rescaleFactor,
     standardHbmReadsMb,
     flashHbmReadsMb,
     ioReductionFactor: Number((standardHbmReadsMb / flashHbmReadsMb).toFixed(1)),
-    stepDescZh: `正在 GPU 片上 SRAM 处理第 ${idx + 1}/${totalTiles} 个 KV 分块 (Tile #${idx + 1})：在线更新局部最大值 m=${maxProgression[idx]}，用 exp(m_old - m_new) 动态缩放累加器 O，全程 0 次中间矩阵写回 HBM！`,
+    stepDescZh: `正在 GPU 片上 SRAM 处理第 ${idx + 1}/${totalTiles} 个 KV 分块 (Tile #${idx + 1})：在线更新局部最大值 m=${curMax}，用缩放因子 exp(m_old - m_new)=${rescaleFactor} 动态修正历史累加器 O，全程 0 次中间矩阵写回 HBM！`,
+  };
+}
+
+/**
+ * Interactive Simulation 5: Sparse MoE Top-K Router & Load Balancing
+ */
+export function computeMoeRoutingSimulation(input: {
+  tokenIdx: number;
+  topK: number;
+  loadBalanceEnabled: boolean;
+}): {
+  tokens: readonly { text: string; domain: string }[];
+  tokenIdx: number;
+  topK: number;
+  experts: {
+    id: string;
+    nameZh: string;
+    isShared: boolean;
+    scorePct: number;
+    selected: boolean;
+    loadCount: number;
+  }[];
+  activeParamsBillion: number;
+  totalParamsBillion: number;
+  summaryZh: string;
+} {
+  const tokens = [
+    { text: 'def_attn()', domain: '代码/算子' },
+    { text: '∇L_aux', domain: '数学推导' },
+    { text: 'NVLink带宽', domain: '系统硬件' },
+    { text: '夏普比率', domain: '量化金融' },
+  ] as const;
+  const tIdx = Math.max(0, Math.min(tokens.length - 1, input.tokenIdx));
+  const topK = Math.max(1, Math.min(3, input.topK));
+
+  const rawScoresByToken: readonly (readonly number[])[] = [
+    [42, 28, 11, 8, 6, 5],
+    [16, 46, 18, 9, 6, 5],
+    [14, 12, 44, 16, 8, 6],
+    [9, 18, 8, 45, 12, 8],
+  ];
+  const raw = rawScoresByToken[tIdx] ?? rawScoresByToken[0]!;
+  const scores = input.loadBalanceEnabled
+    ? raw.map((s, i) => (i === 0 ? Math.max(12, s - 6) : i >= 4 ? s + 6 : s))
+    : [...raw];
+
+  const rankedIndices = scores
+    .map((s, idx) => ({ s, idx }))
+    .sort((a, b) => b.s - a.s)
+    .slice(0, topK)
+    .map((item) => item.idx);
+
+  const expertMeta = [
+    { id: 'E1', nameZh: '路由专家 E1 · 代码生成' },
+    { id: 'E2', nameZh: '路由专家 E2 · 数学推理' },
+    { id: 'E3', nameZh: '路由专家 E3 · CUDA 系统' },
+    { id: 'E4', nameZh: '路由专家 E4 · 量化金融' },
+    { id: 'E5', nameZh: '路由专家 E5 · 逻辑规划' },
+    { id: 'E6', nameZh: '路由专家 E6 · 多语对齐' },
+  ];
+
+  const experts = [
+    {
+      id: 'S0',
+      nameZh: '常驻共享专家 S0 · 通用语法常识',
+      isShared: true,
+      scorePct: 100,
+      selected: true,
+      loadCount: 100,
+    },
+    ...expertMeta.map((meta, idx) => ({
+      id: meta.id,
+      nameZh: meta.nameZh,
+      isShared: false,
+      scorePct: scores[idx] ?? 10,
+      selected: rankedIndices.includes(idx),
+      loadCount: input.loadBalanceEnabled ? 15 + ((idx * 3) % 5) : idx === 0 ? 48 : 8 + idx * 3,
+    })),
+  ];
+
+  const totalParamsBillion = 671;
+  const activeParamsBillion = 12 + topK * 12.5;
+
+  return {
+    tokens,
+    tokenIdx: tIdx,
+    topK,
+    experts,
+    activeParamsBillion,
+    totalParamsBillion,
+    summaryZh: `Token「${tokens[tIdx]!.text}」经 Router 门控打分，激活 1 个常驻共享专家 + Top-${topK} 路由专家（仅激活 ${activeParamsBillion}B / ${totalParamsBillion}B 参数，算力节省 ${Math.round((1 - activeParamsBillion / totalParamsBillion) * 100)}%）。`,
+  };
+}
+
+/**
+ * Interactive Simulation 6: 3D Parallelism (TP/PP/DP) & ZeRO Memory Sharding
+ */
+export function computeDistributedParallelSimulation(input: {
+  zeroStage: 0 | 1 | 2 | 3;
+  microBatches: number;
+  ppStages?: number;
+}): {
+  zeroStage: 0 | 1 | 2 | 3;
+  ppStages: number;
+  microBatches: number;
+  paramMemGb: number;
+  gradMemGb: number;
+  optimMemGb: number;
+  totalMemPerGpuGb: number;
+  bubbleRatioPct: number;
+  summaryZh: string;
+} {
+  const dpWorldSize = 8;
+  const ppStages = input.ppStages ?? 4;
+  const m = Math.max(4, Math.min(16, input.microBatches));
+  // Baseline 7B model in mixed precision: Params=14GB, Grads=14GB, Optim=84GB => Total 112GB
+  const baseParamGb = 14;
+  const baseGradGb = 14;
+  const baseOptimGb = 84;
+
+  const paramMemGb =
+    input.zeroStage === 3 ? Number((baseParamGb / dpWorldSize).toFixed(1)) : baseParamGb;
+  const gradMemGb =
+    input.zeroStage >= 2 ? Number((baseGradGb / dpWorldSize).toFixed(1)) : baseGradGb;
+  const optimMemGb =
+    input.zeroStage >= 1 ? Number((baseOptimGb / dpWorldSize).toFixed(1)) : baseOptimGb;
+  const totalMemPerGpuGb = Number((paramMemGb + gradMemGb + optimMemGb).toFixed(1));
+  const bubbleRatioPct = Math.round(((ppStages - 1) / (ppStages - 1 + m)) * 100);
+
+  return {
+    zeroStage: input.zeroStage,
+    ppStages,
+    microBatches: m,
+    paramMemGb,
+    gradMemGb,
+    optimMemGb,
+    totalMemPerGpuGb,
+    bubbleRatioPct,
+    summaryZh: `7B 模型在 8 卡 DP (${input.zeroStage === 0 ? '无 ZeRO' : `ZeRO-${input.zeroStage}`}) 下：单卡模型状态显存从 112.0 GB 降至 ${totalMemPerGpuGb} GB；1F1B 流水线 (${m} 个微批次) 空闲气泡率压至 ${bubbleRatioPct}%。`,
   };
 }
 
@@ -655,8 +1024,10 @@ export function readKnowledgeGraphState(): KnowledgeGraphState {
     const mergedContents: Record<string, KnowledgeChapterContent> = {
       ...(parsed.offlineContents ?? {}),
     };
-    if (installed.includes('pack-ai-infra')) {
-      Object.assign(mergedContents, CATALOG_CHAPTER_PACKS[0]!.chapters);
+    for (const pack of CATALOG_CHAPTER_PACKS) {
+      if (installed.includes(pack.id)) {
+        Object.assign(mergedContents, pack.chapters);
+      }
     }
     return {
       nodes: mergedNodes,
@@ -814,6 +1185,7 @@ export function computeKnowledgeGraphStats(state: KnowledgeGraphState): {
   totalNodes: number;
   masteredCount: number;
   learningCount: number;
+  lockedCount: number;
   totalStudyMinutes: number;
   installedPacksCount: number;
   totalCatalogPacksCount: number;
@@ -823,6 +1195,7 @@ export function computeKnowledgeGraphStats(state: KnowledgeGraphState): {
 } {
   const masteredCount = state.nodes.filter((n) => n.status === 'mastered').length;
   const learningCount = state.nodes.filter((n) => n.status === 'learning').length;
+  const lockedCount = state.nodes.filter((n) => n.status === 'locked').length;
   const totalStudyMinutes = state.nodes.reduce((s, n) => s + n.studyMinutes, 0);
   const cachedSizeKb = CATALOG_CHAPTER_PACKS.filter((p) =>
     state.installedPackIds.includes(p.id),
@@ -832,6 +1205,7 @@ export function computeKnowledgeGraphStats(state: KnowledgeGraphState): {
     totalNodes: state.nodes.length,
     masteredCount,
     learningCount,
+    lockedCount,
     totalStudyMinutes,
     installedPacksCount: state.installedPackIds.length,
     totalCatalogPacksCount: CATALOG_CHAPTER_PACKS.length,

@@ -1,15 +1,114 @@
 {
   "id": "pack-ai-infra",
   "domainId": "ai-infra",
-  "version": "v2.0-interactive",
-  "titleZh": "AI Infra 与大模型原理交互动画离线包",
-  "titleEn": "AI Infra Interactive Animation Pack",
-  "storageFormat": "viastela-offline-chapter-pack-v2",
-  "nodes": [
-    "node-transformer",
-    "node-kv-cache",
-    "node-speculative",
-    "node-flash-attn"
-  ],
-  "descriptionZh": "独立离线章节数据包（支持按需加载至本地沙箱缓存或直接作为文件备份）：包含 Self-Attention QKV 矩阵热力动画、vLLM PagedAttention 显存分页动画、Speculative Decoding 投机采样动画与 FlashAttention SRAM Tiling 分块动画。"
+  "icon": "智",
+  "titleZh": "AI Infra 交互式动画教学离线包 (Pro)",
+  "titleEn": "AI Infra Interactive Animation Pack (Pro)",
+  "version": "v3.0",
+  "sizeKb": 54,
+  "nodeCount": 6,
+  "localFilePath": "knowledge-packs/ai-infra-interactive.pack.json",
+  "descriptionZh": "含 6 套可交互 SVG 教学动画（Self-Attention + RoPE 复平面旋转、PagedAttention 显存分页、Speculative 投机采样、FlashAttention SRAM 分块、MoE Top-K 门控路由、3D 并行 & ZeRO 显存切分）、随堂自测与艾宾浩斯闪卡。",
+  "chapters": {
+    "node-transformer": {
+      "nodeId": "node-transformer",
+      "animationKind": "self-attention",
+      "coreMentalModel": "Self-Attention 的本质是「动态软寻址字典」：每个词发出 Query 向量去和所有词的 Key 做内积匹配，经过 RoPE 复平面旋转注入相对位置 (m-n)θ 后，再用 Softmax(·/τ) 归一化成权重对 Value 加权求和。",
+      "keyTakeaways": [
+        "除以 √d_k 是为了防止高维内积方差随维度增长，避免 Softmax 进入梯度接近 0 的饱和区",
+        "RoPE 通过对 Q_m、K_n 分别旋转 mθ 和 nθ 角度，使内积天然只依赖相对距离 (m - n)",
+        "Prefill 阶段并行算整句属算力受限 (Compute-bound)，Decode 阶段逐词生成属显存带宽受限 (Memory-bound)"
+      ],
+      "codeOrFormulaSnippet": "Attention(Q, K, V) = softmax((RoPE(Q, m) @ RoPE(K, n).T) / (sqrt(d_k) * tau)) @ V",
+      "flashcards": [
+        {
+          "q": "为什么 Scaled Dot-Product Attention 必须除以 √d_k？",
+          "a": "假设 Q、K 元素均值为 0、方差为 1，则内积方差为 d_k；除以 √d_k 将方差拉回 1，避免 Softmax 极化导致梯度消失。"
+        }
+      ]
+    },
+    "node-kv-cache": {
+      "nodeId": "node-kv-cache",
+      "animationKind": "paged-attention",
+      "coreMentalModel": "借鉴操作系统虚拟内存分页思想，将连续的逻辑 KV Cache 切分为固定大小的物理 KV Block，通过 Block Table 动态映射，彻底消灭预分配碎片。",
+      "keyTakeaways": [
+        "传统连续显存预分配需按 Max_Seq_Len 预留，高达 60%–80% 显存被内部碎片浪费",
+        "PagedAttention 仅在最后一个未填满的 Block 产生极小内部碎片，显存利用率提升至 96%+",
+        "多并发请求共享相同 System Prompt 时，通过引用计数 (RefCnt) + Copy-on-Write 实现零拷贝复用"
+      ],
+      "codeOrFormulaSnippet": "PhysicalBlock = BlockTable[req_id][logical_token_idx // BLOCK_SIZE]",
+      "flashcards": [
+        {
+          "q": "PagedAttention 如何在多个对话间共享长 System Prompt 的 KV Cache？",
+          "a": "多个请求的逻辑块指向同一个物理 KV 块并将引用计数 +1；当某请求需修改该块时才触发写时复制 (Copy-on-Write)。"
+        }
+      ]
+    },
+    "node-speculative": {
+      "nodeId": "node-speculative",
+      "animationKind": "speculative-decoding",
+      "coreMentalModel": "利用 GPU 在单 Token Decode 时算力大量闲置的特性：先用极快的小模型（Draft）连续猜 γ 个词，再让大模型（Target）用 1 次前向传播同时验证这 γ 个词，实现 2–3 倍无损加速。",
+      "keyTakeaways": [
+        "验证阶段把 γ 个候选词拼成序列一次送入大模型，耗时与算 1 个词几乎相同",
+        "若第 k 个候选词被拒绝，直接从修正分布中重采样第 k 个词，前面 k-1 个词全部保留",
+        "每次大模型验证保底产出 1 个词、最高产出 γ+1 个词，数学上严格保持大模型原始分布"
+      ],
+      "codeOrFormulaSnippet": "ExpectedTokensPerStep = (1 - alpha^(gamma + 1)) / (1 - alpha)",
+      "flashcards": [
+        {
+          "q": "如果 Draft 小模型猜的 γ=4 个词全错了，投机采样这一步产出了几个有效 Token？",
+          "a": "依然至少产出 1 个有效 Token（由大模型在第一个被拒位置直接输出的概率分布采样得到）。"
+        }
+      ]
+    },
+    "node-flash-attn": {
+      "nodeId": "node-flash-attn",
+      "animationKind": "flash-attention",
+      "coreMentalModel": "GPU 的片上 SRAM 带宽（~19 TB/s）比 HBM 显存带宽（~1.5 TB/s）快 10 倍以上。FlashAttention 通过分块 (Tiling) + 在线 Softmax 递推，在 SRAM 内一次性完成 QKV 归约，避免把巨大的 N×N 注意力矩阵写回 HBM。",
+      "keyTakeaways": [
+        "标准 Attention 需将 N×N 中间矩阵 S 和 P 反复读写 HBM，访存复杂度为 O(N²)",
+        "Online Softmax 维护局部最大值 m(x) 与指数和 l(x)，每加载一个新 KV 分块就用 exp(m_old - m_new) 动态修正历史累加值",
+        "显存占用从 O(N²) 降为 O(N)，HBM 读写量减少 5–9 倍"
+      ],
+      "codeOrFormulaSnippet": "m_new = max(m_old, rowmax(S_ij));  O_new = diag(exp(m_old - m_new)) * O_old + exp(S_ij - m_new) @ V_j",
+      "flashcards": [
+        {
+          "q": "FlashAttention 为什么不需要先遍历完整行就能算出精确的 Softmax？",
+          "a": "利用指数函数可分解性质 exp(x - m_new) = exp(x - m_old) * exp(m_old - m_new)，在遍历每个分块时在线重缩放历史分子与分母。"
+        }
+      ]
+    },
+    "node-moe-router": {
+      "nodeId": "node-moe-router",
+      "animationKind": "moe-routing",
+      "coreMentalModel": "稀疏混合专家 (Sparse MoE) 将庞大的 FFN 拆分为多个独立 Expert 子网络。每个 Token 经过轻量级 Router 门控打分后，仅激活得分最高的 Top-K 个路由专家（加固定共享专家）。",
+      "keyTakeaways": [
+        "DeepSeek-V2/V3 采用「细粒度专家切分 + 常驻共享专家 (Shared Expert)」，隔离通用知识与垂直领域知识",
+        "通过无辅助损失动态偏置 (Bias Term) 保证各专家负载均衡"
+      ],
+      "codeOrFormulaSnippet": "y = SharedFFN(x) + sum_{i in TopK(Softmax(x @ W_g + bias))} g_i * RoutedExpert_i(x)",
+      "flashcards": [
+        {
+          "q": "为什么 DeepSeekMoE 要把部分专家设为常驻激活的「共享专家 (Shared Experts)」？",
+          "a": "让共享专家专门承载高频通用语法与常识，释放路由专家的参数容量去专注长尾专业领域。"
+        }
+      ]
+    },
+    "node-3d-parallel": {
+      "nodeId": "node-3d-parallel",
+      "animationKind": "distributed-parallel",
+      "coreMentalModel": "大模型分布式训练需协同三大维度：张量并行 (TP) 切分单层矩阵乘、流水线并行 (PP) 按层切分模型并通过 1F1B 微批次调度压缩气泡、数据并行 (DP + ZeRO-1/2/3) 切分优化器状态/梯度/参数。",
+      "keyTakeaways": [
+        "混合精度训练下，1B 参数模型仅模型状态就占 16 Bytes/param（FP16 参数 2B + 梯度 2B + FP32 Adam 状态 12B）",
+        "ZeRO-1 切分优化器状态（省 4x），ZeRO-2 切分优化器+梯度（省 8x），ZeRO-3 连参数一并切分"
+      ],
+      "codeOrFormulaSnippet": "BubbleRatio = (PP_Stages - 1) / MicroBatches;  ModelStateBytes = Params * (2 + 2 + 12 / ZeRO_Factor)",
+      "flashcards": [
+        {
+          "q": "为什么张量并行 (TP) 通常限制在单机 8 卡 NVLink 内部？",
+          "a": "因为 TP 在每一层前向/反向都需要高频 AllReduce 同步激活值，跨机网卡带宽远低于 NVLink。"
+        }
+      ]
+    }
+  }
 }

@@ -26,6 +26,7 @@ export default function AppLayout() {
             >
               <Tabs.Screen name="index" />
               <Tabs.Screen name="ledger" />
+              <Tabs.Screen name="study" />
               <Tabs.Screen name="assets" />
               <Tabs.Screen name="trend" />
               <Tabs.Screen name="timeline" />
