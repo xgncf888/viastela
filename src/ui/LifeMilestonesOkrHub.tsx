@@ -16,6 +16,8 @@ import {
   sortMilestonesByUrgency,
   syncOkrWithLiveMetrics,
 } from '@/core/life-milestones-okr';
+import { computeMonthlyBookkeepingSummary } from '@/core/bookkeeping';
+import { readBookkeepingState, subscribeBookkeepingStore } from '@/data/bookkeeping';
 import { recordPledgeReward } from '@/data/life-gamification';
 import {
   addDailyHabit,
@@ -65,6 +67,8 @@ const AUTO_LINK_OPTIONS: { id: OkrAutoLink; label: string }[] = [
   { id: 'weight_kg', label: '自动联动：最新晨重 (kg)' },
   { id: 'workout_sets', label: '自动联动：累计训练组数' },
   { id: 'study_hours', label: '自动联动：累计学习小时 (h)' },
+  { id: 'saved_wealth_cny', label: '自动联动：家庭当前净储蓄 (¥)' },
+  { id: 'monthly_savings_cny', label: '自动联动：当月合池净结余 (¥)' },
 ];
 
 /**
@@ -406,6 +410,7 @@ export function LifeMilestonesOkrHub({
   const [milestones, setMilestones] = useState<LifeMilestone[]>(readLifeMilestones);
   const [objectives, setObjectives] = useState<OkrObjective[]>(readOkrObjectives);
   const [habits, setHabits] = useState<HabitItem[]>(readDailyHabits);
+  const [bkState, setBkState] = useState(readBookkeepingState);
 
   // Forms visibility
   const [milestoneFormOpen, setMilestoneFormOpen] = useState(false);
@@ -443,19 +448,29 @@ export function LifeMilestonesOkrHub({
   const [habitWeeklyDays, setHabitWeeklyDays] = useState('7');
 
   useEffect(() => {
-    return subscribeLifeOkrStore(() => {
+    const unsubOkr = subscribeLifeOkrStore(() => {
       setMilestones(readLifeMilestones());
       setObjectives(readOkrObjectives());
       setHabits(readDailyHabits());
     });
+    const unsubBk = subscribeBookkeepingStore(() => {
+      setBkState(readBookkeepingState());
+    });
+    return () => {
+      unsubOkr();
+      unsubBk();
+    };
   }, []);
 
   const computedMilestones = sortMilestonesByUrgency(milestones, localDay);
+  const bkMonthlySummary = computeMonthlyBookkeepingSummary(bkState, localDay, 'pool');
 
   const liveObjectives = syncOkrWithLiveMetrics(objectives, {
     latestWeightKg,
     totalWorkoutSets,
     totalStudyHours,
+    savedWealthCny: bkState.wealthPlan.currentSavedCny,
+    monthlySavingsCny: bkMonthlySummary.netCashflowCny,
   });
 
   const avgOkrProgress =

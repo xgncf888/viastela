@@ -5,11 +5,14 @@ import {
   type BookkeepingState,
   computeAccountBalances,
   computeCategoryBreakdown,
+  computeCoupleSettlement,
   computeDailySpendBars,
   computeMonthlyBookkeepingSummary,
+  computeMonthlyFinancialHealth,
   computeMultiLedgerPoolBreakdown,
   computeWealthGoalTrajectory,
   type CoupleChatMessage,
+  type CoupleSplitMode,
   DEFAULT_COUPLE_CHAT_MESSAGES,
   DEFAULT_LEDGER_BOOKS,
   evaluateAmountExpression,
@@ -44,6 +47,7 @@ import {
   connectCoupleRealtimeRoom,
   ensureRecurringRulesApplied,
   getCoupleSyncStatus,
+  importBatchCsvTransactions,
   importPartnerBookkeepingJson,
   readBookkeepingState,
   removeLedgerBook,
@@ -638,6 +642,12 @@ export function BookkeepingLedgerHub({
   const [editRuleOwner, setEditRuleOwner] = useState<LedgerOwnerId>('me');
   const [editRuleAccount, setEditRuleAccount] = useState<LedgerAccountId>('bank');
 
+  // Transfer destination account, Couple Split Mode & Batch CSV Importer
+  const [selectedToAccount, setSelectedToAccount] = useState<LedgerAccountId>('alipay');
+  const [coupleSplitMode, setCoupleSplitMode] = useState<CoupleSplitMode>('income_ratio');
+  const [showCsvImportBox, setShowCsvImportBox] = useState(false);
+  const [csvDraftText, setCsvDraftText] = useState('');
+
   useEffect(() => {
     ensureRangeSliderCss();
     const unsubStore = subscribeBookkeepingStore(() => {
@@ -728,6 +738,14 @@ export function BookkeepingLedgerHub({
   const summary = useMemo(
     () => computeMonthlyBookkeepingSummary(state, localDay, activeLedgerScope, selectedYearMonth),
     [state, localDay, activeLedgerScope, selectedYearMonth],
+  );
+  const coupleSettlement = useMemo(
+    () => computeCoupleSettlement(state, summary.yearMonth, coupleSplitMode, activeLedgerScope),
+    [state, summary.yearMonth, coupleSplitMode, activeLedgerScope],
+  );
+  const financialHealth = useMemo(
+    () => computeMonthlyFinancialHealth(state, summary.yearMonth, activeLedgerScope),
+    [state, summary.yearMonth, activeLedgerScope],
   );
   const poolBreakdown = useMemo(
     () => computeMultiLedgerPoolBreakdown(state, summary.yearMonth),
@@ -1045,13 +1063,24 @@ export function BookkeepingLedgerHub({
       });
       return;
     }
-    const cat = getLedgerCategoryMeta(selectedCategory);
-    const cleanNote = noteInput.trim() || t(cat.zh, cat.en);
+    if (entryKind === 'transfer' && selectedAccount === selectedToAccount) {
+      showToast({
+        text: t('请选择不同的转出账户与转入账户', 'Choose different source and destination accounts'),
+        tone: 'error',
+      });
+      return;
+    }
+    const cat = getLedgerCategoryMeta(entryKind === 'transfer' ? 'transfer' : selectedCategory);
+    const fromAcc = getLedgerAccountMeta(selectedAccount);
+    const toAcc = getLedgerAccountMeta(selectedToAccount);
+    const defaultTransferNote = `${fromAcc.zh} → ${toAcc.zh} 内部转账`;
+    const cleanNote = noteInput.trim() || (entryKind === 'transfer' ? defaultTransferNote : t(cat.zh, cat.en));
     const { state: next, added } = addLedgerTransaction({
       kind: entryKind,
       amountCny,
-      categoryId: selectedCategory,
+      categoryId: entryKind === 'transfer' ? 'transfer' : selectedCategory,
       accountId: selectedAccount,
+      toAccountId: entryKind === 'transfer' ? selectedToAccount : undefined,
       owner: selectedOwner,
       ledgerId: effectiveWriteLedgerId,
       note: cleanNote,
@@ -1061,14 +1090,14 @@ export function BookkeepingLedgerHub({
     setLastAddedTxId(added.id);
     setAmountInput('');
     setNoteInput('');
-    playCashRegisterTick(entryKind);
+    playCashRegisterTick(entryKind === 'expense' ? 'expense' : 'income');
     recordPledgeReward(`记账：${cleanNote}`, localDay, 10);
     const ownerMeta = getOwnerBadgeMeta(selectedOwner, state.coupleProfile);
     const bookMeta = getLedgerBookMeta(added.ledgerId, ledgerBooks);
     showToast({
       text: t(
-        `已记入「${bookMeta.zh}」[${ownerMeta.zh}]：${cleanNote} ${entryKind === 'expense' ? '-' : '+'}¥${amountCny.toFixed(2)}`,
-        `Saved to ${bookMeta.en} [${ownerMeta.en}]: ${cleanNote} ${entryKind === 'expense' ? '-' : '+'}¥${amountCny.toFixed(2)}`,
+        `已记入「${bookMeta.zh}」[${ownerMeta.zh}]：${cleanNote} ${entryKind === 'expense' ? '-' : entryKind === 'income' ? '+' : '⇄ '}¥${amountCny.toFixed(2)}`,
+        `Saved to ${bookMeta.en} [${ownerMeta.en}]: ${cleanNote} ¥${amountCny.toFixed(2)}`,
       ),
     });
   }
@@ -1440,8 +1469,75 @@ export function BookkeepingLedgerHub({
         </View>
       </View>
 
-      {/* Secondary Couple & Tools Bar — shown only in 'coop' view so 'record' view stays ultra-clean */}
+      {/* Secondary Couple & Tools Bar + Smart AA/Proportional Settlement Card — shown in 'coop' view */}
       {ledgerSubView === 'coop' ? (
+        <View>
+        <View
+          style={[
+            styles.coupleBanner,
+            { backgroundColor: pal.cardBg, borderBottomColor: pal.border, flexDirection: 'column', alignItems: 'stretch', gap: 8 },
+          ]}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <Text variant="caption" style={{ color: pal.goldText, fontSize: 11.5, fontWeight: '700' }}>
+                {t(`${summary.yearMonth} 双人共同开销智能清算`, `${summary.yearMonth} Couple Expense Settlement`)}
+              </Text>
+              {(
+                [
+                  { id: 'income_ratio', label: t(`按月薪比例 (${Math.round(coupleSettlement.myShareRatio * 100)}:${Math.round(coupleSettlement.partnerShareRatio * 100)})`, 'By Income Ratio') },
+                  { id: 'equal', label: t('50:50 AA平摊', '50:50 Equal') },
+                ] as const
+              ).map((m) => {
+                const active = coupleSplitMode === m.id;
+                return (
+                  <Pressable
+                    key={m.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`切换分摊模式 ${m.label}`}
+                    onPress={() => setCoupleSplitMode(m.id)}
+                    style={[styles.microBtn, { backgroundColor: active ? pal.pillActiveBg : pal.pillBg, borderColor: active ? pal.gold : pal.border }]}
+                  >
+                    <Text variant="caption" style={{ color: active ? pal.goldText : pal.sub, fontSize: 10, fontWeight: active ? '700' : '500' }}>
+                      {m.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {coupleSettlement.direction !== 'settled' ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="一键生成双人月度平账记录并发送聊天卡片"
+                onPress={() => {
+                  const next = sendCoupleChatMessage({
+                    sender: 'me',
+                    text: `【${summary.yearMonth} 月度分摊清算】总支出 ¥${coupleSettlement.totalPoolExpenseCny.toFixed(0)}，${coupleSettlement.summaryZh}。已发起平账确认！`,
+                  });
+                  setState(next);
+                  setShowCoupleChatDrawer(true);
+                  showToast({ text: t(`已发送月度清算卡片：${coupleSettlement.summaryZh}`, coupleSettlement.summaryEn) });
+                }}
+                style={[styles.microBtn, { backgroundColor: `${pal.emerald}20`, borderColor: pal.emerald }]}
+              >
+                <Text variant="caption" style={{ color: pal.emerald, fontSize: 10.5, fontWeight: '700' }}>
+                  {t('一键发送清算卡片', 'Send Settlement Card')}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <Text variant="caption" style={{ color: pal.sub, fontSize: 11, fontFamily: theme.fontFamily.mono }}>
+              {t(
+                `合池总支 ¥${coupleSettlement.totalPoolExpenseCny.toFixed(0)}（${state.coupleProfile.myName}垫付 ¥${coupleSettlement.myPaidCny.toFixed(0)} · ${state.coupleProfile.partnerName}垫付 ¥${coupleSettlement.partnerPaidCny.toFixed(0)} · 共同 ¥${coupleSettlement.sharedPaidCny.toFixed(0)}）`,
+                `Total ¥${coupleSettlement.totalPoolExpenseCny.toFixed(0)} (Me ¥${coupleSettlement.myPaidCny.toFixed(0)} · Partner ¥${coupleSettlement.partnerPaidCny.toFixed(0)})`,
+              )}
+            </Text>
+            <Text variant="caption" style={{ color: coupleSettlement.direction === 'settled' ? pal.emerald : pal.goldText, fontSize: 11.5, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
+              {t(coupleSettlement.summaryZh, coupleSettlement.summaryEn)}
+            </Text>
+          </View>
+        </View>
         <View
           style={[
             styles.coupleBanner,
@@ -1558,6 +1654,7 @@ export function BookkeepingLedgerHub({
               </Text>
             </Pressable>
           </View>
+        </View>
         </View>
       ) : null}
 
@@ -2153,11 +2250,22 @@ export function BookkeepingLedgerHub({
               <Text variant="caption" style={{ color: pal.muted, fontSize: 11 }}>
                 {t('本月总收入与净结余', 'Monthly Income & Net')}
               </Text>
-              <Pressable onPress={() => void handleExportCsv()}>
-                <Text variant="caption" style={{ color: pal.emerald, fontSize: 10.5, fontWeight: '700' }}>
-                  {t('导出 CSV', 'Export CSV')}
-                </Text>
-              </Pressable>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="批量导入微信支付宝或CSV账单"
+                  onPress={() => setShowCsvImportBox((prev) => !prev)}
+                >
+                  <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700' }}>
+                    {showCsvImportBox ? t('收起导入', 'Close CSV') : t('导入 CSV', 'Import CSV')}
+                  </Text>
+                </Pressable>
+                <Pressable onPress={() => void handleExportCsv()}>
+                  <Text variant="caption" style={{ color: pal.emerald, fontSize: 10.5, fontWeight: '700' }}>
+                    {t('导出 CSV', 'Export CSV')}
+                  </Text>
+                </Pressable>
+              </View>
             </View>
             <Text variant="title" style={[styles.bigAmountText, { color: pal.emerald }]}>
               {`+¥${summary.totalIncomeCny.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
@@ -2170,6 +2278,63 @@ export function BookkeepingLedgerHub({
             </Text>
           </View>
         </View>
+
+        {showCsvImportBox ? (
+          <View style={[styles.drawerPanel, { backgroundColor: pal.cardBg, borderColor: pal.gold, borderRadius: 10, borderWidth: 1, padding: 10 }]}>
+            <View style={styles.metricHeaderRow}>
+              <Text variant="caption" style={{ color: pal.goldText, fontSize: 11.5, fontWeight: '700' }}>
+                {t('批量粘贴导入 微信 / 支付宝 / 标准 CSV 账单（自动识别分类、账户并去重）', 'Batch Import WeChat / Alipay / CSV Bills')}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="填入示例微信支付宝CSV账单"
+                  onPress={() =>
+                    setCsvDraftText(
+                      '2026-11-03,日常家庭账本,expense,我,餐饮美食,微信支付,-28.50,Manner冰美式与可颂\n2026-11-03,日常家庭账本,expense,老婆,日用百货,支付宝,-86.00,山姆会员店有机牛奶与水果',
+                    )
+                  }
+                  style={[styles.microBtn, { backgroundColor: pal.pillBg, borderColor: pal.border }]}
+                >
+                  <Text variant="caption" style={{ color: pal.sub, fontSize: 10 }}>{t('填入示例账单', 'Sample CSV')}</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="解析并批量入账CSV账单"
+                  onPress={() => {
+                    const { state: next, importedCount } = importBatchCsvTransactions(
+                      csvDraftText,
+                      localDay,
+                      effectiveWriteLedgerId,
+                    );
+                    setState(next);
+                    if (importedCount > 0) {
+                      setCsvDraftText('');
+                      setShowCsvImportBox(false);
+                      playCashRegisterTick('income');
+                      showToast({ text: t(`成功批量导入 ${importedCount} 笔账单（重复项已自动跳过）`, `Imported ${importedCount} transactions`) });
+                    } else {
+                      showToast({ text: t('未识别到新账单或全部已存在', 'No new transactions found'), tone: 'error' });
+                    }
+                  }}
+                  style={[styles.microBtn, { backgroundColor: pal.pillActiveBg, borderColor: pal.gold }]}
+                >
+                  <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700' }}>
+                    {t('解析并去重入账', 'Parse & Import')}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+            <TextInput
+              value={csvDraftText}
+              onChangeText={setCsvDraftText}
+              multiline
+              placeholder={t('每行一条，例如：2026-11-03, 瑞幸拿铁, -18, 微信支付', 'One row per line, e.g. 2026-11-03, Latte, -18, WeChat')}
+              placeholderTextColor={pal.muted}
+              style={[styles.jsonInput, { backgroundColor: pal.inputBg, borderColor: pal.border, color: pal.ink }]}
+            />
+          </View>
+        ) : null}
 
         {/* 1-Second Natural Language Bar + 1-Tap High-Frequency Presets */}
         <View style={styles.smartBarRow}>
@@ -2897,8 +3062,57 @@ export function BookkeepingLedgerHub({
                     {t('收入', 'Income')}
                   </Text>
                 </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="切换至账户内部转账模式"
+                  onPress={() => {
+                    setEntryKind('transfer');
+                    setSelectedCategory('transfer');
+                    setSelectedAccount('bank');
+                    setSelectedToAccount('wechat');
+                  }}
+                  style={[
+                    styles.kindSwitchBtn,
+                    entryKind === 'transfer' ? { backgroundColor: '#0284c7' } : null,
+                  ]}
+                >
+                  <Text
+                    variant="caption"
+                    style={{
+                      fontSize: 11,
+                      fontWeight: '700',
+                      color: entryKind === 'transfer' ? '#ffffff' : pal.sub,
+                    }}
+                  >
+                    {t('转账', 'Transfer')}
+                  </Text>
+                </Pressable>
               </View>
             </View>
+            {entryKind === 'transfer' ? (
+              <View style={[styles.dayGroupCard, { padding: 8, gap: 6, backgroundColor: pal.cardElevated, borderColor: '#38bdf8' }]}>
+                <Text variant="caption" style={{ color: '#38bdf8', fontSize: 10.5, fontWeight: '700' }}>
+                  {t('内部转账 / 信用卡还款（仅调整两侧账户余额，不计入当月支出或收入）', 'Internal Transfer (Updates wallet balances without affecting monthly spend)')}
+                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                  <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>{t('转入至:', 'To:')}</Text>
+                  {LEDGER_ACCOUNTS.map((acc) => {
+                    const sel = selectedToAccount === acc.id;
+                    return (
+                      <Pressable
+                        key={`to-${acc.id}`}
+                        onPress={() => setSelectedToAccount(acc.id)}
+                        style={[styles.microBtn, { backgroundColor: sel ? `${acc.color}22` : pal.pillBg, borderColor: sel ? acc.color : pal.border }]}
+                      >
+                        <Text variant="caption" style={{ color: sel ? acc.color : pal.sub, fontSize: 10, fontWeight: sel ? '700' : '500' }}>
+                          {`→ [${acc.icon}] ${acc.zh}`}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
 
             {/* Member Attribution Selector */}
             <View style={styles.accountSelectorRow}>
@@ -3412,6 +3626,46 @@ export function BookkeepingLedgerHub({
           <View style={styles.rightPanelStack}>
             {ledgerSubView === 'wealth' ? (
             <View style={[styles.rightCard, { backgroundColor: pal.cardBg, borderColor: pal.border }]}>
+              {/* Monthly Financial Health Diagnosis Strip */}
+              <View
+                style={[
+                  styles.dayGroupCard,
+                  {
+                    padding: 10,
+                    gap: 6,
+                    backgroundColor: pal.cardElevated,
+                    borderColor: pal.goldBorder,
+                  },
+                ]}
+              >
+                <View style={styles.metricHeaderRow}>
+                  <Text variant="caption" style={{ color: pal.goldText, fontSize: 11.5, fontWeight: '700' }}>
+                    {t(`${summary.yearMonth} 家庭财务健康度体检`, `${summary.yearMonth} Financial Health Check`)}
+                  </Text>
+                  <View style={[styles.microBtn, { backgroundColor: pal.pillActiveBg, borderColor: pal.gold }]}>
+                    <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontWeight: '700', fontFamily: theme.fontFamily.mono }}>
+                      {`评级 ${financialHealth.grade} · ${financialHealth.healthScore}分`}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                  <Text variant="caption" style={{ color: pal.emerald, fontSize: 10.5, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                    {`净储蓄率 ${financialHealth.savingsRatePct}%`}
+                  </Text>
+                  <Text variant="caption" style={{ color: pal.ink, fontSize: 10.5, fontFamily: theme.fontFamily.mono }}>
+                    {`恩格尔系数 ${financialHealth.engelCoefficientPct}%`}
+                  </Text>
+                  <Text variant="caption" style={{ color: pal.terracotta, fontSize: 10.5, fontFamily: theme.fontFamily.mono }}>
+                    {`拿铁因子 ¥${financialHealth.latteFactorCny.toFixed(0)} (${financialHealth.latteFactorPct}%)`}
+                  </Text>
+                  <Text variant="caption" style={{ color: pal.sub, fontSize: 10.5, fontFamily: theme.fontFamily.mono }}>
+                    {`固定居住占比 ${financialHealth.fixedBillRatioPct}%`}
+                  </Text>
+                </View>
+                <Text variant="caption" style={{ color: pal.sub, fontSize: 10.5 }}>
+                  {t(financialHealth.diagnosisZh, financialHealth.diagnosisEn)}
+                </Text>
+              </View>
               <View style={styles.sectionTitleRow}>
                 <Text variant="label" style={{ color: pal.ink, fontSize: 13.5, fontWeight: '700' }}>
                   {t('本月支出结构与近 14 日消费趋势', 'Category Breakdown & 14-Day Spend Trend')}

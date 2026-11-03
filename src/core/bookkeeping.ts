@@ -7,7 +7,7 @@
 
 import { addDaysToLocalDay } from './life-milestones-okr';
 
-export type LedgerEntryKind = 'expense' | 'income';
+export type LedgerEntryKind = 'expense' | 'income' | 'transfer';
 
 export type LedgerOwnerId = 'me' | 'partner' | 'shared';
 
@@ -23,9 +23,44 @@ export type LedgerCategoryId =
   | 'digital'
   | 'salary'
   | 'investment'
-  | 'bonus';
+  | 'bonus'
+  | 'transfer';
 
 export type LedgerAccountId = 'alipay' | 'wechat' | 'bank' | 'applepay';
+
+export type CoupleSplitMode = 'equal' | 'income_ratio';
+
+export type CoupleMonthlySettlement = {
+  yearMonth: string;
+  mode: CoupleSplitMode;
+  myIncomeCny: number;
+  partnerIncomeCny: number;
+  myShareRatio: number;
+  partnerShareRatio: number;
+  totalPoolExpenseCny: number;
+  myPaidCny: number;
+  partnerPaidCny: number;
+  sharedPaidCny: number;
+  myTargetShareCny: number;
+  partnerTargetShareCny: number;
+  netSettlementCny: number;
+  direction: 'partner_to_me' | 'me_to_partner' | 'settled';
+  summaryZh: string;
+  summaryEn: string;
+};
+
+export type MonthlyFinancialHealth = {
+  yearMonth: string;
+  savingsRatePct: number;
+  engelCoefficientPct: number;
+  latteFactorPct: number;
+  latteFactorCny: number;
+  fixedBillRatioPct: number;
+  healthScore: number;
+  grade: 'S' | 'A' | 'B' | 'C';
+  diagnosisZh: string;
+  diagnosisEn: string;
+};
 
 /** Multi-ledger ID (e.g. 'ledger-daily', 'ledger-travel', 'ledger-invest', or custom) */
 export type LedgerBookId = string;
@@ -84,6 +119,8 @@ export type LedgerTransaction = {
   amountCny: number;
   categoryId: LedgerCategoryId;
   accountId: LedgerAccountId;
+  /** Destination account when kind === 'transfer' */
+  toAccountId?: LedgerAccountId;
   note: string;
   localDay: string;
   createdAt: string;
@@ -388,6 +425,15 @@ export const LEDGER_CATEGORIES: readonly LedgerCategoryMeta[] = [
     en: 'Bonus & Side',
     color: '#f5b942',
     keywords: ['奖金', '红包', '报销', '兼职', '副业', '闲鱼', '退款', 'bonus', 'refund', 'side'],
+  },
+  {
+    id: 'transfer',
+    kind: 'transfer',
+    icon: '转',
+    zh: '内部转账/还卡',
+    en: 'Transfer',
+    color: '#38bdf8',
+    keywords: ['转账', '提现', '充值', '还款', '还卡', 'transfer'],
   },
 ];
 
@@ -760,11 +806,11 @@ export function computeMultiLedgerPoolBreakdown(
       if (txLedger !== book.id) continue;
       count += 1;
       if (tx.kind === 'expense') histNet -= tx.amountCny;
-      else histNet += tx.amountCny;
+      else if (tx.kind === 'income') histNet += tx.amountCny;
 
       if (tx.localDay.startsWith(yearMonth)) {
         if (tx.kind === 'expense') monthExp += tx.amountCny;
-        else monthInc += tx.amountCny;
+        else if (tx.kind === 'income') monthInc += tx.amountCny;
       }
     }
     monthExp = Math.round(monthExp * 100) / 100;
@@ -1264,7 +1310,7 @@ export function computeMonthlyBookkeepingSummary(
         if (owner === 'partner') partnerExpenseCny += tx.amountCny;
         else if (owner === 'shared') sharedExpenseCny += tx.amountCny;
         else meExpenseCny += tx.amountCny;
-      } else {
+      } else if (tx.kind === 'income') {
         totalIncomeCny += tx.amountCny;
         if (owner === 'partner') partnerIncomeCny += tx.amountCny;
         else meIncomeCny += tx.amountCny;
@@ -1273,7 +1319,7 @@ export function computeMonthlyBookkeepingSummary(
     if (tx.localDay === todayLocalDay) {
       if (tx.kind === 'expense') {
         todayExpenseCny += tx.amountCny;
-      } else {
+      } else if (tx.kind === 'income') {
         todayIncomeCny += tx.amountCny;
       }
     }
@@ -1366,7 +1412,7 @@ export function computeDailySpendBars(
     for (const tx of transactions) {
       if (tx.localDay !== dayKey) continue;
       if (tx.kind === 'expense') exp += tx.amountCny;
-      else inc += tx.amountCny;
+      else if (tx.kind === 'income') inc += tx.amountCny;
     }
     exp = Math.round(exp * 100) / 100;
     inc = Math.round(inc * 100) / 100;
@@ -1399,11 +1445,20 @@ export function computeAccountBalances(
     let monthExp = 0;
     let monthInc = 0;
     for (const tx of transactions) {
+      if (tx.kind === 'transfer') {
+        if (tx.accountId === acc.id) {
+          delta -= tx.amountCny;
+        }
+        if (tx.toAccountId === acc.id) {
+          delta += tx.amountCny;
+        }
+        continue;
+      }
       if (tx.accountId !== acc.id) continue;
       if (tx.kind === 'expense') {
         delta -= tx.amountCny;
         monthExp += tx.amountCny;
-      } else {
+      } else if (tx.kind === 'income') {
         delta += tx.amountCny;
         monthInc += tx.amountCny;
       }
@@ -1422,6 +1477,250 @@ export function computeAccountBalances(
   });
 }
 
+export function computeCoupleSettlement(
+  state: BookkeepingState,
+  yearMonth: string,
+  mode: CoupleSplitMode = 'income_ratio',
+  scope: LedgerScopeId = 'pool',
+): CoupleMonthlySettlement {
+  const books = state.ledgerBooks && state.ledgerBooks.length > 0 ? state.ledgerBooks : DEFAULT_LEDGER_BOOKS;
+  const scopedTx = filterTransactionsByLedgerScope(state.transactions, books, scope);
+
+  let recMyIncome = 0;
+  let recPartnerIncome = 0;
+  for (const r of state.recurringRules) {
+    if (!r.enabled || r.kind !== 'income') continue;
+    if (r.owner === 'partner') recPartnerIncome += r.amountCny;
+    else recMyIncome += r.amountCny;
+  }
+
+  let myPaidCny = 0;
+  let partnerPaidCny = 0;
+  let sharedPaidCny = 0;
+  let txMyIncome = 0;
+  let txPartnerIncome = 0;
+
+  for (const tx of scopedTx) {
+    if (!tx.localDay.startsWith(yearMonth)) continue;
+    const owner = tx.owner ?? 'me';
+    if (tx.kind === 'expense') {
+      if (owner === 'partner') partnerPaidCny += tx.amountCny;
+      else if (owner === 'shared') sharedPaidCny += tx.amountCny;
+      else myPaidCny += tx.amountCny;
+    } else if (tx.kind === 'income') {
+      if (owner === 'partner') txPartnerIncome += tx.amountCny;
+      else txMyIncome += tx.amountCny;
+    }
+  }
+
+  const myIncomeCny = recMyIncome > 0 ? recMyIncome : txMyIncome || 26800;
+  const partnerIncomeCny = recPartnerIncome > 0 ? recPartnerIncome : txPartnerIncome || 22000;
+  const combinedIncome = Math.max(1, myIncomeCny + partnerIncomeCny);
+
+  const myShareRatio =
+    mode === 'equal' ? 0.5 : Math.round((myIncomeCny / combinedIncome) * 1000) / 1000;
+  const partnerShareRatio = Math.round((1 - myShareRatio) * 1000) / 1000;
+
+  // Joint pool includes shared bills + each partner's household bills in the selected scope
+  const totalPoolExpenseCny = Math.round((myPaidCny + partnerPaidCny + sharedPaidCny) * 100) / 100;
+  // Effective out-of-pocket: shared bills default to 50/50 or paid from primary household account (me)
+  const effectiveMyOut = Math.round((myPaidCny + sharedPaidCny) * 100) / 100;
+  const myTargetShareCny = Math.round(totalPoolExpenseCny * myShareRatio * 100) / 100;
+  const partnerTargetShareCny = Math.round((totalPoolExpenseCny - myTargetShareCny) * 100) / 100;
+
+  const netSettlementCny = Math.round((effectiveMyOut - myTargetShareCny) * 100) / 100;
+  const myName = state.coupleProfile.myName || '我';
+  const partnerName = state.coupleProfile.partnerName || '老婆';
+
+  let direction: CoupleMonthlySettlement['direction'] = 'settled';
+  let summaryZh = `${yearMonth} 双人开销已基本平衡，无需补转`;
+  let summaryEn = `${yearMonth} expenses are balanced`;
+
+  if (netSettlementCny > 1) {
+    direction = 'partner_to_me';
+    summaryZh = `${partnerName} 需向 ${myName} 补转 ¥${netSettlementCny.toFixed(2)}（按 ${Math.round(myShareRatio * 100)}:${Math.round(partnerShareRatio * 100)} 分摊）`;
+    summaryEn = `${partnerName} pays ${myName} ¥${netSettlementCny.toFixed(2)}`;
+  } else if (netSettlementCny < -1) {
+    direction = 'me_to_partner';
+    summaryZh = `${myName} 需向 ${partnerName} 补转 ¥${Math.abs(netSettlementCny).toFixed(2)}（按 ${Math.round(myShareRatio * 100)}:${Math.round(partnerShareRatio * 100)} 分摊）`;
+    summaryEn = `${myName} pays ${partnerName} ¥${Math.abs(netSettlementCny).toFixed(2)}`;
+  }
+
+  return {
+    yearMonth,
+    mode,
+    myIncomeCny,
+    partnerIncomeCny,
+    myShareRatio,
+    partnerShareRatio,
+    totalPoolExpenseCny,
+    myPaidCny: Math.round(myPaidCny * 100) / 100,
+    partnerPaidCny: Math.round(partnerPaidCny * 100) / 100,
+    sharedPaidCny: Math.round(sharedPaidCny * 100) / 100,
+    myTargetShareCny,
+    partnerTargetShareCny,
+    netSettlementCny,
+    direction,
+    summaryZh,
+    summaryEn,
+  };
+}
+
+export function computeMonthlyFinancialHealth(
+  state: BookkeepingState,
+  yearMonth: string,
+  scope: LedgerScopeId = 'pool',
+): MonthlyFinancialHealth {
+  const books = state.ledgerBooks && state.ledgerBooks.length > 0 ? state.ledgerBooks : DEFAULT_LEDGER_BOOKS;
+  const scopedTx = filterTransactionsByLedgerScope(state.transactions, books, scope);
+
+  let totalExpense = 0;
+  let totalIncome = 0;
+  let foodAndGrocery = 0;
+  let coffeeSpend = 0;
+  let housingSpend = 0;
+
+  for (const tx of scopedTx) {
+    if (!tx.localDay.startsWith(yearMonth)) continue;
+    if (tx.kind === 'expense') {
+      totalExpense += tx.amountCny;
+      if (tx.categoryId === 'dining' || tx.categoryId === 'coffee' || tx.categoryId === 'shopping') {
+        foodAndGrocery += tx.amountCny;
+      }
+      if (tx.categoryId === 'coffee') {
+        coffeeSpend += tx.amountCny;
+      }
+      if (tx.categoryId === 'housing') {
+        housingSpend += tx.amountCny;
+      }
+    } else if (tx.kind === 'income') {
+      totalIncome += tx.amountCny;
+    }
+  }
+
+  if (totalIncome <= 0) {
+    totalIncome = state.recurringRules
+      .filter((r) => r.enabled && r.kind === 'income')
+      .reduce((s, r) => s + r.amountCny, 0);
+  }
+  const safeIncome = Math.max(1, totalIncome);
+  const safeExpense = Math.max(1, totalExpense);
+
+  const savingsRatePct = Math.max(0, Math.min(99, Math.round(((safeIncome - totalExpense) / safeIncome) * 100)));
+  const engelCoefficientPct = totalExpense > 0 ? Math.min(100, Math.round((foodAndGrocery / safeExpense) * 100)) : 0;
+  const latteFactorPct = totalExpense > 0 ? Math.min(100, Math.round((coffeeSpend / safeExpense) * 100)) : 0;
+  const fixedBillRatioPct = Math.min(100, Math.round((housingSpend / safeIncome) * 100));
+
+  let score = 70;
+  if (savingsRatePct >= 45) score += 20;
+  else if (savingsRatePct >= 25) score += 10;
+  else if (savingsRatePct < 10) score -= 15;
+
+  if (latteFactorPct <= 10) score += 5;
+  else if (latteFactorPct > 25) score -= 8;
+
+  if (fixedBillRatioPct <= 35) score += 5;
+  else if (fixedBillRatioPct > 50) score -= 10;
+
+  const healthScore = Math.max(35, Math.min(99, score));
+  const grade: MonthlyFinancialHealth['grade'] =
+    healthScore >= 90 ? 'S' : healthScore >= 80 ? 'A' : healthScore >= 65 ? 'B' : 'C';
+
+  const diagnosisZh =
+    grade === 'S' || grade === 'A'
+      ? `当月净储蓄率 ${savingsRatePct}%，餐饮恩格尔占比 ${engelCoefficientPct}%，拿铁因子 ¥${coffeeSpend.toFixed(0)}（${latteFactorPct}%），现金流结构非常健康。`
+      : `当月净储蓄率 ${savingsRatePct}%，建议关注高频茶饮外卖占比（${latteFactorPct}%）以提升月度定投结余。`;
+  const diagnosisEn = `Savings rate ${savingsRatePct}%, Engel ${engelCoefficientPct}%, Latte factor ¥${coffeeSpend.toFixed(0)} (${latteFactorPct}%).`;
+
+  return {
+    yearMonth,
+    savingsRatePct,
+    engelCoefficientPct,
+    latteFactorPct,
+    latteFactorCny: Math.round(coffeeSpend * 100) / 100,
+    fixedBillRatioPct,
+    healthScore,
+    grade,
+    diagnosisZh,
+    diagnosisEn,
+  };
+}
+
+export function parseBatchCsvTransactions(
+  rawCsv: string,
+  defaultDay = '2026-11-03',
+  defaultLedgerId: LedgerBookId = 'ledger-daily',
+): Omit<LedgerTransaction, 'id' | 'createdAt'>[] {
+  const lines = rawCsv
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+  const results: Omit<LedgerTransaction, 'id' | 'createdAt'>[] = [];
+
+  for (const line of lines) {
+    if (
+      /^date,/i.test(line) ||
+      /^交易时间/.test(line) ||
+      /^---/.test(line) ||
+      /^微信支付账单/.test(line) ||
+      /^支付宝/.test(line)
+    ) {
+      continue;
+    }
+    const cols = line
+      .split(',')
+      .map((c) => c.replace(/^"|"$/g, '').trim());
+
+    // Try finding a date YYYY-MM-DD or YYYY/MM/DD
+    let detectedDay = defaultDay;
+    for (const c of cols) {
+      const m = c.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+      if (m) {
+        detectedDay = `${m[1]}-${m[2]!.padStart(2, '0')}-${m[3]!.padStart(2, '0')}`;
+        break;
+      }
+    }
+
+    // Strip date columns before natural language parsing so YYYY-MM-DD isn't evaluated as math
+    const nonDateCols = cols.filter((c) => !/^\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(c));
+    const joined = nonDateCols.join(' ');
+    const parsed = parseQuickBookkeepingInput(joined, 'dining', 'wechat', 'me');
+    if (!parsed) continue;
+
+    // Check explicit income/expense markers in CSV columns
+    const hasIncomeCol = cols.some((c) => /^(income|收入|入账)$/i.test(c));
+    const hasExpenseCol = cols.some((c) => /^(expense|支出)$/i.test(c));
+    const kind: LedgerEntryKind = hasIncomeCol
+      ? 'income'
+      : hasExpenseCol
+        ? 'expense'
+        : parsed.kind;
+
+    // Pick clean merchant/note column if available
+    const nonMetaCols = cols.filter(
+      (c) =>
+        c.length > 0 &&
+        !/^\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(c) &&
+        !/^[+-]?[¥$]?\d+(\.\d+)?$/.test(c) &&
+        !/^(expense|income|transfer|支出|收入|不计收支)$/i.test(c),
+    );
+    const bestNote = nonMetaCols[nonMetaCols.length - 1] || parsed.note;
+
+    results.push({
+      kind,
+      amountCny: parsed.amountCny,
+      categoryId: parsed.categoryId,
+      accountId: parsed.accountId,
+      owner: parsed.owner,
+      ledgerId: defaultLedgerId,
+      note: bestNote.slice(0, 48),
+      localDay: detectedDay,
+    });
+  }
+
+  return results;
+}
+
 export function formatLedgerCsv(
   transactions: readonly LedgerTransaction[],
   books: readonly LedgerBook[] = DEFAULT_LEDGER_BOOKS,
@@ -1433,7 +1732,12 @@ export function formatLedgerCsv(
     const acc = getLedgerAccountMeta(tx.accountId);
     const ownerMeta = getOwnerBadgeMeta(tx.owner);
     const safeNote = `"${(tx.note || '').replace(/"/g, '""')}"`;
-    const signedAmount = tx.kind === 'expense' ? `-${tx.amountCny.toFixed(2)}` : `+${tx.amountCny.toFixed(2)}`;
+    const signedAmount =
+      tx.kind === 'expense'
+        ? `-${tx.amountCny.toFixed(2)}`
+        : tx.kind === 'income'
+          ? `+${tx.amountCny.toFixed(2)}`
+          : `${tx.amountCny.toFixed(2)}`;
     return `${tx.localDay},${book.zh},${tx.kind},${ownerMeta.zh},${cat.zh},${acc.zh},${signedAmount},${safeNote}`;
   });
   return [header, ...rows].join('\n');

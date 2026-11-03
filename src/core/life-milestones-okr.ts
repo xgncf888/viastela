@@ -38,7 +38,13 @@ export type MilestoneComputed = {
 
 export type OkrCategory = 'health' | 'career' | 'wealth' | 'growth' | 'life';
 
-export type OkrAutoLink = 'none' | 'study_hours' | 'workout_sets' | 'weight_kg';
+export type OkrAutoLink =
+  | 'none'
+  | 'study_hours'
+  | 'workout_sets'
+  | 'weight_kg'
+  | 'saved_wealth_cny'
+  | 'monthly_savings_cny';
 
 export type OkrKeyResult = {
   id: string;
@@ -404,6 +410,8 @@ export function syncOkrWithLiveMetrics(
     latestWeightKg?: number | null;
     totalWorkoutSets?: number | null;
     totalStudyHours?: number | null;
+    savedWealthCny?: number | null;
+    monthlySavingsCny?: number | null;
   },
 ): OkrObjective[] {
   return objectives.map((obj) => ({
@@ -425,6 +433,19 @@ export function syncOkrWithLiveMetrics(
         live.totalStudyHours > kr.currentValue
       ) {
         return { ...kr, currentValue: Number(live.totalStudyHours.toFixed(1)) };
+      }
+      if (
+        kr.autoLink === 'saved_wealth_cny' &&
+        typeof live.savedWealthCny === 'number' &&
+        live.savedWealthCny >= 0
+      ) {
+        return { ...kr, currentValue: Math.round(live.savedWealthCny) };
+      }
+      if (
+        kr.autoLink === 'monthly_savings_cny' &&
+        typeof live.monthlySavingsCny === 'number'
+      ) {
+        return { ...kr, currentValue: Math.max(0, Math.round(live.monthlySavingsCny)) };
       }
       return kr;
     }),

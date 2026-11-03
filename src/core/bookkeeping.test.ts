@@ -2,12 +2,16 @@ import { describe, expect, it } from '@jest/globals';
 
 import {
   addLedgerTransaction,
+  importBatchCsvTransactions,
   updateLedgerTransaction,
   updateRecurringLedgerRule,
 } from '../data/bookkeeping';
 import {
+  computeAccountBalances,
   computeCategoryBreakdown,
+  computeCoupleSettlement,
   computeMonthlyBookkeepingSummary,
+  computeMonthlyFinancialHealth,
   computeMultiLedgerPoolBreakdown,
   computeWealthGoalTrajectory,
   DEFAULT_BOOKKEEPING_STATE,
@@ -16,9 +20,11 @@ import {
   materializeDueRecurringRules,
   mergePartnerBookkeepingState,
   parseAutoLogUrlParams,
+  parseBatchCsvTransactions,
   parseQuickBookkeepingInput,
   shiftYearMonth,
 } from './bookkeeping';
+import { syncOkrWithLiveMetrics } from './life-milestones-okr';
 
 describe('bookkeeping core engine', () => {
   it('evaluates plain numbers and inline addition/subtraction expressions', () => {
@@ -204,5 +210,88 @@ describe('bookkeeping core engine', () => {
     const updatedRule = afterEditRule.recurringRules.find((r) => r.id === 'rec-my-salary');
     expect(updatedRule?.amountCny).toBe(30000);
     expect(updatedRule?.dayOfMonth).toBe(5);
+  });
+
+  it('supports internal account transfers, couple settlement, batch CSV import, financial health, and OKR wealth auto-link', () => {
+    const beforeBalances = computeAccountBalances(DEFAULT_BOOKKEEPING_STATE.transactions);
+    const bankBefore = beforeBalances.find((b) => b.account.id === 'bank')!.balanceCny;
+    const wechatBefore = beforeBalances.find((b) => b.account.id === 'wechat')!.balanceCny;
+
+    const txWithTransfer = [
+      {
+        id: 'tx-transfer-1',
+        kind: 'transfer' as const,
+        amountCny: 1000,
+        categoryId: 'transfer' as const,
+        accountId: 'bank' as const,
+        toAccountId: 'wechat' as const,
+        note: '银行卡充值微信零钱',
+        localDay: '2026-11-03',
+        createdAt: '2026-11-03T16:00:00.000Z',
+      },
+      ...DEFAULT_BOOKKEEPING_STATE.transactions,
+    ];
+    const afterBalances = computeAccountBalances(txWithTransfer);
+    expect(afterBalances.find((b) => b.account.id === 'bank')!.balanceCny).toBe(bankBefore - 1000);
+    expect(afterBalances.find((b) => b.account.id === 'wechat')!.balanceCny).toBe(wechatBefore + 1000);
+
+    // Couple settlement (equal vs income ratio)
+    const settlementRatio = computeCoupleSettlement(DEFAULT_BOOKKEEPING_STATE, '2026-11', 'income_ratio');
+    expect(settlementRatio.totalPoolExpenseCny).toBe(337);
+    expect(settlementRatio.myShareRatio).toBeGreaterThan(0.5);
+    expect(settlementRatio.direction).toBe('partner_to_me');
+
+    const settlementEqual = computeCoupleSettlement(DEFAULT_BOOKKEEPING_STATE, '2026-11', 'equal');
+    expect(settlementEqual.myShareRatio).toBe(0.5);
+    expect(settlementEqual.myTargetShareCny).toBe(168.5);
+
+    // Monthly Financial Health check
+    const health = computeMonthlyFinancialHealth(DEFAULT_BOOKKEEPING_STATE, '2026-11');
+    expect(health.savingsRatePct).toBeGreaterThan(80);
+    expect(['S', 'A']).toContain(health.grade);
+
+    // Batch CSV parser & importer
+    const parsedCsv = parseBatchCsvTransactions(
+      'Date,Ledger,Type,Owner,Category,Account,Amount(CNY),Note\n2026-11-03,日常家庭账本,expense,我,咖啡茶饮,微信支付,-26.00,Peets手冲咖啡',
+      '2026-11-03',
+    );
+    expect(parsedCsv.length).toBe(1);
+    expect(parsedCsv[0]?.amountCny).toBe(26);
+    expect(parsedCsv[0]?.categoryId).toBe('coffee');
+
+    const { importedCount } = importBatchCsvTransactions(
+      '2026-11-03,日常家庭账本,expense,我,咖啡茶饮,微信支付,-26.00,Peets手冲咖啡',
+      '2026-11-03',
+    );
+    expect(importedCount).toBe(1);
+
+    // OKR wealth auto-link
+    const syncedOkr = syncOkrWithLiveMetrics(
+      [
+        {
+          id: 'obj-w',
+          period: '2026 Q4',
+          title: '家庭净储蓄突破50w',
+          category: 'wealth',
+          confidence: 9,
+          createdAt: '2026-11-01',
+          keyResults: [
+            {
+              id: 'kr-w1',
+              title: '当前净储蓄',
+              startValue: 300000,
+              currentValue: 300000,
+              targetValue: 500000,
+              unit: '¥',
+              stepDelta: 10000,
+              autoLink: 'saved_wealth_cny',
+              lastCheckInDay: null,
+            },
+          ],
+        },
+      ],
+      { savedWealthCny: 360000, monthlySavingsCny: 48463 },
+    );
+    expect(syncedOkr[0]?.keyResults[0]?.currentValue).toBe(360000);
   });
 });

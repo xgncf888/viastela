@@ -25,6 +25,7 @@ import {
   type LedgerTransaction,
   materializeDueRecurringRules,
   mergePartnerBookkeepingState,
+  parseBatchCsvTransactions,
   QUICK_LEDGER_PRESETS,
   type QuickLedgerPreset,
   type RecurringLedgerRule,
@@ -277,6 +278,7 @@ export function addLedgerTransaction(input: {
   amountCny: number;
   categoryId: LedgerCategoryId;
   accountId: LedgerAccountId;
+  toAccountId?: LedgerAccountId;
   note: string;
   localDay: string;
   owner?: LedgerOwnerId;
@@ -288,9 +290,10 @@ export function addLedgerTransaction(input: {
     id: createTxId('tx'),
     kind: input.kind,
     amountCny: cleanAmount,
-    categoryId: input.categoryId,
+    categoryId: input.kind === 'transfer' ? 'transfer' : input.categoryId,
     accountId: input.accountId,
-    note: input.note.trim() || '日常收支',
+    toAccountId: input.kind === 'transfer' ? (input.toAccountId ?? 'wechat') : undefined,
+    note: input.note.trim() || (input.kind === 'transfer' ? '账户内部转账' : '日常收支'),
     localDay: input.localDay,
     createdAt: new Date().toISOString(),
     owner: input.owner ?? 'me',
@@ -310,7 +313,7 @@ export function updateLedgerTransaction(
   patch: Partial<
     Pick<
       LedgerTransaction,
-      'kind' | 'amountCny' | 'categoryId' | 'accountId' | 'note' | 'localDay' | 'owner' | 'ledgerId'
+      'kind' | 'amountCny' | 'categoryId' | 'accountId' | 'toAccountId' | 'note' | 'localDay' | 'owner' | 'ledgerId'
     >
   >,
 ): BookkeepingState {
@@ -755,4 +758,40 @@ export function importPartnerBookkeepingJson(rawJson: string): {
   const { merged, addedTxCount, addedChatCount } = mergePartnerBookkeepingState(cur, incoming);
   writeBookkeepingState(merged);
   return { state: merged, addedTxCount, addedChatCount };
+}
+
+export function importBatchCsvTransactions(
+  rawCsv: string,
+  defaultDay: string,
+  targetLedgerId: LedgerBookId = 'ledger-daily',
+): { state: BookkeepingState; importedCount: number } {
+  const cur = readBookkeepingState();
+  const parsedRows = parseBatchCsvTransactions(rawCsv, defaultDay, targetLedgerId);
+  if (parsedRows.length === 0) {
+    return { state: cur, importedCount: 0 };
+  }
+  const existingFingerprints = new Set(
+    cur.transactions.map((t) => `${t.localDay}|${t.kind}|${t.amountCny}|${t.note}`),
+  );
+  const addedList: LedgerTransaction[] = [];
+  for (const row of parsedRows) {
+    const fp = `${row.localDay}|${row.kind}|${row.amountCny}|${row.note}`;
+    if (existingFingerprints.has(fp)) continue;
+    existingFingerprints.add(fp);
+    addedList.push({
+      ...row,
+      id: createTxId('tx-csv'),
+      createdAt: `${row.localDay}T12:00:00.000Z`,
+    });
+  }
+  if (addedList.length === 0) {
+    return { state: cur, importedCount: 0 };
+  }
+  const next: BookkeepingState = {
+    ...cur,
+    transactions: [...addedList, ...cur.transactions],
+  };
+  writeBookkeepingState(next);
+  broadcastStateToPartner(next);
+  return { state: next, importedCount: addedList.length };
 }
