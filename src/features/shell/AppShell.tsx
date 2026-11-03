@@ -136,24 +136,17 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const todayBadge = loggedCount > 0 ? `${loggedCount}/3` : formatMonthDay(accountingDay);
   const trendBadge = lastWeight ? `${formatKg(lastWeight.weightKg)}kg` : '⌘3';
-  const ledgerSummary = useMemo(
-    () => computeMonthlyBookkeepingSummary(bkState, accountingDay, 'pool'),
-    [bkState, accountingDay],
-  );
+  const ledgerSummary = computeMonthlyBookkeepingSummary(bkState, accountingDay, 'pool');
   const ledgerBadge =
     ledgerSummary.totalExpenseCny > 0 ? `-¥${Math.round(ledgerSummary.totalExpenseCny)}` : '¥ 账本';
   const assetsBadge = `¥${Math.round(bkState.wealthPlan.currentSavedCny / 10000)}w`;
 
-  const manifest = useMemo(
-    () =>
-      buildCharioteerPluginManifest({
-        today: todayBadge,
-        assets: assetsBadge,
-        trend: trendBadge,
-        timeline: locale === 'en' ? 'Log' : '台账',
-      }),
-    [assetsBadge, locale, todayBadge, trendBadge],
-  );
+  const manifest = buildCharioteerPluginManifest({
+    today: todayBadge,
+    assets: assetsBadge,
+    trend: trendBadge,
+    timeline: locale === 'en' ? 'Log' : '台账',
+  });
 
   const runtimeMode: RuntimeHostMode = useMemo(() => {
     if (hostAttached) return 'charioteer-host';
@@ -245,7 +238,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       };
     };
 
-    hostWindow.__viastelaDesktop = {
+    const desktopBridge: DesktopBridge = {
       openRecord: (kind = 'weight') => openRecordSheet(undefined, kind),
       closeRecord: () => closeRecordSheet(),
       navigate: (tabId) => {
@@ -265,7 +258,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       },
       executeCommand: executeCommandById,
     };
-    hostWindow.__charioteerPlugin = pluginRuntime;
+
+    Reflect.set(hostWindow, '__viastelaDesktop', desktopBridge);
+    Reflect.set(hostWindow, '__charioteerPlugin', pluginRuntime);
 
     try {
       hostWindow.__charioteerPluginRegistry?.registerPlugin?.(manifest, pluginRuntime);

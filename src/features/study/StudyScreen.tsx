@@ -21,6 +21,7 @@ import { Divider, Row, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
 import { SetRow } from '@/ui/SetRow';
 import { Text } from '@/ui/Text';
+import { theme } from '@/ui/theme';
 import { useTheme } from '@/ui/ThemeProvider';
 import { showToast } from '@/ui/toast';
 import { useI18n } from '@/ui/use-i18n';
@@ -31,9 +32,8 @@ export function StudyScreen() {
   const study = useStudy();
   const inset = useShellInset();
   const layout = useLayoutClass();
-  const { color, scheme } = useTheme();
+  const { color } = useTheme();
   const { t } = useI18n();
-  const isDark = scheme === 'dark';
 
   const localDay = computeLocalDay(new Date(), timeZone, daySwitch);
   const countedStudy = useMemo(
@@ -131,7 +131,7 @@ export function StudyScreen() {
             <Card>
               <Stack gap="sm">
                 <Row justify="between" align="center" gap="sm" wrap>
-                  <Text variant="caption" style={{ fontWeight: '700' }}>
+                  <Text variant="caption" style={{ fontWeight: theme.fontWeight.semibold }}>
                     {t('⏱ 补记今日读书时长', '⏱ Log Custom Reading Session')}
                   </Text>
                   <Row gap="xs" align="center">
@@ -157,7 +157,7 @@ export function StudyScreen() {
                       styles.topicInput,
                       {
                         color: color.ink,
-                        backgroundColor: isDark ? '#141311' : color.surface,
+                        backgroundColor: color.surface,
                         borderColor: color.lineSoft,
                       },
                     ]}
@@ -172,7 +172,7 @@ export function StudyScreen() {
                       styles.minInput,
                       {
                         color: color.ink,
-                        backgroundColor: isDark ? '#141311' : color.surface,
+                        backgroundColor: color.surface,
                         borderColor: color.lineSoft,
                       },
                     ]}
@@ -207,7 +207,6 @@ export function StudyScreen() {
             </Card>
           ) : null}
 
-          {/* Main Interactive Illustrated Book Reader */}
           <KnowledgeGraphCornerHub
             localDay={localDay}
             totalStudyMinutesLive={combinedStudyMinutes}
@@ -225,24 +224,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: theme.space.sm,
   },
   topicInput: {
     flex: 1,
-    minWidth: 200,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 7,
-    borderWidth: 1,
-    fontSize: 12.5,
+    paddingHorizontal: theme.space.sm,
+    paddingVertical: theme.space.xs,
+    borderRadius: theme.radius.sm,
+    borderWidth: theme.border.width,
   },
   minInput: {
-    width: 68,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 7,
-    borderWidth: 1,
-    fontSize: 12.5,
+    paddingHorizontal: theme.space.sm,
+    paddingVertical: theme.space.xs,
+    borderRadius: theme.radius.sm,
+    borderWidth: theme.border.width,
     textAlign: 'center',
   },
 });

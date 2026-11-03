@@ -1469,7 +1469,9 @@ export function KnowledgeGraphCornerHub({
   const [showAddNodeBox, setShowAddNodeBox] = useState(false);
   const [showFlashcardAnswer, setShowFlashcardAnswer] = useState(false);
   const [selectedQuizOption, setSelectedQuizOption] = useState<number | null>(null);
-  const [marginNoteDraft, setMarginNoteDraft] = useState<string>('');
+  const [marginNoteDraft, setMarginNoteDraft] = useState<string>(
+    () => readKnowledgeGraphState().nodes[0]?.userNote ?? '',
+  );
 
   const [customTitle, setCustomTitle] = useState('');
   const [customDomain, setCustomDomain] = useState<KnowledgeDomainId>('ai-infra');
@@ -1596,16 +1598,14 @@ export function KnowledgeGraphCornerHub({
     }
   }
 
-  useEffect(() => {
-    setMarginNoteDraft(selectedNode.userNote ?? '');
-  }, [selectedNode.id, selectedNode.userNote]);
-
   function selectLesson(nodeId: string, stageLevel?: LearningStageLevel) {
     setSelectedNodeId(nodeId);
     if (stageLevel) setSelectedStage(stageLevel);
     setPageNumber(1);
     setShowFlashcardAnswer(false);
     setSelectedQuizOption(null);
+    const target = kgState.nodes.find((n) => n.id === nodeId);
+    setMarginNoteDraft(target?.userNote ?? '');
   }
 
   function handlePrevPage() {
