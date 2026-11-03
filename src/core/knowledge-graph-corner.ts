@@ -2815,3 +2815,359 @@ export function computeStudioUnlockables(input: {
     },
   ];
 }
+
+// ============================================================================
+// ★ IN-APP RESEARCH BROWSER & DIRECT SEARCH ENGINE (🌐 书院内嵌探索浏览器 · 全网/本地双引擎直搜)
+// ============================================================================
+
+export type BrowserSearchEngineId = 'smart-all' | 'wiki-zh' | 'hn-tech' | 'local-book';
+
+export type BrowserViewMode = 'reader' | 'webview';
+
+export type BrowserSearchResultItem = {
+  id: string;
+  sourceKind: 'local-chapter' | 'local-news' | 'wikipedia' | 'hackernews' | 'web-url';
+  sourceBadgeZh: string;
+  title: string;
+  snippet: string;
+  paragraphs: string[];
+  url: string;
+  embedUrl: string;
+  signalScore: number;
+  readMinutes: number;
+  relatedNodeId?: string;
+  relatedNodeCode?: string;
+};
+
+export type BrowserBookmarkItem = {
+  id: string;
+  title: string;
+  url: string;
+  snippet: string;
+  sourceBadgeZh: string;
+  savedAt: string;
+};
+
+export const BROWSER_SEARCH_ENGINES: readonly {
+  id: BrowserSearchEngineId;
+  icon: string;
+  zh: string;
+  en: string;
+  descZh: string;
+}[] = [
+  {
+    id: 'smart-all',
+    icon: '⚡',
+    zh: '全网 + 书院聚合直搜',
+    en: 'Smart All-in-One Search',
+    descZh: '同时检索本书 17 章典籍、晨报长文、中文/英文维基百科与 Hacker News 极客社区',
+  },
+  {
+    id: 'wiki-zh',
+    icon: '📚',
+    zh: '维基百科直搜',
+    en: 'Wikipedia Encyclopedia',
+    descZh: '实时检索 Wikipedia 百科词条并自动洗稿转换为「纸书衬线体净读页」或内嵌网页',
+  },
+  {
+    id: 'hn-tech',
+    icon: '💻',
+    zh: 'HackerNews 极客热帖',
+    en: 'Hacker News Tech Search',
+    descZh: '直连 Algolia HN 极客引擎，按高赞积分检索全球最新 AI / 开源 / 架构技术讨论',
+  },
+  {
+    id: 'local-book',
+    icon: '📖',
+    zh: '仅搜书院内建典籍',
+    en: 'Local Book & Graph Only',
+    descZh: '100% 纯离线 0 毫秒检索本机 17 章精装读本、公式字典、闪卡与书院晨报',
+  },
+] as const;
+
+export const BROWSER_HOT_QUERIES: readonly {
+  label: string;
+  query: string;
+}[] = [
+  { label: '🔥 Transformer 注意力', query: 'Transformer' },
+  { label: '🧠 DeepSeek R1 强化学习', query: 'DeepSeek' },
+  { label: '🔌 MCP 协议与 Agent', query: 'MCP' },
+  { label: '⚡ vLLM 显存分页', query: 'PagedAttention' },
+  { label: '📉 INT4 模型量化', query: '量化' },
+  { label: '💰 凯利公式与杠铃定投', query: '复利' },
+  { label: '🔄 CRDT 离线同步', query: 'CRDT' },
+] as const;
+
+/**
+ * Resolves raw user input in the browser Omnibox into either a direct URL or a structured search query.
+ */
+export function resolveBrowserOmniboxInput(
+  rawInput: string,
+  engine: BrowserSearchEngineId = 'smart-all',
+): {
+  kind: 'url' | 'search';
+  cleanQuery: string;
+  targetUrl: string;
+  embedUrl: string;
+} {
+  const trimmed = rawInput.trim();
+  const isUrl =
+    /^https?:\/\//i.test(trimmed) ||
+    (/^[a-z0-9-]+(\.[a-z0-9-]+)+(\/.*)?$/i.test(trimmed) && !trimmed.includes(' '));
+
+  if (isUrl) {
+    const normalizedUrl = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    return {
+      kind: 'url',
+      cleanQuery: trimmed,
+      targetUrl: normalizedUrl,
+      embedUrl: normalizedUrl,
+    };
+  }
+
+  const q = trimmed || 'Transformer';
+  const encoded = encodeURIComponent(q);
+  const wikiUrl = `https://zh.m.wikipedia.org/wiki/Special:Search?search=${encoded}`;
+  const hnUrl = `https://hn.algolia.com/?q=${encoded}`;
+
+  return {
+    kind: 'search',
+    cleanQuery: q,
+    targetUrl: engine === 'hn-tech' ? hnUrl : wikiUrl,
+    embedUrl: wikiUrl,
+  };
+}
+
+/**
+ * Instant 0ms local search across all 17 book chapters, formulas, flashcards, and news digests.
+ */
+export function searchLocalKnowledgeAndNews(
+  query: string,
+  state?: KnowledgeGraphState,
+): BrowserSearchResultItem[] {
+  const cur = state ?? readKnowledgeGraphState();
+  const q = query.trim().toLowerCase();
+  const results: BrowserSearchResultItem[] = [];
+
+  for (const node of cur.nodes) {
+    const content = cur.offlineContents[node.id];
+    const haystack = [
+      node.code,
+      node.title,
+      node.summary,
+      node.userNote,
+      content?.beginnerAnalogyZh ?? '',
+      content?.coreMentalModel ?? '',
+      ...(content?.deepReadingParagraphsZh ?? []),
+      ...(content?.keyTakeaways ?? []),
+      content?.codeOrFormulaSnippet ?? '',
+    ]
+      .join(' ')
+      .toLowerCase();
+
+    if (!q || haystack.includes(q)) {
+      const paragraphs =
+        content?.deepReadingParagraphsZh && content.deepReadingParagraphsZh.length > 0
+          ? [...content.deepReadingParagraphsZh]
+          : [content?.beginnerAnalogyZh ?? node.summary, content?.coreMentalModel ?? ''].filter(
+              Boolean,
+            );
+      results.push({
+        id: `local-ch-${node.id}`,
+        sourceKind: 'local-chapter',
+        sourceBadgeZh: `📖 本书第 ${node.stageLevel} 卷 · ${node.code}`,
+        title: `${node.code} · ${node.title.replace(/^【[^】]+】/, '')}`,
+        snippet: (content?.beginnerAnalogyZh ?? node.summary).replace(/^🌱\s*小白大白话：/, ''),
+        paragraphs,
+        url: `https://zh.m.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(node.title.replace(/^【[^】]+】/, ''))}`,
+        embedUrl: `https://zh.m.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(node.title.replace(/^【[^】]+】/, ''))}`,
+        signalScore: 98,
+        readMinutes: 5,
+        relatedNodeId: node.id,
+        relatedNodeCode: node.code,
+      });
+    }
+  }
+
+  const newsList = cur.newsItems ?? DEFAULT_NEWS_DIGEST_ITEMS;
+  for (const news of newsList) {
+    if (news.signalScore < 70) continue;
+    const haystack = [
+      news.titleZh,
+      news.summaryZh,
+      ...news.paragraphsZh,
+      ...news.tags,
+    ]
+      .join(' ')
+      .toLowerCase();
+
+    if (!q || haystack.includes(q)) {
+      results.push({
+        id: `local-news-${news.id}`,
+        sourceKind: 'local-news',
+        sourceBadgeZh: `📰 书院晨报 · ${news.sourceName}`,
+        title: news.titleZh,
+        snippet: news.summaryZh,
+        paragraphs: [...news.paragraphsZh],
+        url: `https://zh.m.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(news.tags[0] ?? news.titleZh.slice(0, 10))}`,
+        embedUrl: `https://zh.m.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(news.tags[0] ?? news.titleZh.slice(0, 10))}`,
+        signalScore: news.signalScore,
+        readMinutes: news.readMinutes,
+        relatedNodeCode: news.relatedNodeCode,
+      });
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Live CORS-safe public search via Wikipedia API (`origin=*`) and Hacker News Algolia API,
+ * seamlessly merging with local book & digest results and gracefully degrading when offline.
+ */
+export async function executeInAppBrowserSearch(input: {
+  query: string;
+  engine: BrowserSearchEngineId;
+  state?: KnowledgeGraphState;
+}): Promise<{
+  results: BrowserSearchResultItem[];
+  resolvedOmnibox: ReturnType<typeof resolveBrowserOmniboxInput>;
+  liveFetchedCount: number;
+}> {
+  const resolved = resolveBrowserOmniboxInput(input.query, input.engine);
+
+  if (resolved.kind === 'url') {
+    const directItem: BrowserSearchResultItem = {
+      id: `url-${Date.now()}`,
+      sourceKind: 'web-url',
+      sourceBadgeZh: '🌐 网页直达链接',
+      title: resolved.cleanQuery,
+      snippet: `正在书院内嵌浏览器中打开网址：${resolved.targetUrl}`,
+      paragraphs: [
+        `网址链接：${resolved.targetUrl}`,
+        '你可以切换到「🖥 网页视图」直接浏览该网页，或将页面中的精华段落复制摘录进你的个人知识图谱。',
+      ],
+      url: resolved.targetUrl,
+      embedUrl: resolved.embedUrl,
+      signalScore: 90,
+      readMinutes: 4,
+    };
+    return {
+      results: [directItem],
+      resolvedOmnibox: resolved,
+      liveFetchedCount: 1,
+    };
+  }
+
+  const localResults =
+    input.engine === 'wiki-zh' || input.engine === 'hn-tech'
+      ? searchLocalKnowledgeAndNews(resolved.cleanQuery, input.state).slice(0, 2)
+      : searchLocalKnowledgeAndNews(resolved.cleanQuery, input.state);
+
+  if (input.engine === 'local-book' || typeof fetch === 'undefined') {
+    return {
+      results: localResults,
+      resolvedOmnibox: resolved,
+      liveFetchedCount: 0,
+    };
+  }
+
+  const liveResults: BrowserSearchResultItem[] = [];
+  const encoded = encodeURIComponent(resolved.cleanQuery);
+
+  // 1. Live Wikipedia Public Search API (CORS-enabled via origin=*)
+  if (input.engine === 'smart-all' || input.engine === 'wiki-zh') {
+    try {
+      const wikiApiUrl = `https://zh.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encoded}&utf8=&format=json&origin=*&srlimit=4`;
+      const resp = await fetch(wikiApiUrl);
+      if (resp.ok) {
+        const data = (await resp.json()) as {
+          query?: {
+            search?: { pageid: number; title: string; snippet: string }[];
+          };
+        };
+        const items = data.query?.search ?? [];
+        for (const w of items) {
+          const cleanSnippet = w.snippet
+            .replace(/<[^>]+>/g, '')
+            .replace(/&quot;/g, '"')
+            .replace(/&amp;/g, '&');
+          const pageUrl = `https://zh.m.wikipedia.org/wiki/${encodeURIComponent(w.title)}`;
+          const scored = scoreArticleSignalToNoise({ title: w.title, body: cleanSnippet });
+          liveResults.push({
+            id: `wiki-${w.pageid}`,
+            sourceKind: 'wikipedia',
+            sourceBadgeZh: '📚 维基百科 · 实时词条',
+            title: `${w.title} — 维基百科自由的百科全书`,
+            snippet: cleanSnippet,
+            paragraphs: [
+              cleanSnippet,
+              `词条来源：中文维基百科《${w.title}》（${pageUrl}）。`,
+              '提示：点击上方「🖥 切换网页原貌窗口」可直接在书院内嵌浏览器中滚动阅读完整维基百科词条与参考文献；或点击下方「📌 一键摘录进我的知识图谱」将其永久保存为本地离线节点！',
+            ],
+            url: pageUrl,
+            embedUrl: pageUrl,
+            signalScore: Math.max(88, scored.signalScore),
+            readMinutes: 5,
+          });
+        }
+      }
+    } catch {
+      // Graceful offline fallback
+    }
+  }
+
+  // 2. Live Hacker News Algolia Public Search API (CORS-enabled)
+  if (input.engine === 'smart-all' || input.engine === 'hn-tech') {
+    try {
+      const hnApiUrl = `https://hn.algolia.com/api/v1/search?query=${encoded}&tags=story&hitsPerPage=4`;
+      const resp = await fetch(hnApiUrl);
+      if (resp.ok) {
+        const data = (await resp.json()) as {
+          hits?: {
+            objectID: string;
+            title?: string;
+            url?: string;
+            points?: number;
+            num_comments?: number;
+            author?: string;
+          }[];
+        };
+        for (const h of data.hits ?? []) {
+          if (!h.title) continue;
+          const hnStoryUrl = h.url || `https://news.ycombinator.com/item?id=${h.objectID}`;
+          const pts = h.points ?? 50;
+          const comments = h.num_comments ?? 10;
+          const summaryLine = `Hacker News 极客社区高赞讨论（👍 ${pts} 赞 · 💬 ${comments} 条技术评论 · 作者 @${h.author ?? 'geek'}）。`;
+          liveResults.push({
+            id: `hn-${h.objectID}`,
+            sourceKind: 'hackernews',
+            sourceBadgeZh: `💻 Hacker News · 👍 ${pts}`,
+            title: h.title,
+            snippet: summaryLine,
+            paragraphs: [
+              summaryLine,
+              `原文链接：${hnStoryUrl}`,
+              `讨论串地址：https://news.ycombinator.com/item?id=${h.objectID}`,
+              '你可以通过下方「📌 一键摘录进我的知识图谱」将该极客前沿话题收入个人书院，随时离线批注研读。',
+            ],
+            url: hnStoryUrl,
+            embedUrl: `https://zh.m.wikipedia.org/wiki/Special:Search?search=${encoded}`,
+            signalScore: Math.min(99, 85 + Math.round(pts / 50)),
+            readMinutes: 4,
+          });
+        }
+      }
+    } catch {
+      // Graceful offline fallback
+    }
+  }
+
+  const combined = [...localResults, ...liveResults];
+  return {
+    results: combined,
+    resolvedOmnibox: resolved,
+    liveFetchedCount: liveResults.length,
+  };
+}
+

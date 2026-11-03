@@ -3,6 +3,11 @@ import { Platform, Pressable, Share, StyleSheet, TextInput, View } from 'react-n
 
 import {
   type AiAnimationKind,
+  BROWSER_HOT_QUERIES,
+  BROWSER_SEARCH_ENGINES,
+  type BrowserSearchEngineId,
+  type BrowserSearchResultItem,
+  type BrowserViewMode,
   CATALOG_CHAPTER_PACKS,
   clipCustomNewsArticle,
   computeAttentionSimulation,
@@ -21,6 +26,7 @@ import {
   computeWordEmbeddingSimulation,
   DEFAULT_NEWS_DIGEST_ITEMS,
   DEFAULT_NEWS_FILTER,
+  executeInAppBrowserSearch,
   exportChapterPackJson,
   filterNewsDigestItems,
   importCustomMarkdownKnowledgeNode,
@@ -34,6 +40,7 @@ import {
   type NewsCategoryId,
   offloadKnowledgeChapterPack,
   readKnowledgeGraphState,
+  searchLocalKnowledgeAndNews,
   toggleNewsItemStatus,
   updateKnowledgeNodeProgress,
   updateNewsFilterOptions,
@@ -47,7 +54,7 @@ import { useTheme } from './ThemeProvider';
 import { showToast } from './toast';
 import { useI18n } from './use-i18n';
 
-export type StudyWorkbenchSubView = 'lab' | 'news' | 'graph' | 'packs';
+export type StudyWorkbenchSubView = 'lab' | 'browser' | 'news' | 'graph' | 'packs';
 
 /**
  * 4 Book Pages per Chapter (每章四页纸书阅读体验):
@@ -1475,6 +1482,21 @@ export function KnowledgeGraphCornerHub({
   const [clipCategory, setClipCategory] = useState<NewsCategoryId>('ai-frontier');
   const [clipBody, setClipBody] = useState('');
 
+  // In-App Research Browser & Direct Search Engine State (书院浏览器 · 直接搜)
+  const [browserEngine, setBrowserEngine] = useState<BrowserSearchEngineId>('smart-all');
+  const [browserQueryInput, setBrowserQueryInput] = useState<string>('Transformer 注意力');
+  const [browserViewMode, setBrowserViewMode] = useState<BrowserViewMode>('reader');
+  const [browserSearching, setBrowserSearching] = useState<boolean>(false);
+  const [browserResults, setBrowserResults] = useState<BrowserSearchResultItem[]>(() =>
+    searchLocalKnowledgeAndNews('Transformer 注意力', readKnowledgeGraphState()),
+  );
+  const [selectedBrowserResultId, setSelectedBrowserResultId] = useState<string>(
+    () => searchLocalKnowledgeAndNews('Transformer 注意力', readKnowledgeGraphState())[0]?.id ?? '',
+  );
+  const [browserHistory, setBrowserHistory] = useState<string[]>(['Transformer 注意力']);
+  const [browserHistoryIdx, setBrowserHistoryIdx] = useState<number>(0);
+  const [iframeReloadTick, setIframeReloadTick] = useState<number>(0);
+
   const bkState = readBookkeepingState();
   const stats = useMemo(() => computeKnowledgeGraphStats(kgState), [kgState]);
   const unlockables = useMemo(
@@ -1527,6 +1549,52 @@ export function KnowledgeGraphCornerHub({
       allNewsItems[0]!,
     [allNewsItems, filteredNewsResult.visibleItems, selectedNewsId],
   );
+
+  const activeBrowserResult = useMemo(
+    () =>
+      browserResults.find((item) => item.id === selectedBrowserResultId) ??
+      browserResults[0] ??
+      null,
+    [browserResults, selectedBrowserResultId],
+  );
+
+  async function runBrowserDirectSearch(
+    rawInput: string,
+    engineOverride?: BrowserSearchEngineId,
+    pushHistory = true,
+  ) {
+    const targetEngine = engineOverride ?? browserEngine;
+    const trimmed = rawInput.trim() || 'Transformer';
+    setBrowserQueryInput(trimmed);
+    setBrowserSearching(true);
+
+    if (pushHistory) {
+      setBrowserHistory((prev) => {
+        const sliced = prev.slice(0, browserHistoryIdx + 1);
+        if (sliced[sliced.length - 1] === trimmed) return sliced;
+        const next = [...sliced, trimmed];
+        setBrowserHistoryIdx(next.length - 1);
+        return next;
+      });
+    }
+
+    try {
+      const res = await executeInAppBrowserSearch({
+        query: trimmed,
+        engine: targetEngine,
+        state: kgState,
+      });
+      setBrowserResults(res.results);
+      if (res.results[0]) {
+        setSelectedBrowserResultId(res.results[0].id);
+      }
+      if (res.resolvedOmnibox.kind === 'url') {
+        setBrowserViewMode('webview');
+      }
+    } finally {
+      setBrowserSearching(false);
+    }
+  }
 
   useEffect(() => {
     setMarginNoteDraft(selectedNode.userNote ?? '');
@@ -1728,8 +1796,26 @@ export function KnowledgeGraphCornerHub({
           })}
         </View>
 
-        {/* Right Side: Smart News Digest Filter (`📰 书院晨报`) + Knowledge Graph + Offline Packs */}
+        {/* Right Side: In-App Browser (`🌐 书院浏览器 · 直接搜`) + Smart News Digest (`📰 书院晨报`) + Knowledge Graph + Offline Packs */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="切换至书院内置浏览器直接搜索"
+            onPress={() => setActiveSubView(activeSubView === 'browser' ? 'lab' : 'browser')}
+            style={[
+              styles.tocToggleBtn,
+              {
+                backgroundColor: activeSubView === 'browser' ? pal.pillActiveBg : pal.paperBg,
+                borderColor: activeSubView === 'browser' ? pal.gold : pal.border,
+              },
+            ]}
+          >
+            <Text variant="caption" style={{ color: activeSubView === 'browser' ? pal.goldText : pal.ink, fontSize: 11.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+              {activeSubView === 'browser'
+                ? t('← 返回精装书卷', '← Back to Book')
+                : t('🌐 书院浏览器 · 直接搜', '🌐 Research Browser')}
+            </Text>
+          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="切换至书院晨报与智能资讯筛选"
@@ -1818,6 +1904,447 @@ export function KnowledgeGraphCornerHub({
               );
             })}
           </View>
+        </View>
+      ) : null}
+
+      {/* ================= SUB-VIEW 5: IN-APP RESEARCH BROWSER & DIRECT SEARCH ENGINE (书院浏览器 · 直接搜) ================= */}
+      {activeSubView === 'browser' ? (
+        <View style={styles.deskStage}>
+          {/* 1. Browser Omnibox & Navigation Bar */}
+          <View style={[styles.newsFilterPanel, { backgroundColor: pal.paperElevated, borderColor: pal.goldBorder, gap: 10 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <Text variant="label" style={{ color: pal.ink, fontSize: 14.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                  {t('🌐 书院内建学术浏览器 · 全网与书院聚合直搜', '🌐 In-App Research Browser & Direct Search')}
+                </Text>
+                <View style={[styles.redSealBadge, { borderColor: pal.emerald, paddingHorizontal: 8, paddingVertical: 2 }]}>
+                  <Text variant="caption" style={{ color: pal.emerald, fontSize: 10.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                    {t('⚡ 支持维基百科 / HackerNews / 书院17章全书直搜 + 纸书净读模式', '⚡ Live Wiki + HN + Local Book + Reader Mode')}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Reader Mode vs Embedded Web Window Toggle */}
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                <Pressable
+                  onPress={() => setBrowserViewMode('reader')}
+                  style={[
+                    styles.microBtn,
+                    {
+                      borderColor: browserViewMode === 'reader' ? pal.gold : pal.border,
+                      backgroundColor: browserViewMode === 'reader' ? pal.pillActiveBg : pal.paperBg,
+                    },
+                  ]}
+                >
+                  <Text variant="caption" style={{ color: browserViewMode === 'reader' ? pal.goldText : pal.sub, fontSize: 11, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                    {t('📖 纸书净读模式 (去广告/高信噪比)', '📖 Book Reader Mode')}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setBrowserViewMode('webview')}
+                  style={[
+                    styles.microBtn,
+                    {
+                      borderColor: browserViewMode === 'webview' ? pal.gold : pal.border,
+                      backgroundColor: browserViewMode === 'webview' ? pal.pillActiveBg : pal.paperBg,
+                    },
+                  ]}
+                >
+                  <Text variant="caption" style={{ color: browserViewMode === 'webview' ? pal.goldText : pal.sub, fontSize: 11, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                    {t('🖥 网页原貌窗口 (内嵌浏览器)', '🖥 Web Iframe View')}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Browser Chrome Row: Back / Forward / Reload + Omnibox Input + Search CTA */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <View style={{ flexDirection: 'row', gap: 4 }}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="浏览器后退"
+                  disabled={browserHistoryIdx <= 0}
+                  onPress={() => {
+                    if (browserHistoryIdx > 0) {
+                      const nextIdx = browserHistoryIdx - 1;
+                      const prevQuery = browserHistory[nextIdx];
+                      if (prevQuery) {
+                        setBrowserHistoryIdx(nextIdx);
+                        void runBrowserDirectSearch(prevQuery, undefined, false);
+                      }
+                    }
+                  }}
+                  style={[styles.microBtn, { borderColor: pal.border, opacity: browserHistoryIdx > 0 ? 1 : 0.4 }]}
+                >
+                  <Text variant="caption" style={{ color: pal.ink, fontSize: 11, fontWeight: '700' }}>◀</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="浏览器前进"
+                  disabled={browserHistoryIdx >= browserHistory.length - 1}
+                  onPress={() => {
+                    if (browserHistoryIdx < browserHistory.length - 1) {
+                      const nextIdx = browserHistoryIdx + 1;
+                      const nextQuery = browserHistory[nextIdx];
+                      if (nextQuery) {
+                        setBrowserHistoryIdx(nextIdx);
+                        void runBrowserDirectSearch(nextQuery, undefined, false);
+                      }
+                    }
+                  }}
+                  style={[styles.microBtn, { borderColor: pal.border, opacity: browserHistoryIdx < browserHistory.length - 1 ? 1 : 0.4 }]}
+                >
+                  <Text variant="caption" style={{ color: pal.ink, fontSize: 11, fontWeight: '700' }}>▶</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="刷新当前搜索或网页"
+                  onPress={() => {
+                    setIframeReloadTick((t0) => t0 + 1);
+                    void runBrowserDirectSearch(browserQueryInput, undefined, false);
+                  }}
+                  style={[styles.microBtn, { borderColor: pal.border }]}
+                >
+                  <Text variant="caption" style={{ color: pal.ink, fontSize: 11, fontWeight: '700' }}>↻</Text>
+                </Pressable>
+              </View>
+
+              <TextInput
+                value={browserQueryInput}
+                onChangeText={setBrowserQueryInput}
+                onSubmitEditing={() => void runBrowserDirectSearch(browserQueryInput)}
+                placeholder={t('输入任何想搜的词条、AI 概念或直接输入 https:// 网址回车直达...', 'Search any topic, AI concept, or enter https:// URL...')}
+                placeholderTextColor={pal.muted}
+                style={[
+                  styles.input,
+                  {
+                    flex: 1,
+                    minWidth: 240,
+                    borderColor: pal.gold,
+                    color: pal.ink,
+                    backgroundColor: pal.inputBg,
+                    fontFamily: theme.fontFamily.serif,
+                    fontSize: 13.5,
+                    paddingVertical: 9,
+                  },
+                ]}
+              />
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="立即搜索"
+                onPress={() => void runBrowserDirectSearch(browserQueryInput)}
+                style={[styles.primaryPlayBtn, { backgroundColor: '#b88228', borderColor: '#b88228', paddingHorizontal: 16, paddingVertical: 9 }]}
+              >
+                <Text variant="caption" style={{ color: '#fffbeb', fontSize: 12, fontWeight: '700', fontFamily: theme.fontFamily.serif }}>
+                  {browserSearching ? t('⏳ 正在检索...', '⏳ Searching...') : t('🔍 直接搜索', '🔍 Direct Search')}
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Search Engine Selector Row + Hot Query Chips */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <Text variant="caption" style={{ color: pal.muted, fontSize: 11, fontFamily: theme.fontFamily.serif }}>
+                  {t('检索源：', 'Engine:')}
+                </Text>
+                {BROWSER_SEARCH_ENGINES.map((eng) => {
+                  const isSel = browserEngine === eng.id;
+                  return (
+                    <Pressable
+                      key={eng.id}
+                      onPress={() => {
+                        setBrowserEngine(eng.id);
+                        void runBrowserDirectSearch(browserQueryInput, eng.id, false);
+                      }}
+                      style={[
+                        styles.microBtn,
+                        {
+                          borderColor: isSel ? pal.gold : pal.border,
+                          backgroundColor: isSel ? pal.pillActiveBg : 'transparent',
+                        },
+                      ]}
+                    >
+                      <Text variant="caption" style={{ color: isSel ? pal.goldText : pal.sub, fontSize: 11, fontFamily: theme.fontFamily.serif, fontWeight: isSel ? '700' : '400' }}>
+                        {`${eng.icon} ${eng.zh}`}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <Text variant="caption" style={{ color: pal.muted, fontSize: 10.5, fontFamily: theme.fontFamily.serif }}>
+                  {t('热搜直达：', 'Hot:')}
+                </Text>
+                {BROWSER_HOT_QUERIES.map((hq) => (
+                  <Pressable
+                    key={hq.query}
+                    onPress={() => {
+                      void runBrowserDirectSearch(hq.query, browserEngine, true);
+                    }}
+                    style={[styles.microBtn, { borderColor: pal.border, backgroundColor: pal.paperBg }]}
+                  >
+                    <Text variant="caption" style={{ color: pal.ink, fontSize: 10.5, fontFamily: theme.fontFamily.serif }}>
+                      {hq.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Horizontal Search Result Cards */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 4 }}>
+              {browserResults.map((item) => {
+                const isSelected = activeBrowserResult?.id === item.id;
+                return (
+                  <Pressable
+                    key={item.id}
+                    onPress={() => setSelectedBrowserResultId(item.id)}
+                    style={[
+                      styles.newsHeadlineCard,
+                      {
+                        borderColor: isSelected ? pal.gold : pal.border,
+                        backgroundColor: isSelected ? pal.pillActiveBg : pal.paperBg,
+                      },
+                    ]}
+                  >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                      <Text variant="caption" style={{ color: pal.goldText, fontSize: 10, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                        {item.sourceBadgeZh}
+                      </Text>
+                      <Text variant="caption" style={{ color: pal.emerald, fontSize: 10, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                        {`信噪比 ${item.signalScore}分`}
+                      </Text>
+                    </View>
+                    <Text
+                      variant="caption"
+                      numberOfLines={2}
+                      style={{
+                        color: isSelected ? pal.goldText : pal.ink,
+                        fontSize: 12,
+                        fontFamily: theme.fontFamily.serif,
+                        fontWeight: isSelected ? '700' : '600',
+                      }}
+                    >
+                      {item.title}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* 2. Browser Viewport: Either Book Reader Mode (`reader`) OR Embedded Web Window (`webview`) */}
+          {activeBrowserResult ? (
+            browserViewMode === 'reader' ? (
+              <View style={{ marginTop: 12 }}>
+                <View style={[styles.bookPageFolio, { backgroundColor: pal.paperBg, borderColor: pal.goldBorder, borderLeftColor: pal.spineShadow }]}>
+                  {/* Running Header */}
+                  <View style={[styles.bookRunningHeader, { borderBottomColor: pal.border }]}>
+                    <Text variant="caption" style={{ color: pal.muted, fontSize: 11.5, fontFamily: theme.fontFamily.serif }}>
+                      {`🌐 书院浏览器 · 纸书净读模式 · ${activeBrowserResult.sourceBadgeZh}`}
+                    </Text>
+                    <Text variant="caption" style={{ color: pal.emerald, fontSize: 11.5, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                      {`信噪比评分 ${activeBrowserResult.signalScore}/100 · 净读免打扰`}
+                    </Text>
+                  </View>
+
+                  {/* Title & URL Bar */}
+                  <View style={{ gap: 6 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                      <Text variant="caption" style={{ color: pal.gold, fontSize: 11.5, fontFamily: theme.fontFamily.mono }}>
+                        {`来源地址：${activeBrowserResult.url}`}
+                      </Text>
+                      <Pressable
+                        onPress={() => setBrowserViewMode('webview')}
+                        style={[styles.microBtn, { borderColor: pal.gold }]}
+                      >
+                        <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                          {t('🖥 切换至网页原貌窗口查看 →', '🖥 Switch to Web Iframe View →')}
+                        </Text>
+                      </Pressable>
+                    </View>
+                    <Text
+                      variant="title"
+                      style={{
+                        color: pal.ink,
+                        fontSize: fullScreen ? 23 : 20,
+                        lineHeight: fullScreen ? 33 : 28,
+                        fontFamily: theme.fontFamily.serif,
+                        fontWeight: '700',
+                      }}
+                    >
+                      {activeBrowserResult.title}
+                    </Text>
+                  </View>
+
+                  {/* Summary Highlight Box */}
+                  <View style={[styles.epigraphQuoteBox, { backgroundColor: pal.paperElevated, borderLeftColor: pal.gold, gap: 6 }]}>
+                    <Text variant="caption" style={{ color: pal.goldText, fontSize: 12, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                      {t('【检索词条核心摘要】', '[Search Entry Digest]')}
+                    </Text>
+                    <Text
+                      variant="body"
+                      style={{
+                        color: pal.ink,
+                        fontSize: fullScreen ? 15.5 : 14.5,
+                        lineHeight: fullScreen ? 27 : 25,
+                        fontFamily: theme.fontFamily.serif,
+                      }}
+                    >
+                      {activeBrowserResult.snippet}
+                    </Text>
+                  </View>
+
+                  {/* Full Reader Paragraphs */}
+                  <View style={{ gap: 14 }}>
+                    {activeBrowserResult.paragraphs.map((para: string, pIdx: number) => (
+                      <Text
+                        key={pIdx}
+                        variant="body"
+                        style={{
+                          color: pal.ink,
+                          fontSize: fullScreen ? 16 : 15,
+                          lineHeight: fullScreen ? 29 : 27,
+                          fontFamily: theme.fontFamily.serif,
+                        }}
+                      >
+                        {`　　${para}`}
+                      </Text>
+                    ))}
+                  </View>
+
+                  {/* Footer 1-Click Study Actions: Save to Knowledge Graph, Save to News Digest, or Jump to Book Chapter */}
+                  <View style={[styles.bookPageFooter, { borderTopColor: pal.border }]}>
+                    <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                      <Pressable
+                        onPress={() => {
+                          const { state: next, addedNode } = importCustomMarkdownKnowledgeNode({
+                            title: activeBrowserResult.title.replace(/^【[^】]+】/, ''),
+                            domainId: 'ai-infra',
+                            markdownBody: `${activeBrowserResult.snippet}\n\n${activeBrowserResult.paragraphs.join('\n\n')}\n\n来源: ${activeBrowserResult.url} 关联 [[AI-101]]`,
+                          });
+                          setKgState(next);
+                          onLogStudyMinutes?.(`浏览器检索收录: ${addedNode.title}`, 10);
+                          showToast({ text: t(`📌 已将「${addedNode.title}」收录进你的知识图谱！`, '📌 Saved to Knowledge Graph!') });
+                        }}
+                        style={[styles.pageTurnBtn, { backgroundColor: '#b88228', borderColor: '#b88228' }]}
+                      >
+                        <Text variant="caption" style={{ color: '#fffbeb', fontSize: 12, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                          {t('📌 一键收录进我的知识图谱 (+10m)', '📌 Save to Knowledge Graph')}
+                        </Text>
+                      </Pressable>
+
+                      <Pressable
+                        onPress={() => {
+                          const { state: next } = clipCustomNewsArticle({
+                            title: activeBrowserResult.title,
+                            sourceName: activeBrowserResult.sourceBadgeZh,
+                            categoryId: 'ai-frontier',
+                            rawText: activeBrowserResult.paragraphs.join('\n'),
+                          });
+                          setKgState(next);
+                          showToast({ text: t('📰 已存入「书院晨报」净读列表！', '📰 Saved to News Digest!') });
+                        }}
+                        style={[styles.pageTurnBtn, { borderColor: pal.gold, backgroundColor: pal.pillActiveBg }]}
+                      >
+                        <Text variant="caption" style={{ color: pal.goldText, fontSize: 12, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                          {t('📰 存入书院晨报净读', '📰 Save to News Digest')}
+                        </Text>
+                      </Pressable>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                      {activeBrowserResult.relatedNodeId ? (
+                        <Pressable
+                          onPress={() => {
+                            const targetNode = kgState.nodes.find((n) => n.id === activeBrowserResult.relatedNodeId);
+                            selectLesson(activeBrowserResult.relatedNodeId!, targetNode?.stageLevel);
+                            setActiveSubView('lab');
+                          }}
+                          style={[styles.pageTurnBtn, { borderColor: pal.emerald }]}
+                        >
+                          <Text variant="caption" style={{ color: pal.emerald, fontSize: 12, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                            {t('📖 翻到本书对应章节与活动插图 →', '📖 Open Book Chapter →')}
+                          </Text>
+                        </Pressable>
+                      ) : null}
+
+                      {Platform.OS === 'web' && typeof window !== 'undefined' ? (
+                        <Pressable
+                          onPress={() => window.open(activeBrowserResult.url, '_blank', 'noopener,noreferrer')}
+                          style={[styles.pageTurnBtn, { borderColor: pal.border }]}
+                        >
+                          <Text variant="caption" style={{ color: pal.sub, fontSize: 11.5, fontFamily: theme.fontFamily.serif }}>
+                            {t('↗ 在新标签页打开原网页', '↗ Open External Tab')}
+                          </Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  </View>
+                </View>
+              </View>
+            ) : (
+              /* Embedded Web Browser Iframe Window (`webview`) */
+              <View style={{ marginTop: 12 }}>
+                <View style={[styles.bookPageFolio, { backgroundColor: pal.paperBg, borderColor: pal.goldBorder, borderLeftColor: pal.spineShadow, paddingVertical: 14, paddingHorizontal: 16, minHeight: 540 }]}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: pal.border }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                      <Text variant="caption" style={{ color: pal.emerald, fontSize: 11, fontFamily: theme.fontFamily.mono, fontWeight: '700' }}>
+                        🔒 HTTPS
+                      </Text>
+                      <Text variant="caption" numberOfLines={1} style={{ color: pal.ink, fontSize: 11.5, fontFamily: theme.fontFamily.mono, flex: 1 }}>
+                        {activeBrowserResult.embedUrl}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <Pressable
+                        onPress={() => setBrowserViewMode('reader')}
+                        style={[styles.microBtn, { borderColor: pal.gold, backgroundColor: pal.pillActiveBg }]}
+                      >
+                        <Text variant="caption" style={{ color: pal.goldText, fontSize: 11, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                          {t('📖 切回纸书净读模式', '📖 Switch to Reader Mode')}
+                        </Text>
+                      </Pressable>
+                      {Platform.OS === 'web' && typeof window !== 'undefined' ? (
+                        <Pressable
+                          onPress={() => window.open(activeBrowserResult.url, '_blank', 'noopener,noreferrer')}
+                          style={[styles.microBtn, { borderColor: pal.border }]}
+                        >
+                          <Text variant="caption" style={{ color: pal.ink, fontSize: 11, fontFamily: theme.fontFamily.serif }}>
+                            {t('↗ 外部浏览器打开', '↗ Open in New Tab')}
+                          </Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  </View>
+
+                  {Platform.OS === 'web'
+                    ? createElement('iframe', {
+                        key: `${activeBrowserResult.embedUrl}-${iframeReloadTick}`,
+                        src: activeBrowserResult.embedUrl,
+                        title: activeBrowserResult.title,
+                        sandbox: 'allow-scripts allow-same-origin allow-popups allow-forms',
+                        style: {
+                          width: '100%',
+                          height: fullScreen ? 520 : 440,
+                          border: 'none',
+                          borderRadius: 8,
+                          backgroundColor: '#ffffff',
+                        },
+                      })
+                    : (
+                      <View style={{ padding: 24, alignItems: 'center', gap: 8 }}>
+                        <Text variant="body" style={{ color: pal.ink, fontFamily: theme.fontFamily.serif }}>
+                          {activeBrowserResult.snippet}
+                        </Text>
+                      </View>
+                    )}
+                </View>
+              </View>
+            )
+          ) : null}
         </View>
       ) : null}
 

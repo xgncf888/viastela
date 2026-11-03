@@ -34,11 +34,45 @@ import {
   installKnowledgeChapterPack,
   LEARNING_STAGES,
   offloadKnowledgeChapterPack,
+  resolveBrowserOmniboxInput,
   scoreArticleSignalToNoise,
+  searchLocalKnowledgeAndNews,
   updateKnowledgeNodeProgress,
+  executeInAppBrowserSearch,
 } from './knowledge-graph-corner';
 
-describe('Study Corner Hardcover Book Reader, 17 Chapters & Smart News Digest Filter', () => {
+describe('Study Corner Hardcover Book Reader, In-App Research Browser, 17 Chapters & Smart News Digest Filter', () => {
+  it('supports in-app browser omnibox resolution, local book + news search, and direct search execution', async () => {
+    const state = buildDefaultKnowledgeState();
+
+    // Omnibox resolves direct domain or https URL vs search query
+    const urlRes = resolveBrowserOmniboxInput('https://zh.wikipedia.org/wiki/Transformer');
+    expect(urlRes.kind).toBe('url');
+    expect(urlRes.targetUrl).toBe('https://zh.wikipedia.org/wiki/Transformer');
+
+    const domainRes = resolveBrowserOmniboxInput('zh.wikipedia.org/wiki/DeepSeek');
+    expect(domainRes.kind).toBe('url');
+    expect(domainRes.targetUrl).toBe('https://zh.wikipedia.org/wiki/DeepSeek');
+
+    const queryRes = resolveBrowserOmniboxInput('FlashAttention 显存分块');
+    expect(queryRes.kind).toBe('search');
+    expect(queryRes.cleanQuery).toBe('FlashAttention 显存分块');
+
+    // Local search across 17 book chapters + news digest
+    const localHits = searchLocalKnowledgeAndNews('Transformer', state);
+    expect(localHits.length).toBeGreaterThanOrEqual(1);
+    expect(localHits[0]?.paragraphs.length).toBeGreaterThanOrEqual(2);
+
+    // Direct search execution in local-book mode returns structured reader items
+    const browserExec = await executeInAppBrowserSearch({
+      query: 'DeepSeek',
+      engine: 'local-book',
+      state,
+    });
+    expect(browserExec.results.length).toBeGreaterThanOrEqual(1);
+    expect(browserExec.results.some((r) => r.title.includes('DeepSeek'))).toBe(true);
+  });
+
   it('ships a 4-volume 17-chapter illustrated book with multi-paragraph long-form essays and on-demand pack management', () => {
     expect(LEARNING_STAGES).toHaveLength(4);
     const initial = buildDefaultKnowledgeState();
