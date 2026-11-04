@@ -7,7 +7,7 @@
  * A push click opens the payload url. Training falls back to /, month-end to the asset dashboard.
  */
 // Export rewrites this to shell-static-<revision> so activate drops the previous cache.
-const CACHE_NAME = 'shell-static-7fe801d7c937';
+const CACHE_NAME = 'shell-static-v1';
 
 const STATIC_FILE = /\.(?:js|css|png|jpe?g|webp|gif|svg|ico|woff2?|ttf|otf)$/i;
 const SUPABASE_PATH = /\/(?:auth|rest|functions|storage|realtime)\/v1(?:\/|$)/;
