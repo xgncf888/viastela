@@ -1190,6 +1190,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         if !flag {
             showMainWindow()
         }
+        loadAppBundle()
         return true
     }
 
@@ -1209,6 +1210,14 @@ function main() {
   if (process.platform !== 'darwin') {
     console.log('Skipping macOS native bundle compilation on non-darwin platform.');
     return;
+  }
+
+  // Always rebuild the Expo web bundle (`dist/`) unless SKIP_WEB_EXPORT=1 is explicitly set,
+  // preventing stale `dist/` bundles from being packaged into Viastela.app.
+  if (process.env.SKIP_WEB_EXPORT !== '1') {
+    console.log('Exporting fresh web bundle (dist/) before packaging macOS app...');
+    rmSync(path.join(ROOT, 'dist'), { recursive: true, force: true });
+    execFileSync('npm', ['run', 'export:web'], { cwd: ROOT, stdio: 'inherit' });
   }
 
   rmSync(APP_BUNDLE, { recursive: true, force: true });
