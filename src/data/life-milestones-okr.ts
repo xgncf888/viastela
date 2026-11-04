@@ -10,46 +10,54 @@ import {
   type OkrObjective,
 } from '@/core/life-milestones-okr';
 
+import { createPersistedStore, createPersistedStoreBus, type PersistedStoreListener } from './persisted-store';
+
 const MILESTONES_KEY = 'viastela.life_milestones.v1';
 const OKR_KEY = 'viastela.okr_objectives.v1';
 const HABITS_KEY = 'viastela.daily_habits.v1';
 
-type Listener = () => void;
-const listeners = new Set<Listener>();
+const lifeOkrBus = createPersistedStoreBus();
 
-function emitChange(): void {
-  listeners.forEach((fn) => fn());
+export function subscribeLifeOkrStore(listener: PersistedStoreListener): () => void {
+  return lifeOkrBus.subscribe(listener);
 }
 
-export function subscribeLifeOkrStore(listener: Listener): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-}
-
-export function readLifeMilestones(): LifeMilestone[] {
-  try {
-    if (typeof localStorage === 'undefined') return [...DEFAULT_LIFE_MILESTONES];
-    const raw = localStorage.getItem(MILESTONES_KEY);
-    if (!raw) return [...DEFAULT_LIFE_MILESTONES];
-    const parsed = JSON.parse(raw);
+const milestonesStore = createPersistedStore<LifeMilestone[]>({
+  key: MILESTONES_KEY,
+  bus: lifeOkrBus,
+  getDefault: () => [...DEFAULT_LIFE_MILESTONES],
+  normalize: (parsed) => {
     if (!Array.isArray(parsed) || parsed.length === 0) return [...DEFAULT_LIFE_MILESTONES];
     return parsed as LifeMilestone[];
-  } catch {
-    return [...DEFAULT_LIFE_MILESTONES];
-  }
+  },
+});
+
+const okrStore = createPersistedStore<OkrObjective[]>({
+  key: OKR_KEY,
+  bus: lifeOkrBus,
+  getDefault: () => [...DEFAULT_OKR_OBJECTIVES],
+  normalize: (parsed) => {
+    if (!Array.isArray(parsed) || parsed.length === 0) return [...DEFAULT_OKR_OBJECTIVES];
+    return parsed as OkrObjective[];
+  },
+});
+
+const habitsStore = createPersistedStore<HabitItem[]>({
+  key: HABITS_KEY,
+  bus: lifeOkrBus,
+  getDefault: () => [...DEFAULT_HABITS],
+  normalize: (parsed) => {
+    if (!Array.isArray(parsed) || parsed.length === 0) return [...DEFAULT_HABITS];
+    return parsed as HabitItem[];
+  },
+});
+
+export function readLifeMilestones(): LifeMilestone[] {
+  return milestonesStore.read();
 }
 
 export function writeLifeMilestones(items: readonly LifeMilestone[]): void {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(MILESTONES_KEY, JSON.stringify(items));
-    }
-    emitChange();
-  } catch {
-    // Ignore storage errors
-  }
+  milestonesStore.write([...items]);
 }
 
 export function addLifeMilestone(input: {
@@ -84,27 +92,11 @@ export function removeLifeMilestone(id: string): LifeMilestone[] {
 }
 
 export function readOkrObjectives(): OkrObjective[] {
-  try {
-    if (typeof localStorage === 'undefined') return [...DEFAULT_OKR_OBJECTIVES];
-    const raw = localStorage.getItem(OKR_KEY);
-    if (!raw) return [...DEFAULT_OKR_OBJECTIVES];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) return [...DEFAULT_OKR_OBJECTIVES];
-    return parsed as OkrObjective[];
-  } catch {
-    return [...DEFAULT_OKR_OBJECTIVES];
-  }
+  return okrStore.read();
 }
 
 export function writeOkrObjectives(items: readonly OkrObjective[]): void {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(OKR_KEY, JSON.stringify(items));
-    }
-    emitChange();
-  } catch {
-    // Ignore storage errors
-  }
+  okrStore.write([...items]);
 }
 
 export function checkInKeyResult(
@@ -226,27 +218,11 @@ export function removeOkrObjective(id: string): OkrObjective[] {
 }
 
 export function readDailyHabits(): HabitItem[] {
-  try {
-    if (typeof localStorage === 'undefined') return [...DEFAULT_HABITS];
-    const raw = localStorage.getItem(HABITS_KEY);
-    if (!raw) return [...DEFAULT_HABITS];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) return [...DEFAULT_HABITS];
-    return parsed as HabitItem[];
-  } catch {
-    return [...DEFAULT_HABITS];
-  }
+  return habitsStore.read();
 }
 
 export function writeDailyHabits(items: readonly HabitItem[]): void {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(HABITS_KEY, JSON.stringify(items));
-    }
-    emitChange();
-  } catch {
-    // Ignore storage errors
-  }
+  habitsStore.write([...items]);
 }
 
 export function toggleHabitDay(habitId: string, localDay: string): HabitItem[] {

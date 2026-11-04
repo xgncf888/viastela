@@ -6,6 +6,8 @@ import {
   type TimeBlockItem,
 } from '@/core/time-block-tracker';
 
+import { createPersistedStore } from './persisted-store';
+
 const BLOCKS_KEY = 'viastela.timeblocks.v1';
 const GOALS_KEY = 'viastela.mastery_goals.v1';
 const TIMER_KEY = 'viastela.active_timer.v1';
@@ -19,30 +21,45 @@ const DEFAULT_TIMER: ActiveTimerSession = {
   goalId: 'goal-ai-infra',
 };
 
-export function readTimeBlocks(): TimeBlockItem[] {
-  try {
-    if (typeof localStorage === 'undefined') return [];
-    const raw = localStorage.getItem(BLOCKS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
+const timeBlocksStore = createPersistedStore<TimeBlockItem[]>({
+  key: BLOCKS_KEY,
+  getDefault: () => [],
+  normalize: (parsed) => {
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(
       (b): b is TimeBlockItem =>
         Boolean(b && typeof b === 'object' && typeof b.id === 'string' && typeof b.localDay === 'string'),
     );
-  } catch {
-    return [];
-  }
+  },
+});
+
+const masteryGoalsStore = createPersistedStore<MasteryGoal[]>({
+  key: GOALS_KEY,
+  getDefault: () => [...DEFAULT_MASTERY_GOALS],
+  normalize: (parsed) => {
+    if (!Array.isArray(parsed) || parsed.length === 0) return [...DEFAULT_MASTERY_GOALS];
+    return parsed as MasteryGoal[];
+  },
+});
+
+const activeTimerStore = createPersistedStore<ActiveTimerSession>({
+  key: TIMER_KEY,
+  getDefault: () => DEFAULT_TIMER,
+  normalize: (parsed) => {
+    if (!parsed || typeof parsed !== 'object') return DEFAULT_TIMER;
+    return {
+      ...DEFAULT_TIMER,
+      ...(parsed as Partial<ActiveTimerSession>),
+    };
+  },
+});
+
+export function readTimeBlocks(): TimeBlockItem[] {
+  return timeBlocksStore.read();
 }
 
 export function writeTimeBlocks(blocks: readonly TimeBlockItem[]): void {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(BLOCKS_KEY, JSON.stringify(blocks));
-    }
-  } catch {
-    // Ignore storage error
-  }
+  timeBlocksStore.write([...blocks]);
 }
 
 export function addTimeBlock(input: {
@@ -123,26 +140,11 @@ export function incrementOrAddTimeBlock(input: {
 }
 
 export function readMasteryGoals(): MasteryGoal[] {
-  try {
-    if (typeof localStorage === 'undefined') return [...DEFAULT_MASTERY_GOALS];
-    const raw = localStorage.getItem(GOALS_KEY);
-    if (!raw) return [...DEFAULT_MASTERY_GOALS];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) return [...DEFAULT_MASTERY_GOALS];
-    return parsed as MasteryGoal[];
-  } catch {
-    return [...DEFAULT_MASTERY_GOALS];
-  }
+  return masteryGoalsStore.read();
 }
 
 export function writeMasteryGoals(goals: readonly MasteryGoal[]): void {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(GOALS_KEY, JSON.stringify(goals));
-    }
-  } catch {
-    // Ignore storage error
-  }
+  masteryGoalsStore.write([...goals]);
 }
 
 export function addMasteryGoal(input: {
@@ -175,26 +177,9 @@ export function removeMasteryGoal(id: string): MasteryGoal[] {
 }
 
 export function readActiveTimer(): ActiveTimerSession {
-  try {
-    if (typeof localStorage === 'undefined') return DEFAULT_TIMER;
-    const raw = localStorage.getItem(TIMER_KEY);
-    if (!raw) return DEFAULT_TIMER;
-    const parsed = JSON.parse(raw) as Partial<ActiveTimerSession>;
-    return {
-      ...DEFAULT_TIMER,
-      ...parsed,
-    };
-  } catch {
-    return DEFAULT_TIMER;
-  }
+  return activeTimerStore.read();
 }
 
 export function writeActiveTimer(session: ActiveTimerSession): void {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(TIMER_KEY, JSON.stringify(session));
-    }
-  } catch {
-    // Ignore storage error
-  }
+  activeTimerStore.write(session);
 }

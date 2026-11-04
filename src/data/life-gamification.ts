@@ -7,31 +7,25 @@ import {
   type TimeCapsuleItem,
 } from '@/core/life-gamification';
 
+import { createPersistedStore, createPersistedStoreBus, type PersistedStoreListener } from './persisted-store';
+
 const PLEDGE_VAULT_KEY = 'viastela.pledge_vault.v1';
 const TIME_CAPSULES_KEY = 'viastela.time_capsules.v1';
 const SANCTUARY_STAGE_KEY = 'viastela.sanctuary_stage.v1';
 
-type Listener = () => void;
-const listeners = new Set<Listener>();
+const gamificationBus = createPersistedStoreBus();
 
-function emitChange(): void {
-  listeners.forEach((fn) => fn());
+export function subscribeLifeGamificationStore(listener: PersistedStoreListener): () => void {
+  return gamificationBus.subscribe(listener);
 }
 
-export function subscribeLifeGamificationStore(listener: Listener): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-}
-
-export function readSanctuaryStageState(): SanctuaryStageState {
-  try {
-    if (typeof localStorage === 'undefined') return { ...DEFAULT_SANCTUARY_STAGE_STATE };
-    const raw = localStorage.getItem(SANCTUARY_STAGE_KEY);
-    if (!raw) return { ...DEFAULT_SANCTUARY_STAGE_STATE };
-    const parsed = JSON.parse(raw) as Partial<SanctuaryStageState>;
-    if (!parsed || typeof parsed !== 'object') return { ...DEFAULT_SANCTUARY_STAGE_STATE };
+const sanctuaryStageStore = createPersistedStore<SanctuaryStageState>({
+  key: SANCTUARY_STAGE_KEY,
+  bus: gamificationBus,
+  getDefault: () => ({ ...DEFAULT_SANCTUARY_STAGE_STATE }),
+  normalize: (raw) => {
+    if (!raw || typeof raw !== 'object') return { ...DEFAULT_SANCTUARY_STAGE_STATE };
+    const parsed = raw as Partial<SanctuaryStageState>;
     const validPose =
       parsed.workoutPose === 'squat' ||
       parsed.workoutPose === 'pushup' ||
@@ -72,21 +66,51 @@ export function readSanctuaryStageState(): SanctuaryStageState {
           ? Math.round(parsed.wishTargetCny)
           : DEFAULT_SANCTUARY_STAGE_STATE.wishTargetCny,
     };
-  } catch {
-    return { ...DEFAULT_SANCTUARY_STAGE_STATE };
-  }
+  },
+});
+
+const pledgeVaultStore = createPersistedStore<PledgeVaultState>({
+  key: PLEDGE_VAULT_KEY,
+  bus: gamificationBus,
+  getDefault: () => DEFAULT_PLEDGE_VAULT,
+  normalize: (raw) => {
+    if (!raw || typeof raw !== 'object') return DEFAULT_PLEDGE_VAULT;
+    const parsed = raw as Partial<PledgeVaultState>;
+    return {
+      config: {
+        ...DEFAULT_PLEDGE_VAULT.config,
+        ...(parsed.config ?? {}),
+      },
+      wishBalanceCny:
+        typeof parsed.wishBalanceCny === 'number'
+          ? parsed.wishBalanceCny
+          : DEFAULT_PLEDGE_VAULT.wishBalanceCny,
+      penaltyDcaPoolCny:
+        typeof parsed.penaltyDcaPoolCny === 'number'
+          ? parsed.penaltyDcaPoolCny
+          : DEFAULT_PLEDGE_VAULT.penaltyDcaPoolCny,
+      wishes: Array.isArray(parsed.wishes) ? parsed.wishes : DEFAULT_PLEDGE_VAULT.wishes,
+      ledger: Array.isArray(parsed.ledger) ? parsed.ledger : DEFAULT_PLEDGE_VAULT.ledger,
+    };
+  },
+});
+
+const timeCapsulesStore = createPersistedStore<TimeCapsuleItem[]>({
+  key: TIME_CAPSULES_KEY,
+  bus: gamificationBus,
+  getDefault: () => [...DEFAULT_TIME_CAPSULES],
+  normalize: (parsed) => {
+    if (!Array.isArray(parsed) || parsed.length === 0) return [...DEFAULT_TIME_CAPSULES];
+    return parsed as TimeCapsuleItem[];
+  },
+});
+
+export function readSanctuaryStageState(): SanctuaryStageState {
+  return sanctuaryStageStore.read();
 }
 
 export function writeSanctuaryStageState(state: SanctuaryStageState): SanctuaryStageState {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(SANCTUARY_STAGE_KEY, JSON.stringify(state));
-    }
-    emitChange();
-  } catch {
-    // Ignore storage error
-  }
-  return state;
+  return sanctuaryStageStore.write(state);
 }
 
 export function updateSanctuaryStageState(
@@ -105,42 +129,11 @@ export function updateSanctuaryStageState(
 }
 
 export function readPledgeVault(): PledgeVaultState {
-  try {
-    if (typeof localStorage === 'undefined') return DEFAULT_PLEDGE_VAULT;
-    const raw = localStorage.getItem(PLEDGE_VAULT_KEY);
-    if (!raw) return DEFAULT_PLEDGE_VAULT;
-    const parsed = JSON.parse(raw) as Partial<PledgeVaultState>;
-    if (!parsed || typeof parsed !== 'object') return DEFAULT_PLEDGE_VAULT;
-    return {
-      config: {
-        ...DEFAULT_PLEDGE_VAULT.config,
-        ...(parsed.config ?? {}),
-      },
-      wishBalanceCny:
-        typeof parsed.wishBalanceCny === 'number'
-          ? parsed.wishBalanceCny
-          : DEFAULT_PLEDGE_VAULT.wishBalanceCny,
-      penaltyDcaPoolCny:
-        typeof parsed.penaltyDcaPoolCny === 'number'
-          ? parsed.penaltyDcaPoolCny
-          : DEFAULT_PLEDGE_VAULT.penaltyDcaPoolCny,
-      wishes: Array.isArray(parsed.wishes) ? parsed.wishes : DEFAULT_PLEDGE_VAULT.wishes,
-      ledger: Array.isArray(parsed.ledger) ? parsed.ledger : DEFAULT_PLEDGE_VAULT.ledger,
-    };
-  } catch {
-    return DEFAULT_PLEDGE_VAULT;
-  }
+  return pledgeVaultStore.read();
 }
 
 export function writePledgeVault(state: PledgeVaultState): void {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(PLEDGE_VAULT_KEY, JSON.stringify(state));
-    }
-    emitChange();
-  } catch {
-    // Ignore storage error
-  }
+  pledgeVaultStore.write(state);
 }
 
 export function recordPledgeReward(reason: string, localDay: string, customAmountCny?: number): PledgeVaultState {
@@ -148,7 +141,6 @@ export function recordPledgeReward(reason: string, localDay: string, customAmoun
   const amount = customAmountCny ?? cur.config.checkInRewardCny;
   const nextWishBalance = Math.max(0, cur.wishBalanceCny + amount);
 
-  // Auto-allocate reward to the first unredeemed wish item that hasn't reached targetCny
   let remainingToAllocate = Math.max(0, amount);
   const nextWishes = cur.wishes.map((w) => {
     if (w.redeemed || remainingToAllocate <= 0 || w.allocatedCny >= w.targetCny) return w;
@@ -282,27 +274,11 @@ export function redeemWishVaultItem(wishId: string, localDay: string): PledgeVau
 }
 
 export function readTimeCapsules(): TimeCapsuleItem[] {
-  try {
-    if (typeof localStorage === 'undefined') return [...DEFAULT_TIME_CAPSULES];
-    const raw = localStorage.getItem(TIME_CAPSULES_KEY);
-    if (!raw) return [...DEFAULT_TIME_CAPSULES];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) return [...DEFAULT_TIME_CAPSULES];
-    return parsed as TimeCapsuleItem[];
-  } catch {
-    return [...DEFAULT_TIME_CAPSULES];
-  }
+  return timeCapsulesStore.read();
 }
 
 export function writeTimeCapsules(items: readonly TimeCapsuleItem[]): void {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(TIME_CAPSULES_KEY, JSON.stringify(items));
-    }
-    emitChange();
-  } catch {
-    // Ignore storage error
-  }
+  timeCapsulesStore.write([...items]);
 }
 
 export function addTimeCapsule(input: {

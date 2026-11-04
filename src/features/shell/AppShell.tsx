@@ -96,19 +96,9 @@ type CharioteerPluginRuntimeBridge = {
   executeCommand: (commandId: string) => boolean;
 };
 
-export function AppShell({ children }: { children: ReactNode }) {
-  const { toggleTheme } = useTheme();
-  const { locale, toggleLocale, t } = useI18n();
-  const layout = useLayoutClass();
-  const side = layout !== 'compact';
-  const routeTab = currentTab(usePathname());
-  const [armed, setArmed] = useState<{ id: TabId; route: TabId } | null>(null);
-  const [paletteOpen, setPaletteOpen] = useState(false);
-  const [scopeOpen, setScopeOpen] = useState(false);
-  const [hostAttached, setHostAttached] = useState(false);
+function useNavBadgeSnapshot() {
+  const { locale } = useI18n();
   const [bkState, setBkState] = useState(readBookkeepingState);
-  const current = armed && armed.route === routeTab ? armed.id : routeTab;
-
   useEffect(() => {
     return subscribeBookkeepingStore(() => {
       setBkState(readBookkeepingState());
@@ -141,12 +131,176 @@ export function AppShell({ children }: { children: ReactNode }) {
     ledgerSummary.totalExpenseCny > 0 ? `-¥${Math.round(ledgerSummary.totalExpenseCny)}` : '¥ 账本';
   const assetsBadge = `¥${Math.round(bkState.wealthPlan.currentSavedCny / 10000)}w`;
 
-  const manifest = buildCharioteerPluginManifest({
-    today: todayBadge,
-    assets: assetsBadge,
-    trend: trendBadge,
-    timeline: locale === 'en' ? 'Log' : '台账',
-  });
+  const manifest = useMemo(
+    () =>
+      buildCharioteerPluginManifest({
+        today: todayBadge,
+        assets: assetsBadge,
+        trend: trendBadge,
+        timeline: locale === 'en' ? 'Log' : '台账',
+      }),
+    [assetsBadge, locale, todayBadge, trendBadge],
+  );
+
+  const badgeForTab = useCallback(
+    (tabId: TabId): { text: string; tone: NavBadgeTone } => {
+      if (tabId === 'today') {
+        return {
+          text: todayBadge,
+          tone: loggedCount === 3 ? 'live' : loggedCount > 0 ? 'alert' : 'neutral',
+        };
+      }
+      if (tabId === 'ledger') {
+        return {
+          text: ledgerBadge,
+          tone: ledgerSummary.isOverBudget ? 'alert' : 'live',
+        };
+      }
+      if (tabId === 'study') {
+        const todayMin = todayStudy.reduce((s, r) => s + r.durationMinutes, 0);
+        return {
+          text: todayMin > 0 ? `${todayMin}m` : '17 章',
+          tone: todayMin > 0 ? 'live' : 'alert',
+        };
+      }
+      if (tabId === 'browser') {
+        return {
+          text: '7 引擎',
+          tone: 'live',
+        };
+      }
+      if (tabId === 'fitness') {
+        return {
+          text: todayTraining.length > 0 ? `${todayTraining.length} 组` : '训练',
+          tone: todayTraining.length > 0 ? 'live' : 'alert',
+        };
+      }
+      if (tabId === 'trend') {
+        return {
+          text: trendBadge,
+          tone: lastWeight ? 'neutral' : 'shortcut',
+        };
+      }
+      if (tabId === 'assets') return { text: assetsBadge, tone: 'neutral' };
+      if (tabId === 'timeline') return { text: '⌘8', tone: 'shortcut' };
+      return { text: 'v1.0', tone: 'live' };
+    },
+    [
+      assetsBadge,
+      lastWeight,
+      ledgerBadge,
+      ledgerSummary.isOverBudget,
+      loggedCount,
+      todayBadge,
+      todayStudy,
+      todayTraining.length,
+      trendBadge,
+    ],
+  );
+
+  return {
+    weightLogged,
+    trainingLogged,
+    studyLogged,
+    timeZone: weight.timeZone,
+    manifest,
+    badgeForTab,
+  };
+}
+
+function ShellSidebarContent({
+  current,
+  runtimeMode,
+  onSelectTab,
+  onOpenPalette,
+  onOpenScope,
+}: {
+  current: TabId;
+  runtimeMode: RuntimeHostMode;
+  onSelectTab: (tab: (typeof TABS)[number]) => void;
+  onOpenPalette: () => void;
+  onOpenScope: () => void;
+}) {
+  const { locale, t } = useI18n();
+  const { weightLogged, trainingLogged, studyLogged, timeZone, badgeForTab } = useNavBadgeSnapshot();
+
+  return (
+    <SidebarFrame
+      title={brand.slug}
+      badgeLabel={runtimeMode === 'charioteer-host' ? 'Plugin' : `${brand.webName} OS`}
+      onQuickAction={() => openRecordSheet()}
+      onOpenPalette={onOpenPalette}
+      panel={
+        <WorkbenchSidebarPanel
+          mode={runtimeMode}
+          weightLogged={weightLogged}
+          trainingLogged={trainingLogged}
+          studyLogged={studyLogged}
+          timeZone={timeZone}
+          onQuickRecord={() => openRecordSheet()}
+          onOpenPalette={onOpenPalette}
+          onOpenScope={onOpenScope}
+        />
+      }
+    >
+      <NavGroupLabel label={t('WORKBENCH · 核心视图', 'WORKBENCH · CORE VIEWS')} />
+      {TABS.map((tab) => {
+        const badge = badgeForTab(tab.id);
+        const displayLabel = locale === 'en' ? tab.enLabel : tab.label;
+        return (
+          <NavItem
+            key={tab.id}
+            label={displayLabel}
+            icon={tab.icon}
+            badge={badge.text}
+            badgeTone={badge.tone}
+            selected={current === tab.id}
+            onPress={() => onSelectTab(tab)}
+          />
+        );
+      })}
+    </SidebarFrame>
+  );
+}
+
+function ShellDeletedRecordBanner() {
+  const weight = useWeight();
+  const training = useTraining();
+  const study = useStudy();
+  return (
+    <DeletedRecordNotice
+      visible={weight.deletedNotice || training.deletedNotice || study.deletedNotice}
+      onClose={() => {
+        weight.dismissDeletedNotice();
+        training.dismissDeletedNotice();
+        study.dismissDeletedNotice();
+      }}
+    />
+  );
+}
+
+export function AppShell({ children }: { children: ReactNode }) {
+  const { toggleTheme } = useTheme();
+  const { locale, toggleLocale, t } = useI18n();
+  const layout = useLayoutClass();
+  const side = layout !== 'compact';
+  const routeTab = currentTab(usePathname());
+  const [armed, setArmed] = useState<{ id: TabId; route: TabId } | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [scopeOpen, setScopeOpen] = useState(false);
+  const [hostAttached, setHostAttached] = useState(false);
+  const current = armed && armed.route === routeTab ? armed.id : routeTab;
+
+  const baseManifest = useMemo(
+    () =>
+      buildCharioteerPluginManifest({
+        today: formatMonthDay(computeLocalDay(new Date(), 'Asia/Singapore', '04:00')),
+        assets: '¥ 资产',
+        trend: '⌘3',
+        timeline: locale === 'en' ? 'Log' : '台账',
+      }),
+    [locale],
+  );
 
   const runtimeMode: RuntimeHostMode = useMemo(() => {
     if (hostAttached) return 'charioteer-host';
@@ -222,11 +376,14 @@ export function AppShell({ children }: { children: ReactNode }) {
     return false;
   }, []);
 
-  function go(tab: (typeof TABS)[number]) {
-    if (tab.id === current) return;
-    setArmed({ id: tab.id, route: routeTab });
-    router.replace(tab.href);
-  }
+  const go = useCallback(
+    (tab: (typeof TABS)[number]) => {
+      if (tab.id === current) return;
+      setArmed({ id: tab.id, route: routeTab });
+      router.replace(tab.href);
+    },
+    [current, routeTab],
+  );
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
@@ -250,11 +407,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     };
 
     const pluginRuntime: CharioteerPluginRuntimeBridge = {
-      manifest,
+      manifest: baseManifest,
       mode: runtimeMode,
       activate: () => {
         setHostAttached(true);
-        return { status: 'activated', pluginId: manifest.id };
+        return { status: 'activated', pluginId: baseManifest.id };
       },
       executeCommand: executeCommandById,
     };
@@ -263,7 +420,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     Reflect.set(hostWindow, '__charioteerPlugin', pluginRuntime);
 
     try {
-      hostWindow.__charioteerPluginRegistry?.registerPlugin?.(manifest, pluginRuntime);
+      hostWindow.__charioteerPluginRegistry?.registerPlugin?.(baseManifest, pluginRuntime);
     } catch {
       // Standalone mode if host registry is not attached.
     }
@@ -278,9 +435,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         setHostAttached(true);
         event.source?.postMessage?.(
           {
-            source: manifest.id,
+            source: baseManifest.id,
             type: 'charioteer:plugin-ready',
-            manifest,
+            manifest: baseManifest,
           },
           { targetOrigin: '*' },
         );
@@ -377,53 +534,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       delete hostWindow.__viastelaDesktop;
       delete hostWindow.__charioteerPlugin;
     };
-  }, [executeCommandById, manifest, paletteOpen, runtimeMode, scopeOpen, toggleLocale, toggleTheme]);
-
-  function badgeForTab(tabId: TabId): { text: string; tone: NavBadgeTone } {
-    if (tabId === 'today') {
-      return {
-        text: todayBadge,
-        tone: loggedCount === 3 ? 'live' : loggedCount > 0 ? 'alert' : 'neutral',
-      };
-    }
-    if (tabId === 'ledger') {
-      return {
-        text: ledgerBadge,
-        tone: ledgerSummary.isOverBudget ? 'alert' : 'live',
-      };
-    }
-    if (tabId === 'study') {
-      const todayMin = todayStudy.reduce((s, r) => s + r.durationMinutes, 0);
-      return {
-        text: todayMin > 0 ? `${todayMin}m` : '17 章',
-        tone: todayMin > 0 ? 'live' : 'alert',
-      };
-    }
-    if (tabId === 'browser') {
-      return {
-        text: '7 引擎',
-        tone: 'live',
-      };
-    }
-    if (tabId === 'fitness') {
-      return {
-        text: todayTraining.length > 0 ? `${todayTraining.length} 组` : '训练',
-        tone: todayTraining.length > 0 ? 'live' : 'alert',
-      };
-    }
-    if (tabId === 'trend') {
-      return {
-        text: trendBadge,
-        tone: lastWeight ? 'neutral' : 'shortcut',
-      };
-    }
-    if (tabId === 'assets') return { text: assetsBadge, tone: 'neutral' };
-    if (tabId === 'timeline') return { text: '⌘8', tone: 'shortcut' };
-    return { text: 'v1.0', tone: 'live' };
-  }
+  }, [baseManifest, executeCommandById, paletteOpen, runtimeMode, scopeOpen, toggleLocale, toggleTheme]);
 
   async function copyPluginManifest() {
-    const json = JSON.stringify(manifest, null, 2);
+    const json = JSON.stringify(baseManifest, null, 2);
     if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
       await navigator.clipboard.writeText(json);
       showToast({
@@ -441,41 +555,13 @@ export function AppShell({ children }: { children: ReactNode }) {
     <ShellFrame
       sidebar={
         side ? (
-          <SidebarFrame
-            title={brand.slug}
-            badgeLabel={runtimeMode === 'charioteer-host' ? 'Plugin' : `${brand.webName} OS`}
-            onQuickAction={() => openRecordSheet()}
+          <ShellSidebarContent
+            current={current}
+            runtimeMode={runtimeMode}
+            onSelectTab={go}
             onOpenPalette={() => setPaletteOpen(true)}
-            panel={
-              <WorkbenchSidebarPanel
-                mode={runtimeMode}
-                weightLogged={weightLogged}
-                trainingLogged={trainingLogged}
-                studyLogged={studyLogged}
-                timeZone={weight.timeZone}
-                onQuickRecord={() => openRecordSheet()}
-                onOpenPalette={() => setPaletteOpen(true)}
-                onOpenScope={() => setScopeOpen(true)}
-              />
-            }
-          >
-            <NavGroupLabel label={t('WORKBENCH · 核心视图', 'WORKBENCH · CORE VIEWS')} />
-            {TABS.map((tab) => {
-              const badge = badgeForTab(tab.id);
-              const displayLabel = locale === 'en' ? tab.enLabel : tab.label;
-              return (
-                <NavItem
-                  key={tab.id}
-                  label={displayLabel}
-                  icon={tab.icon}
-                  badge={badge.text}
-                  badgeTone={badge.tone}
-                  selected={current === tab.id}
-                  onPress={() => go(tab)}
-                />
-              );
-            })}
-          </SidebarFrame>
+            onOpenScope={() => setScopeOpen(true)}
+          />
         ) : null
       }
       bar={
@@ -499,7 +585,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <WorkbenchCommandPalette
         visible={paletteOpen}
         mode={runtimeMode}
-        manifest={manifest}
+        manifest={baseManifest}
         onClose={() => setPaletteOpen(false)}
         onExecuteCommand={(cmd: CharioteerCommandContribution) => {
           setPaletteOpen(false);
@@ -510,18 +596,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       <WorkbenchScopeModal
         visible={scopeOpen}
         mode={runtimeMode}
-        manifest={manifest}
+        manifest={baseManifest}
         onClose={() => setScopeOpen(false)}
         onCopyManifest={() => void copyPluginManifest()}
       />
-      <DeletedRecordNotice
-        visible={weight.deletedNotice || training.deletedNotice || study.deletedNotice}
-        onClose={() => {
-          weight.dismissDeletedNotice();
-          training.dismissDeletedNotice();
-          study.dismissDeletedNotice();
-        }}
-      />
+      <ShellDeletedRecordBanner />
       <ToastHost />
     </ShellFrame>
   );

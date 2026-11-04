@@ -33,21 +33,18 @@ import {
 } from '@/core/bookkeeping';
 
 import { getSupabase } from './client';
+import { createPersistedStore, createPersistedStoreBus, type PersistedStoreListener } from './persisted-store';
 
 const BOOKKEEPING_STORAGE_KEY = 'viastela.bookkeeping.v1';
 
-type Listener = () => void;
-const listeners = new Set<Listener>();
+const bookkeepingBus = createPersistedStoreBus();
 
 function emitChange(): void {
-  listeners.forEach((fn) => fn());
+  bookkeepingBus.emit();
 }
 
-export function subscribeBookkeepingStore(listener: Listener): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
+export function subscribeBookkeepingStore(listener: PersistedStoreListener): () => void {
+  return bookkeepingBus.subscribe(listener);
 }
 
 let txSequence = 0;
@@ -99,15 +96,13 @@ function normalizeLedgerBooks(raw: unknown): LedgerBook[] {
   });
 }
 
-let memoryFallbackState: BookkeepingState = DEFAULT_BOOKKEEPING_STATE;
-
-export function readBookkeepingState(): BookkeepingState {
-  try {
-    if (typeof localStorage === 'undefined') return memoryFallbackState;
-    const raw = localStorage.getItem(BOOKKEEPING_STORAGE_KEY);
-    if (!raw) return memoryFallbackState;
-    const parsed = JSON.parse(raw) as Partial<BookkeepingState>;
-    if (!parsed || typeof parsed !== 'object') return DEFAULT_BOOKKEEPING_STATE;
+const bookkeepingStore = createPersistedStore<BookkeepingState>({
+  key: BOOKKEEPING_STORAGE_KEY,
+  bus: bookkeepingBus,
+  getDefault: () => DEFAULT_BOOKKEEPING_STATE,
+  normalize: (raw) => {
+    if (!raw || typeof raw !== 'object') return DEFAULT_BOOKKEEPING_STATE;
+    const parsed = raw as Partial<BookkeepingState>;
     return {
       monthlyBudgetCny:
         typeof parsed.monthlyBudgetCny === 'number' && parsed.monthlyBudgetCny >= 100
@@ -136,31 +131,23 @@ export function readBookkeepingState(): BookkeepingState {
       },
       quickPresets: normalizeQuickPresets(parsed.quickPresets),
       ledgerBooks: normalizeLedgerBooks(parsed.ledgerBooks),
-      chatMessages:
-        Array.isArray(parsed.chatMessages)
-          ? parsed.chatMessages
-          : [...DEFAULT_COUPLE_CHAT_MESSAGES],
+      chatMessages: Array.isArray(parsed.chatMessages)
+        ? parsed.chatMessages
+        : [...DEFAULT_COUPLE_CHAT_MESSAGES],
       accountInitialBalances:
         parsed.accountInitialBalances && typeof parsed.accountInitialBalances === 'object'
           ? parsed.accountInitialBalances
           : {},
     };
-  } catch {
-    return memoryFallbackState;
-  }
+  },
+});
+
+export function readBookkeepingState(): BookkeepingState {
+  return bookkeepingStore.read();
 }
 
 export function writeBookkeepingState(state: BookkeepingState): BookkeepingState {
-  memoryFallbackState = state;
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(BOOKKEEPING_STORAGE_KEY, JSON.stringify(state));
-    }
-    emitChange();
-  } catch {
-    // Ignore storage error
-  }
-  return state;
+  return bookkeepingStore.write(state);
 }
 
 /**
