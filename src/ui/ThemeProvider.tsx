@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Platform } from 'react-native';
+import { Platform, useColorScheme } from 'react-native';
 
 import { darkColor, lightColor, theme as baseTheme, type Palette } from './theme';
 
@@ -56,6 +56,13 @@ function syncDocumentTheme(scheme: 'light' | 'dark'): void {
   }
 }
 
+function readWebScheme(): 'light' | 'dark' | null {
+  if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return null;
+  }
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
 const ThemeContext = createContext<AppTheme>({
   ...baseTheme,
   scheme: 'light',
@@ -71,7 +78,9 @@ function usePreferredScheme(): [
   'light' | 'dark',
   (next: 'light' | 'dark') => void,
 ] {
+  const system = useColorScheme();
   const [override, setOverride] = useState<'light' | 'dark' | null>(readStoredScheme);
+  const [webScheme, setWebScheme] = useState<'light' | 'dark' | null>(readWebScheme);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') {
@@ -79,14 +88,20 @@ function usePreferredScheme(): [
     }
     const onSub: ThemeListener = (next) => setOverride(next);
     themeListeners.add(onSub);
+    const media = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    const applyMedia = () => {
+      if (media) setWebScheme(media.matches ? 'dark' : 'light');
+    };
+    applyMedia();
+    media?.addEventListener?.('change', applyMedia);
     return () => {
       themeListeners.delete(onSub);
+      media?.removeEventListener?.('change', applyMedia);
     };
   }, []);
 
-  // Default to Obsidian & Molten Gold ('dark') in production/desktop, while keeping 'light' in Jest tests.
   const resolved: 'light' | 'dark' =
-    override ?? (isTestEnv() ? 'light' : 'dark');
+    override ?? webScheme ?? (system === 'dark' ? 'dark' : 'light');
 
   useEffect(() => {
     if (!isTestEnv()) {

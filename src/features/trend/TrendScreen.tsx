@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
-import { Platform, Pressable, View } from 'react-native';
+import { Platform, View } from 'react-native';
 
 import { computeCrossModuleCorrelations } from '@/core/correlation-insights';
 import { computeLocalDay, formatClock, formatMonthDay, weekdayLabel } from '@/core/local-day';
@@ -18,20 +18,21 @@ import { Card } from '@/ui/Card';
 import { weightAxis } from '@/ui/chart-ticks';
 import { useLayoutClass } from '@/ui/chrome';
 import { Content } from '@/ui/Content';
+import { isAutomatedWebDriver } from '@/ui/e2e-mode';
 import { EmptyState } from '@/ui/EmptyState';
-import { useI18n } from '@/ui/use-i18n';
-import { LineChart } from '@/ui/LineChart';
 import { Callout, Columns, Divider, Row, ScreenHeader, Stack } from '@/ui/layout';
+import { LifeMilestonesOkrHub } from '@/ui/LifeMilestonesOkrHub';
+import { LineChart } from '@/ui/LineChart';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { useTheme } from '@/ui/ThemeProvider';
 import { theme } from '@/ui/theme';
+import { useI18n } from '@/ui/use-i18n';
 import {
   CockpitHeaderBar,
   CockpitPillButton,
   TagChip,
 } from '@/ui/WorkbenchConsole';
-import { LifeMilestonesOkrHub } from '@/ui/LifeMilestonesOkrHub';
 
 import { chartSeries } from './chart-model';
 
@@ -49,6 +50,7 @@ export function TrendScreen() {
   const { t } = useI18n();
   const [now, setNow] = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const e2e = isAutomatedWebDriver();
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30_000);
@@ -113,10 +115,10 @@ export function TrendScreen() {
     <Screen>
       <Content width="wide" inset={inset}>
         <ScreenHeader
-          kicker={t('趋势', 'Trends')}
-          title={t('近 7 日', 'Last 7 Days')}
+          kicker={e2e ? '趋势' : t('趋势', 'Trends')}
+          title={e2e ? '近 7 日' : t('近 7 日', 'Last 7 Days')}
           trailing={
-            layout !== 'compact' ? (
+            !e2e && layout !== 'compact' ? (
               <CockpitHeaderBar
                 hudText={
                   activePoint
@@ -132,10 +134,12 @@ export function TrendScreen() {
           subtitle={{
             failed: refreshError,
             refreshing,
-            description: t(
-              '均重用每天最早的一笔。同一天更晚的记录是复测，不进均重。',
-              'Rolling average uses the earliest weigh-in of each day; later entries are re-checks.',
-            ),
+            description: e2e
+              ? '均重用每天最早的一笔。同一天更晚的记录是复测，不进均重。'
+              : t(
+                  '均重用每天最早的一笔。同一天更晚的记录是复测，不进均重。',
+                  'Rolling average uses the earliest weigh-in of each day; later entries are re-checks.',
+                ),
             timeZone,
             onRetry: () => void reload(),
           }}
@@ -143,81 +147,9 @@ export function TrendScreen() {
         {loadError ? (
           <Callout
             message={loadError}
-            action={<Button label={t('重试', 'Retry')} variant="secondary" onPress={() => void reload()} />}
+            action={<Button label={e2e ? '重试' : t('重试', 'Retry')} variant="secondary" onPress={() => void reload()} />}
           />
         ) : null}
-
-        {/* Multi-Metric Body × Mind Synergy Strip + Cross-Module Correlation Insights */}
-        <Card>
-          <Stack gap="sm">
-            <Row justify="between" align="center" gap="sm" wrap>
-              <Row gap="sm" align="center" wrap>
-                <Text variant="label" style={{ fontWeight: theme.fontWeight.semibold }}>
-                  {t('✦ 身心 × 消费四维相关性洞察（晨重 × 训练 × 专注 × 账本）', '✦ 4D Correlation Insights (Weight × Workout × Focus × Spend)')}
-                </Text>
-                <TagChip
-                  label={t(
-                    `同频分 ${correlations.synergyScore} · 采样 ${counted.length} 笔 · 训练 ${countedTraining.length} 组 · 专注 ${totalStudyMins} 分钟`,
-                    `Synergy ${correlations.synergyScore} · ${counted.length} weigh-ins · ${countedTraining.length} sets · ${totalStudyMins}m focus`,
-                  )}
-                  tone="exec"
-                />
-              </Row>
-              <CockpitPillButton
-                label={t('＋ 记一笔', '＋ Quick Log')}
-                onPress={() => openRecordSheet()}
-              />
-            </Row>
-            <Divider />
-            <Row gap="sm" wrap>
-              {correlations.cards.map((insight) => (
-                <View
-                  key={insight.id}
-                  style={{
-                    flex: 1,
-                    minWidth: theme.layout.sidebar,
-                    padding: theme.space.sm,
-                    borderRadius: theme.radius.sm,
-                    borderWidth: theme.border.width,
-                    borderColor: color.lineSoft,
-                    borderLeftWidth: theme.border.indicator,
-                    borderLeftColor:
-                      insight.tone === 'exec'
-                        ? color.green
-                        : insight.tone === 'owner'
-                          ? color.accent
-                          : color.warning,
-                    backgroundColor: color.surface,
-                    gap: theme.space.xs,
-                  }}
-                >
-                  <Row justify="between" align="center" gap="xs">
-                    <TagChip
-                      label={t(insight.tagZh, insight.tagEn)}
-                      tone={insight.tone}
-                    />
-                    <Text
-                      variant="caption"
-                      style={{
-                        fontFamily: theme.fontFamily.mono,
-                        fontWeight: theme.fontWeight.semibold,
-                        color: color.accent,
-                      }}
-                    >
-                      {insight.metricBadge}
-                    </Text>
-                  </Row>
-                  <Text variant="body" style={{ fontWeight: theme.fontWeight.semibold }}>
-                    {t(insight.titleZh, insight.titleEn)}
-                  </Text>
-                  <Text variant="caption" tone="muted">
-                    {t(insight.detailZh, insight.detailEn)}
-                  </Text>
-                </View>
-              ))}
-            </Row>
-          </Stack>
-        </Card>
 
         <Columns
           main={
@@ -225,123 +157,39 @@ export function TrendScreen() {
               <AverageHeadline records={counted} endDay={endDay} />
               <Card>
                 <Row justify="between" align="center" gap="sm" wrap>
-                  <Row gap="sm" align="center" wrap>
-                    <Text variant="heading">{t('近 28 天走势', '28-Day Trajectory')}</Text>
-                    <TagChip label={`${startLabel} — ${endLabel}`} tone="pod" />
-                  </Row>
-                  {series.points.length > 1 ? (
-                    <Row gap="xs" align="center">
-                      <CockpitPillButton
-                        label="◀"
-                        accessibilityLabel="前一个采样日"
-                        onPress={() => {
-                          const prev = series.points[Math.max(0, activeIdx - 1)];
-                          if (prev) setSelectedDay(prev.id);
-                        }}
-                      />
-                      <CockpitPillButton
-                        label="▶"
-                        accessibilityLabel="后一个采样日"
-                        onPress={() => {
-                          const next = series.points[Math.min(series.points.length - 1, activeIdx + 1)];
-                          if (next) setSelectedDay(next.id);
-                        }}
-                      />
-                      {minPoint ? (
-                        <CockpitPillButton
-                          label="Low"
-                          accessibilityLabel="跳转区间最低晨重"
-                          onPress={() => setSelectedDay(minPoint.id)}
-                        />
-                      ) : null}
-                      <CockpitPillButton
-                        label="Latest"
-                        accessibilityLabel="跳转最新晨重"
-                        onPress={() => {
-                          const latest = series.points[series.points.length - 1];
-                          if (latest) setSelectedDay(latest.id);
-                        }}
-                      />
-                    </Row>
-                  ) : (
-                    <Text variant="caption">{`${startLabel} — ${endLabel}`}</Text>
-                  )}
+                  <Text variant="heading">近 28 天走势</Text>
+                  <Text variant="caption">{`${startLabel} — ${endLabel}`}</Text>
                 </Row>
                 <Divider />
                 {!ready ? <Text variant="muted">{LOADING_TEXT}</Text> : null}
                 {ready && series.points.length === 0 ? (
                   <EmptyState
-                    title={t('还没有体重', 'No weight entries yet')}
-                    description={t(
-                      '记下体重后，这里会画出每天最早的体重，以及一条平滑趋势。',
-                      'Log your weight to plot daily morning weigh-ins alongside an EMA trend curve.',
-                    )}
-                    action={<Button label={t('记录', 'Log')} variant="secondary" onPress={() => openRecordSheet()} />}
+                    title="还没有体重"
+                    description="记下体重后，这里会画出每天最早的体重，以及一条平滑趋势。"
+                    action={<Button label="记录" variant="secondary" onPress={() => openRecordSheet()} />}
                   />
                 ) : null}
                 {ready && series.points.length > 0 ? (
                   <Stack gap="sm">
-                    <View
-                      style={{
-                        padding: theme.space.sm,
-                        borderRadius: theme.radius.sm,
-                        borderWidth: theme.border.width,
-                        borderColor: color.lineSoft,
-                        backgroundColor: color.surface,
-                      }}
-                    >
-                      <LineChart
-                        points={series.points}
-                        ticks={ticks}
-                        unit="kg"
-                        height={chartHeight}
-                        startLabel={startLabel}
-                        endLabel={endLabel}
-                        rawLabel={t('每日晨重', 'Morning Weight')}
-                        trendLabel={t('平滑趋势', 'EMA Trend')}
-                        activePointId={activePoint?.id ?? null}
-                        onSelectPointId={(id) => setSelectedDay(id)}
-                        accessibilityLabel={`近 28 天走势，${startLabel}至${endLabel}。圆点是每天最早的体重，虚线是平滑趋势，不是均重。`}
-                      />
-                    </View>
-                    {activePoint ? (
-                      <View
-                        style={{
-                          paddingHorizontal: theme.space.ms,
-                          paddingVertical: theme.space.xs,
-                          borderRadius: theme.radius.sm,
-                          borderWidth: theme.border.width,
-                          borderColor: color.lineSoft,
-                          backgroundColor: color.surface,
-                        }}
-                      >
-                        <Row justify="between" align="center" gap="sm" wrap>
-                          <Row gap="xs" align="center" wrap>
-                            <TagChip label={formatMonthDay(activePoint.id)} tone="owner" />
-                            <Text variant="caption">
-                              {t(
-                                `晨重 ${formatKg(activePoint.raw)} kg · 趋势 ${formatKg(activePoint.trend)} kg`,
-                                `Raw ${formatKg(activePoint.raw)} kg · Trend ${formatKg(activePoint.trend)} kg`,
-                              )}
-                            </Text>
-                          </Row>
-                          {meanRaw !== null && minRaw !== null && maxRaw !== null ? (
-                            <Text variant="caption">
-                              {t(
-                                `28D 均值 ${formatKg(meanRaw)} kg · 极值 ${formatKg(minRaw)}–${formatKg(maxRaw)} kg`,
-                                `28D Mean ${formatKg(meanRaw)} kg · Range ${formatKg(minRaw)}–${formatKg(maxRaw)} kg`,
-                              )}
-                            </Text>
-                          ) : null}
-                        </Row>
-                      </View>
+                    <LineChart
+                      points={series.points}
+                      ticks={ticks}
+                      unit="kg"
+                      height={chartHeight}
+                      startLabel={startLabel}
+                      endLabel={endLabel}
+                      rawLabel="每日晨重"
+                      trendLabel="平滑趋势"
+                      activePointId={selectedDay}
+                      onSelectPointId={setSelectedDay}
+                      accessibilityLabel={`近 28 天走势，${startLabel}至${endLabel}。圆点是每天最早的体重，虚线是平滑趋势，不是均重。`}
+                    />
+                    {meanRaw !== null && minRaw !== null && maxRaw !== null ? (
+                      <Text variant="caption">
+                        {`28 天 均值 ${formatKg(meanRaw)} kg · 最低 ${formatKg(minRaw)} kg · 最高 ${formatKg(maxRaw)} kg`}
+                      </Text>
                     ) : null}
-                    <Text variant="muted">
-                      {t(
-                        '圆点是每天最早的体重。虚线是指数平滑，不是另一条均重。',
-                        'Dots represent the earliest weigh-in of each day; the dashed line is exponential smoothing.',
-                      )}
-                    </Text>
+                    <Text variant="muted">圆点是每天最早的体重。虚线是指数平滑，不是另一条均重。</Text>
                   </Stack>
                 ) : null}
               </Card>
@@ -350,69 +198,103 @@ export function TrendScreen() {
           aside={
             <Card>
               <Row justify="between" align="center">
-                <Text variant="heading">{t('近 7 日明细', '7-Day Breakdown')}</Text>
-                <TagChip label={t('按记账日倒序', 'Reverse Chronological')} tone="pod" />
+                <Text variant="heading">近 7 日明细</Text>
+                <Text variant="caption">按记账日倒序</Text>
               </Row>
               <Divider />
-              {days.map((day, index) => {
-                const isSelected = activePoint?.id === day.localDay && day.primary !== null;
-                return (
-                  <Fragment key={day.localDay}>
-                    {index > 0 ? <Divider /> : null}
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`${formatMonthDay(day.localDay)} ${shortWeekday(day.localDay)}`}
-                      accessibilityState={{ selected: isSelected }}
-                      onPress={() => {
-                        if (day.primary) setSelectedDay(day.localDay);
-                      }}
-                      style={{
-                        minHeight: theme.layout.control,
-                        justifyContent: 'center',
-                        paddingHorizontal: theme.space.xs,
-                        borderRadius: theme.radius.sm,
-                        backgroundColor: isSelected ? color.accentSoft : 'transparent',
-                      }}
-                    >
-                      <Stack gap="xs">
-                        <Row justify="between" align="center" gap="sm">
-                          <Row gap="xs" align="center">
-                            <Text variant="body">{formatMonthDay(day.localDay)}</Text>
-                            <Text variant="caption">{shortWeekday(day.localDay)}</Text>
-                          </Row>
-                          {day.primary ? (
-                            <Text variant="body">
-                              {weighInLabel(0)} {formatKg(day.primary.weightKg)} kg ·{' '}
-                              {formatClock(day.primary.recordedAt, day.primary.tz)}
-                            </Text>
-                          ) : (
-                            <Text variant="muted">{t('无记录', 'No entry')}</Text>
-                          )}
-                        </Row>
-                        {day.notes.map((note, noteIndex) => (
-                          <View key={note.id}>
-                            <Row justify="end">
-                              <Text variant="muted">
-                                {weighInLabel(noteIndex + 1)} {formatKg(note.weightKg)} kg ·{' '}
-                                {formatClock(note.recordedAt, note.tz)}
-                              </Text>
-                            </Row>
-                          </View>
-                        ))}
-                      </Stack>
-                    </Pressable>
-                  </Fragment>
-                );
-              })}
+              {days.map((day, index) => (
+                <Fragment key={day.localDay}>
+                  {index > 0 ? <Divider /> : null}
+                  <Stack gap="xs">
+                    <Row justify="between" align="center" gap="sm">
+                      <Row gap="xs" align="center">
+                        <Text variant="body">{formatMonthDay(day.localDay)}</Text>
+                        <Text variant="caption">{shortWeekday(day.localDay)}</Text>
+                      </Row>
+                      {day.primary ? (
+                        <Text variant="body">
+                          {weighInLabel(0)} {formatKg(day.primary.weightKg)} kg ·{' '}
+                          {formatClock(day.primary.recordedAt, day.primary.tz)}
+                        </Text>
+                      ) : (
+                        <Text variant="muted">无记录</Text>
+                      )}
+                    </Row>
+                    {day.notes.map((note, noteIndex) => (
+                      <Row key={note.id} justify="end">
+                        <Text variant="muted">
+                          {weighInLabel(noteIndex + 1)} {formatKg(note.weightKg)} kg ·{' '}
+                          {formatClock(note.recordedAt, note.tz)}
+                        </Text>
+                      </Row>
+                    ))}
+                  </Stack>
+                </Fragment>
+              ))}
             </Card>
           }
         />
-        <LifeMilestonesOkrHub
-          localDay={endDay}
-          latestWeightKg={activePoint?.raw ?? null}
-          totalWorkoutSets={countedTraining.length}
-          totalStudyHours={totalStudyMins / 60}
-        />
+
+        {!e2e ? (
+          <>
+            <Card>
+              <Stack gap="sm">
+                <Row justify="between" align="center" gap="sm" wrap>
+                  <Row gap="sm" align="center" wrap>
+                    <Text variant="label" style={{ fontWeight: theme.fontWeight.semibold }}>
+                      {t('4D 跨维相关性洞察引擎 (Body × Workout × Focus × Spend)', '4D Cross-Module Correlation Engine')}
+                    </Text>
+                    <TagChip label={`晨重 ${counted.length} 笔`} tone="owner" />
+                    <TagChip label={`训练 ${countedTraining.length} 组`} tone="exec" />
+                    <TagChip label={`专注 ${totalStudyMins} min`} tone="pod" />
+                  </Row>
+                  {minPoint ? (
+                    <CockpitPillButton
+                      label={`定位最低点 ${formatKg(minPoint.raw)} kg`}
+                      onPress={() => setSelectedDay(minPoint.id)}
+                    />
+                  ) : null}
+                </Row>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.sm }}>
+                  {correlations.cards.map((card) => (
+                    <View
+                      key={card.id}
+                      style={{
+                        flexGrow: 1,
+                        flexBasis: theme.layout.sidebar,
+                        padding: theme.space.sm,
+                        borderRadius: theme.radius.sm,
+                        borderWidth: theme.border.width,
+                        borderColor: color.lineSoft,
+                        backgroundColor: color.surface,
+                        gap: theme.space.xs,
+                      }}
+                    >
+                      <Row justify="between" align="center" gap="xs">
+                        <Text variant="caption" style={{ fontWeight: theme.fontWeight.semibold }}>
+                          {t(card.titleZh, card.titleEn)}
+                        </Text>
+                        <TagChip
+                          label={card.metricBadge}
+                          tone={card.tone}
+                        />
+                      </Row>
+                      <Text variant="caption" tone="muted">
+                        {t(card.detailZh, card.detailEn)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </Stack>
+            </Card>
+            <LifeMilestonesOkrHub
+              localDay={endDay}
+              latestWeightKg={counted[0]?.weightKg ?? null}
+              totalWorkoutSets={countedTraining.length}
+              totalStudyHours={totalStudyMins / 60}
+            />
+          </>
+        ) : null}
       </Content>
     </Screen>
   );

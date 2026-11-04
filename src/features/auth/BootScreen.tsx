@@ -30,7 +30,7 @@ function BootOrbitRing({ trackColor, arcColor }: { trackColor: string; arcColor:
   if (Platform.OS === 'web') {
     return createElement(
       'svg',
-      { width: ORBIT_SIZE, height: ORBIT_SIZE, viewBox, 'aria-hidden': true },
+      { width: ORBIT_SIZE, height: ORBIT_SIZE, viewBox, role: 'presentation' },
       createElement('circle', {
         cx: center,
         cy: center,

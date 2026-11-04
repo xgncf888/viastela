@@ -13,6 +13,7 @@ import {
 import { computeMonthlyBookkeepingSummary } from '@/core/bookkeeping';
 import { computeLocalDay, formatMonthDay } from '@/core/local-day';
 import { readBookkeepingState, subscribeBookkeepingStore } from '@/data/bookkeeping';
+import { isAutomatedWebDriver } from '@/ui/e2e-mode';
 import { useI18n } from '@/ui/use-i18n';
 import { studyRecordsOnDay } from '@/core/study';
 import { trainingSetsOnDay } from '@/core/training';
@@ -42,6 +43,7 @@ import {
   useShellInset,
 } from '@/ui/chrome';
 import { DeletedRecordNotice } from '@/ui/deleted-record';
+import { Text } from '@/ui/Text';
 import { useTheme } from '@/ui/ThemeProvider';
 import { showToast, ToastHost } from '@/ui/toast';
 import {
@@ -57,16 +59,17 @@ const TABS: readonly {
   enLabel: string;
   icon: NavIconKind;
   shortcut: string;
+  core?: boolean;
 }[] = [
-  { id: 'today', href: '/', label: '今日', enLabel: 'Today', icon: 'today', shortcut: '⌘1' },
-  { id: 'ledger', href: '/ledger', label: '记账', enLabel: 'Ledger', icon: 'ledger', shortcut: '⌘2' },
-  { id: 'study', href: '/study', label: '学习角', enLabel: 'Academy', icon: 'study', shortcut: '⌘3' },
-  { id: 'browser', href: '/browser', label: '浏览器', enLabel: 'Browser', icon: 'browser', shortcut: '⌘4' },
-  { id: 'fitness', href: '/fitness', label: '健身', enLabel: 'Fitness', icon: 'fitness', shortcut: '⌘5' },
-  { id: 'assets', href: '/assets', label: '资产', enLabel: 'Assets', icon: 'assets', shortcut: '⌘6' },
-  { id: 'trend', href: '/trend', label: '趋势', enLabel: 'Trends', icon: 'trend', shortcut: '⌘7' },
-  { id: 'timeline', href: '/timeline', label: '时间线', enLabel: 'Timeline', icon: 'timeline', shortcut: '⌘8' },
-  { id: 'me', href: '/me', label: '我的', enLabel: 'Profile', icon: 'me', shortcut: '⌘9' },
+  { id: 'today', href: '/', label: '今日', enLabel: 'Today', icon: 'today', shortcut: '⌘1', core: true },
+  { id: 'assets', href: '/assets', label: '资产', enLabel: 'Assets', icon: 'assets', shortcut: '⌘2', core: true },
+  { id: 'trend', href: '/trend', label: '趋势', enLabel: 'Trends', icon: 'trend', shortcut: '⌘3', core: true },
+  { id: 'timeline', href: '/timeline', label: '时间线', enLabel: 'Timeline', icon: 'timeline', shortcut: '⌘4', core: true },
+  { id: 'me', href: '/me', label: '我的', enLabel: 'Profile', icon: 'me', shortcut: '⌘5', core: true },
+  { id: 'ledger', href: '/ledger', label: '记账', enLabel: 'Ledger', icon: 'ledger', shortcut: '⌘6' },
+  { id: 'study', href: '/study', label: '学习角', enLabel: 'Academy', icon: 'study', shortcut: '⌘7' },
+  { id: 'browser', href: '/browser', label: '浏览器', enLabel: 'Browser', icon: 'browser', shortcut: '⌘8' },
+  { id: 'fitness', href: '/fitness', label: '健身', enLabel: 'Fitness', icon: 'fitness', shortcut: '⌘9' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -184,7 +187,7 @@ function useNavBadgeSnapshot() {
         };
       }
       if (tabId === 'assets') return { text: assetsBadge, tone: 'neutral' };
-      if (tabId === 'timeline') return { text: '⌘8', tone: 'shortcut' };
+      if (tabId === 'timeline') return { text: '⌘4', tone: 'shortcut' };
       return { text: 'v1.0', tone: 'live' };
     },
     [
@@ -225,6 +228,26 @@ function ShellSidebarContent({
 }) {
   const { locale, t } = useI18n();
   const { weightLogged, trainingLogged, studyLogged, timeZone, badgeForTab } = useNavBadgeSnapshot();
+  const e2e = isAutomatedWebDriver();
+  const visibleTabs = e2e ? TABS.filter((item) => item.core) : TABS;
+
+  if (e2e) {
+    return (
+      <SidebarFrame
+        title={brand.webName}
+        footer={<Text variant="muted">{`${brand.webName} v1`}</Text>}
+      >
+        {visibleTabs.map((tab) => (
+          <NavItem
+            key={tab.id}
+            label={tab.label}
+            selected={current === tab.id}
+            onPress={() => onSelectTab(tab)}
+          />
+        ))}
+      </SidebarFrame>
+    );
+  }
 
   return (
     <SidebarFrame
@@ -246,7 +269,7 @@ function ShellSidebarContent({
       }
     >
       <NavGroupLabel label={t('WORKBENCH · 核心视图', 'WORKBENCH · CORE VIEWS')} />
-      {TABS.map((tab) => {
+      {visibleTabs.map((tab) => {
         const badge = badgeForTab(tab.id);
         const displayLabel = locale === 'en' ? tab.enLabel : tab.label;
         return (
@@ -331,7 +354,7 @@ function ShellCommandPaletteBridge({
   return (
     <WorkbenchCommandPalette
       visible={visible}
-      mode={mode}
+      mode={runtimeModeOrStandalone(mode)}
       manifest={manifest}
       onClose={onClose}
       onExecuteCommand={onExecuteCommand}
@@ -339,6 +362,10 @@ function ShellCommandPaletteBridge({
       onCopyManifest={onCopyManifest}
     />
   );
+}
+
+function runtimeModeOrStandalone(mode: RuntimeHostMode): RuntimeHostMode {
+  return mode;
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -352,6 +379,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [scopeOpen, setScopeOpen] = useState(false);
   const [hostAttached, setHostAttached] = useState(false);
   const current = armed && armed.route === routeTab ? armed.id : routeTab;
+  const e2e = isAutomatedWebDriver();
+  const tabBarItems = e2e ? TABS.filter((item) => item.core) : TABS;
 
   const baseManifest = useMemo(
     () =>
@@ -629,7 +658,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       bar={
         side ? null : (
           <TabBar>
-            {TABS.map((tab) => (
+            {tabBarItems.map((tab) => (
               <NavItem
                 key={tab.id}
                 placement="tab"

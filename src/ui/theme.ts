@@ -86,15 +86,15 @@ export const lightColor: Palette = {
 };
 
 export const darkColor: Palette = {
-  paper: '#0C0B0A',
-  paperDeep: '#11100E',
-  card: '#161412',
-  surface: '#1C1916',
-  fill: '#24201C',
+  paper: '#141413',
+  paperDeep: '#191918',
+  card: '#1E1E1C',
+  surface: '#232321',
+  fill: '#2A2A27',
   pill: 'rgba(245, 185, 66, 0.10)',
   pillHover: 'rgba(245, 185, 66, 0.18)',
   pressed: 'rgba(250, 249, 245, 0.08)',
-  bar: '#141210',
+  bar: '#1E1E1C',
   ink: '#FAF9F5',
   muted: '#A8A29E',
   textFaint: '#78716C',

@@ -36,7 +36,7 @@ export function ChipGroup({
     );
   }
   return (
-    <Row gap="xs" wrap>
+    <Row gap="sm" wrap>
       {children}
     </Row>
   );

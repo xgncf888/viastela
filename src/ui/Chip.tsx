@@ -70,28 +70,16 @@ export function Chip({
       aria-selected={selected}
       accessibilityState={{ selected }}
       onPress={onPress}
-      onHoverIn={() => setHovered(true)}
-      onHoverOut={() => setHovered(false)}
       style={({ pressed }) => [
         styles.chip,
-        washPressStyle(pressed, reducedMotion, press, color.pressed, Platform.OS === 'web'),
         {
-          backgroundColor: pressed
-            ? color.pressed
-            : selected
-              ? color.accentSoft
-              : hovered
-                ? color.fill
-                : color.surface,
-          borderColor: selected ? color.accent : hovered ? color.muted : color.line,
+          backgroundColor: selected ? color.fill : color.surface,
+          borderColor: selected ? color.ink : color.line,
         },
+        washPressStyle(pressed, reducedMotion, press, color.pressed, Platform.OS === 'web'),
       ]}
     >
-      <Text
-        variant="caption"
-        tone={selected ? 'accent' : 'muted'}
-        style={selected ? styles.selectedLabel : styles.label}
-      >
+      <Text variant="body" tone={selected ? 'ink' : 'muted'} style={selected ? styles.selectedLabel : styles.label}>
         {label}
       </Text>
     </Pressable>
@@ -100,10 +88,9 @@ export function Chip({
 
 const styles = StyleSheet.create({
   chip: {
-    minHeight: 30,
-    borderRadius: 7,
-    paddingHorizontal: 11,
-    paddingVertical: 4,
+    minHeight: theme.layout.control,
+    borderRadius: theme.radius.sm,
+    paddingHorizontal: theme.space.md,
     borderWidth: theme.border.width,
     alignItems: 'center',
     justifyContent: 'center',
@@ -125,14 +112,10 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.pill,
   },
   label: {
-    fontSize: 12.5,
-    lineHeight: 16,
-    fontWeight: theme.fontWeight.medium,
+    fontWeight: theme.fontWeight.regular,
   },
   selectedLabel: {
-    fontSize: 12.5,
-    lineHeight: 16,
-    fontWeight: theme.fontWeight.semibold,
+    fontWeight: theme.fontWeight.medium,
   },
   segmentedLabel: {
     fontSize: 12.5,

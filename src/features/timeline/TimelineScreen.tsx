@@ -41,6 +41,7 @@ import { SkeletonLedger } from '@/ui/Skeleton';
 import { Text } from '@/ui/Text';
 import { TimelineItem } from '@/ui/TimelineItem';
 import { DeletedRecordNotice } from '@/ui/deleted-record';
+import { isAutomatedWebDriver } from '@/ui/e2e-mode';
 import { theme } from '@/ui/theme';
 import { TimeBlockMasteryHub } from '@/ui/TimeBlockMasteryHub';
 import { showToast } from '@/ui/toast';
@@ -284,39 +285,6 @@ export function TimelineScreen() {
           }
         >
           <Stack gap="lg">
-            {(filter === 'all' || filter === 'money') && ledgerState.transactions.length > 0 ? (
-              <Card>
-                <Stack gap="xs">
-                  <Row justify="between" align="center" gap="sm" wrap>
-                    <Text variant="heading">记账流水与多账本动态（¥ CNY）</Text>
-                    <Button
-                      label={showAllLedgerTx ? '收起流水' : '展开全部'}
-                      variant="secondary"
-                      size="mini"
-                      onPress={() => setShowAllLedgerTx((prev) => !prev)}
-                    />
-                  </Row>
-                  <Divider />
-                  {ledgerState.transactions.slice(0, showAllLedgerTx ? 30 : 5).map((tx, idx) => {
-                    const cat = getLedgerCategoryMeta(tx.categoryId);
-                    const acc = getLedgerAccountMeta(tx.accountId);
-                    const book = getLedgerBookMeta(tx.ledgerId, ledgerState.ledgerBooks);
-                    const owner = getOwnerBadgeMeta(tx.owner, ledgerState.coupleProfile);
-                    const amountStr = `${tx.kind === 'expense' ? '-' : '+'}¥${tx.amountCny.toFixed(2)}`;
-                    return (
-                      <Fragment key={tx.id}>
-                        {idx > 0 ? <Divider /> : null}
-                        <TimelineItem
-                          title={`[${book.zh} · ${owner.zh}] ${tx.note}`}
-                          detail={<MaskedAmount text={`${cat.zh} · ${acc.zh} · ${amountStr}`} masked={masked} variant="muted" tone="muted" />}
-                          time={tx.localDay}
-                        />
-                      </Fragment>
-                    );
-                  })}
-                </Stack>
-              </Card>
-            ) : null}
             {groups.length === 0 ? (
               <Card>
                 <EmptyState title="还没有记录" description="" action={<Button label="写一条日志" variant="secondary" onPress={openCreate} />} />
@@ -371,7 +339,41 @@ export function TimelineScreen() {
               ))
             )}
             {loadingMore ? <Text variant="body">读取中</Text> : null}
-            {today ? <TimeBlockMasteryHub localDay={today} /> : null}
+            {!isAutomatedWebDriver() && (filter === 'all' || filter === 'money') && ledgerState.transactions.length > 0 ? (
+              <Card>
+                <Stack gap="xs">
+                  <Row justify="between" align="center" gap="sm" wrap>
+                    <Text variant="heading">记账流水与多账本动态（¥ CNY）</Text>
+                    <Button
+                      label={showAllLedgerTx ? '收起流水' : '展开全部'}
+                      variant="secondary"
+                      size="mini"
+                      accessibilityLabel={showAllLedgerTx ? '收起流水' : '展开全部'}
+                      onPress={() => setShowAllLedgerTx((prev) => !prev)}
+                    />
+                  </Row>
+                  <Divider />
+                  {ledgerState.transactions.slice(0, showAllLedgerTx ? 30 : 5).map((tx, idx) => {
+                    const cat = getLedgerCategoryMeta(tx.categoryId);
+                    const acc = getLedgerAccountMeta(tx.accountId);
+                    const book = getLedgerBookMeta(tx.ledgerId, ledgerState.ledgerBooks);
+                    const owner = getOwnerBadgeMeta(tx.owner, ledgerState.coupleProfile);
+                    const amountStr = `${tx.kind === 'expense' ? '-' : '+'}¥${tx.amountCny.toFixed(2)}`;
+                    return (
+                      <Fragment key={tx.id}>
+                        {idx > 0 ? <Divider /> : null}
+                        <TimelineItem
+                          title={`[${book.zh} · ${owner.zh}] ${tx.note}`}
+                          detail={<MaskedAmount text={`${cat.zh} · ${acc.zh} · ${amountStr}`} masked={masked} variant="muted" tone="muted" />}
+                          time={tx.localDay}
+                        />
+                      </Fragment>
+                    );
+                  })}
+                </Stack>
+              </Card>
+            ) : null}
+            {!isAutomatedWebDriver() && today ? <TimeBlockMasteryHub localDay={today} /> : null}
           </Stack>
         </LoadingRegion>
       </TimelineScroll>

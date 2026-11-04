@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
 import { solidPressStyle, pressTransition } from './press';
 import { Text } from './Text';
@@ -73,13 +73,12 @@ export function Button({
   loading?: boolean;
   /** Shown in place of `label` while loading. Omit it to keep the resting label. */
   loadingLabel?: string;
-  /** Stretch to the column in compact dialogs; never stretches into a clunky full-screen bar on desktop. */
+  /** Stretch to the column so stacked buttons share one width. Ghost never stretches (§5). */
   fill?: boolean;
   /** Overrides the accessible name. The visible label stays `label`. */
   accessibilityLabel?: string;
 }) {
   const theme = useTheme();
-  const isDark = theme.scheme === 'dark';
   const reducedMotion = useReducedMotion() === true;
   const [hovered, setHovered] = useState(false);
   const [measured, setMeasured] = useState<number | null>(null);
@@ -95,22 +94,16 @@ export function Button({
   const mini = size === 'mini';
   const ghost = variant === 'ghost' && !mini;
   const solid = (variant === 'primary' || variant === 'danger') && !mini;
-  const secondary = variant === 'secondary' && !mini;
-
   const labelTone: Tone = mini
     ? 'ink'
     : variant === 'primary'
-      ? isDark
-        ? 'accent'
-        : 'inverse'
+      ? 'onAccent'
       : variant === 'danger'
         ? 'inverse'
         : variant === 'ghost'
           ? tone === 'danger'
             ? 'danger'
-            : tone === 'accent'
-              ? 'accent'
-              : 'muted'
+            : 'ink'
           : tone === 'accent'
             ? 'accent'
             : 'ink';
@@ -136,42 +129,19 @@ export function Button({
       }}
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}
-      style={({ pressed }): ViewStyle[] => {
+      style={({ pressed }) => {
         const down = pressed && !inactive;
         const background = solid
           ? variant === 'danger'
             ? theme.color.dangerFill
-            : isDark
-              ? hot || down
-                ? 'rgba(245, 185, 66, 0.24)'
-                : 'rgba(245, 185, 66, 0.15)'
-              : hot
-                ? theme.color.accentHover
-                : theme.color.accent
-          : secondary
-            ? down || hot
-              ? theme.color.fill
-              : theme.color.surface
-            : hot || down
-              ? variant === 'ghost' && tone === 'danger' && !down
-                ? theme.color.dangerSoft
-                : theme.color.fill
-              : 'transparent';
-
-        const borderColor = solid
-          ? variant === 'danger'
-            ? theme.color.danger
-            : isDark
-              ? hot
-                ? '#FDE68A'
-                : 'rgba(245, 185, 66, 0.55)'
+            : hot
+              ? theme.color.accentHover
               : theme.color.accent
-          : secondary || mini
-            ? hot
-              ? theme.color.accent
-              : theme.color.line
+          : hot || down
+            ? variant === 'ghost' && tone === 'danger' && !down
+              ? theme.color.dangerSoft
+              : theme.color.fill
             : 'transparent';
-
         const motion = solid
           ? solidPressStyle(down, disabled, reducedMotion, theme.press, Platform.OS === 'web')
           : {
@@ -182,14 +152,14 @@ export function Button({
           styles.base,
           {
             backgroundColor: background,
-            borderWidth: solid || secondary || mini ? 1 : 0,
-            borderColor,
+            borderWidth: variant === 'secondary' || mini ? baseTheme.border.width : 0,
+            borderColor: variant === 'secondary' || mini ? theme.color.line : 'transparent',
           },
           motion,
-          mini ? styles.mini : {},
-          ghost ? styles.ghost : {},
-          fill && !ghost ? styles.fill : {},
-          locked != null ? { minWidth: locked } : {},
+          mini ? styles.mini : null,
+          ghost ? styles.ghost : null,
+          fill && !ghost ? styles.fill : null,
+          locked != null ? { minWidth: locked } : null,
         ];
       }}
     >
@@ -202,12 +172,12 @@ export function Button({
             color={spinner}
             size={theme.space.md}
           />
-          <Text variant="caption" tone={labelTone} style={styles.label}>
+          <Text variant={mini ? 'label' : 'body'} tone={labelTone} style={styles.label}>
             {visible}
           </Text>
         </View>
       ) : (
-        <Text variant="caption" tone={labelTone} style={styles.label}>
+        <Text variant={mini ? 'label' : 'body'} tone={labelTone} style={styles.label}>
           {visible}
         </Text>
       )}
@@ -217,39 +187,27 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: {
-    minHeight: 30,
-    borderRadius: 999,
+    minHeight: baseTheme.layout.control,
+    borderRadius: baseTheme.radius.button,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 13,
-    paddingVertical: 5,
-    alignSelf: 'flex-start',
+    paddingHorizontal: baseTheme.space.md,
+    paddingVertical: baseTheme.space.sm,
+    minWidth: baseTheme.layout.control,
   },
   content: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: 6,
+    gap: baseTheme.space.sm,
   },
-  label: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: baseTheme.fontWeight.semibold,
-    letterSpacing: 0.25,
-  },
+  label: { fontWeight: '500' },
   mini: {
     minHeight: baseTheme.layout.controlMini,
     height: baseTheme.layout.controlMini,
-    borderRadius: 999,
-    paddingHorizontal: 10,
+    borderRadius: baseTheme.radius.mini,
+    paddingHorizontal: baseTheme.space.sm,
     paddingVertical: 0,
   },
-  ghost: {
-    minHeight: 26,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  fill: {
-    alignSelf: 'stretch',
-  },
+  ghost: { alignSelf: 'flex-start', paddingHorizontal: baseTheme.space.sm },
+  fill: { alignSelf: 'stretch', width: '100%' },
 });

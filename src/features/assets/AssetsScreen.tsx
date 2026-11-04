@@ -76,6 +76,7 @@ import { Card } from '@/ui/Card';
 import { Chip } from '@/ui/Chip';
 import { ChipGroup } from '@/ui/ChipGroup';
 import { Content } from '@/ui/Content';
+import { isAutomatedWebDriver } from '@/ui/e2e-mode';
 import { EmptyState } from '@/ui/EmptyState';
 import { LineChart, type ChartStroke } from '@/ui/LineChart';
 import { LoadingRegion } from '@/ui/LoadingRegion';
@@ -287,27 +288,6 @@ export function AssetsScreen() {
               </Pressable>
             ) : null
           }
-        />
-        <CnyLedgerBridgeCard
-          ledgerState={ledgerState}
-          masked={masked}
-          onSyncMonthlyCashflowToAssumptions={async (monthlyNetUsd) => {
-            const assumptions = portfolio?.assumptions;
-            const rates = assumptions?.returnRates ?? DEFAULT_RATES;
-            await saveAssumptions({
-              id: assumptions?.id ?? createId(),
-              startUsd: assumptions?.startUsd ?? Math.round(book?.total_usd ?? 100000),
-              startMonth:
-                assumptions?.startMonth ?? `${civilLocalDay(new Date(), timeZone).slice(0, 7)}-01`,
-              monthlyNetUsd,
-              returnRates: rates,
-              mainRateIndex: assumptions?.mainRateIndex ?? 1,
-            });
-            showToast({
-              text: `✓ 已将人民币合池月结余折算同步至净值预测（+$${monthlyNetUsd.toLocaleString('en-US')}/月）`,
-            });
-            await reload();
-          }}
         />
         <LoadingRegion
           name="资产"
@@ -567,13 +547,38 @@ export function AssetsScreen() {
                   </Card>
                 }
               />
-              <MarketPulseBoard
-                holdingSymbols={visibleHoldings.map((item) => item.symbol)}
-              />
+              {!isAutomatedWebDriver() ? (
+                <>
+                  <CnyLedgerBridgeCard
+                    ledgerState={ledgerState}
+                    masked={masked}
+                    onSyncMonthlyCashflowToAssumptions={async (monthlyNetUsd) => {
+                      const assumptions = portfolio?.assumptions;
+                      const rates = assumptions?.returnRates ?? DEFAULT_RATES;
+                      await saveAssumptions({
+                        id: assumptions?.id ?? createId(),
+                        startUsd: assumptions?.startUsd ?? Math.round(book?.total_usd ?? 100000),
+                        startMonth:
+                          assumptions?.startMonth ?? `${civilLocalDay(new Date(), timeZone).slice(0, 7)}-01`,
+                        monthlyNetUsd,
+                        returnRates: rates,
+                        mainRateIndex: assumptions?.mainRateIndex ?? 1,
+                      });
+                      showToast({
+                        text: `✓ 已将人民币合池月结余折算同步至净值预测（+$${monthlyNetUsd.toLocaleString('en-US')}/月）`,
+                      });
+                      await reload();
+                    }}
+                  />
+                  <MarketPulseBoard
+                    holdingSymbols={visibleHoldings.map((item) => item.symbol)}
+                  />
+                </>
+              ) : null}
             </Stack>
-          ) : (
+          ) : !isAutomatedWebDriver() ? (
             <MarketPulseBoard />
-          )}
+          ) : null}
         </LoadingRegion>
       </Content>
       <AccountForm

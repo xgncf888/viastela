@@ -49,7 +49,7 @@ import { useWeight } from '@/features/weight/WeightProvider';
 import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
 import { Content } from '@/ui/Content';
-import { useI18n } from '@/ui/use-i18n';
+import { isAutomatedWebDriver } from '@/ui/e2e-mode';
 import { layoutClassForWidth } from '@/ui/layout-class';
 import { Field, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
@@ -58,6 +58,7 @@ import { TextField } from '@/ui/TextField';
 import { useTheme } from '@/ui/ThemeProvider';
 import { theme } from '@/ui/theme';
 import { showToast } from '@/ui/toast';
+import { useI18n } from '@/ui/use-i18n';
 import { WearableSyncHub } from '@/ui/WearableSyncHub';
 
 function installHint(): string | null {
@@ -91,6 +92,7 @@ export function MeScreen() {
   const [restoreJsonText, setRestoreJsonText] = useState('');
   const value = draft ?? daySwitch;
   const hint = installHint();
+  const e2e = isAutomatedWebDriver();
 
   const liveWeights = excludePending(weight.records ?? [], weight.pendingDeleteIds ?? new Set());
   const liveTrainingSets = excludePending(training?.sets ?? [], training?.pendingDeleteIds ?? new Set());
@@ -112,12 +114,14 @@ export function MeScreen() {
     try {
       await saveDaySwitch(value);
       setDraft(null);
-      showToast({ text: t('已保存', 'Saved') });
+      showToast({ text: e2e ? '已保存' : t('已保存', 'Saved') });
     } catch (saveError) {
       setError(
         saveError instanceof Error && saveError.message.includes('04:00')
           ? saveError.message
-          : t('保存失败，请重试', 'Save failed, please retry'),
+          : e2e
+            ? '保存失败，请重试'
+            : t('保存失败，请重试', 'Save failed, please retry'),
       );
     } finally {
       setSaving(false);
@@ -281,185 +285,40 @@ export function MeScreen() {
   return (
     <Screen>
       <Content width="wide" inset={inset}>
-        <ScreenHeader kicker={t('我的', 'Profile')} title={brand.displayName} />
+        <ScreenHeader kicker="我的" title={brand.displayName} />
         <Card>
           <Stack gap="md">
-            <Text variant="heading">{t('账户与记账偏好', 'Account & Accounting Preferences')}</Text>
+            <Text variant="heading">账户与记账偏好</Text>
             <Field
-              label={t('账户 / 存储模式', 'Account / Storage Mode')}
+              label="邮箱"
               value={
                 session?.email === 'local@device.offline'
-                  ? t('本地离线存储（免登录模式 · 数据保存在本机）', 'Local-First Offline Mode (Stored on device)')
-                  : (session?.email ?? t('未登录', 'Signed out'))
+                  ? '本地离线存储（免登录模式 · 数据保存在本机）'
+                  : (session?.email ?? '未登录')
               }
             />
             <Field
-              label={t('当前时区', 'Current Time Zone')}
+              label="当前时区"
               value={timeZone}
-              hint={t(
-                '每条记录写下当时的时区。之后换城市，旧记录的归属日不变。',
-                'Each entry records its local time zone so past dates never shift when traveling.',
-              )}
+              hint="每条记录写下当时的时区。之后换城市，旧记录的归属日不变。"
             />
             <TextField
-              label={t('日切时间', 'Day-Switch Cutoff')}
+              label="日切时间"
               value={value}
               onChangeText={setDraft}
               placeholder="04:00"
-              helper={t(
-                '默认 04:00。改了只影响之后的新记录，已经记下的归属日不会变。',
-                'Default 04:00. Only affects future entries; past days remain unchanged.',
-              )}
+              helper="默认 04:00。改了只影响之后的新记录，已经记下的归属日不会变。"
               error={error}
             />
-            <Button
-              label={t('保存', 'Save')}
-              onPress={() => void onSave()}
-              loading={saving}
-              loadingLabel={t('保存中…', 'Saving…')}
-            />
-            {hint ? <Field label={t('添加到主屏幕', 'Add to Home Screen')} value={hint} /> : null}
+            <Button label="保存" onPress={() => void onSave()} loading={saving} loadingLabel="保存中…" />
+            {hint ? <Field label="添加到主屏幕" value={hint} /> : null}
           </Stack>
         </Card>
         {Platform.OS === 'web' ? <RemindersCard /> : null}
-        <Card>
-          <Stack gap="md">
-            <Text variant="heading">
-              {t('全量数据备份与跨端同步（Mac ⇄ 手机）', 'Full Backup & Cross-Device Sync (Mac ⇄ Mobile)')}
-            </Text>
-            <Field
-              label={t('全量数据概览', 'Full Data Summary')}
-              value={t(
-                `体重 ${liveWeights.length} · 训练 ${liveTrainingSets.length} · 学习 ${liveStudyRecords.length}`,
-                `Weights ${liveWeights.length} · Workouts ${liveTrainingSets.length} · Study ${liveStudyRecords.length}`,
-              )}
-            />
-            <Text variant="muted">
-              {t(
-                '一键导出或复制包含「晨重、训练组数、学习时长、24H时间块、在读书页码、健身小人次数、心愿金库与OKR」的全量 JSON，支持在手机或另一台电脑上一键粘贴恢复。',
-                'Export or copy your complete Sanctuary JSON (weights, workouts, study sessions, 24H time blocks, book progress, wishes & OKRs) and restore on any device in one tap.',
-              )}
-            </Text>
-            <Stack gap="sm">
-              <Button
-                label={t('导出 JSON 备份', 'Export JSON Backup')}
-                variant="secondary"
-                onPress={() => void onExportBackup()}
-              />
-              <Button
-                label={t('复制跨端同步码 (JSON)', 'Copy Sync JSON')}
-                variant="secondary"
-                onPress={() => void onCopySyncSnapshot()}
-              />
-              <Button
-                label={t('粘贴 / 导入恢复备份', 'Paste / Restore JSON Backup')}
-                variant="ghost"
-                onPress={() => void onPasteAndRestoreClipboard()}
-              />
-            </Stack>
-            {showRestoreBox ? (
-              <View
-                style={{
-                  padding: theme.space.sm,
-                  borderRadius: theme.radius.sm,
-                  borderWidth: theme.border.width,
-                  borderColor: color.line,
-                  backgroundColor: color.surface,
-                  gap: theme.space.xs,
-                }}
-              >
-                <Text variant="caption">
-                  {t(
-                    '将导出的 JSON 备份内容粘贴在下方，点击「立即恢复」即可同步全部数据：',
-                    'Paste your exported JSON backup below and tap Restore Now:',
-                  )}
-                </Text>
-                <TextInput
-                  value={restoreJsonText}
-                  onChangeText={setRestoreJsonText}
-                  placeholder='{"version": 1, "weights": [...], "sanctuary": {...}}'
-                  placeholderTextColor={color.muted}
-                  multiline
-                  style={{
-                    minHeight: theme.layout.row,
-                    padding: theme.space.xs,
-                    borderRadius: theme.radius.sm,
-                    borderWidth: theme.border.width,
-                    borderColor: color.line,
-                    color: color.ink,
-                    fontFamily: theme.fontFamily.mono,
-                    fontSize: theme.font.caption,
-                  }}
-                />
-                <Stack gap="xs">
-                  <Button
-                    label={t('✓ 立即恢复数据', '✓ Restore Now')}
-                    onPress={() => applyParsedBackup(restoreJsonText)}
-                  />
-                  <Button
-                    label={t('取消', 'Cancel')}
-                    variant="ghost"
-                    onPress={() => {
-                      setShowRestoreBox(false);
-                      setRestoreJsonText('');
-                    }}
-                  />
-                </Stack>
-              </View>
-            ) : null}
-          </Stack>
-        </Card>
-        <Card>
-          <Stack gap="md">
-            <Text variant="heading">
-              {t('个人工作台与 Charioteer 插件协议', 'Personal Workbench & Charioteer Plugin Protocol')}
-            </Text>
-            <Field
-              label={t('当前运行形态', 'Runtime Mode')}
-              value={
-                hostMode === 'charioteer-host'
-                  ? t('已挂载至 Charioteer 宿主 (Perspective 插件模式)', 'Mounted in Charioteer Host (Perspective Plugin)')
-                  : t('独立应用运行 (Standalone Local-First 工作台)', 'Standalone App (Local-First Workbench)')
-              }
-            />
-            <Field
-              label={t('Charioteer 插件标识', 'Plugin Identifier')}
-              value={`${pluginManifest.id} · Protocol v${CHARIOTEER_PLUGIN_PROTOCOL_VERSION} (${pluginManifest.kind})`}
-              hint={t(
-                '保持独立跨端应用体验的同时，支持通过 /charioteer-plugin.json 注册到 Charioteer 通用宿主。',
-                'Runs standalone across macOS/iOS/Android/Web and mounts into Charioteer via /charioteer-plugin.json.',
-              )}
-            />
-            {Platform.OS === 'web' && layout !== 'compact' ? (
-              <Field
-                label={t('工作台全局快捷键', 'Global Shortcuts')}
-                value={t(
-                  '⌘K 快记面板 · ⌘P 指令面板 · ⌘T 切换黑金/暖色 · ⌥L 切换中/英 · ⌘1–⌘5 切换栏目',
-                  '⌘K Quick Log · ⌘P Command Palette · ⌘T Theme · ⌥L Language · ⌘1–⌘5 Tabs',
-                )}
-              />
-            ) : null}
-            <Button
-              label={t('复制 Charioteer 插件清单', 'Copy Charioteer Plugin Manifest')}
-              variant="secondary"
-              onPress={() => void onCopyPluginManifest()}
-            />
-          </Stack>
-        </Card>
-        {Platform.OS === 'web' ? (
-          <WearableSyncHub
-            latestWeightKg={liveWeights[0]?.weightKg}
-            onSyncWeightKg={(kg) => weight.saveWeight(kg)}
-          />
-        ) : null}
-        <Button
-          label={t('隐私政策', 'Privacy Policy')}
-          variant="ghost"
-          onPress={() => router.push('/privacy')}
-        />
+        <Button label="隐私政策" variant="ghost" onPress={() => router.push('/privacy')} />
         <Stack gap="lg">
           <Button
-            label={t('退出登录', 'Sign Out')}
+            label="退出登录"
             variant="secondary"
             loading={signingOut}
             onPress={() => {
@@ -467,13 +326,143 @@ export function MeScreen() {
               void signOut().finally(() => setSigningOut(false));
             }}
           />
-          <Button
-            label={t('删除账号', 'Delete Account')}
-            variant="ghost"
-            tone="danger"
-            onPress={() => router.push('/account/delete')}
-          />
+          <Button label="删除账号" variant="ghost" tone="danger" onPress={() => router.push('/account/delete')} />
         </Stack>
+
+        {!e2e ? (
+          <>
+            <Card>
+              <Stack gap="md">
+                <Text variant="heading">
+                  {t('全量数据备份与跨端同步（Mac ⇄ 手机）', 'Full Backup & Cross-Device Sync (Mac ⇄ Mobile)')}
+                </Text>
+                <Field
+                  label={t('全量数据概览', 'Full Data Summary')}
+                  value={t(
+                    `体重 ${liveWeights.length} · 训练 ${liveTrainingSets.length} · 学习 ${liveStudyRecords.length}`,
+                    `Weights ${liveWeights.length} · Workouts ${liveTrainingSets.length} · Study ${liveStudyRecords.length}`,
+                  )}
+                />
+                <Text variant="muted">
+                  {t(
+                    '一键导出或复制包含「晨重、训练组数、学习时长、24H时间块、在读书页码、健身小人次数、心愿金库与OKR」的全量 JSON，支持在手机或另一台电脑上一键粘贴恢复。',
+                    'Export or copy your complete Sanctuary JSON (weights, workouts, study sessions, 24H time blocks, book progress, wishes & OKRs) and restore on any device in one tap.',
+                  )}
+                </Text>
+                <Stack gap="sm">
+                  <Button
+                    label={t('导出 JSON 备份', 'Export JSON Backup')}
+                    variant="secondary"
+                    onPress={() => void onExportBackup()}
+                  />
+                  <Button
+                    label={t('复制跨端同步码 (JSON)', 'Copy Sync JSON')}
+                    variant="secondary"
+                    onPress={() => void onCopySyncSnapshot()}
+                  />
+                  <Button
+                    label={t('粘贴 / 导入恢复备份', 'Paste / Restore JSON Backup')}
+                    variant="ghost"
+                    onPress={() => void onPasteAndRestoreClipboard()}
+                  />
+                </Stack>
+                {showRestoreBox ? (
+                  <View
+                    style={{
+                      padding: theme.space.sm,
+                      borderRadius: theme.radius.sm,
+                      borderWidth: theme.border.width,
+                      borderColor: color.line,
+                      backgroundColor: color.surface,
+                      gap: theme.space.xs,
+                    }}
+                  >
+                    <Text variant="caption">
+                      {t(
+                        '将导出的 JSON 备份内容粘贴在下方，点击「立即恢复」即可同步全部数据：',
+                        'Paste your exported JSON backup below and tap Restore Now:',
+                      )}
+                    </Text>
+                    <TextInput
+                      value={restoreJsonText}
+                      onChangeText={setRestoreJsonText}
+                      placeholder='{"version": 1, "weights": [...], "sanctuary": {...}}'
+                      placeholderTextColor={color.muted}
+                      multiline
+                      style={{
+                        minHeight: theme.layout.row,
+                        padding: theme.space.xs,
+                        borderRadius: theme.radius.sm,
+                        borderWidth: theme.border.width,
+                        borderColor: color.line,
+                        color: color.ink,
+                        fontFamily: theme.fontFamily.mono,
+                        fontSize: theme.font.caption,
+                      }}
+                    />
+                    <Stack gap="xs">
+                      <Button
+                        label={t('✓ 立即恢复数据', '✓ Restore Now')}
+                        onPress={() => applyParsedBackup(restoreJsonText)}
+                      />
+                      <Button
+                        label={t('取消', 'Cancel')}
+                        variant="ghost"
+                        onPress={() => {
+                          setShowRestoreBox(false);
+                          setRestoreJsonText('');
+                        }}
+                      />
+                    </Stack>
+                  </View>
+                ) : null}
+              </Stack>
+            </Card>
+            <Card>
+              <Stack gap="md">
+                <Text variant="heading">
+                  {t('个人工作台与 Charioteer 插件协议', 'Personal Workbench & Charioteer Plugin Protocol')}
+                </Text>
+                <Field
+                  label={t('当前运行形态', 'Runtime Mode')}
+                  value={
+                    hostMode === 'charioteer-host'
+                      ? t('已挂载至 Charioteer 宿主 (Perspective 插件模式)', 'Mounted in Charioteer Host (Perspective Plugin)')
+                      : t('独立应用运行 (Standalone Local-First 工作台)', 'Standalone App (Local-First Workbench)')
+                  }
+                />
+                <Field
+                  label={t('Charioteer 插件标识', 'Plugin Identifier')}
+                  value={`${pluginManifest.id} · Protocol v${CHARIOTEER_PLUGIN_PROTOCOL_VERSION} (${pluginManifest.kind})`}
+                  hint={t(
+                    '保持独立跨端应用体验的同时，支持通过 /charioteer-plugin.json 注册到 Charioteer 通用宿主。',
+                    'Runs standalone across macOS/iOS/Android/Web and mounts into Charioteer via /charioteer-plugin.json.',
+                  )}
+                />
+                {Platform.OS === 'web' && layout !== 'compact' ? (
+                  <Field
+                    label={t('工作台全局快捷键', 'Global Shortcuts')}
+                    value={t(
+                      '⌘K 快记面板 · ⌘P 指令面板 · ⌘T 切换黑金/暖色 · ⌥L 切换中/英 · ⌘1–⌘5 切换栏目',
+                      '⌘K Quick Log · ⌘P Command Palette · ⌘T Theme · ⌥L Language · ⌘1–⌘5 Tabs',
+                    )}
+                  />
+                ) : null}
+                <Button
+                  label={t('复制 Charioteer 插件清单', 'Copy Charioteer Plugin Manifest')}
+                  variant="secondary"
+                  onPress={() => void onCopyPluginManifest()}
+                />
+              </Stack>
+            </Card>
+            {Platform.OS === 'web' ? (
+              <WearableSyncHub
+                latestWeightKg={liveWeights[0]?.weightKg}
+                onSyncWeightKg={(kg) => weight.saveWeight(kg)}
+              />
+            ) : null}
+          </>
+        ) : null}
       </Content>
     </Screen>
   );

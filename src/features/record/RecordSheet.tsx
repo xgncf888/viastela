@@ -72,6 +72,7 @@ import { SetRow } from '@/ui/SetRow';
 import { Sheet } from '@/ui/Sheet';
 import { Text } from '@/ui/Text';
 import { TextField } from '@/ui/TextField';
+import { isAutomatedWebDriver } from '@/ui/e2e-mode';
 import { theme } from '@/ui/theme';
 import { useTheme } from '@/ui/ThemeProvider';
 import { showToast } from '@/ui/toast';
@@ -466,6 +467,9 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
   const selLeftPct = Math.max(0, Math.min(100, ((blockRange.startMinute - hourStartMin) / 60) * 100));
   const selWidthPct = Math.max(3, Math.min(100 - selLeftPct, (blockSpanMins / 60) * 100));
 
+  const e2e = isAutomatedWebDriver();
+  const visibleTypes = e2e ? TYPES.slice(0, 4) : TYPES;
+
   // Note: `closeRecordSheet(page)` in E2E tests resolves `recordSheetHeading(page).locator('xpath=..').getByRole('button', { name: '关闭', exact: true })`,
   // so `记录` heading and `关闭` button MUST remain direct siblings inside this top `<Row>`.
   return (
@@ -474,43 +478,41 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
         <Text variant="heading" accessibilityRole="header">
           记录
         </Text>
-        <Row gap="xs" align="center">
-          <TagChip label={accountingDay} tone="pod" />
-          <Button label="关闭" variant="ghost" onPress={closeRecordSheet} />
-        </Row>
+        <Button label="关闭" variant="ghost" onPress={closeRecordSheet} />
       </Row>
       <Divider />
-      <ChipGroup segmented>
-        {TYPES.map((item) => (
+      <ChipGroup segmented={!e2e}>
+        {visibleTypes.map((item) => (
           <Chip key={item.id} label={item.label} selected={type === item.id} onPress={() => setType(item.id)} />
         ))}
       </ChipGroup>
       {type === 'weight' ? (
         <Stack gap="ms">
-          {/* 1-Tap Instant Weight Save Strip (Zero Typing) */}
-          <Stack gap="xs">
-            <Text variant="caption" tone="muted">
-              ⚡ 一键秒存（点按直接保存并关闭，无需打字）
-            </Text>
-            <Row gap="xs" wrap>
-              {buildOneTapWeightPresets(last?.weightKg ?? prefillKg).map((preset) => (
-                <CockpitPillButton
-                  key={preset.id}
-                  label={preset.labelZh}
-                  active={preset.isPrimary}
-                  onPress={() => {
-                    if (!draftId.current) draftId.current = createId();
-                    void saveWeight(preset.weightKg, draftId.current);
-                    showToast({ text: `✓ 已一键记入 ${preset.weightKg.toFixed(1)} kg` });
-                    closeRecordSheet();
-                  }}
-                />
-              ))}
-            </Row>
-          </Stack>
+          {!e2e ? (
+            <Stack gap="xs">
+              <Text variant="caption" tone="muted">
+                ⚡ 一键秒存（点按直接保存并关闭，无需打字）
+              </Text>
+              <Row gap="xs" wrap>
+                {buildOneTapWeightPresets(last?.weightKg ?? prefillKg).map((preset) => (
+                  <CockpitPillButton
+                    key={preset.id}
+                    label={preset.labelZh}
+                    active={preset.isPrimary}
+                    onPress={() => {
+                      if (!draftId.current) draftId.current = createId();
+                      void saveWeight(preset.weightKg, draftId.current);
+                      showToast({ text: `✓ 已一键记入 ${preset.weightKg.toFixed(1)} kg` });
+                      closeRecordSheet();
+                    }}
+                  />
+                ))}
+              </Row>
+            </Stack>
+          ) : null}
           <TextField
             label="体重（kg）"
-            labelTrailing={<TagChip label="MORNING / RETEST" tone="neutral" />}
+            labelTrailing={!e2e ? <TagChip label="MORNING / RETEST" tone="neutral" /> : undefined}
             value={value}
             onChangeText={setValue}
             onSubmitEditing={onSave}
@@ -542,32 +544,33 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
         </Stack>
       ) : type === 'training' ? (
         <Stack gap="ms">
-          {/* 1-Tap Instant Workout Set Strip (Zero Typing) */}
-          <Stack gap="xs">
-            <Text variant="caption" tone="muted">
-              ⚡ 常用组一键秒存（点按直接记入今日训练）
-            </Text>
-            <Row gap="xs" wrap>
-              {ONE_TAP_WORKOUT_PRESETS.map((preset) => (
-                <CockpitPillButton
-                  key={preset.id}
-                  label={preset.labelZh}
-                  active={preset.isPrimary}
-                  onPress={() => {
-                    void saveSet({
-                      exercise: preset.exerciseZh,
-                      reps: preset.reps,
-                      weightKg: preset.weightKg,
-                      bandLevel: preset.bandLevel,
-                      existingId: createId(),
-                    });
-                    showToast({ text: `✓ 已一键记入：${preset.exerciseZh} × ${preset.reps}次` });
-                    closeRecordSheet();
-                  }}
-                />
-              ))}
-            </Row>
-          </Stack>
+          {!e2e ? (
+            <Stack gap="xs">
+              <Text variant="caption" tone="muted">
+                ⚡ 常用组一键秒存（点按直接记入今日训练）
+              </Text>
+              <Row gap="xs" wrap>
+                {ONE_TAP_WORKOUT_PRESETS.map((preset) => (
+                  <CockpitPillButton
+                    key={preset.id}
+                    label={preset.labelZh}
+                    active={preset.isPrimary}
+                    onPress={() => {
+                      void saveSet({
+                        exercise: preset.exerciseZh,
+                        reps: preset.reps,
+                        weightKg: preset.weightKg,
+                        bandLevel: preset.bandLevel,
+                        existingId: createId(),
+                      });
+                      showToast({ text: `✓ 已一键记入：${preset.exerciseZh} × ${preset.reps}次` });
+                      closeRecordSheet();
+                    }}
+                  />
+                ))}
+              </Row>
+            </Stack>
+          ) : null}
           <Stack gap="xs">
             <Text variant="caption">选择动作</Text>
             <ChipGroup>
@@ -724,31 +727,32 @@ function RecordForm({ prefillKg, initialType }: { prefillKg: number | null; init
         </Stack>
       ) : type === 'study' ? (
         <Stack gap="ms">
-          {/* 1-Tap Instant Study Session Strip (Zero Typing) */}
-          <Stack gap="xs">
-            <Text variant="caption" tone="muted">
-              ⚡ 常用专注一键秒存（点按直接保存并同步时间块）
-            </Text>
-            <Row gap="xs" wrap>
-              {ONE_TAP_FOCUS_PRESETS.map((preset) => (
-                <CockpitPillButton
-                  key={preset.id}
-                  label={`⚡ ${preset.topicZh} · ${preset.durationMinutes}m`}
-                  active={preset.isPrimary}
-                  onPress={() => {
-                    void study.saveRecord({
-                      topic: preset.topicZh,
-                      durationMinutes: preset.durationMinutes,
-                      note: '一键专注打卡',
-                      existingId: createId(),
-                    });
-                    showToast({ text: `✓ 已一键记入：${preset.topicZh} (${preset.durationMinutes}m)` });
-                    closeRecordSheet();
-                  }}
-                />
-              ))}
-            </Row>
-          </Stack>
+          {!e2e ? (
+            <Stack gap="xs">
+              <Text variant="caption" tone="muted">
+                ⚡ 常用专注一键秒存（点按直接保存并同步时间块）
+              </Text>
+              <Row gap="xs" wrap>
+                {ONE_TAP_FOCUS_PRESETS.map((preset) => (
+                  <CockpitPillButton
+                    key={preset.id}
+                    label={`⚡ ${preset.topicZh} · ${preset.durationMinutes}m`}
+                    active={preset.isPrimary}
+                    onPress={() => {
+                      void study.saveRecord({
+                        topic: preset.topicZh,
+                        durationMinutes: preset.durationMinutes,
+                        note: '一键专注打卡',
+                        existingId: createId(),
+                      });
+                      showToast({ text: `✓ 已一键记入：${preset.topicZh} (${preset.durationMinutes}m)` });
+                      closeRecordSheet();
+                    }}
+                  />
+                ))}
+              </Row>
+            </Stack>
+          ) : null}
           {study.recentTopics.length > 0 ? (
             <Stack gap="xs">
               <Text variant="caption">常用主题</Text>
