@@ -1509,7 +1509,7 @@ export function IsometricStudioStage({
   const [masteryGoals, setMasteryGoals] = useState<MasteryGoal[]>(readMasteryGoals);
   const [timer, setTimer] = useState<ActiveTimerSession>(readActiveTimer);
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [lowerWorkspaceTab, setLowerWorkspaceTab] = useState<'matrix' | 'okr' | 'knowledge' | 'split'>('matrix');
+  const [lowerWorkspaceTab, setLowerWorkspaceTab] = useState<'matrix' | 'okr' | 'knowledge' | 'split'>('split');
 
   useEffect(() => {
     ensureStageFxKeyframes();
@@ -2501,11 +2501,9 @@ export function IsometricStudioStage({
             </View>
           ) : null}
 
-          {/* Upper Stage: 3 Directly Interactive Zones (Horizontal Swipe on Compact Mobile, 3-Across on Desktop) */}
+          {/* Upper Stage: 3 Directly Interactive Zones + Golden 24H Ribbon Bridges */}
           <View style={[styles.stageGridBg, { backgroundColor: pal.stageBg }]}>
-            {!isCompactMobile ? (
-              <Golden24HourRibbonBridgesSvg timerRunning={timer.isRunning} isDark={isDark} />
-            ) : null}
+            <Golden24HourRibbonBridgesSvg timerRunning={timer.isRunning} isDark={isDark} />
 
             <ScrollView
               horizontal={isCompactMobile}
