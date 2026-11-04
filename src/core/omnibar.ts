@@ -81,7 +81,7 @@ const WORKOUT_KEYWORDS = [
 const STUDY_PREFIX_RE = /^(?:学习|读书|阅读|专注|研究|精读|背诵|刷题|看书|读|看|学|read|study|focus)\s+/i;
 
 /**
- * Parses a natural-language one-line command from the Charioteer-style Omnibar (`⌘P` or mobile bar)
+ * Parses a natural-language one-line command from the 4D Omnibar (`⌘P` or mobile quick bar)
  * into a structured action for Weight, Training, Study, or Ledger.
  */
 export function parseOmnibarCommand(raw: string): OmnibarIntent | null {

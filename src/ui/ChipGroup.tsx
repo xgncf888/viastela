@@ -6,7 +6,7 @@ import { theme } from './theme';
 import { useTheme } from './ThemeProvider';
 
 /**
- * One wrapping row of chips, or a Charioteer-style recessed segmented control bar (`segmented`).
+ * One wrapping row of chips, or a recessed segmented control bar (`segmented`).
  */
 export function ChipGroup({
   segmented = false,

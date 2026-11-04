@@ -18,7 +18,7 @@ import { IsometricStudioStage, type SpatialModuleFilter } from './IsometricStudi
 export type { SpatialModuleFilter };
 export type TagChipTone = 'owner' | 'exec' | 'rev' | 'neutral' | 'pod';
 
-/** Charioteer `.tag-chip` semantic badge (`role-owner` terracotta, `role-exec` forest green, `role-rev` amber, `pod` bordered). */
+/** Semantic status badge (`owner` terracotta, `exec` forest green, `rev` amber, `pod` bordered). */
 export function TagChip({
   label,
   tone = 'neutral',
@@ -63,7 +63,7 @@ export function TagChip({
   );
 }
 
-/** Charioteer `.pill-btn` tactile capsule button (`default`, `primary`, `accent`, `green`, plus optional `active` and `shortcut` badge). */
+/** Tactile capsule button (`default`, `primary`, `accent`, `green`, plus optional `active` and `shortcut` badge). */
 export function CockpitPillButton({
   label,
   shortcut,
@@ -158,7 +158,7 @@ export function CockpitPillButton({
 }
 
 /**
- * Charioteer top cockpit bar placed inside `ScreenHeader.trailing` on desktop/tablet (`<= 30px` height
+ * Desktop top header bar placed inside `ScreenHeader.trailing` on desktop/tablet (`<= 30px` height
  * so `ScreenHeader` height stays strictly unchanged and E2E `RECORD_Y_DESKTOP = 252` is preserved).
  */
 export function CockpitHeaderBar({
@@ -197,7 +197,7 @@ export function CockpitHeaderBar({
             ]}
           />
           <Text variant="caption" style={styles.scopePillActiveText}>
-            {mode === 'charioteer-host' ? 'Charioteer Host' : 'Local Mac'}
+            {mode === 'charioteer-host' ? t('桌面宿主', 'Desktop Host') : t('本地优先', 'Local Mac')}
           </Text>
         </Pressable>
         <Pressable
@@ -260,9 +260,9 @@ export function CockpitHeaderBar({
 }
 
 /**
- * Charioteer `.side-foot` sidebar footer:
- * - `.side-gw` live runtime box with glowing green `.dot-live`
- * - `.side-foot-links` 3-button strip (`Search ⌘K`, `Cmds ⌘P`, `Scope ⌘B`)
+ * Sidebar footer status & quick-action strip:
+ * - Live local-first sync box
+ * - 3-button shortcut strip (`⌘K`, `⌘T`, `⌥L`)
  */
 export function WorkbenchSidebarPanel({
   mode,
@@ -357,7 +357,7 @@ export function WorkbenchSidebarPanel({
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={t('查看本地运行时与 Charioteer 插件连接', 'Inspect local runtime & Charioteer plugin connection')}
+        accessibilityLabel={t('查看本地运行时与多端同步状态', 'Inspect local runtime & sync status')}
         onPress={onOpenScope ?? onOpenPalette}
         style={({ pressed }) => [
           styles.sideGwBtn,
@@ -368,7 +368,7 @@ export function WorkbenchSidebarPanel({
         <View style={[styles.dotLive, { backgroundColor: color.green }]} />
         <Text variant="caption" style={styles.sideGwText} numberOfLines={1}>
           {mode === 'charioteer-host'
-            ? `charioteer://plugin · ${t('已挂载', 'Mounted')}`
+            ? `viastela://desktop · ${t('已连接', 'Connected')}`
             : `local://viastela · ${timeZone ?? t('已同步', 'Synced')}`}
         </Text>
       </Pressable>
@@ -428,7 +428,7 @@ export function WorkbenchSidebarPanel({
 }
 
 /**
- * Charioteer `.led-strip` 5-block horizontal ledger strip + `.profiles` quick dispatch bar.
+ * 2.5D Sanctuary Stage & daily rhythm console card.
  */
 export function WorkbenchConsoleCard({
   mode,
@@ -499,7 +499,7 @@ export function WorkbenchConsoleCard({
 }
 
 /**
- * Charioteer Stage-2 Style Workspace Scope & Plugin Architecture Overlay (`⌘B`).
+ * Workspace Scope & Local-First Architecture Overlay (`⌘B`).
  */
 export function WorkbenchScopeModal({
   visible,
@@ -533,14 +533,14 @@ export function WorkbenchScopeModal({
             <View style={[styles.scopeTopBadge, { backgroundColor: color.pill }]}>
               <View style={[styles.podDot, { backgroundColor: color.accent }]} />
               <Text variant="caption" style={styles.mono}>
-                {`${manifest.id} · Local-First Personal OS & Perspective Host`}
+                {`${manifest.id} · Local-First Personal Rhythm & Wealth OS`}
               </Text>
             </View>
             <Text variant="title" style={styles.scopeMainTitle}>
-              个人日常节律、长期净值与时间线，一处静默归档。
+              个人日常节律、家庭账本、深度学习与长期净值，一处静默归档。
             </Text>
             <Text variant="body" tone="muted" style={styles.scopeMainSub}>
-              共用本地优先离线队列（Outbox）与暖纸双模视觉令牌，既可作为 macOS / iOS / Android / Web 独立应用运行，也可按 Charioteer 协议零侵入挂载。
+              共用本地优先离线队列（Outbox）与暖纸/黑金双模视觉令牌，在 macOS / iOS / Android / Web 四端保持同源一致的沉浸体验。
             </Text>
           </View>
 
@@ -597,7 +597,7 @@ export function WorkbenchScopeModal({
 
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Charioteer 插件挂载模式"
+              accessibilityLabel="星途全局快捷键与扩展协议"
               onPress={() => setSelectedScope('charioteer')}
               style={[
                 styles.choiceCard,
@@ -609,11 +609,11 @@ export function WorkbenchScopeModal({
               ]}
             >
               <Text variant="caption" style={[styles.choiceTag, { color: color.ink }]}>
-                CHARIOTEER PLUGIN
+                WORKBENCH PROTOCOL
               </Text>
-              <Text variant="heading">Charioteer 宿主插件挂载</Text>
+              <Text variant="heading">星途 4D 指令与扩展清单</Text>
               <Text variant="muted" style={styles.choiceDesc}>
-                遵循 @charioteer/plugin-sdk v1.0.0 规范，通过 /charioteer-plugin.json 向宿主贡献 4 条侧栏轨道与 9 项全局快捷指令。
+                内置 ⌘P 自然语言速记与 12 项全局快捷指令，支持晨重、训练、精读、记账跨模块自动联动。
               </Text>
               <Text variant="caption" tone="muted" style={styles.choiceFooter}>
                 {`${manifest.id} · Protocol v${manifest.protocolVersion}`}
@@ -623,7 +623,7 @@ export function WorkbenchScopeModal({
 
           <View style={styles.scopeBottomActions}>
             <CockpitPillButton
-              label="复制 charioteer-plugin.json 清单"
+              label="复制星途工作台配置清单"
               onPress={onCopyManifest}
             />
             <CockpitPillButton
@@ -725,9 +725,9 @@ export function WorkbenchCommandPalette({
           <View style={styles.paletteTop}>
             <View style={styles.paletteTitleRow}>
               <View style={styles.paletteTitleCluster}>
-                <Text variant="heading">Command Palette &amp; Omnibar</Text>
+                <Text variant="heading">星途 4D 指令台 · Command Palette</Text>
                 <TagChip
-                  label={mode === 'charioteer-host' ? 'Charioteer Mounted' : 'Standalone OS'}
+                  label={mode === 'charioteer-host' ? 'Desktop Host' : 'Local-First OS'}
                   tone={mode === 'charioteer-host' ? 'exec' : 'owner'}
                 />
               </View>
@@ -780,7 +780,7 @@ export function WorkbenchCommandPalette({
                     {`⚡ ${omnibarIntent.badgeZh} · ${omnibarIntent.summaryZh}`}
                   </Text>
                   <Text variant="caption" tone="muted" style={styles.mono}>
-                    charioteer.omnibar.instantExecute
+                    viastela.omnibar.instantExecute
                   </Text>
                 </View>
                 <View style={[styles.kbdPill, { backgroundColor: color.card }]}>
@@ -857,11 +857,11 @@ export function WorkbenchCommandPalette({
               </Text>
               <Text variant="caption" tone="muted">
                 {mode === 'charioteer-host'
-                  ? '已作为 Charioteer Perspective 插件挂载运行'
+                  ? '已连接桌面扩展宿主 · 支持全局快捷键调起'
                   : '独立应用运行中 · 支持 ↑/↓ 导航与 Enter 快速执行'}
               </Text>
             </View>
-            <CockpitPillButton label="复制插件清单" onPress={onCopyManifest} />
+            <CockpitPillButton label="复制配置清单" onPress={onCopyManifest} />
           </View>
         </Pressable>
       </Pressable>

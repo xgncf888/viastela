@@ -16,7 +16,7 @@ describe('charioteer-plugin protocol v1.0', () => {
     });
 
     expect(manifest.protocolVersion).toBe(CHARIOTEER_PLUGIN_PROTOCOL_VERSION);
-    expect(manifest.id).toBe('@charioteer/viastela');
+    expect(manifest.id).toBe('@viastela/workbench');
     expect(manifest.kind).toBe('perspective');
     expect(manifest.scope).toBe('open-source');
     expect(manifest.permissions).toEqual(['event-bus']);

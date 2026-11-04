@@ -1,11 +1,11 @@
 {
   "protocolVersion": "1.0.0",
-  "id": "@charioteer/viastela",
+  "id": "@viastela/workbench",
   "name": "星途 · 个人节律与长期资产工作台",
   "version": "1.0.0",
   "kind": "perspective",
   "scope": "open-source",
-  "description": "个人节律（晨重、力量训练、专注学习）与长期净值轨迹工作台，支持独立多端运行或按 Charioteer 协议挂载。",
+  "description": "个人节律（晨重、力量训练、专注学习、家庭账本）与长期净值轨迹工作台，支持 macOS / iOS / Android / Web 全平台本地优先运行。",
   "permissions": ["event-bus"],
   "entrypoints": {
     "ui": "/",
@@ -72,7 +72,7 @@
       {
         "id": "viastela.personal-ledger",
         "label": "Local-First Personal Ledger & Offline Outbox",
-        "targetPerspective": "@charioteer/viastela"
+        "targetPerspective": "@viastela/workbench"
       }
     ]
   }

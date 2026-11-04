@@ -78,7 +78,7 @@ export type WorkbenchTelemetryBadges = {
 export function buildCharioteerPluginManifest(
   badges: WorkbenchTelemetryBadges = {},
 ): CharioteerPluginManifest {
-  const pluginId = `@charioteer/${brand.slug}`;
+  const pluginId = `@${brand.slug}/workbench`;
   return {
     protocolVersion: CHARIOTEER_PLUGIN_PROTOCOL_VERSION,
     id: pluginId,
@@ -87,7 +87,7 @@ export function buildCharioteerPluginManifest(
     kind: 'perspective',
     scope: 'open-source',
     description:
-      '个人节律（晨重、力量训练、专注学习）与长期净值轨迹工作台，支持独立多端运行或按 Charioteer 协议挂载。',
+      '个人节律（晨重、力量训练、专注学习、家庭账本）与长期净值轨迹工作台，支持 macOS / iOS / Android / Web 全平台本地优先运行。',
     permissions: ['event-bus'],
     entrypoints: {
       ui: '/',

@@ -5,7 +5,7 @@ import { theme } from './theme';
 import { useTheme } from './ThemeProvider';
 
 /**
- * The V mark (§5, §14) upgraded to the Charioteer Sister-Series Black & Gold Crest.
+ * The V mark (§5, §14) with Obsidian & Gold Celestial Astrolabe Crest.
  * Drawn on a 22-unit box and scaled to `size`.
  * Keeps `BRAND_MARK_V` and `BRAND_MARK_STAR` paths for backward compatibility with unit tests,
  * layered inside an obsidian-and-gold celestial astrolabe badge.

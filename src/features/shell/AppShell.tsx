@@ -641,8 +641,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       await navigator.clipboard.writeText(json);
       showToast({
         text: t(
-          '已复制 Charioteer 插件清单 (charioteer-plugin.json)',
-          'Copied Charioteer plugin manifest (charioteer-plugin.json)',
+          '已复制星途工作台配置清单',
+          'Copied workbench manifest',
         ),
       });
       setPaletteOpen(false);

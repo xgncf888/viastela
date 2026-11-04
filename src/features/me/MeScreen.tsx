@@ -266,15 +266,15 @@ export function MeScreen() {
       await navigator.clipboard.writeText(json);
       showToast({
         text: t(
-          '已复制 Charioteer 插件清单 (charioteer-plugin.json)',
-          'Copied Charioteer plugin manifest (charioteer-plugin.json)',
+          '已复制星途工作台配置清单',
+          'Copied workbench manifest',
         ),
       });
       return;
     }
     try {
       await Share.share({
-        title: 'charioteer-plugin.json',
+        title: 'viastela-workbench.json',
         message: json,
       });
     } catch {
@@ -421,35 +421,35 @@ export function MeScreen() {
             <Card>
               <Stack gap="md">
                 <Text variant="heading">
-                  {t('个人工作台与 Charioteer 插件协议', 'Personal Workbench & Charioteer Plugin Protocol')}
+                  {t('星途跨端工作台与快捷键协议', 'Cross-Device Workbench & Shortcuts')}
                 </Text>
                 <Field
                   label={t('当前运行形态', 'Runtime Mode')}
                   value={
                     hostMode === 'charioteer-host'
-                      ? t('已挂载至 Charioteer 宿主 (Perspective 插件模式)', 'Mounted in Charioteer Host (Perspective Plugin)')
-                      : t('独立应用运行 (Standalone Local-First 工作台)', 'Standalone App (Local-First Workbench)')
+                      ? t('桌面扩展宿主模式 (Desktop Host)', 'Desktop Host Mode')
+                      : t('独立应用运行 (Local-First 跨端工作台)', 'Standalone App (Local-First Workbench)')
                   }
                 />
                 <Field
-                  label={t('Charioteer 插件标识', 'Plugin Identifier')}
-                  value={`${pluginManifest.id} · Protocol v${CHARIOTEER_PLUGIN_PROTOCOL_VERSION} (${pluginManifest.kind})`}
+                  label={t('工作台模块标识', 'Workbench Identifier')}
+                  value={`${pluginManifest.id} · Protocol v${CHARIOTEER_PLUGIN_PROTOCOL_VERSION}`}
                   hint={t(
-                    '保持独立跨端应用体验的同时，支持通过 /charioteer-plugin.json 注册到 Charioteer 通用宿主。',
-                    'Runs standalone across macOS/iOS/Android/Web and mounts into Charioteer via /charioteer-plugin.json.',
+                    '支持 macOS / iOS / Android / Web 全平台离线优先运行与全局 4D 自然语言指令调起。',
+                    'Runs offline-first across macOS/iOS/Android/Web with global 4D Omnibar commands.',
                   )}
                 />
                 {Platform.OS === 'web' && layout !== 'compact' ? (
                   <Field
                     label={t('工作台全局快捷键', 'Global Shortcuts')}
                     value={t(
-                      '⌘K 快记面板 · ⌘P 指令面板 · ⌘T 切换黑金/暖色 · ⌥L 切换中/英 · ⌘1–⌘5 切换栏目',
-                      '⌘K Quick Log · ⌘P Command Palette · ⌘T Theme · ⌥L Language · ⌘1–⌘5 Tabs',
+                      '⌘K 快记面板 · ⌘P 指令面板 · ⌘T 切换黑金/暖色 · ⌥L 切换中/英 · ⌘1–⌘9 切换栏目',
+                      '⌘K Quick Log · ⌘P Command Palette · ⌘T Theme · ⌥L Language · ⌘1–⌘9 Tabs',
                     )}
                   />
                 ) : null}
                 <Button
-                  label={t('复制 Charioteer 插件清单', 'Copy Charioteer Plugin Manifest')}
+                  label={t('复制星途工作台配置清单', 'Copy Workbench Manifest')}
                   variant="secondary"
                   onPress={() => void onCopyPluginManifest()}
                 />
