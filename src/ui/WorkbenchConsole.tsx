@@ -7,6 +7,7 @@ import {
   filterWorkbenchCommands,
   type RuntimeHostMode,
 } from '@/core/charioteer-plugin';
+import { parseOmnibarCommand, type OmnibarIntent } from '@/core/omnibar';
 import { useI18n } from './use-i18n';
 import { cardSurfaceStyle } from './Card';
 import { Text } from './Text';
@@ -643,6 +644,7 @@ export function WorkbenchCommandPalette({
   manifest,
   onClose,
   onExecuteCommand,
+  onExecuteOmnibar,
   onCopyManifest,
 }: {
   visible: boolean;
@@ -650,12 +652,14 @@ export function WorkbenchCommandPalette({
   manifest: CharioteerPluginManifest;
   onClose: () => void;
   onExecuteCommand: (command: CharioteerCommandContribution) => void;
+  onExecuteOmnibar?: (intent: OmnibarIntent) => void;
   onCopyManifest: () => void;
 }) {
   const { color } = useTheme();
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const filtered = filterWorkbenchCommands(manifest.contributions.commands, query);
+  const omnibarIntent = parseOmnibarCommand(query);
 
   useEffect(() => {
     if (!visible || Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
@@ -668,19 +672,28 @@ export function WorkbenchCommandPalette({
         setActiveIndex((prev) =>
           filtered.length > 0 ? (prev - 1 + filtered.length) % filtered.length : 0,
         );
-      } else if (event.key === 'Enter' && filtered.length > 0) {
-        const selected = filtered[activeIndex] ?? filtered[0];
-        if (selected) {
+      } else if (event.key === 'Enter') {
+        if (omnibarIntent && onExecuteOmnibar) {
           event.preventDefault();
-          onExecuteCommand(selected);
+          onExecuteOmnibar(omnibarIntent);
           setQuery('');
           setActiveIndex(0);
+          return;
+        }
+        if (filtered.length > 0) {
+          const selected = filtered[activeIndex] ?? filtered[0];
+          if (selected) {
+            event.preventDefault();
+            onExecuteCommand(selected);
+            setQuery('');
+            setActiveIndex(0);
+          }
         }
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [activeIndex, filtered, onExecuteCommand, visible]);
+  }, [activeIndex, filtered, omnibarIntent, onExecuteCommand, onExecuteOmnibar, visible]);
 
   if (!visible) return null;
 
@@ -712,7 +725,7 @@ export function WorkbenchCommandPalette({
           <View style={styles.paletteTop}>
             <View style={styles.paletteTitleRow}>
               <View style={styles.paletteTitleCluster}>
-                <Text variant="heading">Command Palette</Text>
+                <Text variant="heading">Command Palette &amp; Omnibar</Text>
                 <TagChip
                   label={mode === 'charioteer-host' ? 'Charioteer Mounted' : 'Standalone OS'}
                   tone={mode === 'charioteer-host' ? 'exec' : 'owner'}
@@ -726,7 +739,7 @@ export function WorkbenchCommandPalette({
                 setQuery(text);
                 setActiveIndex(0);
               }}
-              placeholder="输入指令名称或快捷键过滤（支持 ↑/↓ 选择，Enter 执行）…"
+              placeholder="输入指令过滤，或直接输入「72.4kg / 卧推 60kg 8x4 / 读 DDIA 45m / 瑞幸 18 微信」回车秒记…"
               placeholderTextColor={color.muted}
               autoFocus={Platform.OS === 'web'}
               style={[
@@ -744,6 +757,39 @@ export function WorkbenchCommandPalette({
                   : null,
               ]}
             />
+            {omnibarIntent && onExecuteOmnibar ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={omnibarIntent.summaryZh}
+                onPress={() => {
+                  onExecuteOmnibar(omnibarIntent);
+                  setQuery('');
+                }}
+                style={({ pressed }) => [
+                  styles.commandItem,
+                  {
+                    marginTop: 4,
+                    borderWidth: theme.border.width,
+                    borderColor: color.accent,
+                    backgroundColor: pressed ? color.pressed : color.accentSoft,
+                  },
+                ]}
+              >
+                <View style={styles.commandItemLeft}>
+                  <Text variant="body" style={styles.semibold}>
+                    {`⚡ ${omnibarIntent.badgeZh} · ${omnibarIntent.summaryZh}`}
+                  </Text>
+                  <Text variant="caption" tone="muted" style={styles.mono}>
+                    charioteer.omnibar.instantExecute
+                  </Text>
+                </View>
+                <View style={[styles.kbdPill, { backgroundColor: color.card }]}>
+                  <Text variant="caption" style={styles.mono}>
+                    Enter ↵
+                  </Text>
+                </View>
+              </Pressable>
+            ) : null}
           </View>
 
           <View style={[styles.hairline, { backgroundColor: color.line }]} />

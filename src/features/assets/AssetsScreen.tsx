@@ -288,7 +288,27 @@ export function AssetsScreen() {
             ) : null
           }
         />
-        <CnyLedgerBridgeCard ledgerState={ledgerState} masked={masked} />
+        <CnyLedgerBridgeCard
+          ledgerState={ledgerState}
+          masked={masked}
+          onSyncMonthlyCashflowToAssumptions={async (monthlyNetUsd) => {
+            const assumptions = portfolio?.assumptions;
+            const rates = assumptions?.returnRates ?? DEFAULT_RATES;
+            await saveAssumptions({
+              id: assumptions?.id ?? createId(),
+              startUsd: assumptions?.startUsd ?? Math.round(book?.total_usd ?? 100000),
+              startMonth:
+                assumptions?.startMonth ?? `${civilLocalDay(new Date(), timeZone).slice(0, 7)}-01`,
+              monthlyNetUsd,
+              returnRates: rates,
+              mainRateIndex: assumptions?.mainRateIndex ?? 1,
+            });
+            showToast({
+              text: `✓ 已将人民币合池月结余折算同步至净值预测（+$${monthlyNetUsd.toLocaleString('en-US')}/月）`,
+            });
+            await reload();
+          }}
+        />
         <LoadingRegion
           name="资产"
           loading={loading && ready === null}
@@ -1099,9 +1119,11 @@ function eventTitle(event: AssetEventRow): string {
 function CnyLedgerBridgeCard({
   ledgerState,
   masked,
+  onSyncMonthlyCashflowToAssumptions,
 }: {
   ledgerState: BookkeepingState;
   masked: boolean;
+  onSyncMonthlyCashflowToAssumptions?: (monthlyNetUsd: number) => Promise<void>;
 }) {
   const wallets = computeAccountBalances(
     ledgerState.transactions,
@@ -1115,15 +1137,29 @@ function CnyLedgerBridgeCard({
     fallbackMonthlyIncomeCny: pool.pooledMonthIncomeCny || 30000,
   });
   const liquidPlusSavedCny = Math.round(walletTotalCny + ledgerState.wealthPlan.currentSavedCny);
+  const estimatedMonthlyUsd = Math.max(
+    100,
+    Math.round((Math.max(0, pool.pooledNetCashflowCny) || traj.monthlyInvestCny) / 7.2),
+  );
 
   return (
     <Card>
       <Stack gap="xs">
         <Row justify="between" align="center" gap="sm" wrap>
           <Text variant="heading">人民币账本资金池与四大账户实时结余（¥ CNY）</Text>
-          <Text variant="caption" tone="muted">
-            {`已合池 ${pool.items.filter((i) => i.book.includeInPool).length}/${pool.items.length} 个账本`}
-          </Text>
+          <Row gap="xs" align="center" wrap>
+            <Text variant="caption" tone="muted">
+              {`已合池 ${pool.items.filter((i) => i.book.includeInPool).length}/${pool.items.length} 个账本`}
+            </Text>
+            {onSyncMonthlyCashflowToAssumptions ? (
+              <Button
+                label={`⇄ 同步月储蓄 ($${estimatedMonthlyUsd}/月) 至预测曲线`}
+                variant="secondary"
+                size="mini"
+                onPress={() => void onSyncMonthlyCashflowToAssumptions(estimatedMonthlyUsd)}
+              />
+            ) : null}
+          </Row>
         </Row>
         <Divider />
         <Row justify="between" align="center" gap="sm" wrap>

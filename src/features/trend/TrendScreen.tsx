@@ -1,8 +1,10 @@
 import { Fragment, useEffect, useState } from 'react';
 import { Platform, Pressable, View } from 'react-native';
 
+import { computeCrossModuleCorrelations } from '@/core/correlation-insights';
 import { computeLocalDay, formatClock, formatMonthDay, weekdayLabel } from '@/core/local-day';
 import { formatKg, summarizeWindow } from '@/core/weight-stats';
+import { readBookkeepingState } from '@/data/bookkeeping';
 import { useRefreshOnFocus } from '@/data/refresh-on-focus';
 import { openRecordSheet } from '@/features/record/record-sheet-store';
 import { useShellInset } from '@/features/shell/AppShell';
@@ -60,6 +62,14 @@ export function TrendScreen() {
   const countedTraining = excludePending(training?.sets ?? [], training?.pendingDeleteIds ?? new Set());
   const countedStudy = excludePending(study?.records ?? [], study?.pendingDeleteIds ?? new Set());
   const totalStudyMins = countedStudy.reduce((sum, item) => sum + item.durationMinutes, 0);
+  const correlations = computeCrossModuleCorrelations({
+    endDay,
+    windowDays: 14,
+    weights: counted,
+    trainingSets: countedTraining,
+    studyRecords: countedStudy,
+    transactions: readBookkeepingState().transactions,
+  });
   const days = [...summarizeWindow(counted, endDay)].reverse();
   const series = chartSeries(counted, endDay);
   const startLabel = formatMonthDay(series.startDay);
@@ -137,26 +147,76 @@ export function TrendScreen() {
           />
         ) : null}
 
-        {/* Multi-Metric Body × Mind Synergy Strip */}
+        {/* Multi-Metric Body × Mind Synergy Strip + Cross-Module Correlation Insights */}
         <Card>
-          <Row justify="between" align="center" gap="sm" wrap>
-            <Row gap="sm" align="center" wrap>
-              <Text variant="label" style={{ fontWeight: theme.fontWeight.semibold }}>
-                {t('✦ 身心节律三维联动（晨重 × 训练 × 专注）', '✦ Body × Mind Synergy (Weight × Workout × Focus)')}
-              </Text>
-              <TagChip
-                label={t(
-                  `采样 ${counted.length} 笔 · 训练 ${countedTraining.length} 组 · 专注 ${totalStudyMins} 分钟`,
-                  `${counted.length} weigh-ins · ${countedTraining.length} sets · ${totalStudyMins}m focus`,
-                )}
-                tone="exec"
+          <Stack gap="sm">
+            <Row justify="between" align="center" gap="sm" wrap>
+              <Row gap="sm" align="center" wrap>
+                <Text variant="label" style={{ fontWeight: theme.fontWeight.semibold }}>
+                  {t('✦ 身心 × 消费四维相关性洞察（晨重 × 训练 × 专注 × 账本）', '✦ 4D Correlation Insights (Weight × Workout × Focus × Spend)')}
+                </Text>
+                <TagChip
+                  label={t(
+                    `同频分 ${correlations.synergyScore} · 采样 ${counted.length} 笔 · 训练 ${countedTraining.length} 组 · 专注 ${totalStudyMins} 分钟`,
+                    `Synergy ${correlations.synergyScore} · ${counted.length} weigh-ins · ${countedTraining.length} sets · ${totalStudyMins}m focus`,
+                  )}
+                  tone="exec"
+                />
+              </Row>
+              <CockpitPillButton
+                label={t('＋ 记一笔', '＋ Quick Log')}
+                onPress={() => openRecordSheet()}
               />
             </Row>
-            <CockpitPillButton
-              label={t('＋ 记一笔', '＋ Quick Log')}
-              onPress={() => openRecordSheet()}
-            />
-          </Row>
+            <Divider />
+            <Row gap="sm" wrap>
+              {correlations.cards.map((insight) => (
+                <View
+                  key={insight.id}
+                  style={{
+                    flex: 1,
+                    minWidth: theme.layout.sidebar,
+                    padding: theme.space.sm,
+                    borderRadius: theme.radius.sm,
+                    borderWidth: theme.border.width,
+                    borderColor: color.lineSoft,
+                    borderLeftWidth: theme.border.indicator,
+                    borderLeftColor:
+                      insight.tone === 'exec'
+                        ? color.green
+                        : insight.tone === 'owner'
+                          ? color.accent
+                          : color.warning,
+                    backgroundColor: color.surface,
+                    gap: theme.space.xs,
+                  }}
+                >
+                  <Row justify="between" align="center" gap="xs">
+                    <TagChip
+                      label={t(insight.tagZh, insight.tagEn)}
+                      tone={insight.tone}
+                    />
+                    <Text
+                      variant="caption"
+                      style={{
+                        fontFamily: theme.fontFamily.mono,
+                        fontWeight: theme.fontWeight.semibold,
+                        color: color.accent,
+                      }}
+                    >
+                      {insight.metricBadge}
+                    </Text>
+                  </Row>
+                  <Text variant="body" style={{ fontWeight: theme.fontWeight.semibold }}>
+                    {t(insight.titleZh, insight.titleEn)}
+                  </Text>
+                  <Text variant="caption" tone="muted">
+                    {t(insight.detailZh, insight.detailEn)}
+                  </Text>
+                </View>
+              ))}
+            </Row>
+          </Stack>
         </Card>
 
         <Columns

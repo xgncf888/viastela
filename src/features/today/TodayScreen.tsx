@@ -46,11 +46,14 @@ import {
   TagChip,
   WorkbenchConsoleCard,
 } from '@/ui/WorkbenchConsole';
+import { CharioteerMobileCockpit } from '@/ui/CharioteerMobileCockpit';
 import { LifeMilestonesOkrHub } from '@/ui/LifeMilestonesOkrHub';
 import { LifeSynergyPlaygroundHub } from '@/ui/LifeSynergyPlaygroundHub';
 import { OneTapSmartFlowCard } from '@/ui/OneTapSmartFlowCard';
 import { TimeBlockMasteryHub } from '@/ui/TimeBlockMasteryHub';
 import { WearableSyncHub } from '@/ui/WearableSyncHub';
+import { computeMonthlyBookkeepingSummary } from '@/core/bookkeeping';
+import { readBookkeepingState } from '@/data/bookkeeping';
 
 function shortWeekday(localDay: string): string {
   return weekdayLabel(localDay).replace('星期', '周');
@@ -244,17 +247,43 @@ export function TodayScreen() {
               }
             />
           ) : (
-            <OneTapSmartFlowCard
-              localDay={accounting}
-              lastWeightKg={last?.weightKg ?? null}
-              hasWeightToday={visibleToday.length > 0}
-              hasFocusToday={studyToday.length > 0}
-              hasWorkoutToday={trainingToday.length > 0}
-              onOneTapSaveWeight={(kg) => void saveWeight(kg)}
-              onOneTapSaveStudy={(input) => study.saveRecord(input)}
-              onOneTapSaveWorkout={(input) => training.saveSet(input)}
-              onOpenCustomSheet={(kind) => openRecordSheet(last?.weightKg, kind)}
-            />
+            <Stack gap="sm">
+              <CharioteerMobileCockpit
+                localDay={accounting}
+                latestWeightKg={last?.weightKg ?? null}
+                hasWeightToday={visibleToday.length > 0}
+                trainingSetsCount={trainingToday.length}
+                studyMinutesToday={studyMinutesToday}
+                monthlyExpenseCny={
+                  computeMonthlyBookkeepingSummary(readBookkeepingState(), accounting, 'pool')
+                    .totalExpenseCny
+                }
+                onSaveWeight={(kg) => void saveWeight(kg)}
+                onSaveWorkout={(input) => {
+                  for (let i = 0; i < input.setsCount; i += 1) {
+                    void training.saveSet({
+                      exercise: input.exercise,
+                      reps: input.reps,
+                      weightKg: input.weightKg,
+                      bandLevel: null,
+                    });
+                  }
+                }}
+                onSaveStudy={(input) => void study.saveRecord(input)}
+                onOpenSheet={(kind) => openRecordSheet(last?.weightKg, kind)}
+              />
+              <OneTapSmartFlowCard
+                localDay={accounting}
+                lastWeightKg={last?.weightKg ?? null}
+                hasWeightToday={visibleToday.length > 0}
+                hasFocusToday={studyToday.length > 0}
+                hasWorkoutToday={trainingToday.length > 0}
+                onOneTapSaveWeight={(kg) => void saveWeight(kg)}
+                onOneTapSaveStudy={(input) => study.saveRecord(input)}
+                onOneTapSaveWorkout={(input) => training.saveSet(input)}
+                onOpenCustomSheet={(kind) => openRecordSheet(last?.weightKg, kind)}
+              />
+            </Stack>
           )}
 
           <MonthEndNotice timeZone={timeZone} />

@@ -295,13 +295,18 @@ export function NavItem({
         <View
           style={[
             side ? styles.sideIndicator : styles.tabIndicator,
-            { backgroundColor: selected ? (side ? color.accent : color.ink) : 'transparent' },
+            { backgroundColor: selected ? color.accent : 'transparent' },
           ]}
         />
-        {side && icon ? (
+        {icon ? (
           <NavStrokeIcon kind={icon} stroke={selected ? color.accent : hovered ? color.ink : color.muted} />
         ) : null}
-        <Text variant="tab" tone={selected || hovered ? 'ink' : 'muted'} style={selected ? styles.navSelected : undefined}>
+        <Text
+          variant="tab"
+          tone={selected || hovered ? 'ink' : 'muted'}
+          style={[selected ? styles.navSelected : undefined, !side ? styles.tabLabel : undefined]}
+          numberOfLines={1}
+        >
           {label}
         </Text>
       </View>
@@ -462,12 +467,17 @@ const styles = StyleSheet.create({
   tabMain: {
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 2,
   },
   navTab: {
     flex: 1,
     flexDirection: 'column',
     minHeight: theme.layout.tabBar,
-    paddingHorizontal: theme.space.xs,
+    paddingHorizontal: 2,
+  },
+  tabLabel: {
+    fontSize: 10.5,
+    lineHeight: 13,
   },
   sideIndicator: {
     width: theme.border.indicator,
@@ -475,9 +485,10 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.pill,
   },
   tabIndicator: {
-    width: 28,
+    width: 18,
     height: theme.border.indicator,
-    marginBottom: theme.space.xs,
+    borderRadius: theme.radius.pill,
+    marginBottom: 2,
   },
   navSelected: { fontWeight: theme.fontWeight.semibold },
   navBadgePill: {

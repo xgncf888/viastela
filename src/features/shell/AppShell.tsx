@@ -28,6 +28,8 @@ import { useStudy } from '@/features/study/StudyProvider';
 import { useTraining } from '@/features/training/TrainingProvider';
 import { excludePending } from '@/features/weight/weight-copy';
 import { useWeight } from '@/features/weight/WeightProvider';
+import { executeParsedOmnibarIntent } from '@/ui/CharioteerMobileCockpit';
+import type { OmnibarIntent } from '@/core/omnibar';
 import {
   type NavBadgeTone,
   NavGroupLabel,
@@ -275,6 +277,66 @@ function ShellDeletedRecordBanner() {
         training.dismissDeletedNotice();
         study.dismissDeletedNotice();
       }}
+    />
+  );
+}
+
+function ShellCommandPaletteBridge({
+  visible,
+  mode,
+  manifest,
+  onClose,
+  onExecuteCommand,
+  onCopyManifest,
+}: {
+  visible: boolean;
+  mode: RuntimeHostMode;
+  manifest: CharioteerPluginManifest;
+  onClose: () => void;
+  onExecuteCommand: (cmd: CharioteerCommandContribution) => void;
+  onCopyManifest: () => void;
+}) {
+  const weight = useWeight();
+  const training = useTraining();
+  const study = useStudy();
+  const { t } = useI18n();
+
+  const handleExecuteOmnibar = useCallback(
+    (intent: OmnibarIntent) => {
+      onClose();
+      const accountingDay = computeLocalDay(new Date(), weight.timeZone, weight.daySwitch);
+      executeParsedOmnibarIntent(
+        intent,
+        accountingDay,
+        {
+          onSaveWeight: (kg) => void weight.saveWeight(kg),
+          onSaveWorkout: (input) => {
+            for (let i = 0; i < input.setsCount; i += 1) {
+              void training.saveSet({
+                exercise: input.exercise,
+                reps: input.reps,
+                weightKg: input.weightKg,
+                bandLevel: null,
+              });
+            }
+          },
+          onSaveStudy: (input) => void study.saveRecord(input),
+        },
+        t,
+      );
+    },
+    [onClose, study, t, training, weight],
+  );
+
+  return (
+    <WorkbenchCommandPalette
+      visible={visible}
+      mode={mode}
+      manifest={manifest}
+      onClose={onClose}
+      onExecuteCommand={onExecuteCommand}
+      onExecuteOmnibar={handleExecuteOmnibar}
+      onCopyManifest={onCopyManifest}
     />
   );
 }
@@ -571,6 +633,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <NavItem
                 key={tab.id}
                 placement="tab"
+                icon={tab.icon}
                 label={locale === 'en' ? tab.enLabel : tab.label}
                 selected={current === tab.id}
                 onPress={() => go(tab)}
@@ -582,7 +645,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     >
       {children}
       <RecordSheet />
-      <WorkbenchCommandPalette
+      <ShellCommandPaletteBridge
         visible={paletteOpen}
         mode={runtimeMode}
         manifest={baseManifest}

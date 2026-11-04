@@ -879,6 +879,33 @@ export function ResearchBrowserHub({
                       {t('📰 存入晨报长文净读', '📰 Save to News Digest')}
                     </Text>
                   </Pressable>
+
+                  <Pressable
+                    onPress={() => {
+                      const { addedNode } = importCustomMarkdownKnowledgeNode({
+                        title: `⚡ 闪卡: ${activeResult.title.slice(0, 22)}`,
+                        domainId: 'ai-infra',
+                        markdownBody: [
+                          `核心问题：${activeResult.title} 解决了什么核心痛点？`,
+                          `关键结论：${activeResult.snippet}`,
+                          ...activeResult.paragraphs,
+                        ].join('\n'),
+                      });
+                      onSaveStudyRecord?.(`闪卡提炼: ${addedNode.title}`, 10, activeResult.sourceBadgeZh);
+                      recordPledgeReward(`闪卡提炼：${addedNode.title}`, localDay, 15);
+                      showToast({
+                        text: t(
+                          `🧠 已从「${activeResult.title.slice(0, 18)}」生成 FSRS 艾宾浩斯记忆闪卡并加入学习角闯关舱！`,
+                          '🧠 Generated FSRS Flashcard in Academy!',
+                        ),
+                      });
+                    }}
+                    style={[styles.pageTurnBtn, { borderColor: pal.emerald, backgroundColor: pal.pillActiveBg }]}
+                  >
+                    <Text variant="caption" style={{ color: pal.emerald, fontSize: 12, fontFamily: theme.fontFamily.serif, fontWeight: '700' }}>
+                      {t('🧠 一键生成 FSRS 记忆闪卡 (+15¥)', '🧠 Generate FSRS Flashcard')}
+                    </Text>
+                  </Pressable>
                 </View>
 
                 {onJumpToStudyTab ? (
