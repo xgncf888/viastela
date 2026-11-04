@@ -660,8 +660,8 @@ function IsometricLifeZoneSvg({
     'svg',
     {
       width: 276,
-      height: 184,
-      viewBox: '0 0 280 188',
+      height: 226,
+      viewBox: '0 0 280 236',
       fill: 'none',
       style: {
         overflow: 'visible',
@@ -731,14 +731,54 @@ function IsometricLifeZoneSvg({
       ),
     ),
 
-    // 1. Soft Floor Bloom under the Isometric Base
+    // 1. Soft Floor Bloom under the Isometric Floating Rock Island
     createElement('ellipse', {
       cx: 136,
-      cy: 134,
-      rx: 108,
-      ry: 42,
+      cy: 164,
+      rx: 112,
+      ry: 46,
       fill: `url(#${floorBloomId})`,
     }),
+
+    // 1b. 3D Sculpted Low-Poly Floating Rock Cliff Base
+    createElement(
+      'g',
+      null,
+      createElement('polygon', {
+        points: '24,130 136,178 116,204 58,180',
+        fill: zone === 'focus' ? '#3a2417' : zone === 'vitality' ? '#1e2631' : '#352815',
+        stroke: 'rgba(245,185,66,0.20)',
+        strokeWidth: 0.7,
+      }),
+      createElement('polygon', {
+        points: '116,204 136,178 158,205 136,214',
+        fill: zone === 'focus' ? '#24160e' : zone === 'vitality' ? '#141a22' : '#22190c',
+      }),
+      createElement('polygon', {
+        points: '248,130 136,178 158,205 214,178',
+        fill: zone === 'focus' ? '#1c110b' : zone === 'vitality' ? '#0f141b' : '#181208',
+        stroke: 'rgba(245,185,66,0.16)',
+        strokeWidth: 0.7,
+      }),
+      createElement('polygon', {
+        points: '58,180 116,204 94,210 50,190',
+        fill: zone === 'focus' ? '#2c1b11' : zone === 'vitality' ? '#171e27' : '#291f10',
+      }),
+      createElement('polygon', {
+        points: '214,178 158,205 182,210 222,188',
+        fill: zone === 'focus' ? '#150d08' : zone === 'vitality' ? '#0b0f14' : '#120d06',
+      }),
+      createElement('polygon', {
+        points: '32,164 42,160 38,172',
+        fill: rimColor,
+        opacity: 0.58,
+      }),
+      createElement('polygon', {
+        points: '234,162 244,158 238,171',
+        fill: '#f5b942',
+        opacity: 0.58,
+      }),
+    ),
 
     // 2. 3D Extruded Isometric Base Slab
     createElement('polygon', {
@@ -1210,6 +1250,63 @@ function IsometricLifeZoneSvg({
           createElement('line', { x1: 176, y1: 117, x2: 200, y2: 107, stroke: '#fde68a', strokeWidth: 2.6 }),
         )
       : null,
+    // Vitality Island Front Lip Emerald '🏆 1RM PR' Badge
+    zone === 'vitality'
+      ? createElement(
+          'g',
+          null,
+          createElement('rect', {
+            x: 92,
+            y: 145,
+            width: 88,
+            height: 20,
+            rx: 10,
+            fill: '#10b981',
+            stroke: '#6ee7b7',
+            strokeWidth: 1.2,
+          }),
+          createElement(
+            'text',
+            {
+              x: 136,
+              y: 158,
+              textAnchor: 'middle',
+              fill: '#052e16',
+              fontSize: '10.5',
+              fontWeight: '800',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            },
+            '🏆 1RM PR',
+          ),
+        )
+      : null,
+    // Bottom Obsidian-Gold Floating Island Nameplate Pill ('心流书房' / '活力体态' / '星愿金库')
+    createElement(
+      'g',
+      null,
+      createElement('rect', {
+        x: 84,
+        y: 206,
+        width: 104,
+        height: 24,
+        rx: 12,
+        fill: isDark ? 'rgba(18, 16, 13, 0.94)' : 'rgba(255, 251, 235, 0.96)',
+        stroke: active ? '#f5b942' : rimColor,
+        strokeWidth: active ? 1.5 : 1.1,
+      }),
+      createElement(
+        'text',
+        {
+          x: 136,
+          y: 222,
+          textAnchor: 'middle',
+          fill: isDark ? '#fde68a' : '#78350f',
+          fontSize: '12',
+          fontWeight: '700',
+        },
+        zone === 'focus' ? '心流书房' : zone === 'vitality' ? '活力体态' : '星愿金库',
+      ),
+    ),
   );
 }
 
@@ -2616,14 +2713,93 @@ export function IsometricStudioStage({
             style={[
               styles.stageGridBg,
               { backgroundColor: pal.stageBg },
+              Platform.OS === 'web'
+                ? ({
+                    backgroundImage: isDark
+                      ? `radial-gradient(ellipse at 72% 24%, ${circadianMeta.glow} 0%, rgba(16, 18, 24, 0.96) 72%)`
+                      : `radial-gradient(ellipse at 72% 24%, ${circadianMeta.glow} 0%, rgba(246, 241, 231, 0.96) 72%)`,
+                  } as unknown as ViewStyle)
+                : null,
               isCompactMobile
                 ? ({
-                    minHeight: mobileStageMode === 'panoramic' ? 112 : 162,
+                    minHeight: mobileStageMode === 'panoramic' ? 128 : 178,
                     overflow: 'hidden',
                   } as unknown as ViewStyle)
                 : null,
             ]}
           >
+            {/* Centered Stage Hero Banner: Circadian Sky Pill + Camera Toggle + 'The Isometric Stage' */}
+            {!isCompactMobile ? (
+              <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 4, gap: 6, zIndex: 5 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      const order: ('auto' | 'dawn' | 'noon' | 'dusk' | 'midnight')[] = [
+                        'auto',
+                        'dawn',
+                        'noon',
+                        'dusk',
+                        'midnight',
+                      ];
+                      const idx = order.indexOf(circadianOverride);
+                      const next = order[(idx + 1) % order.length] ?? 'auto';
+                      setCircadianOverride(next);
+                      playStageTactileTick('tick');
+                    }}
+                    style={{
+                      paddingHorizontal: 14,
+                      paddingVertical: 5,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: circadianMeta.border,
+                      backgroundColor: isDark ? 'rgba(20, 18, 15, 0.84)' : 'rgba(255, 251, 235, 0.92)',
+                    }}
+                  >
+                    <Text variant="caption" style={{ fontSize: 11.5, fontWeight: '700', color: pal.ink }}>
+                      {`${circadianMeta.icon} ${t(circadianMeta.zh, circadianMeta.en)} (${t('点击切换天光', 'Tap to switch sky')})`}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      const order: ('all' | LifeZoneKey)[] = ['all', 'focus', 'vitality', 'wishes'];
+                      const idx = order.indexOf(focusedIsland);
+                      const next = order[(idx + 1) % order.length] ?? 'all';
+                      setFocusedIsland(next);
+                      if (next !== 'all') setInternalZone(next);
+                      playStageTactileTick('chime');
+                    }}
+                    style={{
+                      paddingHorizontal: 14,
+                      paddingVertical: 5,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: focusedIsland !== 'all' ? pal.goldAccent : pal.bentoBorder,
+                      backgroundColor: isDark ? 'rgba(20, 18, 15, 0.84)' : 'rgba(255, 251, 235, 0.92)',
+                    }}
+                  >
+                    <Text variant="caption" style={{ fontSize: 11.5, fontWeight: '700', color: focusedIsland !== 'all' ? pal.goldText : pal.ink }}>
+                      {focusedIsland === 'all'
+                        ? t('🎥 镜头: 三岛全景 ⇄ 单岛特写', '🎥 Camera: All 3 Islands ⇄ Close-Up')
+                        : focusedIsland === 'focus'
+                          ? t('🎥 镜头: 心流书房特写 (点击切下一岛)', '🎥 Camera: Study Close-Up')
+                          : focusedIsland === 'vitality'
+                            ? t('🎥 镜头: 活力体态特写 (点击切下一岛)', '🎥 Camera: Gym Close-Up')
+                            : t('🎥 镜头: 星愿金库特写 (点击回全景)', '🎥 Camera: Vault Close-Up')}
+                    </Text>
+                  </Pressable>
+                </View>
+                <View style={{ alignItems: 'center', gap: 1 }}>
+                  <Text variant="heading" style={{ fontSize: 18, fontWeight: '700', color: pal.ink }}>
+                    The Isometric Stage
+                  </Text>
+                  <Text variant="caption" style={{ fontSize: 10.5, letterSpacing: 1.2, color: pal.sub }}>
+                    {t('星途微缩景观 · SANCTUARY STAGE', 'SANCTUARY STAGE · PERSONAL RHYTHM')}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
             <ScrollView
               horizontal={isCompactMobile && mobileStageMode === 'swipe'}
               showsHorizontalScrollIndicator={false}
@@ -2928,6 +3104,95 @@ export function IsometricStudioStage({
                 </View>
               </View>
             </ScrollView>
+
+            {/* Centered '4D 自动闭环通知' Box inside the Stage Bottom */}
+            <View
+              style={{
+                alignSelf: 'center',
+                width: isCompactMobile ? '94%' : 520,
+                maxWidth: '94%',
+                marginTop: 6,
+                marginBottom: 10,
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: pal.bentoBorder,
+                backgroundColor: isDark ? 'rgba(18, 20, 26, 0.88)' : 'rgba(255, 252, 245, 0.92)',
+                alignItems: 'center',
+                gap: 7,
+              }}
+            >
+              <Text variant="caption" style={{ fontSize: 11.5, fontWeight: '700', color: pal.ink }}>
+                {t('4D 自动闭环通知', '4D Closed-Loop Feed')}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  incrementOrAddTimeBlock({
+                    localDay,
+                    category: 'study',
+                    title: `FSRS 闪卡精修: ${stageState.bookTitle}`,
+                    deltaMinutes: 5,
+                    goalId: 'goal-ai-infra',
+                  });
+                  setTimeBlocks(readTimeBlocks());
+                  onInstantSaveStudy?.({ subject: stageState.bookTitle, durationMinutes: 5, note: 'FSRS 闪卡自动闭环' });
+                  const v = recordPledgeReward(`FSRS 闪卡精修: ${stageState.bookTitle}`, localDay, 8);
+                  setVault(v);
+                  triggerStageBurst('focus', '🧠 +5m & 心愿金 +¥8', pal.goldAccent, 'reward');
+                  showToast({
+                    text: t(
+                      '🧠 闪卡已评定 · 自动累加 +5m 专注学时 & 心愿金 +¥8',
+                      '🧠 Flashcard graded · Synced +5m focus & +¥8 Wish Vault',
+                    ),
+                  });
+                }}
+                style={{
+                  width: '100%',
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 999,
+                  borderWidth: 1.2,
+                  borderColor: '#f5b942',
+                  backgroundColor: isDark ? 'rgba(245, 185, 66, 0.12)' : 'rgba(245, 185, 66, 0.16)',
+                  alignItems: 'center',
+                }}
+              >
+                <Text variant="caption" style={{ fontSize: 11, fontWeight: '700', color: isDark ? '#fde68a' : '#92400e' }}>
+                  {t('🧠 闪卡已评定 · 自动累加 +5m 专注学时 & 心愿金 +¥8', '🧠 Flashcard Graded · Auto +5m Focus & +¥8 Wish Vault')}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  handleTapWorkoutCharacter(1);
+                  const v = recordPledgeReward('🏆 1RM PR 突破奖励', localDay, 18);
+                  setVault(v);
+                  triggerStageBurst('vitality', '🏆 1RM PR · +¥18', pal.emeraldAccent, 'reward');
+                  showToast({
+                    text: t(
+                      '🏆 新 1RM 纪录达成！心愿金库自动奖励 +¥18',
+                      '🏆 New 1RM PR Achieved! Wish Vault +¥18 bonus',
+                    ),
+                  });
+                }}
+                style={{
+                  width: '100%',
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 999,
+                  borderWidth: 1.2,
+                  borderColor: '#34d399',
+                  backgroundColor: isDark ? 'rgba(52, 211, 153, 0.12)' : 'rgba(52, 211, 153, 0.16)',
+                  alignItems: 'center',
+                }}
+              >
+                <Text variant="caption" style={{ fontSize: 11, fontWeight: '700', color: isDark ? '#6ee7b7' : '#065f46' }}>
+                  {t('🏆 新 1RM 纪录达成！心愿金库自动奖励 +¥18', '🏆 New 1RM PR Achieved! Auto +¥18 Wish Vault Bonus')}
+                </Text>
+              </Pressable>
+            </View>
           </View>
 
           {/* 3-Column Aligned Micro-Play Dock (1-to-1 Under Each Island, Zero Overlap with 24H Ribbon Bridges) */}

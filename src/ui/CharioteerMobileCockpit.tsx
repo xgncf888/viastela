@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { createElement, useMemo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, TextInput, View, type ViewStyle } from 'react-native';
 import { router } from 'expo-router';
 
@@ -727,6 +727,146 @@ export function CharioteerMobileCockpit({
             </View>
           </View>
         ) : null}
+      </View>
+
+      {/* 5. ✦ 星途专业工作室矩阵 · Studio Drawer (2x2 黑金浮雕插画 Bento 矩阵) */}
+      <StudioMatrixBentoCard />
+    </View>
+  );
+}
+
+function StudioBentoIllustration({ kind, isDark }: { kind: 'fitness' | 'browser' | 'trend' | 'timeline'; isDark: boolean }) {
+  if (Platform.OS !== 'web') return null;
+  const goldBright = '#FDE68A';
+  const goldMid = '#F5B942';
+  const goldDeep = isDark ? 'rgba(245, 185, 66, 0.24)' : 'rgba(184, 130, 40, 0.22)';
+
+  if (kind === 'fitness') {
+    return createElement(
+      'svg',
+      { width: 92, height: 50, viewBox: '0 0 92 50', fill: 'none' },
+      createElement('ellipse', { cx: 46, cy: 44, rx: 32, ry: 5, fill: goldDeep }),
+      createElement('line', { x1: 12, y1: 18, x2: 80, y2: 18, stroke: goldBright, strokeWidth: 2.2, strokeLinecap: 'round' }),
+      createElement('rect', { x: 15, y: 10, width: 5, height: 16, rx: 2, fill: goldMid }),
+      createElement('rect', { x: 22, y: 12, width: 4, height: 12, rx: 1.5, fill: goldBright }),
+      createElement('rect', { x: 72, y: 10, width: 5, height: 16, rx: 2, fill: goldMid }),
+      createElement('rect', { x: 66, y: 12, width: 4, height: 12, rx: 1.5, fill: goldBright }),
+      createElement('circle', { cx: 46, cy: 23, r: 5.2, fill: goldBright }),
+      createElement('path', { d: 'M36 44 L40 30 L52 30 L56 44 Z', fill: goldMid, fillOpacity: '0.88' }),
+      createElement('polyline', { points: '38,31 31,24 31,18', stroke: goldBright, strokeWidth: 2.4, strokeLinecap: 'round', fill: 'none' }),
+      createElement('polyline', { points: '54,31 61,24 61,18', stroke: goldBright, strokeWidth: 2.4, strokeLinecap: 'round', fill: 'none' }),
+    );
+  }
+  if (kind === 'browser') {
+    return createElement(
+      'svg',
+      { width: 92, height: 50, viewBox: '0 0 92 50', fill: 'none' },
+      createElement('rect', { x: 34, y: 8, width: 50, height: 34, rx: 5, fill: goldDeep, stroke: goldMid, strokeWidth: 1.2 }),
+      createElement('line', { x1: 34, y1: 16, x2: 84, y2: 16, stroke: goldMid, strokeWidth: 1 }),
+      createElement('rect', { x: 40, y: 21, width: 26, height: 4, rx: 2, fill: goldBright }),
+      createElement('rect', { x: 40, y: 29, width: 36, height: 3.5, rx: 1.5, fill: goldMid, fillOpacity: '0.7' }),
+      createElement('circle', { cx: 26, cy: 31, r: 13, fill: isDark ? '#141720' : '#FAF6EE', stroke: goldBright, strokeWidth: 1.4 }),
+      createElement('ellipse', { cx: 26, cy: 31, rx: 6, ry: 13, stroke: goldMid, strokeWidth: 1 }),
+      createElement('line', { x1: 13, y1: 31, x2: 39, y2: 31, stroke: goldMid, strokeWidth: 1 }),
+    );
+  }
+  if (kind === 'trend') {
+    return createElement(
+      'svg',
+      { width: 92, height: 50, viewBox: '0 0 92 50', fill: 'none' },
+      createElement('rect', { x: 18, y: 31, width: 9, height: 13, rx: 2, fill: goldDeep, stroke: goldMid, strokeWidth: 1 }),
+      createElement('rect', { x: 33, y: 25, width: 9, height: 19, rx: 2, fill: goldDeep, stroke: goldMid, strokeWidth: 1 }),
+      createElement('rect', { x: 48, y: 19, width: 9, height: 25, rx: 2, fill: goldMid, fillOpacity: '0.45', stroke: goldBright, strokeWidth: 1 }),
+      createElement('rect', { x: 63, y: 12, width: 9, height: 32, rx: 2, fill: goldMid, stroke: goldBright, strokeWidth: 1 }),
+      createElement('path', { d: 'M16 28 Q 40 22 68 8', stroke: goldBright, strokeWidth: 2.4, strokeLinecap: 'round', fill: 'none' }),
+      createElement('polygon', { points: '71,6 63,7 68,14', fill: goldBright }),
+    );
+  }
+  return createElement(
+    'svg',
+    { width: 92, height: 50, viewBox: '0 0 92 50', fill: 'none' },
+    createElement('rect', { x: 38, y: 10, width: 46, height: 30, rx: 5, fill: goldDeep, stroke: goldMid, strokeWidth: 1.1 }),
+    createElement('rect', { x: 44, y: 16, width: 32, height: 4, rx: 2, fill: goldBright }),
+    createElement('rect', { x: 44, y: 24, width: 24, height: 4, rx: 2, fill: goldMid }),
+    createElement('rect', { x: 44, y: 32, width: 34, height: 3.5, rx: 1.5, fill: goldMid, fillOpacity: '0.6' }),
+    createElement('circle', { cx: 28, cy: 30, r: 14, fill: isDark ? '#141720' : '#FAF6EE', stroke: goldBright, strokeWidth: 1.5 }),
+    createElement('polyline', { points: '28,21 28,30 35,33', stroke: goldBright, strokeWidth: 2, strokeLinecap: 'round', fill: 'none' }),
+  );
+}
+
+export function StudioMatrixBentoCard({ onSelectHref }: { onSelectHref?: (href: '/fitness' | '/browser' | '/trend' | '/timeline') => void }) {
+  const { color, scheme } = useTheme();
+  const { t } = useI18n();
+  const isDark = scheme === 'dark';
+  const items: readonly {
+    id: 'fitness' | 'browser' | 'trend' | 'timeline';
+    href: '/fitness' | '/browser' | '/trend' | '/timeline';
+    title: string;
+    sub: string;
+  }[] = [
+    { id: 'fitness', href: '/fitness', title: t('健身', 'Fitness'), sub: t('分化处方 · 1RM · 营养吧台', 'Splits · 1RM · Macros') },
+    { id: 'browser', href: '/browser', title: t('浏览器', 'Browser'), sub: t('7 引擎检索 · 论文摘录转闪卡', '7 Engines · FSRS Clipper') },
+    { id: 'trend', href: '/trend', title: t('趋势', 'Trends'), sub: t('28D 均重曲线 · 4D 相关性洞察', '28D EMA · 4D Correlations') },
+    { id: 'timeline', href: '/timeline', title: t('时间线', 'Timeline'), sub: t('跨模块流水台账 · 1m 时间块', 'Full Ledger · 1m Blocks') },
+  ];
+
+  return (
+    <View
+      style={[
+        cardSurfaceStyle(color.card, color.line),
+        {
+          borderRadius: 14,
+          padding: 12,
+          gap: 10,
+          borderColor: isDark ? 'rgba(245, 185, 66, 0.28)' : color.line,
+        },
+      ]}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text variant="label" style={{ fontSize: 12, fontWeight: theme.fontWeight.semibold, color: isDark ? '#FDE68A' : color.ink }}>
+          {t('✦ 星途专业工作室矩阵 · Studio Drawer', '✦ Studio Workbench Matrix')}
+        </Text>
+        <Text variant="caption" tone="muted" style={{ fontSize: 10, fontFamily: theme.fontFamily.mono }}>
+          4 MODULES
+        </Text>
+      </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        {items.map((item) => (
+          <Pressable
+            key={item.id}
+            accessibilityRole="button"
+            accessibilityLabel={item.title}
+            onPress={() => {
+              if (onSelectHref) onSelectHref(item.href);
+              else router.replace(item.href);
+            }}
+            style={({ pressed }) => ({
+              flexGrow: 1,
+              flexBasis: '46%',
+              padding: 10,
+              borderRadius: 11,
+              borderWidth: 1,
+              borderColor: isDark ? 'rgba(245, 185, 66, 0.24)' : color.line,
+              backgroundColor: pressed ? color.pressed : isDark ? '#141720' : color.surface,
+              gap: 4,
+            })}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text variant="label" style={{ fontSize: 13, fontWeight: theme.fontWeight.semibold, color: color.ink }}>
+                {item.title}
+              </Text>
+              <Text variant="caption" style={{ fontSize: 10, color: isDark ? '#F5B942' : color.accent }}>
+                ›
+              </Text>
+            </View>
+            <View style={{ alignItems: 'center', paddingVertical: 2 }}>
+              <StudioBentoIllustration kind={item.id} isDark={isDark} />
+            </View>
+            <Text variant="caption" tone="muted" numberOfLines={1} style={{ fontSize: 10 }}>
+              {item.sub}
+            </Text>
+          </Pressable>
+        ))}
       </View>
     </View>
   );
