@@ -450,17 +450,6 @@ export function TodayScreen() {
         />
 
         <Stack gap="md">
-          <OneTapSmartFlowCard
-            localDay={accounting}
-            lastWeightKg={last?.weightKg ?? null}
-            hasWeightToday={visibleToday.length > 0}
-            hasFocusToday={studyToday.length > 0}
-            hasWorkoutToday={trainingToday.length > 0}
-            onOneTapSaveWeight={(kg) => void saveWeight(kg)}
-            onOneTapSaveStudy={(input) => study.saveRecord(input)}
-            onOneTapSaveWorkout={(input) => training.saveSet(input)}
-            onOpenCustomSheet={(kind) => openRecordSheet(last?.weightKg, kind)}
-          />
           <WorkbenchConsoleCard
             mode={hostMode}
             localDay={accounting}
@@ -515,7 +504,7 @@ export function TodayScreen() {
           >
             <Row gap="sm" align="center" wrap>
               <Text variant="caption" style={{ fontWeight: theme.fontWeight.semibold }}>
-                {t('传统明细账本（7日均重 · 今日记录 · 周节律）', 'Classic Ledger (7D EMA · Logs · Weekly Rhythm)')}
+                {t('今日三件事速记 & 传统明细账本（7日均重 · 今日记录 · 周节律）', 'Quick 3-Task Flow & Classic Ledger (7D EMA · Logs · Weekly Rhythm)')}
               </Text>
               <TagChip
                 label={
@@ -544,6 +533,17 @@ export function TodayScreen() {
 
           {showClassicLedger ? (
             <Stack gap="md">
+              <OneTapSmartFlowCard
+                localDay={accounting}
+                lastWeightKg={last?.weightKg ?? null}
+                hasWeightToday={visibleToday.length > 0}
+                hasFocusToday={studyToday.length > 0}
+                hasWorkoutToday={trainingToday.length > 0}
+                onOneTapSaveWeight={(kg) => void saveWeight(kg)}
+                onOneTapSaveStudy={(input) => study.saveRecord(input)}
+                onOneTapSaveWorkout={(input) => training.saveSet(input)}
+                onOpenCustomSheet={(kind) => openRecordSheet(last?.weightKg, kind)}
+              />
               <AverageBlock
                 records={counted}
                 endDay={accounting}

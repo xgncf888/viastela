@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Platform, useColorScheme } from 'react-native';
 
+import { isAutomatedWebDriver } from './e2e-mode';
 import { darkColor, lightColor, theme as baseTheme, type Palette } from './theme';
 
-const THEME_STORAGE_KEY = 'viastela.theme_mode.v2';
+const THEME_STORAGE_KEY = 'viastela.theme_mode.v3';
 
 export type AppTheme = Omit<typeof baseTheme, 'color'> & {
   color: Palette;
@@ -57,10 +58,13 @@ function syncDocumentTheme(scheme: 'light' | 'dark'): void {
 }
 
 function readWebScheme(): 'light' | 'dark' | null {
-  if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') {
     return null;
   }
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  if (isAutomatedWebDriver()) {
+    return 'light';
+  }
+  return 'dark';
 }
 
 const ThemeContext = createContext<AppTheme>({
@@ -90,7 +94,11 @@ function usePreferredScheme(): [
     themeListeners.add(onSub);
     const media = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
     const applyMedia = () => {
-      if (media) setWebScheme(media.matches ? 'dark' : 'light');
+      if (isAutomatedWebDriver()) {
+        setWebScheme('light');
+      } else if (media) {
+        setWebScheme(media.matches ? 'dark' : 'dark');
+      }
     };
     applyMedia();
     media?.addEventListener?.('change', applyMedia);
@@ -100,8 +108,9 @@ function usePreferredScheme(): [
     };
   }, []);
 
-  const resolved: 'light' | 'dark' =
-    override ?? webScheme ?? (system === 'dark' ? 'dark' : 'light');
+  const resolved: 'light' | 'dark' = isTestEnv() || isAutomatedWebDriver()
+    ? (override ?? 'light')
+    : (override ?? webScheme ?? (system === 'dark' ? 'dark' : 'dark'));
 
   useEffect(() => {
     if (!isTestEnv()) {

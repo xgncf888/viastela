@@ -29,7 +29,7 @@ import { useStudy } from '@/features/study/StudyProvider';
 import { useTraining } from '@/features/training/TrainingProvider';
 import { excludePending } from '@/features/weight/weight-copy';
 import { useWeight } from '@/features/weight/WeightProvider';
-import { executeParsedOmnibarIntent } from '@/ui/CharioteerMobileCockpit';
+import { executeParsedOmnibarIntent, StudioMatrixBentoCard } from '@/ui/CharioteerMobileCockpit';
 import type { OmnibarIntent } from '@/core/omnibar';
 import {
   type NavBadgeTone,
@@ -738,46 +738,13 @@ export function AppShell({ children }: { children: ReactNode }) {
                   </Text>
                 </Pressable>
               </View>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.sm }}>
-                {studioDrawerItems.map((item) => {
-                  const isSel = current === item.id;
-                  return (
-                    <Pressable
-                      key={item.id}
-                      onPress={() => {
-                        setStudioDrawerOpen(false);
-                        go(item);
-                      }}
-                      style={{
-                        flexGrow: 1,
-                        flexBasis: '45%',
-                        padding: theme.space.sm,
-                        borderRadius: theme.radius.card,
-                        borderWidth: theme.border.width,
-                        borderColor: isSel ? color.accent : color.line,
-                        backgroundColor: isSel ? color.accentSoft : color.surface,
-                        gap: theme.space.xs,
-                      }}
-                    >
-                      <Text
-                        variant="label"
-                        style={{ color: isSel ? color.accent : color.ink, fontWeight: theme.fontWeight.semibold }}
-                      >
-                        {locale === 'en' ? item.enLabel : item.label}
-                      </Text>
-                      <Text variant="caption" tone="muted">
-                        {item.id === 'fitness'
-                          ? t('分化处方 · 1RM · 营养吧台', 'Splits · 1RM · Macros')
-                          : item.id === 'browser'
-                            ? t('7 引擎检索 · 论文摘录转闪卡', '7 Engines · FSRS Clipper')
-                            : item.id === 'trend'
-                              ? t('28D 均重曲线 · 4D 相关性洞察', '28D EMA · 4D Correlations')
-                              : t('跨模块流水台账 · 1m 时间块', 'Full Ledger · 1m Time Blocks')}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+              <StudioMatrixBentoCard
+                onSelectHref={(href) => {
+                  setStudioDrawerOpen(false);
+                  const target = TABS.find((tab) => tab.href === href);
+                  if (target) go(target);
+                }}
+              />
               <View style={{ flexDirection: 'row', gap: theme.space.sm }}>
                 <Pressable
                   onPress={() => {

@@ -13,6 +13,7 @@ import { Text } from './Text';
 import { theme } from './theme';
 import { useTheme } from './ThemeProvider';
 import { showToast } from './toast';
+import { StudioMatrixBentoCard } from './IsometricStudioStage';
 import { useI18n } from './use-i18n';
 
 export type MobileLifeScope = 'all' | 'body' | 'ledger' | 'study';
@@ -728,10 +729,14 @@ export function CharioteerMobileCockpit({
           </View>
         ) : null}
       </View>
+
+      {/* 5. ✦ 星途专业工作室矩阵 · Studio Drawer (2x2 黑金浮雕插画 Bento 矩阵) */}
+      <StudioMatrixBentoCard />
     </View>
   );
 }
 
+export { StudioMatrixBentoCard } from './IsometricStudioStage';
 const styles = StyleSheet.create({
   container: {
     gap: 8,

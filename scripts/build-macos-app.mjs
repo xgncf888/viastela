@@ -906,7 +906,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         // Prevent EXC_BAD_ACCESS zombie window when closing and reopening from Dock or MenuBar
         window.isReleasedWhenClosed = false
         window.isMovableByWindowBackground = true
-        window.backgroundColor = NSColor(calibratedRed: 0.969, green: 0.957, blue: 0.925, alpha: 1.0)
+        window.backgroundColor = NSColor(calibratedRed: 0.071, green: 0.075, blue: 0.094, alpha: 1.0)
         window.minSize = NSSize(width: 390, height: 640)
         window.delegate = self
         window.setFrameAutosaveName("AppMainWindow")
@@ -1308,8 +1308,8 @@ function main() {
   ];
   for (const bundlePath of targetBundles) {
     try {
-      rmSync(bundlePath, { recursive: true, force: true });
       const contentsDir = path.join(bundlePath, 'Contents');
+      rmSync(contentsDir, { recursive: true, force: true });
       const macosDir = path.join(contentsDir, 'MacOS');
       const resDir = path.join(contentsDir, 'Resources');
       const webDir = path.join(resDir, 'web');
