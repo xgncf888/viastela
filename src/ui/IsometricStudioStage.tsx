@@ -1510,6 +1510,7 @@ export function IsometricStudioStage({
   const [timer, setTimer] = useState<ActiveTimerSession>(readActiveTimer);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [lowerWorkspaceTab, setLowerWorkspaceTab] = useState<'matrix' | 'okr' | 'knowledge' | 'split'>('split');
+  const [mobileStageMode, setMobileStageMode] = useState<'panoramic' | 'swipe'>('panoramic');
 
   useEffect(() => {
     ensureStageFxKeyframes();
@@ -2498,27 +2499,71 @@ export function IsometricStudioStage({
                   </Pressable>
                 );
               })}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="切换三岛全景同屏与单岛横滑放大"
+                onPress={() => setMobileStageMode((m) => (m === 'panoramic' ? 'swipe' : 'panoramic'))}
+                style={{
+                  height: 26,
+                  paddingHorizontal: 8,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: pal.goldAccent,
+                  backgroundColor: pal.pillActiveBg,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Text
+                  variant="caption"
+                  style={{ fontSize: 9.8, fontWeight: '700', color: pal.goldText }}
+                >
+                  {mobileStageMode === 'panoramic' ? t('🔍 放大', '🔍 Zoom') : t('🌐 全景', '🌐 Full')}
+                </Text>
+              </Pressable>
             </View>
           ) : null}
 
-          {/* Upper Stage: 3 Directly Interactive Zones + Golden 24H Ribbon Bridges */}
-          <View style={[styles.stageGridBg, { backgroundColor: pal.stageBg }]}>
-            <Golden24HourRibbonBridgesSvg timerRunning={timer.isRunning} isDark={isDark} />
+          {/* Upper Stage: 1:1 Same-Source 3 Isometric Islands + Golden 24H Ribbon Bridges */}
+          <View
+            style={[
+              styles.stageGridBg,
+              { backgroundColor: pal.stageBg },
+              isCompactMobile && mobileStageMode === 'panoramic' && Platform.OS === 'web'
+                ? ({
+                    minHeight: 112,
+                    overflow: 'hidden',
+                  } as unknown as ViewStyle)
+                : null,
+            ]}
+          >
+            {!(isCompactMobile && mobileStageMode === 'swipe') ? (
+              <Golden24HourRibbonBridgesSvg timerRunning={timer.isRunning} isDark={isDark} />
+            ) : null}
 
             <ScrollView
-              horizontal={isCompactMobile}
+              horizontal={isCompactMobile && mobileStageMode === 'swipe'}
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={
-                isCompactMobile
+                isCompactMobile && mobileStageMode === 'swipe'
                   ? { paddingHorizontal: 10, paddingVertical: 6, gap: 12, alignItems: 'center' }
-                  : styles.isoCanvas
+                  : [
+                      styles.isoCanvas,
+                      isCompactMobile && mobileStageMode === 'panoramic' && Platform.OS === 'web'
+                        ? ({
+                            width: 920,
+                            flexWrap: 'nowrap',
+                            zoom: Math.max(0.36, Math.min(0.68, (viewportWidth - 28) / 920)),
+                          } as unknown as ViewStyle)
+                        : null,
+                    ]
               }
             >
               {/* Zone 1: 心流书房 (Directly Interactive Timer & Study) */}
               <View
                 style={[
                   styles.isoIslandSlot,
-                  isCompactMobile ? { width: 272, minWidth: 272 } : null,
+                  isCompactMobile && mobileStageMode === 'swipe' ? { width: 272, minWidth: 272 } : null,
                   selectedZone === 'focus' ? styles.isoNodeSelected : null,
                 ]}
               >
