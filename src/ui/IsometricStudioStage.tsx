@@ -2529,44 +2529,46 @@ export function IsometricStudioStage({
             style={[
               styles.stageGridBg,
               { backgroundColor: pal.stageBg },
-              isCompactMobile && mobileStageMode === 'panoramic' && Platform.OS === 'web'
+              isCompactMobile
                 ? ({
-                    minHeight: 112,
+                    minHeight: mobileStageMode === 'panoramic' ? 112 : 162,
                     overflow: 'hidden',
                   } as unknown as ViewStyle)
                 : null,
             ]}
           >
-            {!(isCompactMobile && mobileStageMode === 'swipe') ? (
-              <Golden24HourRibbonBridgesSvg timerRunning={timer.isRunning} isDark={isDark} />
-            ) : null}
-
             <ScrollView
               horizontal={isCompactMobile && mobileStageMode === 'swipe'}
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={
-                isCompactMobile && mobileStageMode === 'swipe'
-                  ? { paddingHorizontal: 10, paddingVertical: 6, gap: 12, alignItems: 'center' }
-                  : [
-                      styles.isoCanvas,
-                      isCompactMobile && mobileStageMode === 'panoramic' && Platform.OS === 'web'
-                        ? ({
-                            width: 920,
-                            flexWrap: 'nowrap',
-                            zoom: Math.max(0.36, Math.min(0.68, (viewportWidth - 28) / 920)),
-                          } as unknown as ViewStyle)
-                        : null,
-                    ]
-              }
+              contentContainerStyle={{ width: isCompactMobile && mobileStageMode === 'swipe' ? undefined : '100%' }}
             >
-              {/* Zone 1: 心流书房 (Directly Interactive Timer & Study) */}
               <View
                 style={[
-                  styles.isoIslandSlot,
-                  isCompactMobile && mobileStageMode === 'swipe' ? { width: 272, minWidth: 272 } : null,
-                  selectedZone === 'focus' ? styles.isoNodeSelected : null,
+                  { position: 'relative', width: isCompactMobile ? 940 : '100%' },
+                  isCompactMobile && Platform.OS === 'web'
+                    ? ({
+                        zoom:
+                          mobileStageMode === 'panoramic'
+                            ? Math.max(0.36, Math.min(0.68, (viewportWidth - 28) / 940))
+                            : 0.72,
+                      } as unknown as ViewStyle)
+                    : null,
                 ]}
               >
+                <Golden24HourRibbonBridgesSvg timerRunning={timer.isRunning} isDark={isDark} />
+                <View
+                  style={[
+                    styles.isoCanvas,
+                    isCompactMobile ? { width: 940, flexWrap: 'nowrap' } : null,
+                  ]}
+                >
+                  {/* Zone 1: 心流书房 (Directly Interactive Timer & Study) */}
+                  <View
+                    style={[
+                      styles.isoIslandSlot,
+                      selectedZone === 'focus' ? styles.isoNodeSelected : null,
+                    ]}
+                  >
                 <View style={styles.islandArtWrap}>
                   {bursts
                     .filter((b) => b.target === 'focus')
@@ -2834,6 +2836,8 @@ export function IsometricStudioStage({
                       {`· ¥${vault.wishBalanceCny.toLocaleString('en-US')}`}
                     </Text>
                   </View>
+                </View>
+              </View>
                 </View>
               </View>
             </ScrollView>
