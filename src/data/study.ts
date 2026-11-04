@@ -1,6 +1,7 @@
 import type { RecentTopicRow, StudyRecord } from '@/core/study';
 import { isRecordDeleted, RECORD_DELETED, requireDeletedIds } from '@/core/weight-write';
 
+import { getAuthenticatedRemoteSession, isLocalOnlySession, requireRemoteUserId } from './auth';
 import { getSupabase } from './client';
 import { liveRows } from './live-rows';
 
@@ -32,6 +33,8 @@ function toRecord(row: {
 
 export async function listStudyRecords(localDay: string): Promise<StudyRecord[]> {
   if (!LOCAL_DAY.test(localDay)) throw new Error('Invalid study day');
+  const session = await getAuthenticatedRemoteSession();
+  if (!session || isLocalOnlySession(session)) return [];
   const { data, error } = await liveRows(getSupabase().from('study_records').select(columns))
     .eq('local_day', localDay)
     .order('recorded_at', { ascending: true });
@@ -41,6 +44,8 @@ export async function listStudyRecords(localDay: string): Promise<StudyRecord[]>
 
 /** Every live topic, newest first, capped. Callers dedupe. This is not today's list. */
 export async function listRecentTopics(): Promise<RecentTopicRow[]> {
+  const session = await getAuthenticatedRemoteSession();
+  if (!session || isLocalOnlySession(session)) return [];
   const { data, error } = await liveRows(getSupabase().from('study_records').select('topic, recorded_at'))
     .order('recorded_at', { ascending: false })
     .limit(200);
@@ -49,10 +54,7 @@ export async function listRecentTopics(): Promise<RecentTopicRow[]> {
 }
 
 export async function upsertStudyRecord(record: StudyRecord): Promise<void> {
-  const { data, error: sessionError } = await getSupabase().auth.getSession();
-  if (sessionError) throw sessionError;
-  const userId = data.session?.user.id;
-  if (!userId) throw new Error('Not signed in');
+  const userId = await requireRemoteUserId();
   const { error } = await getSupabase().from('study_records').upsert(
     {
       id: record.id,
@@ -74,6 +76,7 @@ export async function upsertStudyRecord(record: StudyRecord): Promise<void> {
 }
 
 export async function softDeleteStudyRecord(id: string): Promise<void> {
+  await requireRemoteUserId();
   const { data, error } = await getSupabase()
     .from('study_records')
     .update({ deleted_at: new Date().toISOString() })

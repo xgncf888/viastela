@@ -1,3 +1,4 @@
+import { requireRemoteUserId } from './auth';
 import { getSupabase } from './client';
 
 export class DeleteAccountError extends Error {
@@ -16,6 +17,7 @@ export function isReauthRequired(error: unknown): boolean {
 }
 
 export async function deleteOwnAccount(): Promise<void> {
+  await requireRemoteUserId();
   const { data, error } = await getSupabase().functions.invoke('delete-account', { method: 'POST' });
   if (!error) return;
   throw new DeleteAccountError(await readDeleteErrorCode(error, data));

@@ -1,3 +1,4 @@
+import { getAuthenticatedRemoteSession, isLocalOnlySession } from './auth';
 import { getSupabase } from './client';
 import { liveRows } from './live-rows';
 
@@ -9,6 +10,8 @@ const LOCAL_DAY = /^\d{4}-\d{2}-\d{2}$/;
  */
 export async function balanceUpdatedThisMonth(start: string, end: string): Promise<boolean | null> {
   if (!LOCAL_DAY.test(start) || !LOCAL_DAY.test(end) || start > end) return null;
+  const session = await getAuthenticatedRemoteSession();
+  if (!session || isLocalOnlySession(session)) return false;
   const { data, error } = await liveRows(getSupabase().from('account_balances').select('id'))
     .gte('local_day', start)
     .lte('local_day', end)

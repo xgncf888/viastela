@@ -142,32 +142,69 @@
     }
   }
 
-  function isMobileOrRemoteClient() {
-    if (typeof window === 'undefined') return false;
-    const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
-    const host = (window.location && window.location.hostname) || '';
-    return /iPhone|iPad|iPod|Android|Mobile/i.test(ua) || (host !== 'localhost' && host !== '127.0.0.1');
+  function getConfiguredSupabaseUrl(urlHint) {
+    if (typeof urlHint === 'string' && urlHint.trim()) return urlHint.trim();
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const custom = localStorage.getItem('viastela.custom_supabase_url');
+        if (custom && custom.trim()) return custom.trim();
+      }
+    } catch {
+      // Ignore storage errors
+    }
+    if (
+      typeof window !== 'undefined' &&
+      typeof window.__VIASTELA_SUPABASE_URL__ === 'string' &&
+      window.__VIASTELA_SUPABASE_URL__.trim()
+    ) {
+      return window.__VIASTELA_SUPABASE_URL__.trim();
+    }
+    return 'http://127.0.0.1:54321';
+  }
+
+  function canUseFakeJwtAndSeedData(urlHint) {
+    return isNativePackagedShell() && getConfiguredSupabaseUrl(urlHint).indexOf('127.0.0.1:54321') !== -1;
   }
 
   function isLocalModeEnabled() {
     try {
-      if (localStorage.getItem(LOCAL_MODE_KEY) === '1') return true;
-      if ((isNativePackagedShell() || isMobileOrRemoteClient()) && localStorage.getItem(SIGNED_OUT_KEY) !== '1') {
-        localStorage.setItem(LOCAL_MODE_KEY, '1');
+      if (typeof localStorage !== 'undefined' && localStorage.getItem(LOCAL_MODE_KEY) === '1') {
         return true;
       }
     } catch {
       // Ignore storage errors
     }
-    return true;
+    return false;
   }
 
-  function loadDb() {
+  function createEmptyDb() {
+    return {
+      profiles: [],
+      weight_records: [],
+      training_sets: [],
+      study_records: [],
+      journal_entries: [],
+      asset_accounts: [],
+      account_balances: [],
+      holdings: [],
+      net_worth_goals: [],
+      projection_assumptions: [],
+      net_worth_snapshots: [],
+      asset_events: [],
+      push_subscriptions: [],
+      reminder_settings: [],
+    };
+  }
+
+  function loadDb(urlHint) {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return JSON.parse(raw);
     } catch {
       // Ignore parse errors
+    }
+    if (!canUseFakeJwtAndSeedData(urlHint)) {
+      return createEmptyDb();
     }
     const now = new Date();
     function isoDaysAgo(d, h) {
@@ -244,7 +281,8 @@
     }
   }
 
-  function buildLocalSessionObj() {
+  function buildLocalSessionObj(urlHint) {
+    if (!canUseFakeJwtAndSeedData(urlHint)) return null;
     const nowSec = Math.floor(Date.now() / 1000);
     const payload = btoa(
       JSON.stringify({
@@ -278,14 +316,38 @@
     };
   }
 
-  function ensureLocalSession() {
+  function clearStaleFakeLocalToken() {
     try {
+      if (typeof localStorage === 'undefined') return;
+      const existing = localStorage.getItem(SESSION_KEY);
+      if (!existing) return;
+      const parsed = JSON.parse(existing);
+      if (
+        parsed &&
+        parsed.user &&
+        (parsed.user.id === USER_ID || parsed.user.email === 'local@device.offline')
+      ) {
+        localStorage.removeItem(SESSION_KEY);
+      }
+    } catch {
+      // Ignore storage errors
+    }
+  }
+
+  function ensureLocalSession(urlHint) {
+    try {
+      if (!canUseFakeJwtAndSeedData(urlHint)) {
+        clearStaleFakeLocalToken();
+        return null;
+      }
       if (!isLocalModeEnabled()) return null;
-      loadDb();
+      loadDb(urlHint);
       const existing = localStorage.getItem(SESSION_KEY);
       if (existing) return JSON.parse(existing);
-      const session = buildLocalSessionObj();
-      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      const session = buildLocalSessionObj(urlHint);
+      if (session) {
+        localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      }
       return session;
     } catch {
       return null;
@@ -298,9 +360,13 @@
     try {
       localStorage.removeItem(SIGNED_OUT_KEY);
       localStorage.setItem(LOCAL_MODE_KEY, '1');
-      const session = buildLocalSessionObj();
-      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-      loadDb();
+      if (canUseFakeJwtAndSeedData()) {
+        const session = buildLocalSessionObj();
+        if (session && !localStorage.getItem(SESSION_KEY)) {
+          localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+        }
+        loadDb();
+      }
       return { userId: USER_ID, email: 'local@device.offline' };
     } catch {
       return { userId: USER_ID, email: 'local@device.offline' };
@@ -311,7 +377,7 @@
     try {
       localStorage.setItem(SIGNED_OUT_KEY, '1');
       localStorage.removeItem(LOCAL_MODE_KEY);
-      localStorage.removeItem(SESSION_KEY);
+      clearStaleFakeLocalToken();
     } catch {
       // Ignore storage errors
     }
@@ -345,14 +411,20 @@
   }
 
   function handleLocalRest(urlObj, method, bodyText, headers) {
-    const db = loadDb();
+    const db = loadDb(urlObj.href);
     const pathname = urlObj.pathname;
     if (
       pathname.indexOf('/auth/v1/user') !== -1 ||
       pathname.indexOf('/auth/v1/token') !== -1 ||
       pathname.indexOf('/auth/v1/verify') !== -1
     ) {
-      const sess = ensureLocalSession() || buildLocalSessionObj();
+      const sess = ensureLocalSession(urlObj.href) || buildLocalSessionObj(urlObj.href);
+      if (!sess) {
+        return new Response(JSON.stringify({ message: 'Not authenticated' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
       return new Response(JSON.stringify(pathname.indexOf('/user') !== -1 ? sess.user : sess), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -487,7 +559,7 @@
     const origFetch = window.fetch.bind(window);
     window.fetch = function interceptFetch(input, init) {
       const urlStr = typeof input === 'string' ? input : input && input.url ? input.url : String(input);
-      if (urlStr.indexOf('127.0.0.1:54321') !== -1 && isLocalModeEnabled()) {
+      if (urlStr.indexOf('127.0.0.1:54321') !== -1 && isLocalModeEnabled() && canUseFakeJwtAndSeedData(urlStr)) {
         const urlObj = new URL(urlStr);
         const method = (init && init.method) || (input && input.method) || 'GET';
         const bodyText = init && typeof init.body === 'string' ? init.body : '';

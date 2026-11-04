@@ -15,7 +15,10 @@ export type AuthSession = {
 
 const LOCAL_OFFLINE_USER_ID = '00000000-0000-4000-8000-000000000001';
 const LOCAL_OFFLINE_EMAIL = 'local@device.offline';
+const LOCAL_MODE_STORAGE_KEY = 'viastela.local_mode';
 const localModeListeners = new Set<(session: AuthSession | null) => void>();
+
+let activeAuthSession: AuthSession | null | undefined;
 
 function toAuthSession(session: Session | null): AuthSession | null {
   if (!session) return null;
@@ -27,26 +30,81 @@ export function isLocalOnlySession(session: AuthSession | null): boolean {
   return session.userId === LOCAL_OFFLINE_USER_ID || session.email === LOCAL_OFFLINE_EMAIL;
 }
 
+export function isLocalModeSelected(): boolean {
+  try {
+    if (typeof localStorage === 'undefined') return false;
+    return localStorage.getItem(LOCAL_MODE_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function buildLocalAuthSession(): AuthSession {
+  const win = globalThis as unknown as {
+    __VIASTELA_ENTER_LOCAL_MODE__?: () => AuthSession;
+  };
+  return win.__VIASTELA_ENTER_LOCAL_MODE__
+    ? win.__VIASTELA_ENTER_LOCAL_MODE__()
+    : { userId: LOCAL_OFFLINE_USER_ID, email: LOCAL_OFFLINE_EMAIL };
+}
+
+function clearLocalModeFlag(): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(LOCAL_MODE_STORAGE_KEY);
+    }
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+/**
+ * Returns the authenticated remote Supabase session if and only if:
+ * 1. Supabase is configured,
+ * 2. The current session is NOT a local-only session (`isLocalOnlySession`), and
+ * 3. A valid remote Supabase session exists.
+ * Returns `null` in Local Mode or when unauthenticated so data modules never issue remote requests.
+ */
+export async function getAuthenticatedRemoteSession(): Promise<AuthSession | null> {
+  if (!isSupabaseConfigured()) return null;
+  if (activeAuthSession !== undefined && isLocalOnlySession(activeAuthSession)) {
+    return null;
+  }
+  try {
+    const { data, error } = await getSupabase().auth.getSession();
+    if (error || !data.session) return null;
+    const session = toAuthSession(data.session);
+    if (!session || isLocalOnlySession(session)) return null;
+    return session;
+  } catch {
+    return null;
+  }
+}
+
+export async function requireRemoteUserId(): Promise<string> {
+  const session = await getAuthenticatedRemoteSession();
+  if (!session || isLocalOnlySession(session)) {
+    throw new Error('Not signed in');
+  }
+  return session.userId;
+}
+
 export function applyCustomSupabaseConfig(url: string, anonKey: string): void {
   saveCustomSupabaseEnv(url, anonKey);
   resetSupabaseClient();
 }
 
 export function enterLocalMode(): AuthSession {
-  const win = globalThis as unknown as {
-    __VIASTELA_ENTER_LOCAL_MODE__?: () => AuthSession;
-  };
-  const session: AuthSession = win.__VIASTELA_ENTER_LOCAL_MODE__
-    ? win.__VIASTELA_ENTER_LOCAL_MODE__()
-    : { userId: LOCAL_OFFLINE_USER_ID, email: LOCAL_OFFLINE_EMAIL };
+  const session = buildLocalAuthSession();
   try {
     if (typeof localStorage !== 'undefined') {
       localStorage.removeItem('viastela.desktop.signed_out');
-      localStorage.setItem('viastela.local_mode', '1');
+      localStorage.setItem(LOCAL_MODE_STORAGE_KEY, '1');
     }
   } catch {
     // Ignore storage errors
   }
+  activeAuthSession = session;
   for (const listener of localModeListeners) {
     listener(session);
   }
@@ -54,45 +112,59 @@ export function enterLocalMode(): AuthSession {
 }
 
 export function subscribeAuth(listener: (session: AuthSession | null) => void): () => void {
-  localModeListeners.add(listener);
-  try {
-    if (typeof localStorage !== 'undefined' && localStorage.getItem('viastela.local_mode') === '1') {
-      const win = globalThis as unknown as {
-        __VIASTELA_ENTER_LOCAL_MODE__?: () => AuthSession;
-      };
-      const localSess = win.__VIASTELA_ENTER_LOCAL_MODE__
-        ? win.__VIASTELA_ENTER_LOCAL_MODE__()
-        : { userId: LOCAL_OFFLINE_USER_ID, email: LOCAL_OFFLINE_EMAIL };
-      listener(localSess);
-      return () => {
-        localModeListeners.delete(listener);
-      };
-    }
-  } catch {
-    // Fall through to Supabase auth
-  }
+  const emit = (next: AuthSession | null) => {
+    activeAuthSession = next;
+    listener(next);
+  };
+  localModeListeners.add(emit);
+
   if (!isSupabaseConfigured()) {
-    listener(null);
+    emit(isLocalModeSelected() ? buildLocalAuthSession() : null);
     return () => {
-      localModeListeners.delete(listener);
+      localModeListeners.delete(emit);
     };
   }
+
   const supabase = getSupabase();
   let active = true;
   void supabase.auth
     .getSession()
     .then(({ data }) => {
-      if (active) listener(toAuthSession(data.session));
+      if (!active) return;
+      const realSession = toAuthSession(data.session);
+      if (realSession && !isLocalOnlySession(realSession)) {
+        clearLocalModeFlag();
+        emit(realSession);
+        return;
+      }
+      if (isLocalModeSelected()) {
+        emit(buildLocalAuthSession());
+        return;
+      }
+      emit(null);
     })
     .catch(() => {
-      if (active) listener(null);
+      if (!active) return;
+      emit(isLocalModeSelected() ? buildLocalAuthSession() : null);
     });
+
   const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-    listener(toAuthSession(session));
+    const realSession = toAuthSession(session);
+    if (realSession && !isLocalOnlySession(realSession)) {
+      clearLocalModeFlag();
+      emit(realSession);
+      return;
+    }
+    if (isLocalModeSelected()) {
+      emit(buildLocalAuthSession());
+      return;
+    }
+    emit(null);
   });
+
   return () => {
     active = false;
-    localModeListeners.delete(listener);
+    localModeListeners.delete(emit);
     data.subscription.unsubscribe();
   };
 }
@@ -115,6 +187,8 @@ export async function verifyEmailOtp(email: string, token: string): Promise<void
 }
 
 export async function currentAccessToken(): Promise<string | null> {
+  const session = await getAuthenticatedRemoteSession();
+  if (!session || isLocalOnlySession(session)) return null;
   const { data, error } = await getSupabase().auth.getSession();
   if (error || !data.session?.access_token) return null;
   return data.session.access_token;
@@ -130,13 +204,8 @@ export async function signInWithProvider(provider: OAuthProvider, returnPath?: s
 }
 
 async function sessionUserId(): Promise<string | null> {
-  try {
-    const { data, error } = await getSupabase().auth.getSession();
-    if (error) return null;
-    return data.session?.user.id ?? null;
-  } catch {
-    return null;
-  }
+  const session = await getAuthenticatedRemoteSession();
+  return session?.userId ?? null;
 }
 
 /**
@@ -159,21 +228,22 @@ export async function leaveDeviceSession(userId: string | null, authSignOut: () 
 }
 
 export async function signOut(): Promise<void> {
-  try {
-    if (typeof localStorage !== 'undefined' && localStorage.getItem('viastela.local_mode') === '1') {
+  if (isLocalOnlySession(activeAuthSession ?? null) || isLocalModeSelected()) {
+    try {
       const win = globalThis as unknown as { __VIASTELA_EXIT_LOCAL_MODE__?: () => void };
       if (win.__VIASTELA_EXIT_LOCAL_MODE__) win.__VIASTELA_EXIT_LOCAL_MODE__();
-      else {
+      else if (typeof localStorage !== 'undefined') {
         localStorage.setItem('viastela.desktop.signed_out', '1');
-        localStorage.removeItem('viastela.local_mode');
+        localStorage.removeItem(LOCAL_MODE_STORAGE_KEY);
       }
-      for (const listener of localModeListeners) {
-        listener(null);
-      }
-      return;
+    } catch {
+      // Ignore storage errors
     }
-  } catch {
-    // Fall through
+    activeAuthSession = null;
+    for (const listener of localModeListeners) {
+      listener(null);
+    }
+    return;
   }
   const userId = await sessionUserId();
   await leaveDeviceSession(userId, async () => {

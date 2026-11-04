@@ -4,11 +4,60 @@ import { brand } from '../src/config/brand';
 import { authSession, installApi, signIn } from './session';
 import { closeRecordSheet, recordButton, recordSheetHeading, typeChip } from './selectors';
 
+test('fresh browser visiting / redirects to /login', async ({ page }) => {
+  await page.goto('/');
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole('heading', { name: brand.displayName })).toBeVisible();
+  await expect(page.getByText('用邮箱登录')).toBeVisible();
+});
+
+test('signed-in user retains their own session after page reload', async ({ page }) => {
+  await page.addInitScript((stored) => {
+    localStorage.setItem('sb-127-auth-token', JSON.stringify(stored));
+    localStorage.setItem('viastela.local_mode', '1');
+  }, authSession({ userId: '22222222-2222-4222-8222-222222222222', email: 'yifeng@example.com' }));
+  await installApi(page, { weights: [] });
+
+  await page.goto('/');
+  await expect(page.getByText('今日').first()).toBeVisible();
+  await page.reload();
+  await expect(page.getByText('今日').first()).toBeVisible();
+  await page.getByRole('button', { name: '我的' }).click();
+  await expect(page.getByText('yifeng@example.com')).toBeVisible();
+  await expect(page.getByText('本地离线存储（免登录模式 · 数据保存在本机）')).toHaveCount(0);
+});
+
+test('local mode sends zero *.supabase.co/rest requests', async ({ page }) => {
+  const restRequests: string[] = [];
+  page.on('request', (req) => {
+    const url = req.url();
+    if (/\.supabase\.co\/rest/i.test(url) || url.includes('/rest/v1/')) {
+      restRequests.push(url);
+    }
+  });
+
+  await page.addInitScript(() => {
+    localStorage.setItem('viastela.custom_supabase_url', 'https://example-project.supabase.co');
+    localStorage.setItem('viastela.custom_supabase_anon_key', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test.anon');
+  });
+
+  await page.goto('/');
+  await expect(page).toHaveURL(/\/login$/);
+  await page.getByRole('button', { name: '免登录直接进入（仅本地存储）' }).click();
+  await expect(page.getByText('今日').first()).toBeVisible();
+
+  await page.getByRole('button', { name: '趋势' }).click();
+  await page.getByRole('button', { name: '我的' }).click();
+  await expect(page.getByText('本地离线存储（免登录模式 · 数据保存在本机）')).toBeVisible();
+  expect(restRequests).toEqual([]);
+});
+
 test('web build shows the email login screen', async ({ page }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
 
   await page.goto('/');
+  await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByRole('heading', { name: brand.displayName })).toBeVisible();
   await expect(page.getByText('用邮箱登录')).toBeVisible();
   await expect(page.getByRole('button', { name: '使用 Google 登录' })).toBeVisible();

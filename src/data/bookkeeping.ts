@@ -218,7 +218,11 @@ export function connectCoupleRealtimeRoom(
     }
   }
 
-  if (isSupabaseConfigured() && !isPlaceholderLocalSupabaseUrl()) {
+  if (
+    isSupabaseConfigured() &&
+    !isPlaceholderLocalSupabaseUrl() &&
+    (typeof localStorage === 'undefined' || localStorage.getItem('viastela.local_mode') !== '1')
+  ) {
     try {
       const sb = getSupabase();
       const channel = sb.channel(`couple_ledger_${cleanRoom}`);

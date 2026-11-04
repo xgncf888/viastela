@@ -9,6 +9,7 @@ import {
 } from '@/core/reminder-settings';
 import { isRecordDeleted, RECORD_DELETED, requireDeletedIds } from '@/core/weight-write';
 
+import { getAuthenticatedRemoteSession, isLocalOnlySession, requireRemoteUserId } from './auth';
 import { getSupabase } from './client';
 import { liveRows } from './live-rows';
 
@@ -44,14 +45,12 @@ function toDraft(row: PushRow): ReminderDraft {
 }
 
 async function currentUserId(): Promise<string> {
-  const { data, error } = await getSupabase().auth.getSession();
-  if (error) throw error;
-  const userId = data.session?.user.id;
-  if (!userId) throw new Error('Not signed in');
-  return userId;
+  return requireRemoteUserId();
 }
 
 export async function listPushSubscriptions(): Promise<ReminderDraft[]> {
+  const session = await getAuthenticatedRemoteSession();
+  if (!session || isLocalOnlySession(session)) return [];
   const { data, error } = await liveRows(getSupabase().from('push_subscriptions').select(columns)).order(
     'updated_at',
     { ascending: false },
@@ -100,6 +99,7 @@ export async function upsertPushSubscription(draft: ReminderDraft): Promise<void
 
 /** Plain update. A deleted id raises P0001 and is not rewritten. Zero rows is a failed delete. */
 export async function softDeletePushSubscription(id: string): Promise<void> {
+  await currentUserId();
   const { data, error } = await getSupabase()
     .from('push_subscriptions')
     .update({ deleted_at: new Date().toISOString() })

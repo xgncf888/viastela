@@ -1,6 +1,7 @@
 import { classifyQuoteFailure, planQuoteLoad, type QuoteFailureKind } from '@/core/quote-load';
 import { QUOTES_TIMEOUT_MS } from '@/lib/timing';
 
+import { getAuthenticatedRemoteSession, isLocalOnlySession } from './auth';
 import { getSupabase } from './client';
 import {
   cachedQuote,
@@ -138,8 +139,12 @@ export async function settleQuoteInvoke(
 }
 
 async function invokeQuotes(tz: string): Promise<QuoteInvokeResult> {
-  const run: QuoteInvoke = (zone, signal) => {
+  const run: QuoteInvoke = async (zone, signal) => {
     if (quoteInvokeOverride) return quoteInvokeOverride(zone, signal);
+    const session = await getAuthenticatedRemoteSession();
+    if (!session || isLocalOnlySession(session)) {
+      throw new QuoteRequestError('network');
+    }
     const options: { body: { tz: string }; signal?: AbortSignal } = { body: { tz: zone } };
     if (signal) options.signal = signal;
     return getSupabase().functions.invoke('quotes', options);

@@ -8,6 +8,7 @@ import { assetPageKeyset, datedKeyset, instantKeyset, type TimelineCursor } from
 import { requireDeletedIds } from '@/core/weight-write';
 
 import { readAmountMasked } from './amount-mask';
+import { getAuthenticatedRemoteSession, isLocalOnlySession, requireRemoteUserId } from './auth';
 import { getSupabase } from './client';
 import type { Json } from './database.types';
 import { liveRows } from './live-rows';
@@ -81,16 +82,15 @@ export async function loadTimelinePage(input: {
 }
 
 export async function listTimelineAccounts(): Promise<TimelineAccountRow[]> {
+  const session = await getAuthenticatedRemoteSession();
+  if (!session || isLocalOnlySession(session)) return [];
   const { data, error } = await liveRows(getSupabase().from('asset_accounts').select('id, name, currency'));
   if (error) throw error;
   return (data ?? []).map((row) => ({ id: row.id, name: row.name, currency: row.currency }));
 }
 
 export async function saveJournal(entry: JournalWrite): Promise<void> {
-  const { data, error: sessionError } = await getSupabase().auth.getSession();
-  if (sessionError) throw sessionError;
-  const userId = data.session?.user.id;
-  if (!userId) throw new Error('Not signed in');
+  const userId = await requireRemoteUserId();
   const { error } = await getSupabase().from('journal_entries').upsert(
     {
       id: entry.id,
@@ -107,6 +107,7 @@ export async function saveJournal(entry: JournalWrite): Promise<void> {
 }
 
 export async function softDeleteJournal(id: string): Promise<void> {
+  await requireRemoteUserId();
   const { data, error } = await getSupabase()
     .from('journal_entries')
     .update({ deleted_at: new Date().toISOString() })
@@ -126,6 +127,8 @@ async function selectTimeline(input: {
   kind: 'journal' | 'balance_recorded' | null;
   keyset: string | null;
 }): Promise<TimelineRecord[]> {
+  const session = await getAuthenticatedRemoteSession();
+  if (!session || isLocalOnlySession(session)) return [];
   let query = getSupabase().from('timeline').select('id, kind, occurred_at, local_day, ref_id, payload');
   query = input.localDay === 'null' ? query.is('local_day', null) : query.not('local_day', 'is', null);
   if (input.kind) query = query.eq('kind', input.kind);

@@ -1,6 +1,7 @@
 import type { RecentExerciseRow, TrainingSet } from '@/core/training';
 import { isRecordDeleted, RECORD_DELETED, requireDeletedIds } from '@/core/weight-write';
 
+import { getAuthenticatedRemoteSession, isLocalOnlySession, requireRemoteUserId } from './auth';
 import { getSupabase } from './client';
 import { liveRows } from './live-rows';
 
@@ -41,6 +42,8 @@ function toSet(row: {
 
 export async function listTrainingSets(localDay: string): Promise<TrainingSet[]> {
   if (!LOCAL_DAY.test(localDay)) throw new Error('Invalid training day');
+  const session = await getAuthenticatedRemoteSession();
+  if (!session || isLocalOnlySession(session)) return [];
   const { data, error } = await liveRows(getSupabase().from('training_sets').select(columns))
     .eq('local_day', localDay)
     .order('recorded_at', { ascending: true });
@@ -50,6 +53,8 @@ export async function listTrainingSets(localDay: string): Promise<TrainingSet[]>
 
 /** Every live set, newest first. Callers dedupe. This is not today's list. */
 export async function listRecentExercises(): Promise<RecentExerciseRow[]> {
+  const session = await getAuthenticatedRemoteSession();
+  if (!session || isLocalOnlySession(session)) return [];
   const { data, error } = await liveRows(getSupabase().from('training_sets').select('exercise, recorded_at'))
     .order('recorded_at', { ascending: false })
     .limit(200);
@@ -58,10 +63,7 @@ export async function listRecentExercises(): Promise<RecentExerciseRow[]> {
 }
 
 export async function upsertTrainingSet(set: TrainingSet): Promise<void> {
-  const { data, error: sessionError } = await getSupabase().auth.getSession();
-  if (sessionError) throw sessionError;
-  const userId = data.session?.user.id;
-  if (!userId) throw new Error('Not signed in');
+  const userId = await requireRemoteUserId();
   const { error } = await getSupabase().from('training_sets').upsert(
     {
       id: set.id,
@@ -84,6 +86,7 @@ export async function upsertTrainingSet(set: TrainingSet): Promise<void> {
 }
 
 export async function softDeleteTrainingSet(id: string): Promise<void> {
+  await requireRemoteUserId();
   const { data, error } = await getSupabase()
     .from('training_sets')
     .update({ deleted_at: new Date().toISOString() })
