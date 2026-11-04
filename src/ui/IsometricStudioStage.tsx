@@ -734,30 +734,57 @@ function IsometricLifeZoneSvg({
     // 1. Soft Floor Bloom under the Isometric Base
     createElement('ellipse', {
       cx: 136,
-      cy: 134,
-      rx: 108,
-      ry: 42,
+      cy: 146,
+      rx: 114,
+      ry: 44,
       fill: `url(#${floorBloomId})`,
+    }),
+
+    // 1b. Monument Valley-Style Stepped Floating Rock Pedestal & Glowing Crystal Core
+    createElement('polygon', {
+      points: '52,136 136,174 136,185 52,147',
+      fill: isDark ? '#14110e' : '#b8a58d',
+      stroke: isDark ? 'rgba(255,248,235,0.12)' : 'rgba(38,36,31,0.12)',
+      strokeWidth: 0.8,
+    }),
+    createElement('polygon', {
+      points: '220,136 136,174 136,185 220,147',
+      fill: isDark ? '#0c0a08' : '#9c8970',
+      stroke: isDark ? 'rgba(255,248,235,0.1)' : 'rgba(38,36,31,0.1)',
+      strokeWidth: 0.8,
+    }),
+    createElement('polygon', {
+      points: '92,154 136,176 136,188 92,166',
+      fill: isDark ? '#1c1612' : '#a39078',
+    }),
+    createElement('polygon', {
+      points: '180,154 136,176 136,188 180,166',
+      fill: isDark ? '#110e0b' : '#8c7961',
+    }),
+    createElement('polygon', {
+      points: '126,174 136,188 146,174 136,168',
+      fill: rimColor,
+      fillOpacity: isDark ? '0.82' : '0.65',
     }),
 
     // 2. 3D Extruded Isometric Base Slab
     createElement('polygon', {
-      points: '18,118 136,168 136,182 18,132',
+      points: '18,118 136,168 136,180 18,130',
       fill: `url(#${gradWallLId})`,
-      stroke: isDark ? 'rgba(255,248,235,0.14)' : 'rgba(38,36,31,0.14)',
+      stroke: isDark ? 'rgba(255,248,235,0.16)' : 'rgba(38,36,31,0.16)',
       strokeWidth: 1,
     }),
     createElement('polygon', {
-      points: '254,118 136,168 136,182 254,132',
+      points: '254,118 136,168 136,180 254,130',
       fill: `url(#${gradWallRId})`,
-      stroke: isDark ? 'rgba(255,248,235,0.12)' : 'rgba(38,36,31,0.12)',
+      stroke: isDark ? 'rgba(255,248,235,0.14)' : 'rgba(38,36,31,0.14)',
       strokeWidth: 1,
     }),
     createElement('polyline', {
-      points: '18,130 136,180 254,130',
+      points: '18,129 136,179 254,129',
       fill: 'none',
       stroke: rimColor,
-      strokeWidth: active ? 3.5 : 2.6,
+      strokeWidth: active ? 3.2 : 2.2,
       strokeLinecap: 'round',
       strokeLinejoin: 'round',
     }),
@@ -766,13 +793,68 @@ function IsometricLifeZoneSvg({
       fill: `url(#${gradTopId})`,
       stroke: rimColor,
       strokeWidth: active ? 1.8 : 1.2,
-      strokeOpacity: 0.85,
+      strokeOpacity: 0.88,
     }),
     createElement('polygon', {
       points: '136,161 242,116 136,73 30,116',
       fill: 'none',
-      stroke: isDark ? 'rgba(255,248,235,0.08)' : 'rgba(38,36,31,0.08)',
+      stroke: isDark ? 'rgba(255,248,235,0.11)' : 'rgba(38,36,31,0.1)',
       strokeWidth: 0.9,
+    }),
+
+    // 2a. L-Shaped 3D Cutaway Isometric Architectural Back Walls (Spirit City / Spline Diorama Depth)
+    createElement('polygon', {
+      points: '18,118 136,68 136,24 18,74',
+      fill: isDark
+        ? zone === 'focus'
+          ? 'rgba(46, 30, 20, 0.92)'
+          : zone === 'vitality'
+            ? 'rgba(18, 32, 28, 0.92)'
+            : 'rgba(38, 30, 20, 0.92)'
+        : zone === 'focus'
+          ? 'rgba(226, 212, 192, 0.94)'
+          : zone === 'vitality'
+            ? 'rgba(208, 226, 217, 0.94)'
+            : 'rgba(232, 221, 198, 0.94)',
+      stroke: rimColor,
+      strokeWidth: 1,
+      strokeOpacity: 0.55,
+    }),
+    createElement('polygon', {
+      points: '136,68 254,118 254,74 136,24',
+      fill: isDark
+        ? zone === 'focus'
+          ? 'rgba(32, 21, 14, 0.92)'
+          : zone === 'vitality'
+            ? 'rgba(13, 24, 21, 0.92)'
+            : 'rgba(28, 22, 15, 0.92)'
+        : zone === 'focus'
+          ? 'rgba(212, 196, 174, 0.94)'
+          : zone === 'vitality'
+            ? 'rgba(192, 214, 203, 0.94)'
+            : 'rgba(218, 205, 180, 0.94)',
+      stroke: rimColor,
+      strokeWidth: 1,
+      strokeOpacity: 0.45,
+    }),
+    // Cutaway Wall Top Rim Cornice
+    createElement('polyline', {
+      points: '18,74 136,24 254,74',
+      fill: 'none',
+      stroke: rimColor,
+      strokeWidth: active ? 2.2 : 1.5,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+    }),
+    // Center Corner Pillar Seam
+    createElement('line', {
+      x1: 136,
+      y1: 24,
+      x2: 136,
+      y2: 68,
+      stroke: rimColor,
+      strokeWidth: 1.2,
+      strokeOpacity: 0.65,
     }),
 
     // 2b. Click Shockwave Diamond Ring & Starburst Sparks when clicked
@@ -819,6 +901,46 @@ function IsometricLifeZoneSvg({
       ? createElement(
           'g',
           null,
+          // Cutaway Left Wall: Isometric Starlight Window + Volumetric God-Ray
+          createElement('polygon', {
+            points: '46,94 96,73 96,46 46,67',
+            fill: isDark ? '#0c1629' : '#bae6fd',
+            stroke: '#f5b942',
+            strokeWidth: 1.3,
+          }),
+          createElement('line', { x1: 71, y1: 56.5, x2: 71, y2: 83.5, stroke: '#f5b942', strokeWidth: 0.9 }),
+          createElement('line', { x1: 46, y1: 80.5, x2: 96, y2: 59.5, stroke: '#f5b942', strokeWidth: 0.9 }),
+          createElement('circle', { cx: 60, cy: 69, r: 3.2, fill: '#fef08a' }),
+          createElement('circle', { cx: 83, cy: 59, r: 1.3, fill: '#ffffff' }),
+          // Diagonal Volumetric God-Ray Beam from Window onto Desk
+          createElement('polygon', {
+            points: '46,94 96,73 148,108 82,128',
+            fill: `url(#${lampConeId})`,
+            opacity: isDark ? 0.55 : 0.35,
+          }),
+          // Cutaway Right Wall: 2-Tier Illuminated Walnut Bookshelf
+          createElement('polygon', {
+            points: '150,66 218,95 218,65 150,36',
+            fill: isDark ? '#24140b' : '#7c4a2b',
+            stroke: '#d97706',
+            strokeWidth: 1,
+          }),
+          createElement('line', { x1: 150, y1: 51, x2: 218, y2: 80, stroke: '#f5b942', strokeWidth: 1.1 }),
+          // Glowing Book Spines on Shelf
+          createElement('polygon', { points: '158,48 166,51 166,41 158,38', fill: '#f59e0b' }),
+          createElement('polygon', { points: '169,53 177,56 177,45 169,42', fill: '#34d399' }),
+          createElement('polygon', { points: '180,57 190,61 190,50 180,46', fill: '#60a5fa' }),
+          createElement('polygon', { points: '160,64 170,68 170,57 160,53', fill: '#f43f5e' }),
+          createElement('polygon', { points: '174,70 184,74 184,63 174,59', fill: '#fef08a' }),
+
+          // Woven Isometric Sanctuary Rug under Desk
+          createElement('polygon', {
+            points: '60,112 136,80 194,104 118,136',
+            fill: isDark ? 'rgba(180, 83, 9, 0.26)' : 'rgba(217, 119, 6, 0.16)',
+            stroke: '#f59e0b',
+            strokeWidth: 0.9,
+            strokeDasharray: '3 2',
+          }),
           createElement('polygon', {
             points: '68,108 138,78 182,96 112,126',
             fill: isDark ? 'rgba(0,0,0,0.42)' : 'rgba(38,36,31,0.15)',
@@ -958,12 +1080,10 @@ function IsometricLifeZoneSvg({
             },
             `📖P.${12 + bookPageCount}`,
           ),
-          createElement('polygon', {
-            points: '146,84 164,76 152,71 134,79',
-            fill: '#c25e3c',
-            stroke: '#fde68a',
-            strokeWidth: 0.8,
-          }),
+          // Steaming Ceramic Coffee Cup on Desk Corner
+          createElement('ellipse', { cx: 155, cy: 81, rx: 4.5, ry: 2.5, fill: '#fef3c7', stroke: '#d97706', strokeWidth: 0.9 }),
+          createElement('path', { d: 'M 151 81 L 152 86 C 154 88, 156 88, 158 86 L 159 81 Z', fill: '#fffbeb', stroke: '#d97706', strokeWidth: 0.8 }),
+          createElement('path', { d: 'M 155 77 Q 153 73 156 70', fill: 'none', stroke: '#fde68a', strokeWidth: 0.9, strokeOpacity: '0.75' }),
           createElement('ellipse', { cx: 130, cy: 67, rx: 18, ry: 10, fill: 'rgba(254, 240, 138, 0.28)' }),
           createElement('ellipse', { cx: 130, cy: 70, rx: 7, ry: 3.5, fill: '#b45309' }),
           createElement('rect', { x: 127, y: 58, width: 6, height: 12, rx: 2, fill: '#d97706' }),
@@ -1003,11 +1123,37 @@ function IsometricLifeZoneSvg({
         )
       : null,
 
-    // ================= ISLAND 2: 活力体态 (With 60fps Articulated Multi-Pose Fitness Character) =================
+    // ================= ISLAND 2: 活力体态 (With Cutaway Neon ECG Wall, Power Rack & 60fps Athlete) =================
     zone === 'vitality'
       ? createElement(
           'g',
           null,
+          // Cutaway Left Wall: Dark-Glass Neon ECG & 1RM Telemetry Scoreboard
+          createElement('polygon', {
+            points: '42,96 104,70 104,42 42,68',
+            fill: isDark ? '#071714' : '#0f2922',
+            stroke: '#34d399',
+            strokeWidth: 1.2,
+          }),
+          // Live Neon ECG Heart-Rate Waveform on Left Wall
+          createElement('polyline', {
+            points: '48,80 60,75 65,63 70,81 75,68 82,71 98,64',
+            fill: 'none',
+            stroke: '#34d399',
+            strokeWidth: 1.5,
+            strokeLinecap: 'round',
+            strokeLinejoin: 'round',
+          }),
+          createElement('line', { x1: 48, y1: 86, x2: 96, y2: 66, stroke: '#f5b942', strokeWidth: 1.2, strokeOpacity: '0.8' }),
+
+          // Cutaway Right Wall: 3D Isometric Power Rack (黑金龙门架)
+          createElement('line', { x1: 154, y1: 72, x2: 154, y2: 34, stroke: '#475569', strokeWidth: 2.6, strokeLinecap: 'round' }),
+          createElement('line', { x1: 196, y1: 90, x2: 196, y2: 52, stroke: '#334155', strokeWidth: 2.6, strokeLinecap: 'round' }),
+          createElement('line', { x1: 154, y1: 36, x2: 196, y2: 54, stroke: '#f5b942', strokeWidth: 2.2, strokeLinecap: 'round' }),
+          createElement('line', { x1: 148, y1: 54, x2: 204, y2: 78, stroke: '#94a3b8', strokeWidth: 1.8, strokeLinecap: 'round' }),
+          createElement('ellipse', { cx: 150, cy: 55, rx: 2.8, ry: 5.5, fill: '#059669', stroke: '#6ee7b7', strokeWidth: 0.9 }),
+          createElement('ellipse', { cx: 202, cy: 77, rx: 2.8, ry: 5.5, fill: '#059669', stroke: '#6ee7b7', strokeWidth: 0.9 }),
+
           createElement('polygon', {
             points: '54,106 138,71 172,86 88,121',
             fill: isDark ? 'rgba(0,0,0,0.45)' : 'rgba(38,36,31,0.14)',
@@ -1094,16 +1240,33 @@ function IsometricLifeZoneSvg({
         )
       : null,
 
-    // ================= ISLAND 3: 星愿纪念台 =================
+    // ================= ISLAND 3: 星愿纪念台 (Monument Valley Golden Colonnade & Celestial Astrolabe) =================
     zone === 'wishes'
       ? createElement(
           'g',
           null,
+          // Cutaway Left & Right Walls: Monument Valley-Style Golden Colonnade Archways
+          createElement('polygon', {
+            points: '48,94 82,80 82,48 48,62',
+            fill: isDark ? 'rgba(15, 23, 42, 0.82)' : 'rgba(254, 243, 199, 0.72)',
+            stroke: `url(#${goldMetalId})`,
+            strokeWidth: 1.2,
+          }),
+          createElement('polygon', {
+            points: '164,54 204,71 204,101 164,84',
+            fill: isDark ? 'rgba(15, 23, 42, 0.82)' : 'rgba(254, 243, 199, 0.72)',
+            stroke: `url(#${goldMetalId})`,
+            strokeWidth: 1.2,
+          }),
+          // Floating Starlight Lanterns beside Colonnade
+          createElement('circle', { cx: 65, cy: 68, r: 2.8, fill: '#fef08a' }),
+          createElement('circle', { cx: 184, cy: 74, r: 2.8, fill: '#fef08a' }),
+
           createElement('ellipse', {
             cx: 122,
             cy: 116,
-            rx: 38,
-            ry: 15,
+            rx: 42,
+            ry: 16.5,
             fill: '#2b2113',
             stroke: `url(#${goldMetalId})`,
             strokeWidth: 2.2,
@@ -1111,8 +1274,8 @@ function IsometricLifeZoneSvg({
           createElement('ellipse', {
             cx: 122,
             cy: 112,
-            rx: 28,
-            ry: 11,
+            rx: 30,
+            ry: 11.5,
             fill: '#47361d',
             stroke: '#fef08a',
             strokeWidth: 1.2,
@@ -1214,7 +1377,7 @@ function IsometricLifeZoneSvg({
 }
 
 /**
- * Golden 24H Ribbon Bridges (Adapts cleanly to both Dark Obsidian-Gold and Warm Sunlit Parchment)
+ * Industry-Grade Celestial Orbit Dome, Perspective Horizon Grid & Monument Valley Isometric Stepping-Stone Viaducts
  */
 function Golden24HourRibbonBridgesSvg({
   timerRunning,
@@ -1225,15 +1388,32 @@ function Golden24HourRibbonBridgesSvg({
 }) {
   if (Platform.OS !== 'web') return null;
 
+  // Isometric floating stepping stones along Bridge 1 (Focus <-> Vitality) and Bridge 2 (Vitality <-> Wishes)
+  const steppingStonesLeft: [number, number][] = [
+    [282, 165],
+    [312, 175],
+    [345, 179],
+    [378, 175],
+    [408, 165],
+  ];
+  const steppingStonesRight: [number, number][] = [
+    [592, 165],
+    [622, 175],
+    [655, 179],
+    [688, 175],
+    [718, 165],
+  ];
+
   const sparkles: [number, number, number][] = [
-    [285, 172, 1.8],
-    [312, 186, 2.2],
-    [368, 187, 2.0],
-    [412, 166, 2.2],
-    [595, 171, 1.8],
-    [622, 185, 2.3],
-    [678, 186, 2.1],
-    [722, 165, 2.0],
+    [140, 26, 1.5],
+    [285, 42, 1.8],
+    [495, 22, 2.0],
+    [715, 36, 1.7],
+    [860, 28, 1.5],
+    [296, 168, 1.9],
+    [394, 168, 1.9],
+    [606, 168, 1.9],
+    [704, 168, 1.9],
   ];
 
   return createElement(
@@ -1259,101 +1439,186 @@ function Golden24HourRibbonBridgesSvg({
         'linearGradient',
         { id: 'ribbonBody1', x1: '0', y1: '0', x2: '1', y2: '0' },
         createElement('stop', { offset: '0%', stopColor: '#cc785c' }),
-        createElement('stop', { offset: '50%', stopColor: '#eab308' }),
+        createElement('stop', { offset: '50%', stopColor: '#f5b942' }),
         createElement('stop', { offset: '100%', stopColor: '#10b981' }),
       ),
       createElement(
         'linearGradient',
         { id: 'ribbonBody2', x1: '0', y1: '0', x2: '1', y2: '0' },
         createElement('stop', { offset: '0%', stopColor: '#10b981' }),
-        createElement('stop', { offset: '50%', stopColor: '#eab308' }),
+        createElement('stop', { offset: '50%', stopColor: '#f5b942' }),
         createElement('stop', { offset: '100%', stopColor: '#d97706' }),
       ),
+      createElement(
+        'linearGradient',
+        { id: 'stageGodRayGrad', x1: '0', y1: '0', x2: '0.4', y2: '1' },
+        createElement('stop', {
+          offset: '0%',
+          stopColor: '#fef08a',
+          stopOpacity: isDark ? '0.12' : '0.18',
+        }),
+        createElement('stop', { offset: '100%', stopColor: '#f5b942', stopOpacity: '0' }),
+      ),
     ),
+
+    // 1. Linear-Style Celestial Starlight Orbit Dome & Volumetric God-Rays
+    createElement('polygon', {
+      points: '180,0 290,0 420,210 260,210',
+      fill: 'url(#stageGodRayGrad)',
+    }),
+    createElement('polygon', {
+      points: '560,0 680,0 820,210 640,210',
+      fill: 'url(#stageGodRayGrad)',
+    }),
     createElement('path', {
-      d: 'M 248 154 C 312 194, 378 194, 442 154',
+      d: 'M 60 190 Q 500 -35 940 190',
       fill: 'none',
-      stroke: isDark ? 'rgba(245, 185, 66, 0.18)' : 'rgba(204, 120, 92, 0.16)',
-      strokeWidth: 14,
+      stroke: isDark ? 'rgba(245, 185, 66, 0.14)' : 'rgba(184, 130, 40, 0.14)',
+      strokeWidth: 1,
+      strokeDasharray: '4 8',
+    }),
+    createElement('path', {
+      d: 'M 140 204 Q 500 12 860 204',
+      fill: 'none',
+      stroke: isDark ? 'rgba(52, 211, 153, 0.11)' : 'rgba(31, 94, 75, 0.1)',
+      strokeWidth: 0.9,
+    }),
+    // Subtle Isometric Horizon Grid Lines
+    createElement('line', {
+      x1: 40,
+      y1: 196,
+      x2: 960,
+      y2: 196,
+      stroke: isDark ? 'rgba(255,248,235,0.05)' : 'rgba(38,36,31,0.05)',
+      strokeWidth: 1,
+    }),
+
+    // 2. Bridge 1 (Focus <-> Vitality): Sleek Golden Light-Rail Conduit + Isometric Stepping Stones
+    createElement('path', {
+      d: 'M 252 152 C 312 188, 378 188, 438 152',
+      fill: 'none',
+      stroke: isDark ? 'rgba(245, 185, 66, 0.22)' : 'rgba(204, 120, 92, 0.18)',
+      strokeWidth: 6,
       strokeLinecap: 'round',
     }),
     createElement('path', {
-      d: 'M 248 154 C 312 194, 378 194, 442 154',
+      d: 'M 252 152 C 312 188, 378 188, 438 152',
       fill: 'none',
       stroke: 'url(#ribbonBody1)',
-      strokeWidth: 6.5,
+      strokeWidth: 2.2,
       strokeLinecap: 'round',
     }),
     createElement('path', {
-      d: 'M 248 151 C 312 191, 378 191, 442 151',
+      d: 'M 252 149 C 312 185, 378 185, 438 149',
       fill: 'none',
-      stroke: isDark ? '#fef08a' : '#fffbeb',
-      strokeWidth: 2,
-      strokeDasharray: timerRunning ? '6 6' : '10 6',
+      stroke: isDark ? '#fef08a' : '#d97706',
+      strokeWidth: 1.2,
+      strokeDasharray: timerRunning ? '4 4' : '2 6',
     }),
-    createElement('circle', {
-      cx: 345,
-      cy: 183,
-      r: 13.5,
-      fill: isDark ? '#261c10' : '#fffbeb',
-      stroke: '#d97706',
-      strokeWidth: 2.1,
+    ...steppingStonesLeft.map(([cx, cy], idx) =>
+      createElement(
+        'g',
+        { key: `stone-l-${idx}` },
+        createElement('polygon', {
+          points: `${cx},${cy - 5} ${cx + 11},${cy} ${cx},${cy + 5} ${cx - 11},${cy}`,
+          fill: isDark ? '#2a2118' : '#efe6d5',
+          stroke: '#f5b942',
+          strokeWidth: 1,
+        }),
+        createElement('polygon', {
+          points: `${cx - 11},${cy} ${cx},${cy + 5} ${cx},${cy + 9} ${cx - 11},${cy + 4}`,
+          fill: isDark ? '#17120d' : '#cbb89d',
+        }),
+        createElement('polygon', {
+          points: `${cx + 11},${cy} ${cx},${cy + 5} ${cx},${cy + 9} ${cx + 11},${cy + 4}`,
+          fill: isDark ? '#0f0c09' : '#b09d82',
+        }),
+      ),
+    ),
+    // Faceted Isometric Diamond Node Badge (✦ 24H) on Bridge 1
+    createElement('polygon', {
+      points: '345,167 363,179 345,191 327,179',
+      fill: isDark ? '#1c150d' : '#fffbeb',
+      stroke: '#f5b942',
+      strokeWidth: 1.6,
     }),
     createElement(
       'text',
       {
         x: 345,
-        y: 187,
+        y: 182,
         textAnchor: 'middle',
         fill: isDark ? '#fef08a' : '#92400e',
-        fontSize: '10',
+        fontSize: '8.5',
         fontWeight: '700',
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
       },
-      '24',
+      '24H',
     ),
+
+    // 3. Bridge 2 (Vitality <-> Wishes): Sleek Golden Light-Rail Conduit + Isometric Stepping Stones
     createElement('path', {
-      d: 'M 558 154 C 622 194, 688 194, 752 154',
+      d: 'M 562 152 C 622 188, 688 188, 748 152',
       fill: 'none',
-      stroke: isDark ? 'rgba(245, 185, 66, 0.18)' : 'rgba(204, 120, 92, 0.16)',
-      strokeWidth: 14,
+      stroke: isDark ? 'rgba(52, 211, 153, 0.2)' : 'rgba(31, 94, 75, 0.16)',
+      strokeWidth: 6,
       strokeLinecap: 'round',
     }),
     createElement('path', {
-      d: 'M 558 154 C 622 194, 688 194, 752 154',
+      d: 'M 562 152 C 622 188, 688 188, 748 152',
       fill: 'none',
       stroke: 'url(#ribbonBody2)',
-      strokeWidth: 6.5,
+      strokeWidth: 2.2,
       strokeLinecap: 'round',
     }),
     createElement('path', {
-      d: 'M 558 151 C 622 191, 688 191, 752 151',
+      d: 'M 562 149 C 622 185, 688 185, 748 149',
       fill: 'none',
-      stroke: isDark ? '#fef08a' : '#fffbeb',
-      strokeWidth: 2,
-      strokeDasharray: '10 6',
+      stroke: isDark ? '#fef08a' : '#d97706',
+      strokeWidth: 1.2,
+      strokeDasharray: '2 6',
     }),
-    createElement('circle', {
-      cx: 655,
-      cy: 183,
-      r: 13.5,
-      fill: isDark ? '#261c10' : '#fffbeb',
-      stroke: '#d97706',
-      strokeWidth: 2.1,
+    ...steppingStonesRight.map(([cx, cy], idx) =>
+      createElement(
+        'g',
+        { key: `stone-r-${idx}` },
+        createElement('polygon', {
+          points: `${cx},${cy - 5} ${cx + 11},${cy} ${cx},${cy + 5} ${cx - 11},${cy}`,
+          fill: isDark ? '#1e2923' : '#e3efe8',
+          stroke: '#34d399',
+          strokeWidth: 1,
+        }),
+        createElement('polygon', {
+          points: `${cx - 11},${cy} ${cx},${cy + 5} ${cx},${cy + 9} ${cx - 11},${cy + 4}`,
+          fill: isDark ? '#111915' : '#b8d1c4',
+        }),
+        createElement('polygon', {
+          points: `${cx + 11},${cy} ${cx},${cy + 5} ${cx},${cy + 9} ${cx + 11},${cy + 4}`,
+          fill: isDark ? '#0a100d' : '#9cb8aa',
+        }),
+      ),
+    ),
+    // Faceted Isometric Diamond Node Badge (✦ 24H) on Bridge 2
+    createElement('polygon', {
+      points: '655,167 673,179 655,191 637,179',
+      fill: isDark ? '#1c150d' : '#fffbeb',
+      stroke: '#f5b942',
+      strokeWidth: 1.6,
     }),
     createElement(
       'text',
       {
         x: 655,
-        y: 187,
+        y: 182,
         textAnchor: 'middle',
         fill: isDark ? '#fef08a' : '#92400e',
-        fontSize: '10',
+        fontSize: '8.5',
         fontWeight: '700',
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
       },
-      '24',
+      '24H',
     ),
+
     ...sparkles.map(([sx, sy, sr], idx) =>
       createElement('circle', {
         key: `sp-${idx}`,
@@ -1361,7 +1626,7 @@ function Golden24HourRibbonBridgesSvg({
         cy: sy,
         r: sr,
         fill: isDark ? '#fef08a' : '#d97706',
-        opacity: 0.72,
+        opacity: 0.78,
       }),
     ),
   );
@@ -4568,16 +4833,16 @@ const styles = StyleSheet.create({
   },
   floatingHudCorner: {
     position: 'absolute',
-    top: 4,
-    right: -2,
+    top: 0,
+    right: -6,
     zIndex: 5,
-    minWidth: 124,
-    maxWidth: 152,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
+    minWidth: 118,
+    maxWidth: 148,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 12,
     borderWidth: 1,
-    gap: 2,
+    gap: 1.5,
   },
   hudTitleRow: {
     flexDirection: 'row',
