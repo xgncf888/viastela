@@ -15,8 +15,7 @@ import { useTheme } from './ThemeProvider';
 import { showToast } from './toast';
 import { useI18n } from './use-i18n';
 
-export type MobilePodScope = 'all' | 'body' | 'mind' | 'wealth';
-export type MobileInlineSheet = 'none' | 'diff' | 'side';
+export type MobileLifeScope = 'all' | 'body' | 'ledger' | 'study';
 
 export function executeParsedOmnibarIntent(
   intent: OmnibarIntent,
@@ -30,7 +29,7 @@ export function executeParsedOmnibarIntent(
 ): void {
   if (intent.kind === 'weight') {
     handlers.onSaveWeight(intent.weightKg);
-    recordPledgeReward(`Omnibar 晨重打卡 ${intent.weightKg}kg`, localDay, 10);
+    recordPledgeReward(`晨重打卡 ${intent.weightKg}kg`, localDay, 10);
     showToast({ text: t(`✓ ${intent.summaryZh}`, `✓ ${intent.summaryEn}`) });
     return;
   }
@@ -41,7 +40,7 @@ export function executeParsedOmnibarIntent(
       weightKg: intent.weightKg,
       setsCount: intent.setsCount,
     });
-    recordPledgeReward(`Omnibar 训练打卡 ${intent.exercise}`, localDay, 15);
+    recordPledgeReward(`训练打卡 ${intent.exercise}`, localDay, 15);
     showToast({ text: t(`✓ 已记入训练：${intent.summaryZh}`, `✓ Logged workout: ${intent.summaryEn}`) });
     return;
   }
@@ -51,7 +50,7 @@ export function executeParsedOmnibarIntent(
       durationMinutes: intent.durationMinutes,
       note: intent.note,
     });
-    recordPledgeReward(`Omnibar 专注打卡 ${intent.topic}`, localDay, 15);
+    recordPledgeReward(`专注打卡 ${intent.topic}`, localDay, 15);
     showToast({ text: t(`✓ 已记入专注：${intent.summaryZh}`, `✓ Logged focus: ${intent.summaryEn}`) });
     return;
   }
@@ -65,19 +64,18 @@ export function executeParsedOmnibarIntent(
       note: intent.note,
       localDay,
     });
-    recordPledgeReward(`Omnibar 记账 ${intent.note}`, localDay, 10);
+    recordPledgeReward(`记账 ${intent.note}`, localDay, 10);
     showToast({ text: t(`✓ 已入账：${intent.summaryZh}`, `✓ Logged ledger: ${intent.summaryEn}`) });
   }
 }
 
 /**
- * Charioteer Mobile Cockpit V2 (After Optimization):
- * - Eliminates redundant stacked cards (`OneTapSmartFlowCard` merged into `.m-sess-card` roster)
- * - Adds `.m-scope-track` segmented pod bar (`All Pods · 4`, `Body`, `Mind`, `Wealth`)
- * - Adds `.m-sess-card` with `.m-cmd-bar` terminal execution bar & `.m-tree-box` sub-telemetry
- * - Adds Open-Canvas `.m-thought-details` reasoning disclosure fold
- * - Adds `.m-sheet` inline half-screen drawers (`Diff 台账补丁` & `/side 旁路快问`)
- * - Preserves `accessibilityLabel="记录"` and `先记第一笔` empty-state cues for 100% E2E compatibility
+ * 星途移动端仪表盘（汲取 Charioteer 的纸感、0.5px 细线、Squircle 状态角标与高密度双行卡片神韵，
+ * 完全摒弃 AI 对话气泡 / 终端命令行 / Pod 术语，回归纯粹的个人节律、健身、记账与精读工具感）：
+ * 1. 顶部分段筛选器（全部 · 身体 · 账本 · 学习）+ 主「记录」胶囊按钮
+ * 2. 左侧 2.5px 陶土色强调线「今日节律总览卡」+ 顶部深色胶囊实时进度抽屉
+ * 3. 四维高密度双行仪表卡（晨重与均线、抗阻训练、家庭合池账本、深度精读）+ 一键快记胶囊
+ * 4. 内嵌单行 Spotlight 式极简速记槽（无聊天发送气泡，回车直接入账/打卡）
  */
 export function CharioteerMobileCockpit({
   localDay,
@@ -110,15 +108,13 @@ export function CharioteerMobileCockpit({
   const { locale, t } = useI18n();
   const isDark = scheme === 'dark';
   const [islandOpen, setIslandOpen] = useState(false);
-  const [podScope, setPodScope] = useState<MobilePodScope>('all');
-  const [thoughtOpen, setThoughtOpen] = useState(false);
-  const [activeSheet, setActiveSheet] = useState<MobileInlineSheet>('none');
-  const [omnibarText, setOmnibarText] = useState('');
+  const [scope, setScope] = useState<MobileLifeScope>('all');
+  const [quickInput, setQuickInput] = useState('');
 
   const loggedCount =
     (hasWeightToday ? 1 : 0) + (trainingSetsCount > 0 ? 1 : 0) + (studyMinutesToday > 0 ? 1 : 0);
 
-  const parsedIntent = useMemo(() => parseOmnibarCommand(omnibarText), [omnibarText]);
+  const parsedIntent = useMemo(() => parseOmnibarCommand(quickInput), [quickInput]);
 
   const triggerSheet = (kind: RecordSheetKind = 'weight') => {
     if (onOpenSheet) {
@@ -128,12 +124,12 @@ export function CharioteerMobileCockpit({
     }
   };
 
-  function handleExecuteOmnibar() {
+  function handleQuickLogSubmit() {
     if (!parsedIntent) {
-      if (omnibarText.trim()) {
+      if (quickInput.trim()) {
         showToast({
           text: t(
-            '格式提示：输入如「72.4kg」「卧推 60kg 8x4」「读 DDIA 45m」或「瑞幸 18 微信」',
+            '格式提示：可输入「72.4kg」「卧推 60kg 8x4」「读 DDIA 45m」或「瑞幸 18 微信」',
             'Try "72.4kg", "bench 60kg 8x4", "study DDIA 45m", or "coffee 18"',
           ),
         });
@@ -152,58 +148,50 @@ export function CharioteerMobileCockpit({
       },
       t,
     );
-    setOmnibarText('');
+    setQuickInput('');
   }
 
   const remainingBudgetCny = Math.max(0, monthlyBudgetCny - monthlyExpenseCny);
+  const budgetUsedPct =
+    monthlyBudgetCny > 0 ? Math.min(100, Math.round((monthlyExpenseCny / monthlyBudgetCny) * 100)) : 0;
   const quickWeightVal = latestWeightKg ? Number(latestWeightKg.toFixed(1)) : 65.0;
 
-  const quickExamples = [
-    {
-      label: `${quickWeightVal.toFixed(1)}kg`,
-      cmd: `${quickWeightVal.toFixed(1)}kg`,
-    },
-    { label: t('卧推 60kg 8x3', 'Bench 60kg 8x3'), cmd: '卧推 60kg 8x3' },
-    { label: t('读 AI 45m', 'Study AI 45m'), cmd: '读 AI Infra 45m' },
-    { label: t('手冲咖啡 18 微信', 'Coffee 18'), cmd: '手冲咖啡 18 微信' },
-  ];
-
-  const showBody = podScope === 'all' || podScope === 'body';
-  const showMind = podScope === 'all' || podScope === 'mind';
-  const showWealth = podScope === 'all' || podScope === 'wealth';
+  const showBody = scope === 'all' || scope === 'body';
+  const showLedger = scope === 'all' || scope === 'ledger';
+  const showStudy = scope === 'all' || scope === 'study';
 
   return (
     <View style={styles.container} testID="charioteer-mobile-cockpit">
-      {/* 1. Mobile Top Scope Bar (`.m-scope-track`) + Primary Quick Action */}
+      {/* 1. 顶部毛玻璃感分段筛选栏 + 主「记录」按钮 */}
       <View style={styles.topScopeHeader}>
         <View style={[styles.scopeTrack, { backgroundColor: color.surface, borderColor: color.line }]}>
           {(
             [
-              { id: 'all', label: t('All Pods · 4', 'All Pods · 4'), dot: null },
+              { id: 'all', label: t('全部概览', 'Overview'), dot: null },
               {
                 id: 'body',
-                label: t(`身体 · ${(hasWeightToday ? 1 : 0) + (trainingSetsCount > 0 ? 1 : 0)}/2`, 'Body'),
+                label: t('身体节律', 'Body'),
                 dot: hasWeightToday && trainingSetsCount > 0 ? '#10B981' : '#F59E0B',
               },
               {
-                id: 'mind',
-                label: t(`心智 · ${studyMinutesToday}m`, `Mind · ${studyMinutesToday}m`),
-                dot: studyMinutesToday > 0 ? '#10B981' : '#3B82F6',
+                id: 'ledger',
+                label: t('家庭账本', 'Ledger'),
+                dot: budgetUsedPct > 85 ? '#F59E0B' : '#10B981',
               },
               {
-                id: 'wealth',
-                label: t(`账本 · ¥${Math.round(monthlyExpenseCny)}`, 'Ledger'),
-                dot: '#C6613F',
+                id: 'study',
+                label: t('深度学习', 'Study'),
+                dot: studyMinutesToday > 0 ? '#10B981' : '#3B82F6',
               },
             ] as const
           ).map((seg) => {
-            const active = podScope === seg.id;
+            const active = scope === seg.id;
             return (
               <Pressable
                 key={seg.id}
                 accessibilityRole="button"
                 accessibilityLabel={seg.label}
-                onPress={() => setPodScope(seg.id)}
+                onPress={() => setScope(seg.id)}
                 style={[
                   styles.scopeSeg,
                   active
@@ -233,29 +221,28 @@ export function CharioteerMobileCockpit({
           })}
         </View>
 
-        {/* Primary "记录" button matching E2E `recordButton(page)` selector */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="记录"
           onPress={() => triggerSheet('weight')}
           style={({ pressed }) => [
-            styles.primaryNewBtn,
+            styles.primaryLogBtn,
             {
               backgroundColor: color.ink,
               opacity: pressed ? 0.85 : 1,
             },
           ]}
         >
-          <Text variant="caption" style={[styles.primaryNewBtnText, { color: color.paper }]}>
-            {t('记录', 'Log')}
+          <Text variant="caption" style={[styles.primaryLogBtnText, { color: color.paper }]}>
+            {t('＋ 记录', '＋ Log')}
           </Text>
         </Pressable>
       </View>
 
-      {/* 2. Charioteer Chief Row (`.m-chief-row`) + iOS Dynamic Island Live Activity */}
+      {/* 2. 左侧陶土强调线「今日节律总览卡」+ 灵动岛式进度胶囊 */}
       <View
         style={[
-          styles.chiefCard,
+          styles.summaryCard,
           cardSurfaceStyle(color.card, color.line),
           {
             borderLeftColor: color.accent,
@@ -263,13 +250,8 @@ export function CharioteerMobileCockpit({
           },
         ]}
       >
-        <View style={styles.chiefTopRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('展开今日节律思考链', 'Toggle daily rhythm reasoning')}
-            onPress={() => setThoughtOpen((prev) => !prev)}
-            style={styles.chiefMain}
-          >
+        <View style={styles.summaryTopRow}>
+          <View style={styles.summaryMain}>
             <View style={[styles.brandTile, { backgroundColor: color.ink }]}>
               <Text
                 variant="caption"
@@ -292,30 +274,50 @@ export function CharioteerMobileCockpit({
                 ]}
               />
             </View>
-            <View style={styles.chiefTextCol}>
-              <View style={styles.chiefTitleRow}>
-                <Text variant="label" style={styles.chiefTitle}>
-                  Chief
+            <View style={styles.summaryTextCol}>
+              <View style={styles.summaryTitleRow}>
+                <Text variant="label" style={styles.summaryTitle}>
+                  {t('今日节律总览', 'Daily Rhythm Summary')}
                 </Text>
-                <Text variant="caption" tone="muted" style={{ fontSize: 10.5 }}>
-                  {t('Personal Rhythm Orchestrator', 'Rhythm Orchestrator')}
-                </Text>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    {
+                      backgroundColor: loggedCount === 3 ? color.greenSoft : color.accentSoft,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.badgeLed,
+                      { backgroundColor: loggedCount === 3 ? color.green : color.accent },
+                    ]}
+                  />
+                  <Text
+                    variant="caption"
+                    style={[
+                      styles.badgeMono,
+                      { color: loggedCount === 3 ? color.green : color.accent },
+                    ]}
+                  >
+                    {loggedCount === 3 ? t('3/3 已完成', '3/3 Done') : t(`${loggedCount}/3 进行中`, `${loggedCount}/3 Active`)}
+                  </Text>
+                </View>
               </View>
               <Text variant="caption" tone="muted" numberOfLines={1}>
                 {latestWeightKg === null
-                  ? t('先记第一笔 · 开启 7 日 EMA 均重与四维脉冲追踪', 'Log first entry to start 7D EMA')
+                  ? t('先记第一笔 · 开启 7 日均重与每日节律追踪', 'Log first entry to start 7D EMA')
                   : t(
-                      `晨重 ${latestWeightKg.toFixed(1)}kg · 训练 ${trainingSetsCount}组 · 专注 ${studyMinutesToday}m`,
-                      `Weight ${latestWeightKg.toFixed(1)}kg · ${trainingSetsCount} sets · ${studyMinutesToday}m`,
+                      `晨重 ${latestWeightKg.toFixed(1)}kg · 训练 ${trainingSetsCount}组 · 专注 ${studyMinutesToday}m · 月余 ¥${Math.round(remainingBudgetCny)}`,
+                      `Weight ${latestWeightKg.toFixed(1)}kg · ${trainingSetsCount} sets · ${studyMinutesToday}m · Left ¥${Math.round(remainingBudgetCny)}`,
                     )}
               </Text>
             </View>
-          </Pressable>
+          </View>
 
-          {/* Dynamic Island Pill Trigger */}
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t('展开灵动岛实时状态抽屉', 'Toggle Live Activity Dynamic Island')}
+            accessibilityLabel={t('展开四维进度面板', 'Toggle 4D progress drawer')}
             onPress={() => setIslandOpen((prev) => !prev)}
             style={({ pressed }) => [
               styles.dynamicIslandPill,
@@ -325,41 +327,17 @@ export function CharioteerMobileCockpit({
             <View style={styles.islandLeft}>
               <View style={styles.liveLedDot} />
               <Text variant="caption" style={styles.islandMonoText}>
-                {islandOpen ? t('收起 ▴', 'Hide ▴') : `${loggedCount}/3 live ▾`}
+                {islandOpen ? t('收起 ▴', 'Hide ▴') : `${loggedCount}/3 ▾`}
               </Text>
             </View>
           </Pressable>
         </View>
 
-        {/* Open-Canvas Reasoning Disclosure (`.m-thought-details`) */}
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setThoughtOpen((prev) => !prev)}
-          style={styles.thoughtSummaryRow}
-        >
-          <Text variant="caption" tone="muted" style={styles.thoughtSummaryText}>
-            {thoughtOpen
-              ? t('▾ Thought for 0.8s · 收起今日节律诊断', '▾ Thought for 0.8s · Hide diagnosis')
-              : t('› Thought for 0.8s · 查看今日四维节律编排建议', '› Thought for 0.8s · View daily synthesis')}
-          </Text>
-        </Pressable>
-        {thoughtOpen ? (
-          <View style={[styles.thoughtBody, { borderLeftColor: color.line }]}>
-            <Text variant="caption" tone="muted" style={styles.thoughtProse}>
-              {t(
-                `检查 ${localDay} 四维遥测：${hasWeightToday ? '晨重已归档' : '晨重待打卡（建议空腹测量）'}；${trainingSetsCount > 0 ? `已完成 ${trainingSetsCount} 组抗阻训练（容量 ${Math.round(trainingVolumeKg)}kg）` : '今日尚未记录训练组'}；本月共享池剩余可用预算 ¥${Math.round(remainingBudgetCny)}。`,
-                `Telemetry for ${localDay}: ${hasWeightToday ? 'Weight logged' : 'Weight pending'}; ${trainingSetsCount} workout sets (${Math.round(trainingVolumeKg)}kg volume); ¥${Math.round(remainingBudgetCny)} monthly budget remaining.`,
-              )}
-            </Text>
-          </View>
-        ) : null}
-
-        {/* Expanded iOS Live Activity Drawer */}
         {islandOpen ? (
           <View style={styles.islandDrawer}>
             <View style={styles.islandDrawerHeader}>
               <Text variant="caption" style={styles.islandHeaderText}>
-                {t('LIVE ACTIVITY · 今日四维脉冲直达', 'LIVE ACTIVITY · 4D TELEMETRY')}
+                {t('今日四维直达面板', 'DAILY QUICK ACCESS')}
               </Text>
               <Text variant="caption" style={styles.islandHeaderText}>
                 {localDay}
@@ -374,10 +352,10 @@ export function CharioteerMobileCockpit({
                 style={styles.islandItem}
               >
                 <Text variant="caption" style={styles.islandItemTitle}>
-                  {`⚖️ ${t('晨重', 'Weight')}`}
+                  {`⚖️ ${t('晨重打卡', 'Weight')}`}
                 </Text>
                 <Text variant="caption" style={styles.islandItemValue}>
-                  {hasWeightToday && latestWeightKg ? `${latestWeightKg.toFixed(1)} kg` : t('点击秒记 →', 'Log →')}
+                  {hasWeightToday && latestWeightKg ? `${latestWeightKg.toFixed(1)} kg` : t('立即记录 →', 'Log →')}
                 </Text>
               </Pressable>
               <Pressable
@@ -388,10 +366,24 @@ export function CharioteerMobileCockpit({
                 style={styles.islandItem}
               >
                 <Text variant="caption" style={styles.islandItemTitle}>
-                  {`🏋️ ${t('健身舱', 'Fitness')}`}
+                  {`🏋️ ${t('健身训练', 'Fitness')}`}
                 </Text>
                 <Text variant="caption" style={styles.islandItemValue}>
-                  {trainingSetsCount > 0 ? `${trainingSetsCount} sets` : t('去训练 →', 'Open →')}
+                  {trainingSetsCount > 0 ? `${trainingSetsCount} 组` : t('去训练 →', 'Open →')}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  setIslandOpen(false);
+                  router.replace('/ledger');
+                }}
+                style={styles.islandItem}
+              >
+                <Text variant="caption" style={styles.islandItemTitle}>
+                  {`¥ ${t('家庭账本', 'Ledger')}`}
+                </Text>
+                <Text variant="caption" style={styles.islandItemValue}>
+                  {`-¥${Math.round(monthlyExpenseCny)}`}
                 </Text>
               </Pressable>
               <Pressable
@@ -408,49 +400,72 @@ export function CharioteerMobileCockpit({
                   {studyMinutesToday > 0 ? `${studyMinutesToday} min` : t('去精读 →', 'Read →')}
                 </Text>
               </Pressable>
-              <Pressable
-                onPress={() => {
-                  setIslandOpen(false);
-                  router.replace('/browser');
-                }}
-                style={styles.islandItem}
-              >
-                <Text variant="caption" style={styles.islandItemTitle}>
-                  {`🌐 ${t('浏览器', 'Browser')}`}
-                </Text>
-                <Text variant="caption" style={styles.islandItemValue}>
-                  {t('ArXiv / GitHub →', 'Search →')}
-                </Text>
-              </Pressable>
             </View>
           </View>
         ) : null}
       </View>
 
-      {/* 3. Charioteer Working Radar Roster Cards (`.m-sess-card` + `.m-cmd-bar` + `.m-tree-box`) */}
-      <View style={styles.groupHead}>
-        <View style={styles.groupTitleRow}>
-          <View style={[styles.liveLedDot, { width: 5, height: 5 }]} />
-          <Text variant="caption" tone="muted" style={styles.groupTitleText}>
-            {t(`WORKING PODS · ${loggedCount}/3 SYNCED`, `WORKING PODS · ${loggedCount}/3 SYNCED`)}
+      {/* 3. Spotlight 式单行速记栏（干净的工具条，无对话气泡） */}
+      <View
+        style={[
+          styles.quickSpotBar,
+          cardSurfaceStyle(color.card, color.line),
+          parsedIntent ? { borderColor: color.accent } : null,
+        ]}
+      >
+        <View style={styles.quickSpotInputRow}>
+          <Text variant="caption" style={{ color: color.accent, fontFamily: theme.fontFamily.mono, fontWeight: theme.fontWeight.semibold }}>
+            ⚡
           </Text>
+          <TextInput
+            value={quickInput}
+            onChangeText={setQuickInput}
+            onSubmitEditing={handleQuickLogSubmit}
+            returnKeyType="done"
+            placeholder={t(
+              '速记槽：输入 72.4kg / 卧推 60kg 8x4 / 瑞幸 18 回车即记…',
+              'Quick log: "72.4kg", "bench 60kg 8x4", "coffee 18"…',
+            )}
+            placeholderTextColor={color.textFaint}
+            style={[
+              styles.quickSpotInput,
+              { color: color.ink },
+              Platform.OS === 'web' ? ({ outlineStyle: 'none' } as unknown as ViewStyle) : null,
+            ]}
+          />
+          {quickInput.trim().length > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('确认速记', 'Save quick log')}
+              onPress={() => {
+                void createId();
+                handleQuickLogSubmit();
+              }}
+              style={[styles.spotSaveBtn, { backgroundColor: parsedIntent ? color.accent : color.ink }]}
+            >
+              <Text variant="caption" style={{ color: color.paper, fontSize: 10.5, fontWeight: theme.fontWeight.semibold }}>
+                {t('记入', 'Save')}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
-        <Text variant="caption" tone="muted" style={styles.groupMetaText}>
-          Local-First SQLite
-        </Text>
+        {parsedIntent ? (
+          <View style={[styles.intentPreviewRow, { backgroundColor: color.accentSoft }]}>
+            <Text variant="caption" style={[styles.intentPreviewText, { color: color.accent }]} numberOfLines={1}>
+              {locale === 'en'
+                ? `${parsedIntent.badgeEn}: ${parsedIntent.summaryEn}`
+                : `${parsedIntent.badgeZh} · ${parsedIntent.summaryZh}`}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
-      <View style={styles.rosterList}>
-        {/* Pod 1: Body (Weight & Training) */}
+      {/* 4. 高密度双行精致仪表卡片流（纯粹的个人量化卡片，无终端命令行） */}
+      <View style={styles.cardsGrid}>
+        {/* 卡片 A：晨重与抗阻训练（身体节律） */}
         {showBody ? (
-          <View
-            style={[
-              styles.sessCard,
-              cardSurfaceStyle(color.card, color.line),
-              !hasWeightToday ? { borderColor: color.accent, borderWidth: 1 } : null,
-            ]}
-          >
-            <View style={styles.sessTop}>
+          <View style={[styles.metricCard, cardSurfaceStyle(color.card, color.line)]}>
+            <View style={styles.metricTop}>
               <View
                 style={[
                   styles.brandTile,
@@ -474,116 +489,77 @@ export function CharioteerMobileCockpit({
                 />
               </View>
 
-              <View style={styles.sessInfo}>
-                <View style={styles.sessLine1}>
-                  <Text variant="label" style={styles.sessName} numberOfLines={1}>
-                    body-pod-1{' '}
-                    <Text variant="caption" tone="muted">
-                      {t('· 晨重与抗阻训练', '· Weight & Strength')}
-                    </Text>
+              <View style={styles.metricInfo}>
+                <View style={styles.metricLine1}>
+                  <Text variant="label" style={styles.metricName}>
+                    {t('晨重与抗阻训练', 'Weight & Strength')}
                   </Text>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      {
-                        backgroundColor: hasWeightToday ? color.greenSoft : color.accentSoft,
-                      },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.badgeLed,
-                        { backgroundColor: hasWeightToday ? color.green : color.accent },
-                      ]}
-                    />
-                    <Text
-                      variant="caption"
-                      style={[
-                        styles.badgeMono,
-                        { color: hasWeightToday ? color.green : color.accent },
-                      ]}
-                    >
-                      {hasWeightToday ? 'Synced' : 'Sign-off'}
-                    </Text>
-                  </View>
+                  <Text variant="caption" style={[styles.metricPrimaryMono, { color: color.ink }]}>
+                    {latestWeightKg ? `${latestWeightKg.toFixed(1)} kg` : t('先记第一笔', 'First entry')}
+                  </Text>
                 </View>
-
-                <View style={styles.sessLine2}>
-                  <Text variant="caption" tone="muted" style={styles.sessEnv}>
-                    {latestWeightKg === null
-                      ? t('先记第一笔 · 尚未建立基准体重', 'No weight logged yet')
-                      : `${latestWeightKg.toFixed(1)} kg · ${trainingSetsCount} sets (${Math.round(trainingVolumeKg)} kg)`}
+                <View style={styles.metricLine2}>
+                  <Text variant="caption" tone="muted" numberOfLines={1}>
+                    {hasWeightToday
+                      ? t(`今日晨重已打卡 · 训练 ${trainingSetsCount} 组 (${Math.round(trainingVolumeKg)}kg)`, `Weight logged · ${trainingSetsCount} sets`)
+                      : t('今日晨重待打卡 · 保持 7 日均重连续', 'Morning weight pending today')}
                   </Text>
-                  <View style={[styles.subagentPill, { backgroundColor: color.accentSoft }]}>
-                    <Text variant="caption" style={[styles.subagentPillText, { color: color.accent }]}>
-                      2 metrics
-                    </Text>
-                  </View>
                 </View>
               </View>
             </View>
 
-            {/* Terminal Command Bar (`.m-cmd-bar`) */}
-            <View style={[styles.cmdBar, { backgroundColor: color.surface, borderColor: color.lineSoft }]}>
-              <Text variant="caption" style={[styles.cmdBarText, { color: color.ink }]} numberOfLines={1}>
-                {`$ log weight ${quickWeightVal.toFixed(1)}kg && workout --sets ${trainingSetsCount}`}
+            {/* 底部快捷动作栏（干净的胶囊按钮，替代终端命令行） */}
+            <View style={[styles.metricFooterBar, { backgroundColor: color.surface, borderColor: color.lineSoft }]}>
+              <Text variant="caption" tone="muted" style={styles.footerMetaMono}>
+                {trainingSetsCount > 0
+                  ? t(`今日容量 ${Math.round(trainingVolumeKg)} kg`, `Vol ${Math.round(trainingVolumeKg)} kg`)
+                  : t('一键快速打卡', '1-Tap Quick Log')}
               </Text>
-              <View style={styles.cmdQuickActions}>
+              <View style={styles.footerActionRow}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={t(`一键打卡晨重 ${quickWeightVal.toFixed(1)}kg`, `Quick log ${quickWeightVal.toFixed(1)}kg`)}
+                  accessibilityLabel={t(`一键记晨重 ${quickWeightVal.toFixed(1)}kg`, `Quick log ${quickWeightVal.toFixed(1)}kg`)}
                   onPress={() => {
                     onSaveWeight(quickWeightVal);
                     showToast({ text: t(`✓ 已记晨重 ${quickWeightVal.toFixed(1)} kg`, `✓ Logged ${quickWeightVal.toFixed(1)} kg`) });
                   }}
-                  style={[styles.inlineCmdBtn, { backgroundColor: color.accentSoft }]}
+                  style={[styles.actionPill, { backgroundColor: color.accentSoft }]}
                 >
-                  <Text variant="caption" style={[styles.inlineCmdBtnText, { color: color.accent }]}>
+                  <Text variant="caption" style={[styles.actionPillText, { color: color.accent }]}>
                     {hasWeightToday ? t(`↻ ${quickWeightVal.toFixed(1)}kg`, `↻ ${quickWeightVal.toFixed(1)}kg`) : t(`⚡ 记 ${quickWeightVal.toFixed(1)}kg`, `⚡ ${quickWeightVal.toFixed(1)}kg`)}
                   </Text>
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={t('一键打卡俯卧撑 20次', 'Quick log 20 pushups')}
+                  accessibilityLabel={t('一键记俯卧撑 20次', 'Quick log 20 pushups')}
                   onPress={() => {
                     onSaveWorkout({ exercise: '俯卧撑', reps: 20, weightKg: null, setsCount: 1 });
                     showToast({ text: t('✓ 已记训练：俯卧撑 × 20', '✓ Logged 20 pushups') });
                   }}
-                  style={[styles.inlineCmdBtn, { backgroundColor: color.card, borderColor: color.line, borderWidth: 0.5 }]}
+                  style={[styles.actionPill, { backgroundColor: color.card, borderColor: color.line, borderWidth: 0.5 }]}
                 >
-                  <Text variant="caption" style={styles.inlineCmdBtnText}>
-                    {t('＋训练', '＋Set')}
+                  <Text variant="caption" style={styles.actionPillText}>
+                    {t('＋俯卧撑×20', '＋20 Pushups')}
                   </Text>
                 </Pressable>
-              </View>
-            </View>
-
-            {/* Subagent Tree Box (`.m-tree-box`) */}
-            <View style={[styles.treeBox, { backgroundColor: color.surface }]}>
-              <View style={styles.treeRow}>
-                <Text variant="caption" tone="muted" style={styles.treeMono}>
-                  ├─ weight-ema7 · {latestWeightKg ? `${latestWeightKg.toFixed(1)} kg` : t('先记第一笔', 'First entry')}
-                </Text>
-                <Text variant="caption" style={[styles.treeMono, { color: hasWeightToday ? color.green : color.muted }]}>
-                  {hasWeightToday ? 'recorded' : 'pending'}
-                </Text>
-              </View>
-              <View style={styles.treeRow}>
-                <Text variant="caption" tone="muted" style={styles.treeMono}>
-                  └─ strength-vol · {trainingSetsCount > 0 ? `${trainingSetsCount} 组 / ${Math.round(trainingVolumeKg)} kg` : t('今日待训练', '0 sets')}
-                </Text>
-                <Text variant="caption" style={[styles.treeMono, { color: trainingSetsCount > 0 ? color.green : color.muted }]}>
-                  {trainingSetsCount > 0 ? 'active' : 'idle'}
-                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => triggerSheet('training')}
+                  style={[styles.actionPill, { backgroundColor: color.card, borderColor: color.line, borderWidth: 0.5 }]}
+                >
+                  <Text variant="caption" tone="muted" style={styles.actionPillText}>
+                    {t('更多训练 ›', 'More ›')}
+                  </Text>
+                </Pressable>
               </View>
             </View>
           </View>
         ) : null}
 
-        {/* Pod 2: Mind & Wealth Compact Dual Card */}
-        {showMind || showWealth ? (
-          <View style={[styles.sessCard, cardSurfaceStyle(color.card, color.line)]}>
-            <View style={styles.sessTop}>
+        {/* 卡片 B：家庭合池账本（预算进度槽 + 快捷记账） */}
+        {showLedger ? (
+          <View style={[styles.metricCard, cardSurfaceStyle(color.card, color.line)]}>
+            <View style={styles.metricTop}>
               <View
                 style={[
                   styles.brandTile,
@@ -594,7 +570,102 @@ export function CharioteerMobileCockpit({
                 ]}
               >
                 <Text variant="caption" style={{ color: color.accent, fontFamily: theme.fontFamily.mono, fontWeight: theme.fontWeight.semibold }}>
-                  ⌘
+                  ¥
+                </Text>
+                <View
+                  style={[
+                    styles.tileStatusDot,
+                    {
+                      backgroundColor: budgetUsedPct > 85 ? '#F59E0B' : '#10B981',
+                      borderColor: color.card,
+                    },
+                  ]}
+                />
+              </View>
+
+              <View style={styles.metricInfo}>
+                <View style={styles.metricLine1}>
+                  <Text variant="label" style={styles.metricName}>
+                    {t('家庭合池账本', 'Family Pool Ledger')}
+                  </Text>
+                  <Text variant="caption" style={[styles.metricPrimaryMono, { color: color.ink }]}>
+                    {`-¥${Math.round(monthlyExpenseCny)}`}
+                  </Text>
+                </View>
+                <View style={styles.metricLine2}>
+                  <Text variant="caption" tone="muted">
+                    {t(
+                      `本月预算已用 ${budgetUsedPct}% · 剩余可用 ¥${Math.round(remainingBudgetCny)}`,
+                      `${budgetUsedPct}% used · ¥${Math.round(remainingBudgetCny)} remaining`,
+                    )}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* 紧凑进度槽 + 一键记账胶囊 */}
+            <View style={[styles.metricFooterBar, { backgroundColor: color.surface, borderColor: color.lineSoft }]}>
+              <View style={[styles.progressTrack, { backgroundColor: color.line }]}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${Math.max(4, budgetUsedPct)}%`,
+                      backgroundColor: budgetUsedPct > 85 ? color.accent : color.green,
+                    },
+                  ]}
+                />
+              </View>
+              <View style={styles.footerActionRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    addLedgerTransaction({
+                      kind: 'expense',
+                      amountCny: 18,
+                      categoryId: 'coffee',
+                      accountId: 'wechat',
+                      owner: 'me',
+                      note: '手冲咖啡',
+                      localDay,
+                    });
+                    showToast({ text: t('✓ 已记账：手冲咖啡 ¥18', '✓ Logged coffee ¥18') });
+                  }}
+                  style={[styles.actionPill, { backgroundColor: color.card, borderColor: color.line, borderWidth: 0.5 }]}
+                >
+                  <Text variant="caption" style={styles.actionPillText}>
+                    {t('☕ 咖啡 ¥18', '☕ ¥18')}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => router.replace('/ledger')}
+                  style={[styles.actionPill, { backgroundColor: color.accentSoft }]}
+                >
+                  <Text variant="caption" style={[styles.actionPillText, { color: color.accent }]}>
+                    {t('账本明细 ›', 'Ledger ›')}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        ) : null}
+
+        {/* 卡片 C：深度学习与知识图谱闪卡 */}
+        {showStudy ? (
+          <View style={[styles.metricCard, cardSurfaceStyle(color.card, color.line)]}>
+            <View style={styles.metricTop}>
+              <View
+                style={[
+                  styles.brandTile,
+                  {
+                    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.16)' : 'rgba(59, 130, 246, 0.11)',
+                    borderColor: 'rgba(59, 130, 246, 0.24)',
+                  },
+                ]}
+              >
+                <Text variant="caption" style={{ color: '#2563EB', fontFamily: theme.fontFamily.mono, fontWeight: theme.fontWeight.semibold }}>
+                  📚
                 </Text>
                 <View
                   style={[
@@ -607,267 +678,55 @@ export function CharioteerMobileCockpit({
                 />
               </View>
 
-              <View style={styles.sessInfo}>
-                <View style={styles.sessLine1}>
-                  <Text variant="label" style={styles.sessName} numberOfLines={1}>
-                    mind-ledger-2{' '}
-                    <Text variant="caption" tone="muted">
-                      {t('· 深度学习与人民币池', '· Study & CNY Pool')}
-                    </Text>
+              <View style={styles.metricInfo}>
+                <View style={styles.metricLine1}>
+                  <Text variant="label" style={styles.metricName}>
+                    {t('深度学习与闪卡', 'Deep Study & FSRS')}
                   </Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => {
-                      onSaveStudy({ topic: 'AI Infra & 架构精读', durationMinutes: 45, note: 'Charioteer 随身雷达快记' });
-                      showToast({ text: t('✓ 已记专注 45m', '✓ Logged 45m focus') });
-                    }}
-                    style={[styles.inlineCmdBtn, { backgroundColor: color.accentSoft }]}
-                  >
-                    <Text variant="caption" style={[styles.inlineCmdBtnText, { color: color.accent }]}>
-                      {t('⚡ 专注 45m', '⚡ +45m')}
-                    </Text>
-                  </Pressable>
+                  <Text variant="caption" style={[styles.metricPrimaryMono, { color: color.ink }]}>
+                    {`${studyMinutesToday} min`}
+                  </Text>
                 </View>
-
-                <View style={styles.sessLine2}>
-                  <Text variant="caption" tone="muted" style={styles.sessEnv}>
-                    {t(
-                      `今日专注 ${studyMinutesToday}m · 本月支出 -¥${Math.round(monthlyExpenseCny)} (余 ¥${Math.round(remainingBudgetCny)})`,
-                      `Focus ${studyMinutesToday}m · Spend -¥${Math.round(monthlyExpenseCny)}`,
-                    )}
+                <View style={styles.metricLine2}>
+                  <Text variant="caption" tone="muted">
+                    {studyMinutesToday > 0
+                      ? t(`今日已专注 ${studyMinutesToday} 分钟 · 保持心智复利`, `${studyMinutesToday}m logged today`)
+                      : t('今日尚未记录专注 · 满 30m 触发心愿金奖励', 'Log 30m+ focus to earn wish reward')}
                   </Text>
                 </View>
               </View>
             </View>
+
+            <View style={[styles.metricFooterBar, { backgroundColor: color.surface, borderColor: color.lineSoft }]}>
+              <Text variant="caption" tone="muted" style={styles.footerMetaMono}>
+                FSRS · 17 Chapters
+              </Text>
+              <View style={styles.footerActionRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    onSaveStudy({ topic: 'AI Infra & 架构精读', durationMinutes: 45, note: '今日深度精读打卡' });
+                    showToast({ text: t('✓ 已记专注 45 分钟', '✓ Logged 45m focus') });
+                  }}
+                  style={[styles.actionPill, { backgroundColor: color.accentSoft }]}
+                >
+                  <Text variant="caption" style={[styles.actionPillText, { color: color.accent }]}>
+                    {t('⚡ 记精读 45m', '⚡ +45m')}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => router.replace('/study')}
+                  style={[styles.actionPill, { backgroundColor: color.card, borderColor: color.line, borderWidth: 0.5 }]}
+                >
+                  <Text variant="caption" style={styles.actionPillText}>
+                    {t('学习角 ›', 'Academy ›')}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
           </View>
         ) : null}
-      </View>
-
-      {/* 4. Pure CSS / Inline Half-Screen Bottom Sheets (`.m-sheet`: Diff & /side Chat) */}
-      {activeSheet !== 'none' ? (
-        <View style={[styles.inlineSheet, cardSurfaceStyle(color.card, color.line)]}>
-          <View style={[styles.sheetGrabber, { backgroundColor: color.line }]} />
-          <View style={styles.sheetHeader}>
-            <Text variant="label" style={styles.sheetTitle}>
-              {activeSheet === 'diff'
-                ? t(`Artifact Patch · today_rhythm.log (+${loggedCount} −0)`, `Artifact Patch · today_rhythm.log (+${loggedCount} −0)`)
-                : t('Side Chat (/side · 零上下文污染快问)', 'Side Chat (/side · Read-Only Snapshot)')}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('关闭半屏抽屉', 'Close drawer')}
-              onPress={() => setActiveSheet('none')}
-              style={[styles.sheetCloseBtn, { backgroundColor: color.surface, borderColor: color.line }]}
-            >
-              <Text variant="caption">✕</Text>
-            </Pressable>
-          </View>
-
-          {activeSheet === 'diff' ? (
-            <View style={styles.diffCodeBlock}>
-              <Text variant="caption" style={styles.diffHeaderLine}>
-                {`sqlite://local-db/${localDay}.patch    +${loggedCount} −0`}
-              </Text>
-              <Text variant="caption" style={styles.diffAddLine}>
-                {`+ weight_ema7 = ${latestWeightKg ? `${latestWeightKg.toFixed(1)} kg` : 'PENDING'} (${hasWeightToday ? 'synced' : 'awaiting input'})`}
-              </Text>
-              <Text variant="caption" style={styles.diffAddLine}>
-                {`+ workout_sets = ${trainingSetsCount} sets (${Math.round(trainingVolumeKg)} kg total volume)`}
-              </Text>
-              <Text variant="caption" style={styles.diffAddLine}>
-                {`+ deep_study_min = ${studyMinutesToday} min | cny_pool_left = ¥${Math.round(remainingBudgetCny)}`}
-              </Text>
-            </View>
-          ) : (
-            <View style={[styles.sideChatBox, { backgroundColor: color.surface, borderColor: color.lineSoft }]}>
-              <Text variant="caption" tone="muted" style={styles.monoTiny}>
-                SNAPSHOT ISOLATED · ZERO HISTORY POLLUTION
-              </Text>
-              <Text variant="caption" style={{ color: color.ink }}>
-                {t(
-                  `Q: 按当前进度，今天最值得优先补齐哪一项？`,
-                  `Q: What is the highest-leverage action right now?`,
-                )}
-              </Text>
-              <Text variant="caption" tone="muted">
-                {!hasWeightToday
-                  ? t(
-                      'A: 今日晨重尚未打卡。建议点击上方「⚡ 记重」或在下方输入体重数值，补齐 7 日 EMA 连续曲线。',
-                      'A: Morning weight is still unlogged. Tap quick weight or type in the Omnibar below.',
-                    )
-                  : studyMinutesToday < 30
-                    ? t(
-                        'A: 晨重已同步！今日深度专注还差 30m 即可触发「身心双修共振」奖励 (+15¥ 心愿金)。',
-                        'A: Weight synced! 30m of deep study will unlock your Body×Mind resonance bonus.',
-                      )
-                    : t(
-                        `A: 今日核心节律已达成 ${loggedCount}/3，本月共享预算剩余 ¥${Math.round(remainingBudgetCny)}，状态极佳。`,
-                        `A: ${loggedCount}/3 pods synced and ¥${Math.round(remainingBudgetCny)} budget remaining.`,
-                      )}
-              </Text>
-            </View>
-          )}
-        </View>
-      ) : null}
-
-      {/* 5. Charioteer Two-Tier Floating Capsule Composer (`.m-composer-card`) */}
-      <View
-        style={[
-          styles.composerDock,
-          {
-            backgroundColor: color.card,
-            borderColor: parsedIntent ? color.accent : color.line,
-          },
-          Platform.OS === 'web'
-            ? ({
-                boxShadow: isDark
-                  ? '0 10px 28px rgba(0, 0, 0, 0.55), 0 0 0 0.5px rgba(255, 255, 255, 0.14)'
-                  : '0 6px 22px rgba(28, 26, 22, 0.08), 0 1px 3px rgba(28, 26, 22, 0.04)',
-              } as unknown as ViewStyle)
-            : null,
-        ]}
-      >
-        {/* Tier 1: Borderless Open-Canvas Input + Live Intent Recognition Badge */}
-        <View style={styles.composerTopTier}>
-          <TextInput
-            value={omnibarText}
-            onChangeText={setOmnibarText}
-            onSubmitEditing={handleExecuteOmnibar}
-            returnKeyType="send"
-            placeholder={t(
-              '一句话万用秒记：72.4kg / 卧推 60kg 8x4 / 读 DDIA 45m / 瑞幸 18 微信…',
-              'Omnibar: "72.4kg", "卧推 60kg 8x4", "读 DDIA 45m", or "瑞幸 18 微信"…',
-            )}
-            placeholderTextColor={color.textFaint}
-            style={[
-              styles.composerInput,
-              { color: color.ink },
-              Platform.OS === 'web' ? ({ outlineStyle: 'none' } as unknown as ViewStyle) : null,
-            ]}
-          />
-          {parsedIntent ? (
-            <View style={[styles.intentPreviewPill, { backgroundColor: color.accentSoft }]}>
-              <Text
-                variant="caption"
-                style={[styles.intentPreviewText, { color: color.accent }]}
-                numberOfLines={1}
-              >
-                {locale === 'en'
-                  ? `${parsedIntent.badgeEn}: ${parsedIntent.summaryEn}`
-                  : `${parsedIntent.badgeZh} · ${parsedIntent.summaryZh}`}
-              </Text>
-            </View>
-          ) : null}
-        </View>
-
-        {/* Tier 2: Left Capsule Action Chips (including Side & Diff) + Right Circular Send Button */}
-        <View style={[styles.composerBottomTier, { borderTopColor: color.lineSoft }]}>
-          <View style={styles.composerChipsRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('弹出 Side 旁路快问抽屉', 'Toggle Side Chat drawer')}
-              onPress={() => setActiveSheet((prev) => (prev === 'side' ? 'none' : 'side'))}
-              style={[
-                styles.capsuleChip,
-                {
-                  backgroundColor: activeSheet === 'side' ? color.accentSoft : color.surface,
-                  borderColor: activeSheet === 'side' ? color.accent : color.line,
-                },
-              ]}
-            >
-              <Text
-                variant="caption"
-                style={[
-                  styles.capsuleChipText,
-                  { color: activeSheet === 'side' ? color.accent : color.ink },
-                ]}
-              >
-                Side
-              </Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('弹出 Diff 今日台账补丁抽屉', 'Toggle Diff Patch drawer')}
-              onPress={() => setActiveSheet((prev) => (prev === 'diff' ? 'none' : 'diff'))}
-              style={[
-                styles.capsuleChip,
-                {
-                  backgroundColor: activeSheet === 'diff' ? color.greenSoft : color.surface,
-                  borderColor: activeSheet === 'diff' ? color.green : color.line,
-                },
-              ]}
-            >
-              <Text
-                variant="caption"
-                style={[
-                  styles.capsuleChipText,
-                  { color: activeSheet === 'diff' ? color.green : color.ink },
-                ]}
-              >
-                {`Diff +${loggedCount}`}
-              </Text>
-            </Pressable>
-
-            {quickExamples.map((ex) => (
-              <Pressable
-                key={ex.cmd}
-                accessibilityRole="button"
-                accessibilityLabel={`填入指令 ${ex.cmd}`}
-                onPress={() => setOmnibarText(ex.cmd)}
-                style={({ pressed }) => [
-                  styles.capsuleChip,
-                  {
-                    backgroundColor:
-                      omnibarText === ex.cmd
-                        ? color.accentSoft
-                        : pressed
-                          ? color.pressed
-                          : color.surface,
-                    borderColor: omnibarText === ex.cmd ? color.accent : color.line,
-                  },
-                ]}
-              >
-                <Text
-                  variant="caption"
-                  style={[
-                    styles.capsuleChipText,
-                    { color: omnibarText === ex.cmd ? color.accent : color.muted },
-                  ]}
-                >
-                  {ex.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('执行万用秒记指令', 'Execute omnibar command')}
-            onPress={() => {
-              void createId();
-              handleExecuteOmnibar();
-            }}
-            style={({ pressed }) => [
-              styles.sendCircleBtn,
-              {
-                backgroundColor: parsedIntent ? color.accent : color.ink,
-                opacity: pressed ? 0.85 : 1,
-              },
-            ]}
-          >
-            <Text
-              variant="caption"
-              style={{
-                color: parsedIntent ? color.onToast : color.paper,
-                fontSize: 13,
-                fontWeight: theme.fontWeight.semibold,
-              }}
-            >
-              ↑
-            </Text>
-          </Pressable>
-        </View>
       </View>
     </View>
   );
@@ -910,7 +769,7 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     lineHeight: 14,
   },
-  primaryNewBtn: {
+  primaryLogBtn: {
     height: 26,
     paddingHorizontal: 10,
     borderRadius: 999,
@@ -918,24 +777,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
-  primaryNewBtnText: {
+  primaryLogBtnText: {
     fontSize: 11,
     lineHeight: 14,
     fontWeight: theme.fontWeight.semibold,
   },
-  chiefCard: {
+  summaryCard: {
     borderRadius: 12,
     paddingHorizontal: 11,
     paddingVertical: 9,
-    gap: 6,
+    gap: 8,
   },
-  chiefTopRow: {
+  summaryTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
   },
-  chiefMain: {
+  summaryMain: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 9,
@@ -961,163 +820,21 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1.5,
   },
-  chiefTextCol: {
+  summaryTextCol: {
     flex: 1,
     minWidth: 0,
     gap: 1,
   },
-  chiefTitleRow: {
+  summaryTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     flexWrap: 'wrap',
   },
-  chiefTitle: {
+  summaryTitle: {
     fontSize: 12,
     lineHeight: 15,
     fontWeight: theme.fontWeight.semibold,
-  },
-  thoughtSummaryRow: {
-    paddingTop: 2,
-  },
-  thoughtSummaryText: {
-    fontSize: 11,
-    lineHeight: 14,
-  },
-  thoughtBody: {
-    paddingLeft: 10,
-    paddingVertical: 2,
-    borderLeftWidth: 1.5,
-  },
-  thoughtProse: {
-    fontSize: 11,
-    lineHeight: 16,
-  },
-  groupHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 3,
-    paddingTop: 2,
-  },
-  groupTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  groupTitleText: {
-    fontSize: 10,
-    lineHeight: 13,
-    fontWeight: theme.fontWeight.semibold,
-    letterSpacing: 0.5,
-  },
-  groupMetaText: {
-    fontFamily: theme.fontFamily.mono,
-    fontSize: 9.5,
-    lineHeight: 12,
-  },
-  rosterList: {
-    gap: 7,
-  },
-  sessCard: {
-    borderRadius: 11,
-    paddingHorizontal: 11,
-    paddingVertical: 9.5,
-    gap: 6.5,
-  },
-  sessTop: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8.5,
-  },
-  sessInfo: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2,
-  },
-  sessLine1: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 6,
-  },
-  sessName: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: theme.fontWeight.semibold,
-    flex: 1,
-  },
-  sessLine2: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  sessEnv: {
-    fontFamily: theme.fontFamily.mono,
-    fontSize: 10,
-    lineHeight: 14,
-    flex: 1,
-  },
-  subagentPill: {
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  subagentPillText: {
-    fontFamily: theme.fontFamily.mono,
-    fontSize: 9.5,
-    lineHeight: 12,
-    fontWeight: theme.fontWeight.medium,
-  },
-  cmdBar: {
-    paddingHorizontal: 8,
-    paddingVertical: 4.5,
-    borderRadius: 7,
-    borderWidth: 0.5,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 6,
-  },
-  cmdBarText: {
-    fontFamily: theme.fontFamily.mono,
-    fontSize: 10,
-    lineHeight: 14,
-    flex: 1,
-  },
-  cmdQuickActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  inlineCmdBtn: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 5,
-  },
-  inlineCmdBtnText: {
-    fontFamily: theme.fontFamily.mono,
-    fontSize: 10,
-    lineHeight: 13,
-    fontWeight: theme.fontWeight.semibold,
-  },
-  treeBox: {
-    paddingHorizontal: 8,
-    paddingVertical: 5.5,
-    borderRadius: 7,
-    gap: 3,
-  },
-  treeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 6,
-  },
-  treeMono: {
-    fontFamily: theme.fontFamily.mono,
-    fontSize: 9.8,
-    lineHeight: 13,
   },
   statusBadge: {
     height: 18,
@@ -1168,10 +885,10 @@ const styles = StyleSheet.create({
   },
   islandDrawer: {
     backgroundColor: '#111216',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
+    borderRadius: 14,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+    gap: 7,
   },
   islandDrawerHeader: {
     flexDirection: 'row',
@@ -1193,8 +910,8 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     minWidth: 135,
     paddingHorizontal: 9,
-    paddingVertical: 7,
-    borderRadius: 10,
+    paddingVertical: 6.5,
+    borderRadius: 9,
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
     flexDirection: 'row',
     alignItems: 'center',
@@ -1202,143 +919,137 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   islandItemTitle: {
-    fontSize: 11.5,
+    fontSize: 11.2,
     lineHeight: 15,
     color: '#F4F4F6',
     fontWeight: theme.fontWeight.medium,
   },
   islandItemValue: {
     fontFamily: theme.fontFamily.mono,
-    fontSize: 10.5,
+    fontSize: 10.2,
     lineHeight: 14,
     color: '#34D399',
   },
-  inlineSheet: {
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 12,
-    gap: 8,
+  quickSpotBar: {
+    borderRadius: 11,
+    paddingHorizontal: 10,
+    paddingVertical: 6.5,
+    gap: 4,
   },
-  sheetGrabber: {
-    width: 34,
-    height: 4,
-    borderRadius: 999,
-    alignSelf: 'center',
+  quickSpotInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  sheetHeader: {
+  quickSpotInput: {
+    flex: 1,
+    minHeight: 24,
+    fontSize: 12,
+    lineHeight: 16,
+    paddingVertical: 1,
+  },
+  spotSaveBtn: {
+    height: 22,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  intentPreviewRow: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 5,
+  },
+  intentPreviewText: {
+    fontFamily: theme.fontFamily.mono,
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: theme.fontWeight.semibold,
+  },
+  cardsGrid: {
+    gap: 7,
+  },
+  metricCard: {
+    borderRadius: 11,
+    paddingHorizontal: 11,
+    paddingVertical: 9.5,
+    gap: 6.5,
+  },
+  metricTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8.5,
+  },
+  metricInfo: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  metricLine1: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 8,
+    gap: 6,
   },
-  sheetTitle: {
+  metricName: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: theme.fontWeight.semibold,
+  },
+  metricPrimaryMono: {
+    fontFamily: theme.fontFamily.mono,
     fontSize: 11.5,
     lineHeight: 15,
     fontWeight: theme.fontWeight.semibold,
   },
-  sheetCloseBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: 999,
-    borderWidth: 0.5,
+  metricLine2: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
   },
-  diffCodeBlock: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: '#131418',
-    gap: 3,
-  },
-  diffHeaderLine: {
-    fontFamily: theme.fontFamily.mono,
-    fontSize: 10,
-    lineHeight: 14,
-    color: '#93C5FD',
-  },
-  diffAddLine: {
-    fontFamily: theme.fontFamily.mono,
-    fontSize: 10,
-    lineHeight: 14,
-    color: '#6EE7B7',
-  },
-  sideChatBox: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 0.5,
-    gap: 4,
-  },
-  monoTiny: {
-    fontFamily: theme.fontFamily.mono,
-    fontSize: 9.5,
-    lineHeight: 12,
-  },
-  composerDock: {
-    borderRadius: 20,
-    borderWidth: theme.border.width,
-    paddingHorizontal: 12,
-    paddingTop: 8.5,
-    paddingBottom: 7.5,
-    gap: 6.5,
-  },
-  composerTopTier: {
-    gap: 4,
-  },
-  composerInput: {
-    minHeight: 26,
-    fontSize: 12.5,
-    lineHeight: 17,
-    paddingVertical: 2,
-  },
-  intentPreviewPill: {
-    alignSelf: 'flex-start',
+  metricFooterBar: {
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  intentPreviewText: {
-    fontFamily: theme.fontFamily.mono,
-    fontSize: 10.5,
-    lineHeight: 14,
-    fontWeight: theme.fontWeight.semibold,
-  },
-  composerBottomTier: {
-    paddingTop: 6,
-    borderTopWidth: 0.5,
+    paddingVertical: 4.5,
+    borderRadius: 7,
+    borderWidth: 0.5,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
   },
-  composerChipsRow: {
+  footerMetaMono: {
+    fontFamily: theme.fontFamily.mono,
+    fontSize: 10,
+    lineHeight: 13,
+  },
+  footerActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
     flexWrap: 'wrap',
-    gap: 5,
+  },
+  actionPill: {
+    height: 22,
+    paddingHorizontal: 7.5,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionPillText: {
+    fontSize: 10.2,
+    lineHeight: 13,
+    fontWeight: theme.fontWeight.semibold,
+  },
+  progressTrack: {
     flex: 1,
-  },
-  capsuleChip: {
-    height: 24,
-    paddingHorizontal: 8,
+    height: 5,
     borderRadius: 999,
-    borderWidth: 0.5,
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
+    maxWidth: 110,
   },
-  capsuleChipText: {
-    fontSize: 10.5,
-    lineHeight: 14,
-    fontWeight: theme.fontWeight.medium,
-  },
-  sendCircleBtn: {
-    width: 27,
-    height: 27,
+  progressFill: {
+    height: '100%',
     borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
   },
 });
