@@ -223,119 +223,141 @@ function renderArticulatedAthleteSvg({
   const isMoving = phase > 0.02 && phase < 0.98;
 
   const skinColor = '#fde68a';
+  const hairColor = '#27170e';
   const headbandColor = '#ef4444';
   const jerseyColor = isDark ? '#10b981' : '#059669';
+  const jerseyDark = isDark ? '#047857' : '#065f46';
   const shortsColor = isDark ? '#1e293b' : '#334155';
   const limbColor = '#fcd34d';
   const shoeColor = '#f59e0b';
 
+  // Double Concentric Glowing Emerald Shockwave Ring on the Gym Mat under the Athlete
+  const shockwaveRings = createElement(
+    'g',
+    null,
+    createElement('ellipse', {
+      cx: 108,
+      cy: 100,
+      rx: 22 + depth * 6,
+      ry: 8.5 + depth * 2.5,
+      fill: 'rgba(16, 185, 129, 0.14)',
+      stroke: '#34d399',
+      strokeWidth: 1.4,
+      strokeOpacity: '0.85',
+    }),
+    createElement('ellipse', {
+      cx: 108,
+      cy: 100,
+      rx: 15 + depth * 4,
+      ry: 5.5 + depth * 1.6,
+      fill: 'rgba(0,0,0,0.42)',
+      stroke: '#6ee7b7',
+      strokeWidth: 0.9,
+      strokeDasharray: '3 2',
+    }),
+  );
+
   if (pose === 'squat') {
-    const hipY = 72 + depth * 12;
-    const shoulderY = 53 + depth * 11;
-    const headY = 44 + depth * 11;
-    const kneeSpread = depth * 8;
-    const kneeY = 83 + depth * 4;
+    const hipY = 74 + depth * 11;
+    const shoulderY = 53 + depth * 10;
+    const headY = 43 + depth * 10;
+    const kneeSpread = 3 + depth * 7;
+    const kneeY = 85 + depth * 3.5;
     const barY = shoulderY + 2;
     const barBend = depth * 2.5;
 
     return createElement(
       'g',
       null,
-      // Dynamic floor shadow & bottom-of-squat power shockwave
-      createElement('ellipse', {
-        cx: 108,
-        cy: 96,
-        rx: 14 + depth * 5,
-        ry: 5.5 + depth * 1.5,
-        fill: 'rgba(0,0,0,0.38)',
-      }),
-      depth > 0.45
-        ? createElement('ellipse', {
-            cx: 108,
-            cy: 96,
-            rx: 16 + depth * 12,
-            ry: 6 + depth * 4.5,
-            fill: 'none',
-            stroke: '#34d399',
-            strokeWidth: 1.5,
-            strokeOpacity: String(Math.max(0, (depth - 0.4) * 1.3)),
-          })
-        : null,
-      // Left & Right Calves + Shoes
-      createElement('line', { x1: 100, y1: 94, x2: 100 - kneeSpread, y2: kneeY, stroke: limbColor, strokeWidth: 3.2, strokeLinecap: 'round' }),
-      createElement('line', { x1: 116, y1: 94, x2: 116 + kneeSpread, y2: kneeY, stroke: limbColor, strokeWidth: 3.2, strokeLinecap: 'round' }),
-      createElement('ellipse', { cx: 99, cy: 95, rx: 4.2, ry: 2, fill: shoeColor }),
-      createElement('ellipse', { cx: 117, cy: 95, rx: 4.2, ry: 2, fill: shoeColor }),
-      // Left & Right Thighs
-      createElement('line', { x1: 100 - kneeSpread, y1: kneeY, x2: 104, y2: hipY, stroke: shortsColor, strokeWidth: 4.2, strokeLinecap: 'round' }),
-      createElement('line', { x1: 116 + kneeSpread, y1: kneeY, x2: 112, y2: hipY, stroke: shortsColor, strokeWidth: 4.2, strokeLinecap: 'round' }),
-      // Athletic Torso
+      shockwaveRings,
+      // Sculpted 3D Calves + Athletic Sneakers with White Midsoles
+      createElement('line', { x1: 99, y1: 97, x2: 100 - kneeSpread, y2: kneeY, stroke: limbColor, strokeWidth: 4.4, strokeLinecap: 'round' }),
+      createElement('line', { x1: 117, y1: 97, x2: 116 + kneeSpread, y2: kneeY, stroke: limbColor, strokeWidth: 4.4, strokeLinecap: 'round' }),
+      createElement('ellipse', { cx: 98, cy: 98.5, rx: 5.2, ry: 2.4, fill: '#f8fafc' }),
+      createElement('ellipse', { cx: 98, cy: 97.5, rx: 4.6, ry: 2, fill: shoeColor }),
+      createElement('ellipse', { cx: 118, cy: 98.5, rx: 5.2, ry: 2.4, fill: '#f8fafc' }),
+      createElement('ellipse', { cx: 118, cy: 97.5, rx: 4.6, ry: 2, fill: shoeColor }),
+      // Sculpted 3D Quads / Shorts
+      createElement('line', { x1: 100 - kneeSpread, y1: kneeY, x2: 103, y2: hipY, stroke: shortsColor, strokeWidth: 5.8, strokeLinecap: 'round' }),
+      createElement('line', { x1: 116 + kneeSpread, y1: kneeY, x2: 113, y2: hipY, stroke: shortsColor, strokeWidth: 5.8, strokeLinecap: 'round' }),
+      // Sculpted V-Taper 3D Athletic Torso (Left Lit Half + Right Shaded Half + Gold Chest Trim)
       createElement('polygon', {
-        points: `${101},${shoulderY} ${115},${shoulderY} ${113},${hipY + 1} ${103},${hipY + 1}`,
+        points: `${99},${shoulderY} ${108},${shoulderY} ${108},${hipY + 2} ${102},${hipY + 2}`,
         fill: jerseyColor,
+      }),
+      createElement('polygon', {
+        points: `${108},${shoulderY} ${117},${shoulderY} ${114},${hipY + 2} ${108},${hipY + 2}`,
+        fill: jerseyDark,
+      }),
+      createElement('polygon', {
+        points: `${99},${shoulderY} ${117},${shoulderY} ${114},${hipY + 2} ${102},${hipY + 2}`,
+        fill: 'none',
         stroke: '#6ee7b7',
-        strokeWidth: 0.9,
+        strokeWidth: 1,
       }),
-      // Arms gripping the barbell
+      createElement('line', { x1: 102, y1: shoulderY + 4, x2: 114, y2: shoulderY + 4, stroke: '#fef08a', strokeWidth: 1.4 }),
+      // Sculpted Arms gripping the Olympic Barbell
       createElement('polyline', {
-        points: `${101},${shoulderY + 2} ${93},${shoulderY + 7} ${91},${barY}`,
+        points: `${99},${shoulderY + 2} ${91},${shoulderY + 8} ${89},${barY}`,
         fill: 'none',
         stroke: limbColor,
-        strokeWidth: 2.8,
+        strokeWidth: 3.8,
         strokeLinecap: 'round',
         strokeLinejoin: 'round',
       }),
       createElement('polyline', {
-        points: `${115},${shoulderY + 2} ${123},${shoulderY + 7} ${125},${barY}`,
+        points: `${117},${shoulderY + 2} ${125},${shoulderY + 8} ${127},${barY}`,
         fill: 'none',
         stroke: limbColor,
-        strokeWidth: 2.8,
+        strokeWidth: 3.8,
         strokeLinecap: 'round',
         strokeLinejoin: 'round',
       }),
-      // Head + Athletic Headband
-      createElement('circle', { cx: 108, cy: headY, r: 6, fill: skinColor, stroke: '#b45309', strokeWidth: 1.1 }),
-      createElement('line', { x1: 102, y1: headY - 2, x2: 114, y2: headY - 2, stroke: headbandColor, strokeWidth: 2.2, strokeLinecap: 'round' }),
-      // Olympic Barbell with dynamic whip/flex & twin bumper plates
+      // 3D Head + Hair Crown + Red Sweatband
+      createElement('circle', { cx: 108, cy: headY, r: 6.5, fill: skinColor, stroke: '#b45309', strokeWidth: 1.1 }),
+      createElement('path', { d: `M 101.5 ${headY - 2} C 102 ${headY - 8}, 114 ${headY - 8}, 114.5 ${headY - 2} Z`, fill: hairColor }),
+      createElement('line', { x1: 101.5, y1: headY - 2, x2: 114.5, y2: headY - 2, stroke: headbandColor, strokeWidth: 2.4, strokeLinecap: 'round' }),
+      // Olympic Barbell with dynamic whip/flex & 3D triple bumper plates
       createElement('path', {
-        d: `M 80 ${barY + barBend} Q 108 ${barY - barBend * 0.6} 136 ${barY + barBend}`,
+        d: `M 76 ${barY + barBend} Q 108 ${barY - barBend * 0.6} 140 ${barY + barBend}`,
         fill: 'none',
         stroke: `url(#${goldMetalId})`,
-        strokeWidth: 2.8,
+        strokeWidth: 3.2,
         strokeLinecap: 'round',
       }),
-      createElement('ellipse', { cx: 83, cy: barY + barBend, rx: 3.2, ry: 6.5, fill: '#b45309', stroke: '#fde68a', strokeWidth: 1.2 }),
-      createElement('ellipse', { cx: 87, cy: barY + barBend * 0.8, rx: 2.5, ry: 5.2, fill: '#059669', stroke: '#6ee7b7', strokeWidth: 1 }),
-      createElement('ellipse', { cx: 133, cy: barY + barBend, rx: 3.2, ry: 6.5, fill: '#b45309', stroke: '#fde68a', strokeWidth: 1.2 }),
-      createElement('ellipse', { cx: 129, cy: barY + barBend * 0.8, rx: 2.5, ry: 5.2, fill: '#059669', stroke: '#6ee7b7', strokeWidth: 1 }),
-      // Sweat & Effort Sparks during rep
+      createElement('ellipse', { cx: 80, cy: barY + barBend, rx: 3.8, ry: 7.8, fill: '#dc2626', stroke: '#fde68a', strokeWidth: 1.2 }),
+      createElement('ellipse', { cx: 84, cy: barY + barBend * 0.85, rx: 3.2, ry: 6.4, fill: '#2563eb', stroke: '#93c5fd', strokeWidth: 1 }),
+      createElement('ellipse', { cx: 87.5, cy: barY + barBend * 0.7, rx: 2.5, ry: 5, fill: '#059669', stroke: '#6ee7b7', strokeWidth: 0.9 }),
+      createElement('ellipse', { cx: 136, cy: barY + barBend, rx: 3.8, ry: 7.8, fill: '#dc2626', stroke: '#fde68a', strokeWidth: 1.2 }),
+      createElement('ellipse', { cx: 132, cy: barY + barBend * 0.85, rx: 3.2, ry: 6.4, fill: '#2563eb', stroke: '#93c5fd', strokeWidth: 1 }),
+      createElement('ellipse', { cx: 128.5, cy: barY + barBend * 0.7, rx: 2.5, ry: 5, fill: '#059669', stroke: '#6ee7b7', strokeWidth: 0.9 }),
       isMoving
         ? createElement(
             'g',
             null,
-            createElement('circle', { cx: 94 - depth * 6, cy: headY - 6 - depth * 5, r: 1.8, fill: '#38bdf8' }),
-            createElement('circle', { cx: 122 + depth * 6, cy: headY - 5 - depth * 6, r: 2.1, fill: '#fef08a' }),
+            createElement('circle', { cx: 92 - depth * 6, cy: headY - 6 - depth * 5, r: 2, fill: '#38bdf8' }),
+            createElement('circle', { cx: 124 + depth * 6, cy: headY - 5 - depth * 6, r: 2.2, fill: '#fef08a' }),
           )
         : null,
       // Live Rep Counter Pill
       createElement('rect', {
-        x: 86,
-        y: 18,
-        width: 44,
-        height: 13,
-        rx: 6.5,
-        fill: isDark ? 'rgba(12,28,22,0.94)' : 'rgba(236,253,245,0.96)',
+        x: 84,
+        y: 14,
+        width: 48,
+        height: 14,
+        rx: 7,
+        fill: isDark ? 'rgba(8,22,18,0.95)' : 'rgba(236,253,245,0.96)',
         stroke: '#34d399',
-        strokeWidth: 1.1,
+        strokeWidth: 1.2,
       }),
       createElement(
         'text',
         {
           x: 108,
-          y: 27,
+          y: 23.5,
           textAnchor: 'middle',
           fill: isDark ? '#6ee7b7' : '#065f46',
-          fontSize: '7.5',
+          fontSize: '8',
           fontWeight: '700',
           fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
         },
@@ -345,72 +367,47 @@ function renderArticulatedAthleteSvg({
   }
 
   if (pose === 'pushup') {
-    const chestY = 74 + depth * 11;
-    const hipY = 82 + depth * 6;
-    const headY = 70 + depth * 12;
+    const chestY = 76 + depth * 11;
+    const hipY = 84 + depth * 6;
+    const headY = 72 + depth * 12;
     const elbowX = 114 - depth * 5;
-    const elbowY = 83 + depth * 4;
+    const elbowY = 85 + depth * 4;
 
     return createElement(
       'g',
       null,
-      createElement('ellipse', {
-        cx: 108,
-        cy: 96,
-        rx: 20 + depth * 3,
-        ry: 6,
-        fill: 'rgba(0,0,0,0.38)',
-      }),
-      depth > 0.45
-        ? createElement('ellipse', {
-            cx: 120,
-            cy: 95,
-            rx: 8 + depth * 9,
-            ry: 3.5 + depth * 3,
-            fill: 'none',
-            stroke: '#f5b942',
-            strokeWidth: 1.4,
-            strokeOpacity: String(Math.max(0, (depth - 0.4) * 1.3)),
-          })
-        : null,
-      // Feet & Legs anchored on mat
-      createElement('ellipse', { cx: 86, cy: 94, rx: 3.5, ry: 2.2, fill: shoeColor }),
-      createElement('line', { x1: 87, y1: 93, x2: 102, y2: hipY, stroke: shortsColor, strokeWidth: 4, strokeLinecap: 'round' }),
-      // Torso plank
-      createElement('line', { x1: 102, y1: hipY, x2: 120, y2: chestY, stroke: jerseyColor, strokeWidth: 5.2, strokeLinecap: 'round' }),
-      // Articulated Upper Arm + Forearm planted on mat
+      shockwaveRings,
+      createElement('ellipse', { cx: 86, cy: 96, rx: 4.2, ry: 2.5, fill: shoeColor }),
+      createElement('line', { x1: 87, y1: 95, x2: 102, y2: hipY, stroke: shortsColor, strokeWidth: 4.8, strokeLinecap: 'round' }),
+      createElement('line', { x1: 102, y1: hipY, x2: 120, y2: chestY, stroke: jerseyColor, strokeWidth: 6.2, strokeLinecap: 'round' }),
       createElement('polyline', {
-        points: `${118},${chestY + 1} ${elbowX},${elbowY} 120,95`,
+        points: `${118},${chestY + 1} ${elbowX},${elbowY} 120,97`,
         fill: 'none',
         stroke: limbColor,
-        strokeWidth: 3.2,
+        strokeWidth: 3.8,
         strokeLinecap: 'round',
         strokeLinejoin: 'round',
       }),
-      // Head + Headband
-      createElement('circle', { cx: 126, cy: headY, r: 5.5, fill: skinColor, stroke: '#b45309', strokeWidth: 1.1 }),
-      createElement('line', { x1: 121, y1: headY - 2, x2: 131, y2: headY - 1, stroke: headbandColor, strokeWidth: 2 }),
-      isMoving
-        ? createElement('circle', { cx: 112, cy: chestY - 10 - depth * 4, r: 2, fill: '#34d399' })
-        : null,
+      createElement('circle', { cx: 126, cy: headY, r: 6, fill: skinColor, stroke: '#b45309', strokeWidth: 1.1 }),
+      createElement('line', { x1: 121, y1: headY - 2, x2: 131, y2: headY - 1, stroke: headbandColor, strokeWidth: 2.2 }),
       createElement('rect', {
-        x: 86,
-        y: 18,
-        width: 44,
-        height: 13,
-        rx: 6.5,
-        fill: isDark ? 'rgba(12,28,22,0.94)' : 'rgba(236,253,245,0.96)',
+        x: 84,
+        y: 14,
+        width: 48,
+        height: 14,
+        rx: 7,
+        fill: isDark ? 'rgba(8,22,18,0.95)' : 'rgba(236,253,245,0.96)',
         stroke: '#34d399',
-        strokeWidth: 1.1,
+        strokeWidth: 1.2,
       }),
       createElement(
         'text',
         {
           x: 108,
-          y: 27,
+          y: 23.5,
           textAnchor: 'middle',
           fill: isDark ? '#6ee7b7' : '#065f46',
-          fontSize: '7.5',
+          fontSize: '8',
           fontWeight: '700',
           fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
         },
@@ -420,78 +417,62 @@ function renderArticulatedAthleteSvg({
   }
 
   if (pose === 'press') {
-    const handY = 53 - depth * 22;
-    const elbowY = 62 - depth * 12;
+    const handY = 54 - depth * 22;
+    const elbowY = 63 - depth * 12;
     const kneeDip = depth * 2.5;
 
     return createElement(
       'g',
       null,
-      createElement('ellipse', { cx: 108, cy: 96, rx: 14, ry: 5.5, fill: 'rgba(0,0,0,0.36)' }),
-      depth > 0.5
-        ? createElement('circle', {
-            cx: 108,
-            cy: 34,
-            r: 14 + depth * 8,
-            fill: 'none',
-            stroke: '#fde68a',
-            strokeWidth: 1.3,
-            strokeOpacity: String((depth - 0.45) * 1.2),
-          })
-        : null,
-      // Legs with slight athletic drive
-      createElement('line', { x1: 103, y1: 94, x2: 104, y2: 73 + kneeDip, stroke: shortsColor, strokeWidth: 3.8, strokeLinecap: 'round' }),
-      createElement('line', { x1: 113, y1: 94, x2: 112, y2: 73 + kneeDip, stroke: shortsColor, strokeWidth: 3.8, strokeLinecap: 'round' }),
-      createElement('ellipse', { cx: 102, cy: 95, rx: 4, ry: 2, fill: shoeColor }),
-      createElement('ellipse', { cx: 114, cy: 95, rx: 4, ry: 2, fill: shoeColor }),
-      // Torso
+      shockwaveRings,
+      createElement('line', { x1: 103, y1: 96, x2: 104, y2: 75 + kneeDip, stroke: shortsColor, strokeWidth: 4.6, strokeLinecap: 'round' }),
+      createElement('line', { x1: 113, y1: 96, x2: 112, y2: 75 + kneeDip, stroke: shortsColor, strokeWidth: 4.6, strokeLinecap: 'round' }),
+      createElement('ellipse', { cx: 102, cy: 97.5, rx: 4.6, ry: 2.2, fill: shoeColor }),
+      createElement('ellipse', { cx: 114, cy: 97.5, rx: 4.6, ry: 2.2, fill: shoeColor }),
       createElement('polygon', {
-        points: `101,${54 + kneeDip} 115,${54 + kneeDip} 113,${73 + kneeDip} 103,${73 + kneeDip}`,
+        points: `99,${55 + kneeDip} 117,${55 + kneeDip} 114,${75 + kneeDip} 102,${75 + kneeDip}`,
         fill: jerseyColor,
         stroke: '#6ee7b7',
-        strokeWidth: 0.9,
+        strokeWidth: 1,
       }),
-      // Articulated Arms pressing dumbbells overhead
       createElement('polyline', {
-        points: `101,${56 + kneeDip} 93,${elbowY} 95,${handY}`,
+        points: `100,${57 + kneeDip} 92,${elbowY} 94,${handY}`,
         fill: 'none',
         stroke: limbColor,
-        strokeWidth: 3,
+        strokeWidth: 3.6,
         strokeLinecap: 'round',
         strokeLinejoin: 'round',
       }),
       createElement('polyline', {
-        points: `115,${56 + kneeDip} 123,${elbowY} 121,${handY}`,
+        points: `116,${57 + kneeDip} 124,${elbowY} 122,${handY}`,
         fill: 'none',
         stroke: limbColor,
-        strokeWidth: 3,
+        strokeWidth: 3.6,
         strokeLinecap: 'round',
         strokeLinejoin: 'round',
       }),
-      // Twin Hex Dumbbells
-      createElement('rect', { x: 89, y: handY - 2.5, width: 12, height: 4.5, rx: 1.8, fill: '#f5b942', stroke: '#92400e', strokeWidth: 0.8 }),
-      createElement('rect', { x: 115, y: handY - 2.5, width: 12, height: 4.5, rx: 1.8, fill: '#f5b942', stroke: '#92400e', strokeWidth: 0.8 }),
-      // Head
-      createElement('circle', { cx: 108, cy: 46 + kneeDip, r: 5.8, fill: skinColor, stroke: '#b45309', strokeWidth: 1.1 }),
-      createElement('line', { x1: 102, y1: 44 + kneeDip, x2: 114, y2: 44 + kneeDip, stroke: headbandColor, strokeWidth: 2 }),
+      createElement('rect', { x: 88, y: handY - 2.5, width: 12, height: 4.8, rx: 1.8, fill: '#f5b942', stroke: '#92400e', strokeWidth: 0.9 }),
+      createElement('rect', { x: 116, y: handY - 2.5, width: 12, height: 4.8, rx: 1.8, fill: '#f5b942', stroke: '#92400e', strokeWidth: 0.9 }),
+      createElement('circle', { cx: 108, cy: 46 + kneeDip, r: 6.2, fill: skinColor, stroke: '#b45309', strokeWidth: 1.1 }),
+      createElement('line', { x1: 102, y1: 44 + kneeDip, x2: 114, y2: 44 + kneeDip, stroke: headbandColor, strokeWidth: 2.2 }),
       createElement('rect', {
-        x: 86,
-        y: 16,
-        width: 44,
-        height: 13,
-        rx: 6.5,
-        fill: isDark ? 'rgba(12,28,22,0.94)' : 'rgba(236,253,245,0.96)',
+        x: 84,
+        y: 14,
+        width: 48,
+        height: 14,
+        rx: 7,
+        fill: isDark ? 'rgba(8,22,18,0.95)' : 'rgba(236,253,245,0.96)',
         stroke: '#34d399',
-        strokeWidth: 1.1,
+        strokeWidth: 1.2,
       }),
       createElement(
         'text',
         {
           x: 108,
-          y: 25,
+          y: 23.5,
           textAnchor: 'middle',
           fill: isDark ? '#6ee7b7' : '#065f46',
-          fontSize: '7.5',
+          fontSize: '8',
           fontWeight: '700',
           fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
         },
@@ -500,7 +481,6 @@ function renderArticulatedAthleteSvg({
     );
   }
 
-  // Pose 4: Jumping Jack ('jump') — full airborne star jump with sweeping arms & scissoring legs
   const airLift = depth * 11;
   const footSpread = depth * 11;
   const armSpreadX = 8 + depth * 10;
@@ -509,56 +489,37 @@ function renderArticulatedAthleteSvg({
   return createElement(
     'g',
     null,
-    createElement('ellipse', {
-      cx: 108,
-      cy: 96,
-      rx: Math.max(7, 14 - depth * 5),
-      ry: Math.max(3, 5.5 - depth * 2),
-      fill: 'rgba(0,0,0,0.35)',
-    }),
-    depth > 0.35
-      ? createElement('path', {
-          d: `M ${90 - depth * 4} ${58 - airLift} A 22 22 0 0 1 ${126 + depth * 4} ${58 - airLift}`,
-          fill: 'none',
-          stroke: '#34d399',
-          strokeWidth: 1.4,
-          strokeDasharray: '3 3',
-        })
-      : null,
-    // Scissoring Legs
-    createElement('line', { x1: 106, y1: 73 - airLift, x2: 104 - footSpread, y2: 94 - airLift * 0.7, stroke: limbColor, strokeWidth: 3.4, strokeLinecap: 'round' }),
-    createElement('line', { x1: 110, y1: 73 - airLift, x2: 112 + footSpread, y2: 94 - airLift * 0.7, stroke: limbColor, strokeWidth: 3.4, strokeLinecap: 'round' }),
-    // Torso
+    shockwaveRings,
+    createElement('line', { x1: 106, y1: 75 - airLift, x2: 104 - footSpread, y2: 96 - airLift * 0.7, stroke: limbColor, strokeWidth: 4, strokeLinecap: 'round' }),
+    createElement('line', { x1: 110, y1: 75 - airLift, x2: 112 + footSpread, y2: 96 - airLift * 0.7, stroke: limbColor, strokeWidth: 4, strokeLinecap: 'round' }),
     createElement('polygon', {
-      points: `102,${54 - airLift} 114,${54 - airLift} 112,${73 - airLift} 104,${73 - airLift}`,
+      points: `100,${55 - airLift} 116,${55 - airLift} 113,${75 - airLift} 103,${75 - airLift}`,
       fill: jerseyColor,
       stroke: '#6ee7b7',
-      strokeWidth: 0.9,
+      strokeWidth: 1,
     }),
-    // Sweeping Arms
-    createElement('line', { x1: 102, y1: 56 - airLift, x2: 108 - armSpreadX, y2: handY, stroke: limbColor, strokeWidth: 3, strokeLinecap: 'round' }),
-    createElement('line', { x1: 114, y1: 56 - airLift, x2: 108 + armSpreadX, y2: handY, stroke: limbColor, strokeWidth: 3, strokeLinecap: 'round' }),
-    // Head
-    createElement('circle', { cx: 108, cy: 46 - airLift, r: 5.8, fill: skinColor, stroke: '#b45309', strokeWidth: 1.1 }),
-    createElement('line', { x1: 102, y1: 44 - airLift, x2: 114, y2: 44 - airLift, stroke: headbandColor, strokeWidth: 2 }),
+    createElement('line', { x1: 101, y1: 57 - airLift, x2: 108 - armSpreadX, y2: handY, stroke: limbColor, strokeWidth: 3.6, strokeLinecap: 'round' }),
+    createElement('line', { x1: 115, y1: 57 - airLift, x2: 108 + armSpreadX, y2: handY, stroke: limbColor, strokeWidth: 3.6, strokeLinecap: 'round' }),
+    createElement('circle', { cx: 108, cy: 46 - airLift, r: 6.2, fill: skinColor, stroke: '#b45309', strokeWidth: 1.1 }),
+    createElement('line', { x1: 102, y1: 44 - airLift, x2: 114, y2: 44 - airLift, stroke: headbandColor, strokeWidth: 2.2 }),
     createElement('rect', {
-      x: 86,
-      y: 16,
-      width: 44,
-      height: 13,
-      rx: 6.5,
-      fill: isDark ? 'rgba(12,28,22,0.94)' : 'rgba(236,253,245,0.96)',
+      x: 84,
+      y: 14,
+      width: 48,
+      height: 14,
+      rx: 7,
+      fill: isDark ? 'rgba(8,22,18,0.95)' : 'rgba(236,253,245,0.96)',
       stroke: '#34d399',
-      strokeWidth: 1.1,
+      strokeWidth: 1.2,
     }),
     createElement(
       'text',
       {
         x: 108,
-        y: 25,
+        y: 23.5,
         textAnchor: 'middle',
         fill: isDark ? '#6ee7b7' : '#065f46',
-        fontSize: '7.5',
+        fontSize: '8',
         fontWeight: '700',
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
       },
@@ -624,16 +585,18 @@ function IsometricLifeZoneSvg({
   const gradTopId = `dioramaTop_${suffix}`;
   const gradWallLId = `dioramaWallL_${suffix}`;
   const gradWallRId = `dioramaWallR_${suffix}`;
+  const backWallLId = `dioramaBackL_${suffix}`;
+  const backWallRId = `dioramaBackR_${suffix}`;
   const floorBloomId = `dioramaBloom_${suffix}`;
   const goldMetalId = `dioramaGold_${suffix}`;
   const lampConeId = `dioramaCone_${suffix}`;
 
   const topStart = isDark
     ? zone === 'focus'
-      ? '#523624'
+      ? '#573926'
       : zone === 'vitality'
-        ? '#203029'
-        : '#332b20'
+        ? '#21362e'
+        : '#3b3022'
     : zone === 'focus'
       ? '#ede2d0'
       : zone === 'vitality'
@@ -641,27 +604,73 @@ function IsometricLifeZoneSvg({
         : '#f2ead8';
   const topEnd = isDark
     ? zone === 'focus'
-      ? '#281a11'
+      ? '#2b1b12'
       : zone === 'vitality'
-        ? '#111916'
-        : '#18140f'
+        ? '#101b17'
+        : '#1c1610'
     : zone === 'focus'
       ? '#d8c5ab'
       : zone === 'vitality'
         ? '#c6ddd1'
         : '#dfd1b4';
 
-  const wallLStart = isDark ? '#3d2618' : '#c9b69c';
-  const wallLEnd = isDark ? '#0e0c0a' : '#a8947a';
-  const wallRStart = isDark ? '#1f1a15' : '#b5a188';
-  const wallREnd = isDark ? '#090807' : '#948067';
+  const wallLStart = isDark ? '#422a1b' : '#c9b69c';
+  const wallLEnd = isDark ? '#120e0b' : '#a8947a';
+  const wallRStart = isDark ? '#241d17' : '#b5a188';
+  const wallREnd = isDark ? '#0a0806' : '#948067';
+
+  const backWallLStart = isDark
+    ? zone === 'focus'
+      ? '#4a3020'
+      : zone === 'vitality'
+        ? '#1a332b'
+        : '#3d3020'
+    : zone === 'focus'
+      ? '#e8dac5'
+      : zone === 'vitality'
+        ? '#d4e7dd'
+        : '#eee3cb';
+  const backWallLEnd = isDark
+    ? zone === 'focus'
+      ? '#261810'
+      : zone === 'vitality'
+        ? '#0d1b17'
+        : '#211910'
+    : zone === 'focus'
+      ? '#cbb698'
+      : zone === 'vitality'
+        ? '#b8d4c5'
+        : '#d4c3a3';
+
+  const backWallRStart = isDark
+    ? zone === 'focus'
+      ? '#362216'
+      : zone === 'vitality'
+        ? '#142620'
+        : '#2e2418'
+    : zone === 'focus'
+      ? '#d8c5ab'
+      : zone === 'vitality'
+        ? '#c2dbd0'
+        : '#dfd0b2';
+  const backWallREnd = isDark
+    ? zone === 'focus'
+      ? '#1a100a'
+      : zone === 'vitality'
+        ? '#09120f'
+        : '#16110b'
+    : zone === 'focus'
+      ? '#bda688'
+      : zone === 'vitality'
+        ? '#a7c6b8'
+        : '#c6b494';
 
   return createElement(
     'svg',
     {
-      width: 276,
-      height: 184,
-      viewBox: '0 0 280 188',
+      width: 280,
+      height: 204,
+      viewBox: '0 0 280 212',
       fill: 'none',
       style: {
         overflow: 'visible',
@@ -673,8 +682,8 @@ function IsometricLifeZoneSvg({
             : 'translateY(0px) scale(1)',
         filter: isDark
           ? active || hovered || burstActive
-            ? `drop-shadow(0 22px 32px rgba(0, 0, 0, 0.82)) drop-shadow(0 0 ${burstActive ? '28px' : '20px'} ${rimColor}${burstActive ? '88' : '48'})`
-            : 'drop-shadow(0 16px 24px rgba(0, 0, 0, 0.62))'
+            ? `drop-shadow(0 24px 34px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 ${burstActive ? '28px' : '20px'} ${rimColor}${burstActive ? '88' : '48'})`
+            : 'drop-shadow(0 18px 26px rgba(0, 0, 0, 0.68))'
           : active || hovered || burstActive
             ? `drop-shadow(0 16px 26px rgba(38, 36, 31, 0.22)) drop-shadow(0 0 ${burstActive ? '22px' : '14px'} ${rimColor}${burstActive ? '66' : '33'})`
             : 'drop-shadow(0 10px 18px rgba(38, 36, 31, 0.12))',
@@ -702,17 +711,29 @@ function IsometricLifeZoneSvg({
         createElement('stop', { offset: '100%', stopColor: wallREnd }),
       ),
       createElement(
+        'linearGradient',
+        { id: backWallLId, x1: '0', y1: '0', x2: '0', y2: '1' },
+        createElement('stop', { offset: '0%', stopColor: backWallLStart }),
+        createElement('stop', { offset: '100%', stopColor: backWallLEnd }),
+      ),
+      createElement(
+        'linearGradient',
+        { id: backWallRId, x1: '0', y1: '0', x2: '0', y2: '1' },
+        createElement('stop', { offset: '0%', stopColor: backWallRStart }),
+        createElement('stop', { offset: '100%', stopColor: backWallREnd }),
+      ),
+      createElement(
         'radialGradient',
         { id: floorBloomId, cx: '50%', cy: '50%', r: '50%' },
         createElement('stop', {
           offset: '0%',
           stopColor: rimColor,
-          stopOpacity: isDark ? '0.52' : '0.26',
+          stopOpacity: isDark ? '0.56' : '0.28',
         }),
         createElement('stop', {
           offset: '65%',
           stopColor: rimColor,
-          stopOpacity: isDark ? '0.14' : '0.08',
+          stopOpacity: isDark ? '0.16' : '0.09',
         }),
         createElement('stop', { offset: '100%', stopColor: rimColor, stopOpacity: '0' }),
       ),
@@ -725,59 +746,89 @@ function IsometricLifeZoneSvg({
       ),
       createElement(
         'radialGradient',
-        { id: lampConeId, cx: '50%', cy: '25%', r: '65%' },
-        createElement('stop', { offset: '0%', stopColor: '#fef08a', stopOpacity: '0.55' }),
+        { id: lampConeId, cx: '35%', cy: '25%', r: '70%' },
+        createElement('stop', { offset: '0%', stopColor: '#fef08a', stopOpacity: '0.62' }),
+        createElement('stop', { offset: '55%', stopColor: '#f59e0b', stopOpacity: '0.22' }),
         createElement('stop', { offset: '100%', stopColor: '#f59e0b', stopOpacity: '0' }),
       ),
     ),
 
-    // 1. Soft Floor Bloom under the Isometric Base
+    // 1. Soft Ambient Halo under the Floating Island
     createElement('ellipse', {
       cx: 136,
-      cy: 146,
-      rx: 114,
-      ry: 44,
+      cy: 162,
+      rx: 118,
+      ry: 46,
       fill: `url(#${floorBloomId})`,
     }),
 
-    // 1b. Monument Valley-Style Stepped Floating Rock Pedestal & Glowing Crystal Core
+    // 1b. Monument Valley 3-Tier Inverted Stepped Stone Pedestal & Glowing Crystal Core (y = 130..210)
+    // Tier 1 (Upper Stepped Masonry Under-Slab)
     createElement('polygon', {
-      points: '52,136 136,174 136,185 52,147',
-      fill: isDark ? '#14110e' : '#b8a58d',
-      stroke: isDark ? 'rgba(255,248,235,0.12)' : 'rgba(38,36,31,0.12)',
-      strokeWidth: 0.8,
+      points: '38,136 136,178 136,190 48,150',
+      fill: isDark ? '#261c15' : '#b8a58d',
+      stroke: rimColor,
+      strokeWidth: 0.9,
+      strokeOpacity: 0.55,
     }),
     createElement('polygon', {
-      points: '220,136 136,174 136,185 220,147',
-      fill: isDark ? '#0c0a08' : '#9c8970',
-      stroke: isDark ? 'rgba(255,248,235,0.1)' : 'rgba(38,36,31,0.1)',
-      strokeWidth: 0.8,
+      points: '234,136 136,178 136,190 224,150',
+      fill: isDark ? '#16110d' : '#9c8970',
+      stroke: rimColor,
+      strokeWidth: 0.9,
+      strokeOpacity: 0.45,
+    }),
+    // Tier 2 (Middle Chiseled Monolith Block)
+    createElement('polygon', {
+      points: '68,158 136,190 136,200 78,170',
+      fill: isDark ? '#1e1610' : '#a39078',
+      stroke: rimColor,
+      strokeWidth: 0.85,
+      strokeOpacity: 0.65,
     }),
     createElement('polygon', {
-      points: '92,154 136,176 136,188 92,166',
-      fill: isDark ? '#1c1612' : '#a39078',
+      points: '204,158 136,190 136,200 194,170',
+      fill: isDark ? '#100c09' : '#8c7961',
+      stroke: rimColor,
+      strokeWidth: 0.85,
+      strokeOpacity: 0.5,
     }),
+    // Tier 3 (Glowing Faceted Energy Crystal Core at Bottom Apex)
     createElement('polygon', {
-      points: '180,154 136,176 136,188 180,166',
-      fill: isDark ? '#110e0b' : '#8c7961',
-    }),
-    createElement('polygon', {
-      points: '126,174 136,188 146,174 136,168',
+      points: '108,186 136,200 136,211',
       fill: rimColor,
-      fillOpacity: isDark ? '0.82' : '0.65',
+      fillOpacity: isDark ? '0.92' : '0.78',
+    }),
+    createElement('polygon', {
+      points: '164,186 136,200 136,211',
+      fill: isDark ? '#fef08a' : rimColor,
+      fillOpacity: isDark ? '0.68' : '0.55',
+    }),
+    // Floating Satellite Rock Shards beside Pedestal
+    createElement('polygon', {
+      points: '26,150 38,145 42,153 30,157',
+      fill: isDark ? '#2a1f17' : '#b8a58d',
+      stroke: rimColor,
+      strokeWidth: 0.8,
+    }),
+    createElement('polygon', {
+      points: '234,148 246,143 242,152 230,155',
+      fill: isDark ? '#1c1510' : '#9c8970',
+      stroke: rimColor,
+      strokeWidth: 0.8,
     }),
 
-    // 2. 3D Extruded Isometric Base Slab
+    // 2. 3D Extruded Isometric Floor Slab
     createElement('polygon', {
       points: '18,118 136,168 136,180 18,130',
       fill: `url(#${gradWallLId})`,
-      stroke: isDark ? 'rgba(255,248,235,0.16)' : 'rgba(38,36,31,0.16)',
+      stroke: isDark ? 'rgba(255,248,235,0.2)' : 'rgba(38,36,31,0.18)',
       strokeWidth: 1,
     }),
     createElement('polygon', {
       points: '254,118 136,168 136,180 254,130',
       fill: `url(#${gradWallRId})`,
-      stroke: isDark ? 'rgba(255,248,235,0.14)' : 'rgba(38,36,31,0.14)',
+      stroke: isDark ? 'rgba(255,248,235,0.16)' : 'rgba(38,36,31,0.15)',
       strokeWidth: 1,
     }),
     createElement('polyline', {
@@ -793,68 +844,76 @@ function IsometricLifeZoneSvg({
       fill: `url(#${gradTopId})`,
       stroke: rimColor,
       strokeWidth: active ? 1.8 : 1.2,
-      strokeOpacity: 0.88,
+      strokeOpacity: 0.9,
+    }),
+    // Subtle Isometric Floor Parquet / Tile Grid Lines
+    createElement('line', { x1: 47, y1: 130, x2: 165, y2: 80, stroke: isDark ? 'rgba(255,248,235,0.06)' : 'rgba(38,36,31,0.06)', strokeWidth: 0.8 }),
+    createElement('line', { x1: 77, y1: 143, x2: 195, y2: 93, stroke: isDark ? 'rgba(255,248,235,0.06)' : 'rgba(38,36,31,0.06)', strokeWidth: 0.8 }),
+    createElement('line', { x1: 106, y1: 155, x2: 224, y2: 105, stroke: isDark ? 'rgba(255,248,235,0.06)' : 'rgba(38,36,31,0.06)', strokeWidth: 0.8 }),
+    createElement('line', { x1: 106, y1: 80, x2: 224, y2: 130, stroke: isDark ? 'rgba(255,248,235,0.06)' : 'rgba(38,36,31,0.06)', strokeWidth: 0.8 }),
+    createElement('line', { x1: 77, y1: 93, x2: 195, y2: 143, stroke: isDark ? 'rgba(255,248,235,0.06)' : 'rgba(38,36,31,0.06)', strokeWidth: 0.8 }),
+    createElement('line', { x1: 47, y1: 105, x2: 165, y2: 155, stroke: isDark ? 'rgba(255,248,235,0.06)' : 'rgba(38,36,31,0.06)', strokeWidth: 0.8 }),
+
+    // 2a. True 3D Extruded L-Shaped Cutaway Architectural Walls (With Beveled Top Rim & End Pillar Thickness)
+    // Inner Left Wall Face
+    createElement('polygon', {
+      points: '24,120 136,72 136,20 24,68',
+      fill: `url(#${backWallLId})`,
+      stroke: rimColor,
+      strokeWidth: 0.9,
+      strokeOpacity: 0.6,
+    }),
+    // Inner Right Wall Face
+    createElement('polygon', {
+      points: '136,72 248,120 248,68 136,20',
+      fill: `url(#${backWallRId})`,
+      stroke: rimColor,
+      strokeWidth: 0.9,
+      strokeOpacity: 0.5,
+    }),
+    // 3D Wall Top Beveled Thickness Rim (Left & Right Roof Cornice)
+    createElement('polygon', {
+      points: '18,64 136,14 136,20 24,68',
+      fill: isDark ? '#5c3d28' : '#e6d5bc',
+      stroke: rimColor,
+      strokeWidth: 1.1,
     }),
     createElement('polygon', {
-      points: '136,161 242,116 136,73 30,116',
-      fill: 'none',
-      stroke: isDark ? 'rgba(255,248,235,0.11)' : 'rgba(38,36,31,0.1)',
+      points: '136,14 254,64 248,68 136,20',
+      fill: isDark ? '#422c1d' : '#d4c0a3',
+      stroke: rimColor,
+      strokeWidth: 1.1,
+    }),
+    // 3D Wall Front-Left & Front-Right Vertical End Pillars (Wall Thickness)
+    createElement('polygon', {
+      points: '18,64 24,68 24,120 18,118',
+      fill: isDark ? '#382315' : '#bda88e',
+      stroke: rimColor,
       strokeWidth: 0.9,
     }),
-
-    // 2a. L-Shaped 3D Cutaway Isometric Architectural Back Walls (Spirit City / Spline Diorama Depth)
     createElement('polygon', {
-      points: '18,118 136,68 136,24 18,74',
-      fill: isDark
-        ? zone === 'focus'
-          ? 'rgba(46, 30, 20, 0.92)'
-          : zone === 'vitality'
-            ? 'rgba(18, 32, 28, 0.92)'
-            : 'rgba(38, 30, 20, 0.92)'
-        : zone === 'focus'
-          ? 'rgba(226, 212, 192, 0.94)'
-          : zone === 'vitality'
-            ? 'rgba(208, 226, 217, 0.94)'
-            : 'rgba(232, 221, 198, 0.94)',
+      points: '248,68 254,64 254,118 248,120',
+      fill: isDark ? '#24170e' : '#a38f76',
       stroke: rimColor,
-      strokeWidth: 1,
-      strokeOpacity: 0.55,
+      strokeWidth: 0.9,
     }),
-    createElement('polygon', {
-      points: '136,68 254,118 254,74 136,24',
-      fill: isDark
-        ? zone === 'focus'
-          ? 'rgba(32, 21, 14, 0.92)'
-          : zone === 'vitality'
-            ? 'rgba(13, 24, 21, 0.92)'
-            : 'rgba(28, 22, 15, 0.92)'
-        : zone === 'focus'
-          ? 'rgba(212, 196, 174, 0.94)'
-          : zone === 'vitality'
-            ? 'rgba(192, 214, 203, 0.94)'
-            : 'rgba(218, 205, 180, 0.94)',
-      stroke: rimColor,
-      strokeWidth: 1,
-      strokeOpacity: 0.45,
-    }),
-    // Cutaway Wall Top Rim Cornice
+    // Interior Wainscoting Baseboard Trim
     createElement('polyline', {
-      points: '18,74 136,24 254,74',
+      points: '24,108 136,60 248,108',
       fill: 'none',
       stroke: rimColor,
-      strokeWidth: active ? 2.2 : 1.5,
-      strokeLinecap: 'round',
-      strokeLinejoin: 'round',
+      strokeWidth: 0.8,
+      strokeOpacity: 0.45,
     }),
-    // Center Corner Pillar Seam
+    // Center Corner Chiseled Pillar
     createElement('line', {
       x1: 136,
-      y1: 24,
+      y1: 20,
       x2: 136,
-      y2: 68,
+      y2: 72,
       stroke: rimColor,
-      strokeWidth: 1.2,
-      strokeOpacity: 0.65,
+      strokeWidth: 1.5,
+      strokeOpacity: 0.75,
     }),
 
     // 2b. Click Shockwave Diamond Ring & Starburst Sparks when clicked
@@ -901,50 +960,102 @@ function IsometricLifeZoneSvg({
       ? createElement(
           'g',
           null,
-          // Cutaway Left Wall: Isometric Starlight Window + Volumetric God-Ray
-          createElement('polygon', {
-            points: '46,94 96,73 96,46 46,67',
-            fill: isDark ? '#0c1629' : '#bae6fd',
-            stroke: '#f5b942',
-            strokeWidth: 1.3,
+          // Cutaway Left Wall: 3D Arched Starlight Gothic Window + Protruding Sill + Volumetric God-Ray
+          createElement('path', {
+            d: 'M 44 92 L 44 64 Q 70 38 96 52 L 96 70 Z',
+            fill: isDark ? '#091326' : '#bae6fd',
+            stroke: `url(#${goldMetalId})`,
+            strokeWidth: 1.6,
           }),
-          createElement('line', { x1: 71, y1: 56.5, x2: 71, y2: 83.5, stroke: '#f5b942', strokeWidth: 0.9 }),
-          createElement('line', { x1: 46, y1: 80.5, x2: 96, y2: 59.5, stroke: '#f5b942', strokeWidth: 0.9 }),
-          createElement('circle', { cx: 60, cy: 69, r: 3.2, fill: '#fef08a' }),
-          createElement('circle', { cx: 83, cy: 59, r: 1.3, fill: '#ffffff' }),
-          // Diagonal Volumetric God-Ray Beam from Window onto Desk
+          // Window Mullions & Crescent Moon + Stars
+          createElement('line', { x1: 70, y1: 49, x2: 70, y2: 81, stroke: '#f5b942', strokeWidth: 1 }),
+          createElement('line', { x1: 44, y1: 77, x2: 96, y2: 55, stroke: '#f5b942', strokeWidth: 1 }),
+          createElement('circle', { cx: 58, cy: 65, r: 3.6, fill: '#fef08a' }),
+          createElement('circle', { cx: 60, cy: 64, r: 2.8, fill: isDark ? '#091326' : '#bae6fd' }),
+          createElement('circle', { cx: 82, cy: 56, r: 1.4, fill: '#fef08a' }),
+          createElement('circle', { cx: 86, cy: 63, r: 1.1, fill: '#ffffff' }),
+          // 3D Protruding Window Sill
           createElement('polygon', {
-            points: '46,94 96,73 148,108 82,128',
+            points: '40,94 98,69 102,71 44,96',
+            fill: '#92560c',
+            stroke: '#fde68a',
+            strokeWidth: 0.8,
+          }),
+          // Volumetric Diagonal God-Ray Streaming from Window onto Desk
+          createElement('polygon', {
+            points: '44,92 96,70 162,110 84,136',
             fill: `url(#${lampConeId})`,
-            opacity: isDark ? 0.55 : 0.35,
+            opacity: isDark ? 0.62 : 0.38,
           }),
-          // Cutaway Right Wall: 2-Tier Illuminated Walnut Bookshelf
-          createElement('polygon', {
-            points: '150,66 218,95 218,65 150,36',
-            fill: isDark ? '#24140b' : '#7c4a2b',
-            stroke: '#d97706',
-            strokeWidth: 1,
-          }),
-          createElement('line', { x1: 150, y1: 51, x2: 218, y2: 80, stroke: '#f5b942', strokeWidth: 1.1 }),
-          // Glowing Book Spines on Shelf
-          createElement('polygon', { points: '158,48 166,51 166,41 158,38', fill: '#f59e0b' }),
-          createElement('polygon', { points: '169,53 177,56 177,45 169,42', fill: '#34d399' }),
-          createElement('polygon', { points: '180,57 190,61 190,50 180,46', fill: '#60a5fa' }),
-          createElement('polygon', { points: '160,64 170,68 170,57 160,53', fill: '#f43f5e' }),
-          createElement('polygon', { points: '174,70 184,74 184,63 174,59', fill: '#fef08a' }),
 
-          // Woven Isometric Sanctuary Rug under Desk
+          // Cutaway Right Wall: 3D Extruded Multi-Tier Walnut Bookcase (With 3D Side Panel, 3 Shelves & 16 Sculpted Books)
+          // Bookcase Left Depth Panel
           createElement('polygon', {
-            points: '60,112 136,80 194,104 118,136',
-            fill: isDark ? 'rgba(180, 83, 9, 0.26)' : 'rgba(217, 119, 6, 0.16)',
-            stroke: '#f59e0b',
+            points: '148,72 155,69 155,31 148,34',
+            fill: '#3b2213',
+            stroke: '#d97706',
             strokeWidth: 0.9,
+          }),
+          // Bookcase Main Recessed Back Cabinet
+          createElement('polygon', {
+            points: '155,69 226,99 226,61 155,31',
+            fill: isDark ? '#1c1008' : '#5c351e',
+            stroke: '#f5b942',
+            strokeWidth: 1.2,
+          }),
+          // Bookcase Top 3D Cornice Roof
+          createElement('polygon', {
+            points: '148,34 155,31 226,61 219,64',
+            fill: '#7c4a2b',
+            stroke: '#fde68a',
+            strokeWidth: 0.8,
+          }),
+          // 3 Isometric Wooden Shelves with Warm LED Under-Glow
+          createElement('line', { x1: 155, y1: 44, x2: 226, y2: 74, stroke: '#f5b942', strokeWidth: 1.5 }),
+          createElement('line', { x1: 155, y1: 56, x2: 226, y2: 86, stroke: '#f5b942', strokeWidth: 1.5 }),
+          // Row 1 Sculpted 3D Books + Brass Globe on Top Shelf
+          createElement('polygon', { points: '160,44 165,46 165,37 160,35', fill: '#d97706', stroke: '#fde68a', strokeWidth: 0.5 }),
+          createElement('polygon', { points: '166,46.5 171,48.5 171,39 166,37', fill: '#b91c1c', stroke: '#fca5a5', strokeWidth: 0.5 }),
+          createElement('polygon', { points: '172,49 177,51 177,42 172,40', fill: '#047857', stroke: '#6ee7b7', strokeWidth: 0.5 }),
+          createElement('polygon', { points: '178,51.5 184,54 184,45 178,42.5', fill: '#1d4ed8', stroke: '#93c5fd', strokeWidth: 0.5 }),
+          createElement('circle', { cx: 204, cy: 57, r: 4.2, fill: `url(#${goldMetalId})`, stroke: '#fef08a', strokeWidth: 0.8 }),
+          // Row 2 Sculpted 3D Books
+          createElement('polygon', { points: '159,56 164,58 164,49 159,47', fill: '#0f766e', stroke: '#5eead4', strokeWidth: 0.5 }),
+          createElement('polygon', { points: '165,58.5 170,60.5 170,51 165,49', fill: '#b45309', stroke: '#fde68a', strokeWidth: 0.5 }),
+          createElement('polygon', { points: '171,61 176,63 176,53.5 171,51.5', fill: '#9f1239', stroke: '#fda4af', strokeWidth: 0.5 }),
+          createElement('polygon', { points: '177,63.5 182,65.5 182,56 177,54', fill: '#ca8a04', stroke: '#fef08a', strokeWidth: 0.5 }),
+          createElement('polygon', { points: '190,69 196,71.5 196,62 190,59.5', fill: '#4338ca', stroke: '#a5b4fc', strokeWidth: 0.5 }),
+          createElement('polygon', { points: '197,72 203,74.5 203,65 197,62.5', fill: '#b45309', stroke: '#fde68a', strokeWidth: 0.5 }),
+          // Row 3 Sculpted 3D Books
+          createElement('polygon', { points: '160,68 166,70.5 166,61 160,58.5', fill: '#a16207', stroke: '#fde68a', strokeWidth: 0.5 }),
+          createElement('polygon', { points: '167,71 173,73.5 173,64 167,61.5', fill: '#15803d', stroke: '#86efac', strokeWidth: 0.5 }),
+          createElement('polygon', { points: '174,74 180,76.5 180,67 174,64.5', fill: '#be123c', stroke: '#fda4af', strokeWidth: 0.5 }),
+
+          // Corner Potted Sanctuary Plant (常春藤绿植盆栽)
+          createElement('polygon', { points: '129,76 141,76 139,85 131,85', fill: '#b45309', stroke: '#fde68a', strokeWidth: 0.7 }),
+          createElement('ellipse', { cx: 131, cy: 71, rx: 5.5, ry: 3, transform: 'rotate(-25 131 71)', fill: '#10b981' }),
+          createElement('ellipse', { cx: 139, cy: 71, rx: 5.5, ry: 3, transform: 'rotate(25 139 71)', fill: '#059669' }),
+          createElement('ellipse', { cx: 135, cy: 68, rx: 4, ry: 6, fill: '#34d399' }),
+
+          // Ornate Woven Persian Sanctuary Rug under Desk
+          createElement('polygon', {
+            points: '56,114 136,80 198,106 118,140',
+            fill: isDark ? 'rgba(180, 83, 9, 0.32)' : 'rgba(217, 119, 6, 0.2)',
+            stroke: '#f5b942',
+            strokeWidth: 1.1,
+          }),
+          createElement('polygon', {
+            points: '62,114 136,83 192,106 118,137',
+            fill: 'none',
+            stroke: '#fde68a',
+            strokeWidth: 0.7,
             strokeDasharray: '3 2',
           }),
           createElement('polygon', {
             points: '68,108 138,78 182,96 112,126',
-            fill: isDark ? 'rgba(0,0,0,0.42)' : 'rgba(38,36,31,0.15)',
+            fill: isDark ? 'rgba(0,0,0,0.45)' : 'rgba(38,36,31,0.16)',
           }),
+          // 3D Walnut Executive Study Desk
           createElement('polygon', {
             points: '68,94 98,107 98,132 68,119',
             fill: isDark ? '#3b2213' : '#8c583a',
@@ -1002,15 +1113,12 @@ function IsometricLifeZoneSvg({
             stroke: '#d97706',
             strokeWidth: 1.2,
           }),
-          // Spine & Bookmark Ribbon
           createElement('line', { x1: 106, y1: 75, x2: 118, y2: 83, stroke: '#92400e', strokeWidth: 1.6 }),
           createElement('path', { d: 'M 118 83 Q 121 91 116 96', fill: 'none', stroke: '#ef4444', strokeWidth: 1.6 }),
-          // Animated Ink Lines on Left & Right Pages
           createElement('line', { x1: 86, y1: 87, x2: 106, y2: 79, stroke: '#92400e', strokeWidth: 0.8 }),
           createElement('line', { x1: 90, y1: 90, x2: 110, y2: 82, stroke: '#b45309', strokeWidth: 0.8 }),
           createElement('line', { x1: 115, y1: 76, x2: 135, y2: 68, stroke: '#92400e', strokeWidth: 0.8 }),
           createElement('line', { x1: 119, y1: 79, x2: 139, y2: 71, stroke: '#b45309', strokeWidth: 0.8 }),
-          // 60fps 3D Curved Flipping Page Leaf ( sweeps 0 -> 1 across isometric spine )
           (() => {
             const p = bookAnimPhase;
             const angle = p * Math.PI;
@@ -1059,8 +1167,8 @@ function IsometricLifeZoneSvg({
           // Floating Book Page Badge above the Open Book
           createElement('rect', {
             x: 80,
-            y: 40,
-            width: 42,
+            y: 36,
+            width: 44,
             height: 13,
             rx: 6.5,
             fill: isDark ? 'rgba(24,20,16,0.92)' : 'rgba(255,251,235,0.94)',
@@ -1070,8 +1178,8 @@ function IsometricLifeZoneSvg({
           createElement(
             'text',
             {
-              x: 101,
-              y: 49,
+              x: 102,
+              y: 45,
               textAnchor: 'middle',
               fill: isDark ? '#fde68a' : '#b45309',
               fontSize: '7.5',
@@ -1081,9 +1189,9 @@ function IsometricLifeZoneSvg({
             `📖P.${12 + bookPageCount}`,
           ),
           // Steaming Ceramic Coffee Cup on Desk Corner
-          createElement('ellipse', { cx: 155, cy: 81, rx: 4.5, ry: 2.5, fill: '#fef3c7', stroke: '#d97706', strokeWidth: 0.9 }),
+          createElement('ellipse', { cx: 155, cy: 81, rx: 4.8, ry: 2.6, fill: '#fef3c7', stroke: '#d97706', strokeWidth: 0.9 }),
           createElement('path', { d: 'M 151 81 L 152 86 C 154 88, 156 88, 158 86 L 159 81 Z', fill: '#fffbeb', stroke: '#d97706', strokeWidth: 0.8 }),
-          createElement('path', { d: 'M 155 77 Q 153 73 156 70', fill: 'none', stroke: '#fde68a', strokeWidth: 0.9, strokeOpacity: '0.75' }),
+          createElement('path', { d: 'M 155 77 Q 153 73 156 70', fill: 'none', stroke: '#fde68a', strokeWidth: 0.9, strokeOpacity: '0.78' }),
           createElement('ellipse', { cx: 130, cy: 67, rx: 18, ry: 10, fill: 'rgba(254, 240, 138, 0.28)' }),
           createElement('ellipse', { cx: 130, cy: 70, rx: 7, ry: 3.5, fill: '#b45309' }),
           createElement('rect', { x: 127, y: 58, width: 6, height: 12, rx: 2, fill: '#d97706' }),
@@ -1123,36 +1231,49 @@ function IsometricLifeZoneSvg({
         )
       : null,
 
-    // ================= ISLAND 2: 活力体态 (With Cutaway Neon ECG Wall, Power Rack & 60fps Athlete) =================
+    // ================= ISLAND 2: 活力体态 (With 3D Neon ECG Wall, 4-Post Power Rack & Sculpted Athlete) =================
     zone === 'vitality'
       ? createElement(
           'g',
           null,
-          // Cutaway Left Wall: Dark-Glass Neon ECG & 1RM Telemetry Scoreboard
+          // Cutaway Left Wall: 3D Framed Dark-Glass Neon ECG & 1RM Telemetry Scoreboard
           createElement('polygon', {
-            points: '42,96 104,70 104,42 42,68',
-            fill: isDark ? '#071714' : '#0f2922',
+            points: '38,96 112,65 112,35 38,66',
+            fill: isDark ? '#061411' : '#0c241e',
             stroke: '#34d399',
-            strokeWidth: 1.2,
+            strokeWidth: 1.4,
           }),
-          // Live Neon ECG Heart-Rate Waveform on Left Wall
+          // Subtle Telemetry Grid & 1RM Progress Bars inside Left Wall Screen
+          createElement('line', { x1: 44, y1: 76, x2: 106, y2: 50, stroke: 'rgba(52,211,153,0.2)', strokeWidth: 0.8 }),
           createElement('polyline', {
-            points: '48,80 60,75 65,63 70,81 75,68 82,71 98,64',
+            points: '44,82 56,77 61,63 66,82 72,66 79,70 92,62 106,57',
             fill: 'none',
             stroke: '#34d399',
-            strokeWidth: 1.5,
+            strokeWidth: 1.8,
             strokeLinecap: 'round',
             strokeLinejoin: 'round',
           }),
-          createElement('line', { x1: 48, y1: 86, x2: 96, y2: 66, stroke: '#f5b942', strokeWidth: 1.2, strokeOpacity: '0.8' }),
+          createElement('line', { x1: 46, y1: 88, x2: 88, y2: 70, stroke: '#f5b942', strokeWidth: 2, strokeLinecap: 'round' }),
+          createElement('line', { x1: 46, y1: 91, x2: 76, y2: 78, stroke: '#38bdf8', strokeWidth: 1.6, strokeLinecap: 'round' }),
 
-          // Cutaway Right Wall: 3D Isometric Power Rack (黑金龙门架)
-          createElement('line', { x1: 154, y1: 72, x2: 154, y2: 34, stroke: '#475569', strokeWidth: 2.6, strokeLinecap: 'round' }),
-          createElement('line', { x1: 196, y1: 90, x2: 196, y2: 52, stroke: '#334155', strokeWidth: 2.6, strokeLinecap: 'round' }),
-          createElement('line', { x1: 154, y1: 36, x2: 196, y2: 54, stroke: '#f5b942', strokeWidth: 2.2, strokeLinecap: 'round' }),
-          createElement('line', { x1: 148, y1: 54, x2: 204, y2: 78, stroke: '#94a3b8', strokeWidth: 1.8, strokeLinecap: 'round' }),
-          createElement('ellipse', { cx: 150, cy: 55, rx: 2.8, ry: 5.5, fill: '#059669', stroke: '#6ee7b7', strokeWidth: 0.9 }),
-          createElement('ellipse', { cx: 202, cy: 77, rx: 2.8, ry: 5.5, fill: '#059669', stroke: '#6ee7b7', strokeWidth: 0.9 }),
+          // Cutaway Right Wall: 3D Four-Post Black-and-Gold Power Rack (四柱立体黑金龙门架)
+          // Back 2 Uprights + Top Crossbeam
+          createElement('line', { x1: 152, y1: 72, x2: 152, y2: 30, stroke: '#334155', strokeWidth: 2.8, strokeLinecap: 'round' }),
+          createElement('line', { x1: 204, y1: 94, x2: 204, y2: 52, stroke: '#334155', strokeWidth: 2.8, strokeLinecap: 'round' }),
+          createElement('line', { x1: 152, y1: 32, x2: 204, y2: 54, stroke: '#d97706', strokeWidth: 2, strokeLinecap: 'round' }),
+          // Front 2 Uprights + Pull-Up Bar
+          createElement('line', { x1: 142, y1: 77, x2: 142, y2: 35, stroke: '#64748b', strokeWidth: 2.8, strokeLinecap: 'round' }),
+          createElement('line', { x1: 194, y1: 99, x2: 194, y2: 57, stroke: '#475569', strokeWidth: 2.8, strokeLinecap: 'round' }),
+          createElement('line', { x1: 142, y1: 37, x2: 194, y2: 59, stroke: '#f5b942', strokeWidth: 2.4, strokeLinecap: 'round' }),
+          // Top Depth Connectors
+          createElement('line', { x1: 142, y1: 37, x2: 152, y2: 32, stroke: '#f5b942', strokeWidth: 1.8 }),
+          createElement('line', { x1: 194, y1: 59, x2: 204, y2: 54, stroke: '#f5b942', strokeWidth: 1.8 }),
+          // Racked Olympic Barbell + Multi-Plate Stack on Rack
+          createElement('line', { x1: 138, y1: 54, x2: 206, y2: 83, stroke: '#cbd5e1', strokeWidth: 2.2, strokeLinecap: 'round' }),
+          createElement('ellipse', { cx: 145, cy: 57, rx: 3.2, ry: 6.2, fill: '#059669', stroke: '#6ee7b7', strokeWidth: 1 }),
+          createElement('ellipse', { cx: 148, cy: 58.5, rx: 2.6, ry: 5, fill: '#d97706', stroke: '#fde68a', strokeWidth: 0.9 }),
+          createElement('ellipse', { cx: 198, cy: 80, rx: 3.2, ry: 6.2, fill: '#059669', stroke: '#6ee7b7', strokeWidth: 1 }),
+          createElement('ellipse', { cx: 195, cy: 78.5, rx: 2.6, ry: 5, fill: '#d97706', stroke: '#fde68a', strokeWidth: 0.9 }),
 
           createElement('polygon', {
             points: '54,106 138,71 172,86 88,121',
@@ -1188,7 +1309,7 @@ function IsometricLifeZoneSvg({
             strokeWidth: 1.2,
           }),
 
-          // 60fps Articulated Multi-Joint Athlete SVG
+          // 60fps Sculpted Multi-Joint Athlete SVG
           renderArticulatedAthleteSvg({
             pose: workoutPose,
             phase: workoutAnimPhase,
@@ -1197,6 +1318,13 @@ function IsometricLifeZoneSvg({
             goldMetalId,
           }),
 
+          // 3D Emerald Kettlebell with Handle
+          createElement('path', {
+            d: 'M 134 79 C 134 73, 144 73, 144 79',
+            fill: 'none',
+            stroke: '#cbd5e1',
+            strokeWidth: 2,
+          }),
           createElement('circle', {
             cx: 139,
             cy: 84,
@@ -1206,6 +1334,7 @@ function IsometricLifeZoneSvg({
             strokeWidth: 1,
           }),
           createElement('circle', { cx: 136, cy: 81, r: 2.5, fill: '#a7f3d0' }),
+          // Smart Body Composition Scale
           createElement('polygon', {
             points: '158,128 212,105 176,90 122,113',
             fill: isDark ? '#2e343b' : '#475569',
@@ -1240,33 +1369,70 @@ function IsometricLifeZoneSvg({
         )
       : null,
 
-    // ================= ISLAND 3: 星愿纪念台 (Monument Valley Golden Colonnade & Celestial Astrolabe) =================
+    // ================= ISLAND 3: 星愿纪念台 (Monument Valley 3-Arch Golden Colonnade & Celestial Astrolabe) =================
     zone === 'wishes'
       ? createElement(
           'g',
           null,
-          // Cutaway Left & Right Walls: Monument Valley-Style Golden Colonnade Archways
-          createElement('polygon', {
-            points: '48,94 82,80 82,48 48,62',
-            fill: isDark ? 'rgba(15, 23, 42, 0.82)' : 'rgba(254, 243, 199, 0.72)',
+          // Cutaway Left Wall: Monument Valley Dual Vaulted Golden Archways + 3D Fluted Golden Columns
+          createElement('path', {
+            d: 'M 38 98 L 38 68 Q 52 50 66 59 L 66 86 Z',
+            fill: isDark ? '#091326' : '#fef3c7',
             stroke: `url(#${goldMetalId})`,
-            strokeWidth: 1.2,
+            strokeWidth: 1.6,
           }),
-          createElement('polygon', {
-            points: '164,54 204,71 204,101 164,84',
-            fill: isDark ? 'rgba(15, 23, 42, 0.82)' : 'rgba(254, 243, 199, 0.72)',
+          createElement('path', {
+            d: 'M 74 83 L 74 55 Q 88 37 102 46 L 102 71 Z',
+            fill: isDark ? '#091326' : '#fef3c7',
             stroke: `url(#${goldMetalId})`,
-            strokeWidth: 1.2,
+            strokeWidth: 1.6,
           }),
-          // Floating Starlight Lanterns beside Colonnade
-          createElement('circle', { cx: 65, cy: 68, r: 2.8, fill: '#fef08a' }),
-          createElement('circle', { cx: 184, cy: 74, r: 2.8, fill: '#fef08a' }),
+          // Fluted Golden Columns & Hanging Lanterns on Left Wall
+          createElement('rect', { x: 35, y: 68, width: 4, height: 32, rx: 1, fill: `url(#${goldMetalId})` }),
+          createElement('rect', { x: 67, y: 56, width: 5, height: 31, rx: 1, fill: `url(#${goldMetalId})` }),
+          createElement('rect', { x: 101, y: 45, width: 4, height: 28, rx: 1, fill: `url(#${goldMetalId})` }),
+          createElement('line', { x1: 52, y1: 55, x2: 52, y2: 67, stroke: '#f5b942', strokeWidth: 1 }),
+          createElement('circle', { cx: 52, cy: 69, r: 2.8, fill: '#fef08a' }),
+          createElement('line', { x1: 88, y1: 42, x2: 88, y2: 54, stroke: '#f5b942', strokeWidth: 1 }),
+          createElement('circle', { cx: 88, cy: 56, r: 2.8, fill: '#fef08a' }),
 
+          // Cutaway Right Wall: Monument Valley Dual Vaulted Golden Archways + 3D Fluted Golden Columns
+          createElement('path', {
+            d: 'M 164 71 L 164 46 Q 178 37 192 55 L 192 83 Z',
+            fill: isDark ? '#091326' : '#fef3c7',
+            stroke: `url(#${goldMetalId})`,
+            strokeWidth: 1.6,
+          }),
+          createElement('path', {
+            d: 'M 200 86 L 200 59 Q 214 50 228 68 L 228 98 Z',
+            fill: isDark ? '#091326' : '#fef3c7',
+            stroke: `url(#${goldMetalId})`,
+            strokeWidth: 1.6,
+          }),
+          // Fluted Golden Columns & Hanging Lanterns on Right Wall
+          createElement('rect', { x: 161, y: 45, width: 4, height: 28, rx: 1, fill: `url(#${goldMetalId})` }),
+          createElement('rect', { x: 194, y: 56, width: 5, height: 31, rx: 1, fill: `url(#${goldMetalId})` }),
+          createElement('rect', { x: 227, y: 68, width: 4, height: 32, rx: 1, fill: `url(#${goldMetalId})` }),
+          createElement('line', { x1: 178, y1: 42, x2: 178, y2: 54, stroke: '#f5b942', strokeWidth: 1 }),
+          createElement('circle', { cx: 178, cy: 56, r: 2.8, fill: '#fef08a' }),
+          createElement('line', { x1: 214, y1: 55, x2: 214, y2: 67, stroke: '#f5b942', strokeWidth: 1 }),
+          createElement('circle', { cx: 214, cy: 69, r: 2.8, fill: '#fef08a' }),
+
+          // Stepped Golden Sanctuary Altar Base
+          createElement('ellipse', {
+            cx: 122,
+            cy: 120,
+            rx: 46,
+            ry: 18,
+            fill: '#1f170d',
+            stroke: `url(#${goldMetalId})`,
+            strokeWidth: 1.6,
+          }),
           createElement('ellipse', {
             cx: 122,
             cy: 116,
-            rx: 42,
-            ry: 16.5,
+            rx: 38,
+            ry: 15,
             fill: '#2b2113',
             stroke: `url(#${goldMetalId})`,
             strokeWidth: 2.2,
@@ -1274,12 +1440,18 @@ function IsometricLifeZoneSvg({
           createElement('ellipse', {
             cx: 122,
             cy: 112,
-            rx: 30,
-            ry: 11.5,
+            rx: 28,
+            ry: 11,
             fill: '#47361d',
             stroke: '#fef08a',
             strokeWidth: 1.2,
           }),
+          // Golden Obelisk Braziers flanking the Altar
+          createElement('polygon', { points: '64,116 70,116 68,94 66,94', fill: `url(#${goldMetalId})` }),
+          createElement('circle', { cx: 67, cy: 91, r: 3.2, fill: '#fef08a' }),
+          createElement('polygon', { points: '174,102 180,102 178,82 176,82', fill: `url(#${goldMetalId})` }),
+          createElement('circle', { cx: 177, cy: 79, r: 3.2, fill: '#fef08a' }),
+
           createElement('path', {
             d: 'M 86 72 A 36 36 0 0 0 158 72',
             fill: 'none',
@@ -1346,31 +1518,33 @@ function IsometricLifeZoneSvg({
           createElement('circle', {
             cx: 122,
             cy: 64,
-            r: 5.5,
+            r: 6,
             fill: '#fef08a',
             stroke: '#ca8a04',
-            strokeWidth: 1.2,
+            strokeWidth: 1.4,
           }),
+          // Ornate Gilded Wish Chest spilling Golden Light
           createElement('polygon', {
             points: '166,112 188,122 188,138 166,128',
             fill: '#a8573b',
             stroke: '#f5b942',
-            strokeWidth: 0.8,
+            strokeWidth: 1,
           }),
           createElement('polygon', {
             points: '210,112 188,122 188,138 210,128',
             fill: '#7c3d26',
             stroke: '#f5b942',
-            strokeWidth: 0.8,
+            strokeWidth: 1,
           }),
           createElement('polygon', {
             points: '188,123 212,112 188,102 164,112',
             fill: '#cc785c',
             stroke: '#fde68a',
-            strokeWidth: 1,
+            strokeWidth: 1.2,
           }),
           createElement('line', { x1: 176, y1: 107, x2: 200, y2: 117, stroke: '#fde68a', strokeWidth: 2.6 }),
           createElement('line', { x1: 176, y1: 117, x2: 200, y2: 107, stroke: '#fde68a', strokeWidth: 2.6 }),
+          createElement('circle', { cx: 188, cy: 124, r: 2.6, fill: '#fef08a' }),
         )
       : null,
   );
@@ -1388,38 +1562,38 @@ function Golden24HourRibbonBridgesSvg({
 }) {
   if (Platform.OS !== 'web') return null;
 
-  // Isometric floating stepping stones along Bridge 1 (Focus <-> Vitality) and Bridge 2 (Vitality <-> Wishes)
+  // Isometric floating stepping stones cleanly positioned in the gaps between Island 1 <-> Island 2 and Island 2 <-> Island 3
   const steppingStonesLeft: [number, number][] = [
-    [282, 165],
-    [312, 175],
-    [345, 179],
-    [378, 175],
-    [408, 165],
+    [290, 170],
+    [316, 179],
+    [345, 183],
+    [374, 179],
+    [400, 170],
   ];
   const steppingStonesRight: [number, number][] = [
-    [592, 165],
-    [622, 175],
-    [655, 179],
-    [688, 175],
-    [718, 165],
+    [600, 170],
+    [626, 179],
+    [655, 183],
+    [684, 179],
+    [710, 170],
   ];
 
   const sparkles: [number, number, number][] = [
-    [140, 26, 1.5],
-    [285, 42, 1.8],
-    [495, 22, 2.0],
-    [715, 36, 1.7],
-    [860, 28, 1.5],
-    [296, 168, 1.9],
-    [394, 168, 1.9],
-    [606, 168, 1.9],
-    [704, 168, 1.9],
+    [140, 24, 1.6],
+    [285, 38, 1.9],
+    [495, 18, 2.1],
+    [715, 34, 1.8],
+    [860, 26, 1.6],
+    [302, 172, 2.0],
+    [388, 172, 2.0],
+    [612, 172, 2.0],
+    [698, 172, 2.0],
   ];
 
   return createElement(
     'svg',
     {
-      viewBox: '0 0 1000 214',
+      viewBox: '0 0 1000 226',
       preserveAspectRatio: 'none',
       style: {
         position: 'absolute',
@@ -1427,7 +1601,7 @@ function Golden24HourRibbonBridgesSvg({
         left: 0,
         right: 0,
         width: '100%',
-        height: 210,
+        height: 222,
         pointerEvents: 'none',
         zIndex: 1,
       },
@@ -1455,7 +1629,7 @@ function Golden24HourRibbonBridgesSvg({
         createElement('stop', {
           offset: '0%',
           stopColor: '#fef08a',
-          stopOpacity: isDark ? '0.12' : '0.18',
+          stopOpacity: isDark ? '0.13' : '0.18',
         }),
         createElement('stop', { offset: '100%', stopColor: '#f5b942', stopOpacity: '0' }),
       ),
@@ -1463,53 +1637,52 @@ function Golden24HourRibbonBridgesSvg({
 
     // 1. Linear-Style Celestial Starlight Orbit Dome & Volumetric God-Rays
     createElement('polygon', {
-      points: '180,0 290,0 420,210 260,210',
+      points: '180,0 290,0 420,220 260,220',
       fill: 'url(#stageGodRayGrad)',
     }),
     createElement('polygon', {
-      points: '560,0 680,0 820,210 640,210',
+      points: '560,0 680,0 820,220 640,220',
       fill: 'url(#stageGodRayGrad)',
     }),
     createElement('path', {
-      d: 'M 60 190 Q 500 -35 940 190',
+      d: 'M 60 198 Q 500 -30 940 198',
       fill: 'none',
-      stroke: isDark ? 'rgba(245, 185, 66, 0.14)' : 'rgba(184, 130, 40, 0.14)',
-      strokeWidth: 1,
+      stroke: isDark ? 'rgba(245, 185, 66, 0.16)' : 'rgba(184, 130, 40, 0.15)',
+      strokeWidth: 1.1,
       strokeDasharray: '4 8',
     }),
     createElement('path', {
-      d: 'M 140 204 Q 500 12 860 204',
+      d: 'M 140 212 Q 500 18 860 212',
       fill: 'none',
-      stroke: isDark ? 'rgba(52, 211, 153, 0.11)' : 'rgba(31, 94, 75, 0.1)',
+      stroke: isDark ? 'rgba(52, 211, 153, 0.12)' : 'rgba(31, 94, 75, 0.11)',
       strokeWidth: 0.9,
     }),
-    // Subtle Isometric Horizon Grid Lines
     createElement('line', {
       x1: 40,
-      y1: 196,
+      y1: 208,
       x2: 960,
-      y2: 196,
-      stroke: isDark ? 'rgba(255,248,235,0.05)' : 'rgba(38,36,31,0.05)',
+      y2: 208,
+      stroke: isDark ? 'rgba(255,248,235,0.06)' : 'rgba(38,36,31,0.06)',
       strokeWidth: 1,
     }),
 
     // 2. Bridge 1 (Focus <-> Vitality): Sleek Golden Light-Rail Conduit + Isometric Stepping Stones
     createElement('path', {
-      d: 'M 252 152 C 312 188, 378 188, 438 152',
+      d: 'M 262 158 C 316 194, 374 194, 428 158',
       fill: 'none',
       stroke: isDark ? 'rgba(245, 185, 66, 0.22)' : 'rgba(204, 120, 92, 0.18)',
       strokeWidth: 6,
       strokeLinecap: 'round',
     }),
     createElement('path', {
-      d: 'M 252 152 C 312 188, 378 188, 438 152',
+      d: 'M 262 158 C 316 194, 374 194, 428 158',
       fill: 'none',
       stroke: 'url(#ribbonBody1)',
-      strokeWidth: 2.2,
+      strokeWidth: 2.4,
       strokeLinecap: 'round',
     }),
     createElement('path', {
-      d: 'M 252 149 C 312 185, 378 185, 438 149',
+      d: 'M 262 155 C 316 191, 374 191, 428 155',
       fill: 'none',
       stroke: isDark ? '#fef08a' : '#d97706',
       strokeWidth: 1.2,
@@ -1521,23 +1694,22 @@ function Golden24HourRibbonBridgesSvg({
         { key: `stone-l-${idx}` },
         createElement('polygon', {
           points: `${cx},${cy - 5} ${cx + 11},${cy} ${cx},${cy + 5} ${cx - 11},${cy}`,
-          fill: isDark ? '#2a2118' : '#efe6d5',
+          fill: isDark ? '#33261a' : '#efe6d5',
           stroke: '#f5b942',
           strokeWidth: 1,
         }),
         createElement('polygon', {
-          points: `${cx - 11},${cy} ${cx},${cy + 5} ${cx},${cy + 9} ${cx - 11},${cy + 4}`,
-          fill: isDark ? '#17120d' : '#cbb89d',
+          points: `${cx - 11},${cy} ${cx},${cy + 5} ${cx},${cy + 10} ${cx - 11},${cy + 5}`,
+          fill: isDark ? '#1c150e' : '#cbb89d',
         }),
         createElement('polygon', {
-          points: `${cx + 11},${cy} ${cx},${cy + 5} ${cx},${cy + 9} ${cx + 11},${cy + 4}`,
-          fill: isDark ? '#0f0c09' : '#b09d82',
+          points: `${cx + 11},${cy} ${cx},${cy + 5} ${cx},${cy + 10} ${cx + 11},${cy + 5}`,
+          fill: isDark ? '#120d09' : '#b09d82',
         }),
       ),
     ),
-    // Faceted Isometric Diamond Node Badge (✦ 24H) on Bridge 1
     createElement('polygon', {
-      points: '345,167 363,179 345,191 327,179',
+      points: '345,171 364,183 345,195 326,183',
       fill: isDark ? '#1c150d' : '#fffbeb',
       stroke: '#f5b942',
       strokeWidth: 1.6,
@@ -1546,7 +1718,7 @@ function Golden24HourRibbonBridgesSvg({
       'text',
       {
         x: 345,
-        y: 182,
+        y: 186,
         textAnchor: 'middle',
         fill: isDark ? '#fef08a' : '#92400e',
         fontSize: '8.5',
@@ -1558,21 +1730,21 @@ function Golden24HourRibbonBridgesSvg({
 
     // 3. Bridge 2 (Vitality <-> Wishes): Sleek Golden Light-Rail Conduit + Isometric Stepping Stones
     createElement('path', {
-      d: 'M 562 152 C 622 188, 688 188, 748 152',
+      d: 'M 572 158 C 626 194, 684 194, 738 158',
       fill: 'none',
       stroke: isDark ? 'rgba(52, 211, 153, 0.2)' : 'rgba(31, 94, 75, 0.16)',
       strokeWidth: 6,
       strokeLinecap: 'round',
     }),
     createElement('path', {
-      d: 'M 562 152 C 622 188, 688 188, 748 152',
+      d: 'M 572 158 C 626 194, 684 194, 738 158',
       fill: 'none',
       stroke: 'url(#ribbonBody2)',
-      strokeWidth: 2.2,
+      strokeWidth: 2.4,
       strokeLinecap: 'round',
     }),
     createElement('path', {
-      d: 'M 562 149 C 622 185, 688 185, 748 149',
+      d: 'M 572 155 C 626 191, 684 191, 738 155',
       fill: 'none',
       stroke: isDark ? '#fef08a' : '#d97706',
       strokeWidth: 1.2,
@@ -1584,23 +1756,22 @@ function Golden24HourRibbonBridgesSvg({
         { key: `stone-r-${idx}` },
         createElement('polygon', {
           points: `${cx},${cy - 5} ${cx + 11},${cy} ${cx},${cy + 5} ${cx - 11},${cy}`,
-          fill: isDark ? '#1e2923' : '#e3efe8',
+          fill: isDark ? '#1e3028' : '#e3efe8',
           stroke: '#34d399',
           strokeWidth: 1,
         }),
         createElement('polygon', {
-          points: `${cx - 11},${cy} ${cx},${cy + 5} ${cx},${cy + 9} ${cx - 11},${cy + 4}`,
-          fill: isDark ? '#111915' : '#b8d1c4',
+          points: `${cx - 11},${cy} ${cx},${cy + 5} ${cx},${cy + 10} ${cx - 11},${cy + 5}`,
+          fill: isDark ? '#111c17' : '#b8d1c4',
         }),
         createElement('polygon', {
-          points: `${cx + 11},${cy} ${cx},${cy + 5} ${cx},${cy + 9} ${cx + 11},${cy + 4}`,
-          fill: isDark ? '#0a100d' : '#9cb8aa',
+          points: `${cx + 11},${cy} ${cx},${cy + 5} ${cx},${cy + 10} ${cx + 11},${cy + 5}`,
+          fill: isDark ? '#0a120f' : '#9cb8aa',
         }),
       ),
     ),
-    // Faceted Isometric Diamond Node Badge (✦ 24H) on Bridge 2
     createElement('polygon', {
-      points: '655,167 673,179 655,191 637,179',
+      points: '655,171 674,183 655,195 636,183',
       fill: isDark ? '#1c150d' : '#fffbeb',
       stroke: '#f5b942',
       strokeWidth: 1.6,
@@ -1609,7 +1780,7 @@ function Golden24HourRibbonBridgesSvg({
       'text',
       {
         x: 655,
-        y: 182,
+        y: 186,
         textAnchor: 'middle',
         fill: isDark ? '#fef08a' : '#92400e',
         fontSize: '8.5',
@@ -1626,7 +1797,7 @@ function Golden24HourRibbonBridgesSvg({
         cy: sy,
         r: sr,
         fill: isDark ? '#fef08a' : '#d97706',
-        opacity: 0.78,
+        opacity: 0.8,
       }),
     ),
   );
@@ -2903,7 +3074,12 @@ export function IsometricStudioStage({
             >
               <View
                 style={[
-                  { position: 'relative', width: isCompactMobile ? 940 : '100%' },
+                  {
+                    position: 'relative',
+                    width: isCompactMobile ? 940 : '100%',
+                    maxWidth: isCompactMobile ? 940 : 1020,
+                    alignSelf: 'center',
+                  },
                   isCompactMobile && Platform.OS === 'web'
                     ? ({
                         zoom:
@@ -3022,6 +3198,33 @@ export function IsometricStudioStage({
                     <Text variant="caption" style={[styles.hudSubText, { color: pal.muted }]}>
                       {`· P.${stageState.bookPage} · ¥${vault.wishBalanceCny.toLocaleString('en-US')}`}
                     </Text>
+                    <View
+                      pointerEvents="none"
+                      style={{
+                        position: 'absolute',
+                        bottom: -14,
+                        left: '50%',
+                        marginLeft: -3,
+                        alignItems: 'center',
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 1.5,
+                          height: 10,
+                          backgroundColor: pal.terracottaAccent,
+                          opacity: 0.75,
+                        }}
+                      />
+                      <View
+                        style={{
+                          width: 5,
+                          height: 5,
+                          borderRadius: 2.5,
+                          backgroundColor: pal.terracottaAccent,
+                        }}
+                      />
+                    </View>
                   </View>
                 </View>
               </View>
@@ -3116,6 +3319,33 @@ export function IsometricStudioStage({
                     <Text variant="caption" style={[styles.hudSubText, { color: pal.muted }]}>
                       {`· ${t(WORKOUT_POSE_META[workoutPose].zh, WORKOUT_POSE_META[workoutPose].en)} x${workoutReps} · ${trainingSetsCount || 14} ${t('组', 'sets')}`}
                     </Text>
+                    <View
+                      pointerEvents="none"
+                      style={{
+                        position: 'absolute',
+                        bottom: -14,
+                        left: '50%',
+                        marginLeft: -3,
+                        alignItems: 'center',
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 1.5,
+                          height: 10,
+                          backgroundColor: pal.emeraldAccent,
+                          opacity: 0.75,
+                        }}
+                      />
+                      <View
+                        style={{
+                          width: 5,
+                          height: 5,
+                          borderRadius: 2.5,
+                          backgroundColor: pal.emeraldAccent,
+                        }}
+                      />
+                    </View>
                   </View>
                 </View>
               </View>
@@ -3209,6 +3439,33 @@ export function IsometricStudioStage({
                     <Text variant="caption" style={[styles.hudSubText, { color: pal.muted }]}>
                       {`· ¥${vault.wishBalanceCny.toLocaleString('en-US')}`}
                     </Text>
+                    <View
+                      pointerEvents="none"
+                      style={{
+                        position: 'absolute',
+                        bottom: -14,
+                        left: '50%',
+                        marginLeft: -3,
+                        alignItems: 'center',
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 1.5,
+                          height: 10,
+                          backgroundColor: pal.goldAccent,
+                          opacity: 0.75,
+                        }}
+                      />
+                      <View
+                        style={{
+                          width: 5,
+                          height: 5,
+                          borderRadius: 2.5,
+                          backgroundColor: pal.goldAccent,
+                        }}
+                      />
+                    </View>
                   </View>
                 </View>
               </View>
@@ -4800,8 +5057,8 @@ const styles = StyleSheet.create({
   },
   stageGridBg: {
     position: 'relative',
-    minHeight: 212,
-    paddingBottom: 8,
+    minHeight: 248,
+    paddingBottom: 10,
   },
   isoCanvas: {
     position: 'relative',
@@ -4809,16 +5066,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 14,
-    paddingTop: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingTop: 6,
     paddingBottom: 8,
     gap: 10,
   },
   isoIslandSlot: {
     flex: 1,
-    minWidth: 255,
-    maxWidth: 325,
+    minWidth: 265,
+    maxWidth: 316,
     alignItems: 'center',
   },
   isoNodeSelected: {
@@ -4827,14 +5084,15 @@ const styles = StyleSheet.create({
   islandArtWrap: {
     position: 'relative',
     width: 280,
-    height: 192,
+    height: 234,
+    paddingTop: 30,
     justifyContent: 'flex-end',
     alignItems: 'flex-start',
   },
   floatingHudCorner: {
     position: 'absolute',
     top: 0,
-    right: -6,
+    right: 2,
     zIndex: 5,
     minWidth: 118,
     maxWidth: 148,
