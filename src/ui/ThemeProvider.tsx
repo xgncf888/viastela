@@ -4,7 +4,7 @@ import { Platform, useColorScheme } from 'react-native';
 import { isAutomatedWebDriver } from './e2e-mode';
 import { darkColor, lightColor, theme as baseTheme, type Palette } from './theme';
 
-const THEME_STORAGE_KEY = 'viastela.theme_mode.v3';
+const THEME_STORAGE_KEY = 'viastela.theme_mode.v4';
 
 export type AppTheme = Omit<typeof baseTheme, 'color'> & {
   color: Palette;
@@ -25,6 +25,9 @@ function readStoredScheme(): 'light' | 'dark' | null {
     return null;
   }
   try {
+    const params = new URLSearchParams(window.location?.search || '');
+    const urlTheme = params.get('theme');
+    if (urlTheme === 'dark' || urlTheme === 'light') return urlTheme;
     const raw = window.localStorage?.getItem(THEME_STORAGE_KEY);
     if (raw === 'dark' || raw === 'light') return raw;
   } catch {
@@ -64,7 +67,8 @@ function readWebScheme(): 'light' | 'dark' | null {
   if (isAutomatedWebDriver()) {
     return 'light';
   }
-  return 'dark';
+  // Unified Design System: default to Warm Paper ('light' #FAF9F5), with Obsidian Gold ('dark' #121318) available via 1-click toggle
+  return 'light';
 }
 
 const ThemeContext = createContext<AppTheme>({
@@ -96,8 +100,8 @@ function usePreferredScheme(): [
     const applyMedia = () => {
       if (isAutomatedWebDriver()) {
         setWebScheme('light');
-      } else if (media) {
-        setWebScheme(media.matches ? 'dark' : 'dark');
+      } else {
+        setWebScheme('light');
       }
     };
     applyMedia();
@@ -110,7 +114,7 @@ function usePreferredScheme(): [
 
   const resolved: 'light' | 'dark' = isTestEnv() || isAutomatedWebDriver()
     ? (override ?? 'light')
-    : (override ?? webScheme ?? (system === 'dark' ? 'dark' : 'dark'));
+    : (override ?? webScheme ?? (system === 'dark' ? 'light' : 'light'));
 
   useEffect(() => {
     if (!isTestEnv()) {

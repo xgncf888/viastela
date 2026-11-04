@@ -3,7 +3,7 @@ import { ScrollView, type NativeScrollEvent, type NativeSyntheticEvent } from 'r
 import { bottomPadding, scrollClearance } from '@/ui/Content';
 import { theme } from '@/ui/theme';
 
-/** `Content` does not report scroll position. This column uses the same tokens and loads the next page near the end. */
+/** `Content` does not report scroll position. Uses `contentWide` (1080px) so desktop workspace pages never look like a narrow 680px phone strip. */
 export function TimelineScroll({
   children,
   inset,
@@ -19,10 +19,12 @@ export function TimelineScroll({
       contentContainerStyle={[
         {
           width: '100%',
-          maxWidth: theme.layout.content,
+          maxWidth: theme.layout.contentWide,
           alignSelf: 'center',
-          padding: theme.space.lg,
-          gap: theme.space.lg,
+          paddingHorizontal: theme.space.xl,
+          paddingTop: theme.space.xl,
+          paddingBottom: theme.space.lg,
+          gap: theme.space.md,
         },
         bottomPadding(inset),
       ]}

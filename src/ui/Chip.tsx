@@ -70,16 +70,25 @@ export function Chip({
       aria-selected={selected}
       accessibilityState={{ selected }}
       onPress={onPress}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
       style={({ pressed }) => [
         styles.chip,
+        selected ? cardSurfaceStyle(color.card, color.line) : null,
         {
-          backgroundColor: selected ? color.fill : color.surface,
-          borderColor: selected ? color.ink : color.line,
+          backgroundColor: selected ? color.card : hovered ? color.fill : color.paperDeep,
+          borderColor: selected ? color.accent : color.line,
         },
         washPressStyle(pressed, reducedMotion, press, color.pressed, Platform.OS === 'web'),
       ]}
     >
-      <Text variant="body" tone={selected ? 'ink' : 'muted'} style={selected ? styles.selectedLabel : styles.label}>
+      <View
+        style={[
+          styles.segDot,
+          { backgroundColor: selected ? color.accent : 'transparent' },
+        ]}
+      />
+      <Text variant="caption" tone={selected ? 'ink' : 'muted'} style={selected ? styles.selectedLabel : styles.label}>
         {label}
       </Text>
     </Pressable>
@@ -88,18 +97,20 @@ export function Chip({
 
 const styles = StyleSheet.create({
   chip: {
-    minHeight: theme.layout.control,
-    borderRadius: theme.radius.sm,
-    paddingHorizontal: theme.space.md,
+    minHeight: 32,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     borderWidth: theme.border.width,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
   },
   segmentedChip: {
-    flex: 1,
     minHeight: 30,
     borderRadius: 7,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 4,
     flexDirection: 'row',
     alignItems: 'center',
@@ -112,10 +123,14 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.pill,
   },
   label: {
-    fontWeight: theme.fontWeight.regular,
+    fontSize: 12.5,
+    lineHeight: 16,
+    fontWeight: theme.fontWeight.medium,
   },
   selectedLabel: {
-    fontWeight: theme.fontWeight.medium,
+    fontSize: 12.5,
+    lineHeight: 16,
+    fontWeight: theme.fontWeight.semibold,
   },
   segmentedLabel: {
     fontSize: 12.5,

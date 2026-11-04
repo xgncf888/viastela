@@ -716,8 +716,12 @@ function IsometricLifeZoneSvg({
             : `translateY(${-(liftOffset + pageCurlOffset)}px) scale(1)`,
         filter:
           active || hovered || burstActive
-            ? `drop-shadow(0 22px 32px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 ${burstActive ? '28px' : '18px'} ${rimColor}${burstActive ? '88' : '48'})`
-            : 'drop-shadow(0 16px 24px rgba(0, 0, 0, 0.68))',
+            ? isDark
+              ? `drop-shadow(0 22px 32px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 ${burstActive ? '28px' : '18px'} ${rimColor}${burstActive ? '88' : '48'})`
+              : `drop-shadow(0 14px 22px rgba(38, 36, 31, 0.22)) drop-shadow(0 0 ${burstActive ? '20px' : '12px'} ${rimColor}44)`
+            : isDark
+              ? 'drop-shadow(0 16px 24px rgba(0, 0, 0, 0.68))'
+              : 'drop-shadow(0 10px 18px rgba(38, 36, 31, 0.16))',
       },
     },
     createElement(
@@ -729,12 +733,12 @@ function IsometricLifeZoneSvg({
         createElement('stop', {
           offset: '0%',
           stopColor: rimColor,
-          stopOpacity: '0.46',
+          stopOpacity: isDark ? '0.46' : '0.28',
         }),
         createElement('stop', {
           offset: '65%',
           stopColor: rimColor,
-          stopOpacity: '0.14',
+          stopOpacity: isDark ? '0.14' : '0.08',
         }),
         createElement('stop', { offset: '100%', stopColor: rimColor, stopOpacity: '0' }),
       ),
@@ -801,7 +805,7 @@ function IsometricLifeZoneSvg({
             width: 84,
             height: 19,
             rx: 9.5,
-            fill: 'rgba(18, 16, 13, 0.92)',
+            fill: isDark ? 'rgba(18, 16, 13, 0.92)' : 'rgba(255, 255, 255, 0.94)',
             stroke: '#f5b942',
             strokeWidth: 1.1,
           }),
@@ -811,7 +815,7 @@ function IsometricLifeZoneSvg({
               x: 140,
               y: 160.5,
               textAnchor: 'middle',
-              fill: '#fde68a',
+              fill: isDark ? '#fde68a' : '#8a5a12',
               fontSize: '10',
               fontWeight: '700',
               fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
@@ -821,7 +825,7 @@ function IsometricLifeZoneSvg({
         )
       : null,
 
-    // 5. Bottom Obsidian-Gold Floating Island Nameplate Pill ('心流书房' / '活力体态' / '星愿金库')
+    // 5. Bottom Theme-Adaptive Floating Island Nameplate Pill ('心流书房' / '活力体态' / '星愿金库')
     createElement(
       'g',
       null,
@@ -831,8 +835,8 @@ function IsometricLifeZoneSvg({
         width: 108,
         height: 26,
         rx: 13,
-        fill: 'rgba(18, 16, 13, 0.95)',
-        stroke: active ? '#fde68a' : rimColor,
+        fill: isDark ? 'rgba(18, 16, 13, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+        stroke: active ? (isDark ? '#fde68a' : '#d97757') : rimColor,
         strokeWidth: active ? 1.6 : 1.2,
       }),
       createElement(
@@ -841,7 +845,7 @@ function IsometricLifeZoneSvg({
           x: 140,
           y: 223,
           textAnchor: 'middle',
-          fill: '#fde68a',
+          fill: isDark ? '#fde68a' : '#141413',
           fontSize: '12.5',
           fontWeight: '700',
         },
@@ -2468,10 +2472,15 @@ export function IsometricStudioStage({
           <View
             style={[
               styles.stageGridBg,
-              { backgroundColor: '#0D0F14' },
+              {
+                backgroundColor: isDark ? '#121318' : '#F3F1EA',
+                borderBottomColor: isDark ? 'rgba(245, 185, 66, 0.16)' : '#E5E3DB',
+              },
               Platform.OS === 'web'
                 ? ({
-                    backgroundImage: `radial-gradient(ellipse at 68% 24%, ${circadianMeta.glow} 0%, rgba(13, 15, 20, 0.98) 72%)`,
+                    backgroundImage: isDark
+                      ? `radial-gradient(ellipse at 68% 24%, ${circadianMeta.glow} 0%, rgba(18, 19, 24, 0.98) 72%)`
+                      : `radial-gradient(ellipse at 50% 18%, rgba(217, 119, 87, 0.10) 0%, rgba(245, 185, 66, 0.08) 42%, rgba(243, 241, 234, 0.98) 78%)`,
                   } as unknown as ViewStyle)
                 : null,
               isCompactMobile
@@ -2506,11 +2515,11 @@ export function IsometricStudioStage({
                       paddingVertical: 5,
                       borderRadius: 999,
                       borderWidth: 1,
-                      borderColor: circadianMeta.border,
-                      backgroundColor: 'rgba(20, 18, 15, 0.88)',
+                      borderColor: isDark ? circadianMeta.border : '#E0DDD3',
+                      backgroundColor: isDark ? 'rgba(20, 18, 15, 0.88)' : 'rgba(255, 255, 255, 0.92)',
                     }}
                   >
-                    <Text variant="caption" style={{ fontSize: 11.5, fontWeight: '700', color: '#FDE68A' }}>
+                    <Text variant="caption" style={{ fontSize: 11.5, fontWeight: '700', color: isDark ? '#FDE68A' : '#8A5A12' }}>
                       {`${circadianMeta.icon} ${t(circadianMeta.zh, circadianMeta.en)} (${t('点击切换天光', 'Tap to switch sky')})`}
                     </Text>
                   </Pressable>
@@ -2529,11 +2538,11 @@ export function IsometricStudioStage({
                       paddingVertical: 5,
                       borderRadius: 999,
                       borderWidth: 1,
-                      borderColor: focusedIsland !== 'all' ? '#F5B942' : 'rgba(245, 185, 66, 0.35)',
-                      backgroundColor: 'rgba(20, 18, 15, 0.88)',
+                      borderColor: focusedIsland !== 'all' ? (isDark ? '#F5B942' : '#D97757') : (isDark ? 'rgba(245, 185, 66, 0.35)' : '#E0DDD3'),
+                      backgroundColor: isDark ? 'rgba(20, 18, 15, 0.88)' : 'rgba(255, 255, 255, 0.92)',
                     }}
                   >
-                    <Text variant="caption" style={{ fontSize: 11.5, fontWeight: '700', color: '#FDE68A' }}>
+                    <Text variant="caption" style={{ fontSize: 11.5, fontWeight: '700', color: isDark ? '#FDE68A' : '#141413' }}>
                       {focusedIsland === 'all'
                         ? t('🎥 镜头: 三岛全景 ⇄ 单岛特写', '🎥 Camera: All 3 Islands ⇄ Close-Up')
                         : focusedIsland === 'focus'
@@ -2545,10 +2554,10 @@ export function IsometricStudioStage({
                   </Pressable>
                 </View>
                 <View style={{ alignItems: 'center', gap: 2 }}>
-                  <Text variant="heading" style={{ fontSize: 19, fontWeight: '800', color: '#F9FAFB', letterSpacing: 0.3 }}>
+                  <Text variant="heading" style={{ fontSize: 19, fontWeight: '800', color: isDark ? '#F9FAFB' : '#141413', letterSpacing: 0.3 }}>
                     The Isometric Stage
                   </Text>
-                  <Text variant="caption" style={{ fontSize: 10.5, letterSpacing: 1.4, color: '#C8BFAE' }}>
+                  <Text variant="caption" style={{ fontSize: 10.5, letterSpacing: 1.4, color: isDark ? '#C8BFAE' : '#65635D' }}>
                     {t('星途微缩景观 · SANCTUARY STAGE', 'SANCTUARY STAGE · PERSONAL RHYTHM')}
                   </Text>
                 </View>
@@ -2778,13 +2787,13 @@ export function IsometricStudioStage({
                 paddingVertical: 10,
                 borderRadius: 14,
                 borderWidth: 1,
-                borderColor: 'rgba(245, 185, 66, 0.32)',
-                backgroundColor: 'rgba(18, 20, 26, 0.92)',
+                borderColor: isDark ? 'rgba(245, 185, 66, 0.32)' : '#E5E3DB',
+                backgroundColor: isDark ? 'rgba(18, 20, 26, 0.92)' : 'rgba(255, 255, 255, 0.94)',
                 alignItems: 'center',
                 gap: 7,
               }}
             >
-              <Text variant="caption" style={{ fontSize: 11.5, fontWeight: '700', color: '#F9FAFB' }}>
+              <Text variant="caption" style={{ fontSize: 11.5, fontWeight: '700', color: isDark ? '#F9FAFB' : '#141413' }}>
                 {t('4D 自动闭环通知', '4D Closed-Loop Feed')}
               </Text>
               <Pressable
@@ -2815,12 +2824,12 @@ export function IsometricStudioStage({
                   paddingVertical: 6,
                   borderRadius: 999,
                   borderWidth: 1.2,
-                  borderColor: '#f5b942',
-                  backgroundColor: 'rgba(245, 185, 66, 0.14)',
+                  borderColor: isDark ? '#f5b942' : '#d97757',
+                  backgroundColor: isDark ? 'rgba(245, 185, 66, 0.14)' : 'rgba(217, 119, 87, 0.10)',
                   alignItems: 'center',
                 }}
               >
-                <Text variant="caption" style={{ fontSize: 11, fontWeight: '700', color: '#fde68a' }}>
+                <Text variant="caption" style={{ fontSize: 11, fontWeight: '700', color: isDark ? '#fde68a' : '#8a5a12' }}>
                   {t('🧠 闪卡已评定 · 自动累加 +5m 专注学时 & 心愿金 +¥8', '🧠 Flashcard Graded · Auto +5m Focus & +¥8 Wish Vault')}
                 </Text>
               </Pressable>
@@ -2844,12 +2853,12 @@ export function IsometricStudioStage({
                   paddingVertical: 6,
                   borderRadius: 999,
                   borderWidth: 1.2,
-                  borderColor: '#34d399',
-                  backgroundColor: 'rgba(52, 211, 153, 0.14)',
+                  borderColor: isDark ? '#34d399' : '#059669',
+                  backgroundColor: isDark ? 'rgba(52, 211, 153, 0.14)' : 'rgba(5, 150, 105, 0.10)',
                   alignItems: 'center',
                 }}
               >
-                <Text variant="caption" style={{ fontSize: 11, fontWeight: '700', color: '#6ee7b7' }}>
+                <Text variant="caption" style={{ fontSize: 11, fontWeight: '700', color: isDark ? '#6ee7b7' : '#065f46' }}>
                   {t('🏆 新 1RM 纪录达成！心愿金库自动奖励 +¥18', '🏆 New 1RM PR Achieved! Auto +¥18 Wish Vault Bonus')}
                 </Text>
               </Pressable>

@@ -245,12 +245,13 @@ export function TimelineScreen() {
           }}
         />
         <Row justify="between" align="center" wrap>
-          <ChipGroup>
+          <ChipGroup segmented>
             {FILTERS.map((choice) => (
               <Chip
                 key={choice.id}
                 label={choice.label}
                 selected={filter === choice.id}
+                segmented
                 onPress={() => {
                   if (choice.id === filter) return;
                   filterRef.current = choice.id;
@@ -264,8 +265,45 @@ export function TimelineScreen() {
               />
             ))}
           </ChipGroup>
-          <Button label="写日志" onPress={openCreate} />
+          <Button label="写日志" size="mini" onPress={openCreate} />
         </Row>
+        {!isAutomatedWebDriver() && ledgerState.transactions.length > 0 ? (
+          <Card>
+            <Row justify="between" align="center" wrap gap="md">
+              <Stack gap="xs">
+                <Text variant="caption" tone="muted">多账本流水笔数</Text>
+                <Text variant="heading">{`${ledgerState.transactions.length} 笔记录`}</Text>
+              </Stack>
+              <Stack gap="xs">
+                <Text variant="caption" tone="muted">累计支出 (CNY)</Text>
+                <MaskedAmount
+                  text={`-¥${ledgerState.transactions
+                    .filter((t) => t.kind === 'expense')
+                    .reduce((acc, t) => acc + t.amountCny, 0)
+                    .toFixed(2)}`}
+                  masked={masked}
+                  variant="heading"
+                />
+              </Stack>
+              <Stack gap="xs">
+                <Text variant="caption" tone="muted">累计入账 (CNY)</Text>
+                <MaskedAmount
+                  text={`+¥${ledgerState.transactions
+                    .filter((t) => t.kind !== 'expense')
+                    .reduce((acc, t) => acc + t.amountCny, 0)
+                    .toFixed(2)}`}
+                  masked={masked}
+                  variant="heading"
+                  tone="moss"
+                />
+              </Stack>
+              <Stack gap="xs">
+                <Text variant="caption" tone="muted">活跃账本与日志</Text>
+                <Text variant="heading">{`${ledgerState.ledgerBooks?.length ?? 0} 账本 · ${visible.length} 日志`}</Text>
+              </Stack>
+            </Row>
+          </Card>
+        ) : null}
         <LoadingRegion
           name={TIMELINE_REGION}
           loading={!ready && !failed}

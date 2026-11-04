@@ -4,8 +4,9 @@ import { StyleSheet, View } from 'react-native';
 import { Row } from './layout';
 import { Text } from './Text';
 import { theme } from './theme';
+import { useTheme } from './ThemeProvider';
 
-/** One timeline row (§5, §14). Time sits in the 44pt left column in tabular numerals; no placeholder circle. */
+/** One timeline row (§5, §14). Time sits in the left column in single-line tabular numerals with a subtle vertical timeline node. */
 export function TimelineItem({
   title,
   detail,
@@ -17,10 +18,13 @@ export function TimelineItem({
   time: string;
   accessibilityLabel?: string;
 }) {
+  const { color } = useTheme();
   return (
-    <Row align="start" gap="ms" accessibilityLabel={accessibilityLabel}>
-      <View style={styles.timeCol}>
-        <Text variant="muted" style={styles.time}>
+    <View style={styles.rowWrap}>
+      <Row align="center" gap="md" accessibilityLabel={accessibilityLabel}>
+      <View style={[styles.timeBadge, { backgroundColor: color.paperDeep, borderColor: color.lineSoft }]}>
+        <View style={[styles.nodeDot, { backgroundColor: color.accent }]} />
+        <Text variant="caption" tone="muted" style={styles.time}>
           {time}
         </Text>
       </View>
@@ -30,18 +34,34 @@ export function TimelineItem({
         </Text>
         {typeof detail === 'string' ? <Text variant="muted">{detail}</Text> : detail}
       </View>
-    </Row>
+      </Row>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  timeCol: {
-    width: theme.layout.timeColumn,
-    paddingTop: theme.border.indicator,
+  rowWrap: {
+    paddingVertical: 4,
+  },
+  timeBadge: {
+    minWidth: theme.layout.timeColumn,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    flexShrink: 0,
+  },
+  nodeDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 999,
   },
   copy: {
     flex: 1,
-    gap: theme.space.xs,
+    gap: 2,
   },
   title: {
     fontWeight: theme.fontWeight.medium,
