@@ -1,7 +1,8 @@
 import { DEFAULT_DAY_SWITCH } from '@/core/local-day';
 
-import { getAuthenticatedRemoteSession, isLocalOnlySession, requireRemoteUserId } from './auth';
+import { getAuthenticatedRemoteSession, isLocalModeSelected, isLocalOnlySession, requireRemoteUserId } from './auth';
 import { getSupabase } from './client';
+import { localGetDaySwitch, localUpdateDaySwitch } from './local-db';
 
 function normalizeDaySwitch(value: string): string {
   const match = /^(\d{2}):(\d{2})/.exec(value);
@@ -10,7 +11,9 @@ function normalizeDaySwitch(value: string): string {
 
 export async function getDaySwitch(): Promise<string> {
   const session = await getAuthenticatedRemoteSession();
-  if (!session || isLocalOnlySession(session)) return DEFAULT_DAY_SWITCH;
+  if (!session || isLocalOnlySession(session)) {
+    return isLocalModeSelected() ? localGetDaySwitch() : DEFAULT_DAY_SWITCH;
+  }
   const supabase = getSupabase();
   const userId = session.userId;
   const { data, error } = await supabase.from('profiles').select('day_switch').eq('user_id', userId).maybeSingle();
@@ -25,6 +28,11 @@ export async function getDaySwitch(): Promise<string> {
 }
 
 export async function updateDaySwitch(daySwitch: string): Promise<void> {
+  const session = await getAuthenticatedRemoteSession();
+  if ((!session || isLocalOnlySession(session)) && isLocalModeSelected()) {
+    await localUpdateDaySwitch(daySwitch);
+    return;
+  }
   const userId = await requireRemoteUserId();
   const { error } = await getSupabase()
     .from('profiles')

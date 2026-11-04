@@ -1,9 +1,26 @@
 import { buildBalanceInsert } from '@/core/balance-write';
 import { requireDeletedIds } from '@/core/weight-write';
 
-import { getAuthenticatedRemoteSession, isLocalOnlySession, requireRemoteUserId } from './auth';
+import { getAuthenticatedRemoteSession, isLocalModeSelected, isLocalOnlySession, requireRemoteUserId } from './auth';
 import { getSupabase } from './client';
 import { liveRows } from './live-rows';
+import {
+  localInsertAccount,
+  localInsertBalance,
+  localInsertHolding,
+  localListAccountBalances,
+  localListAssetAccounts,
+  localListAssetEvents,
+  localListAssumptions,
+  localListGoal,
+  localListHoldings,
+  localListSnapshots,
+  localSaveAssumptions,
+  localSaveGoal,
+  localSoftDeleteAccount,
+  localSoftDeleteHolding,
+  localUpdateHolding,
+} from './local-db';
 
 export type AssetCurrency = 'USD' | 'CNY' | 'SGD' | 'HKD';
 
@@ -82,7 +99,9 @@ async function requireUserId(): Promise<string> {
 
 export async function listAssetAccounts(): Promise<AssetAccountRow[]> {
   const session = await getAuthenticatedRemoteSession();
-  if (!session || isLocalOnlySession(session)) return [];
+  if (!session || isLocalOnlySession(session)) {
+    return isLocalModeSelected() ? localListAssetAccounts() : [];
+  }
   const { data, error } = await liveRows(
     getSupabase().from('asset_accounts').select('id, name, currency, deleted_at'),
   ).order('created_at', { ascending: true });
@@ -95,7 +114,9 @@ export async function listAssetAccounts(): Promise<AssetAccountRow[]> {
 
 export async function listAccountBalances(): Promise<AccountBalanceRow[]> {
   const session = await getAuthenticatedRemoteSession();
-  if (!session || isLocalOnlySession(session)) return [];
+  if (!session || isLocalOnlySession(session)) {
+    return isLocalModeSelected() ? localListAccountBalances() : [];
+  }
   const { data, error } = await liveRows(
     getSupabase().from('account_balances').select('id, account_id, amount, usd_rate, recorded_at, tz, local_day, deleted_at'),
   ).order('recorded_at', { ascending: false });
@@ -120,7 +141,9 @@ export async function listAccountBalances(): Promise<AccountBalanceRow[]> {
 
 export async function listHoldings(): Promise<HoldingRow[]> {
   const session = await getAuthenticatedRemoteSession();
-  if (!session || isLocalOnlySession(session)) return [];
+  if (!session || isLocalOnlySession(session)) {
+    return isLocalModeSelected() ? localListHoldings() : [];
+  }
   const { data, error } = await liveRows(
     getSupabase().from('holdings').select('id, account_id, symbol, quantity, cost_basis_usd, deleted_at'),
   ).order('created_at', { ascending: true });
@@ -143,7 +166,9 @@ export async function listHoldings(): Promise<HoldingRow[]> {
 
 export async function listGoal(): Promise<GoalRow | null> {
   const session = await getAuthenticatedRemoteSession();
-  if (!session || isLocalOnlySession(session)) return null;
+  if (!session || isLocalOnlySession(session)) {
+    return isLocalModeSelected() ? localListGoal() : null;
+  }
   const { data, error } = await liveRows(
     getSupabase().from('net_worth_goals').select('id, target_usd, target_date'),
   )
@@ -159,7 +184,9 @@ export async function listGoal(): Promise<GoalRow | null> {
 
 export async function listAssumptions(): Promise<AssumptionsRow | null> {
   const session = await getAuthenticatedRemoteSession();
-  if (!session || isLocalOnlySession(session)) return null;
+  if (!session || isLocalOnlySession(session)) {
+    return isLocalModeSelected() ? localListAssumptions() : null;
+  }
   const { data, error } = await liveRows(
     getSupabase()
       .from('projection_assumptions')
@@ -187,7 +214,9 @@ export async function listAssumptions(): Promise<AssumptionsRow | null> {
 
 export async function listSnapshots(): Promise<SnapshotRow[]> {
   const session = await getAuthenticatedRemoteSession();
-  if (!session || isLocalOnlySession(session)) return [];
+  if (!session || isLocalOnlySession(session)) {
+    return isLocalModeSelected() ? localListSnapshots() : [];
+  }
   const { data, error } = await getSupabase()
     .from('net_worth_snapshots')
     .select('local_day, total_usd, cash_usd, securities_usd')
@@ -204,7 +233,9 @@ export async function listSnapshots(): Promise<SnapshotRow[]> {
 
 export async function listAssetEvents(): Promise<AssetEventRow[]> {
   const session = await getAuthenticatedRemoteSession();
-  if (!session || isLocalOnlySession(session)) return [];
+  if (!session || isLocalOnlySession(session)) {
+    return isLocalModeSelected() ? localListAssetEvents() : [];
+  }
   const { data, error } = await getSupabase()
     .from('asset_events')
     .select('id, kind, symbol, occurred_at')
@@ -220,6 +251,11 @@ export async function listAssetEvents(): Promise<AssetEventRow[]> {
 }
 
 export async function insertAccount(input: { id: string; name: string; currency: AssetCurrency }): Promise<void> {
+  const session = await getAuthenticatedRemoteSession();
+  if ((!session || isLocalOnlySession(session)) && isLocalModeSelected()) {
+    await localInsertAccount(input);
+    return;
+  }
   const userId = await requireUserId();
   const { error } = await getSupabase().from('asset_accounts').insert({
     id: input.id,
@@ -241,8 +277,22 @@ export async function insertBalance(input: {
   tz: string;
   localDay: string;
 }): Promise<void> {
-  const userId = await requireUserId();
   const row = buildBalanceInsert(input);
+  const session = await getAuthenticatedRemoteSession();
+  if ((!session || isLocalOnlySession(session)) && isLocalModeSelected()) {
+    await localInsertBalance({
+      id: row.id,
+      accountId: row.account_id,
+      amount: row.amount,
+      usdRate: row.usd_rate,
+      recordedAt: row.recorded_at,
+      tz: row.tz,
+      localDay: row.local_day,
+      deletedAt: null,
+    });
+    return;
+  }
+  const userId = await requireUserId();
   const { error } = await getSupabase().from('account_balances').insert({ ...row, user_id: userId });
   if (error) throw error;
 }
@@ -255,6 +305,11 @@ export async function insertHolding(input: {
   /** Total cost of all shares, in USD. The server divides by quantity for a unit price. */
   costBasisUsd: number | null;
 }): Promise<void> {
+  const session = await getAuthenticatedRemoteSession();
+  if ((!session || isLocalOnlySession(session)) && isLocalModeSelected()) {
+    await localInsertHolding(input);
+    return;
+  }
   const userId = await requireUserId();
   const { error } = await getSupabase().from('holdings').insert({
     id: input.id,
@@ -270,6 +325,11 @@ export async function insertHolding(input: {
 /** Quantity and cost only. Symbol and account stay as they were stored. */
 /** `costBasisUsd` is the total cost of all shares, not a per-share price. Changing quantity does not rescale it. */
 export async function updateHolding(id: string, input: { quantity: number; costBasisUsd: number | null }): Promise<void> {
+  const session = await getAuthenticatedRemoteSession();
+  if ((!session || isLocalOnlySession(session)) && isLocalModeSelected()) {
+    await localUpdateHolding(id, input);
+    return;
+  }
   await requireUserId();
   const { error } = await getSupabase()
     .from('holdings')
@@ -279,6 +339,11 @@ export async function updateHolding(id: string, input: { quantity: number; costB
 }
 
 export async function softDeleteHolding(id: string): Promise<void> {
+  const session = await getAuthenticatedRemoteSession();
+  if ((!session || isLocalOnlySession(session)) && isLocalModeSelected()) {
+    await localSoftDeleteHolding(id);
+    return;
+  }
   await requireUserId();
   const { data, error } = await getSupabase()
     .from('holdings')
@@ -290,6 +355,11 @@ export async function softDeleteHolding(id: string): Promise<void> {
 }
 
 export async function softDeleteAccount(id: string): Promise<void> {
+  const session = await getAuthenticatedRemoteSession();
+  if ((!session || isLocalOnlySession(session)) && isLocalModeSelected()) {
+    await localSoftDeleteAccount(id);
+    return;
+  }
   await requireUserId();
   const { data, error } = await getSupabase()
     .from('asset_accounts')
@@ -308,6 +378,11 @@ export async function saveAssumptions(input: {
   returnRates: [number, number, number];
   mainRateIndex: number;
 }): Promise<void> {
+  const session = await getAuthenticatedRemoteSession();
+  if ((!session || isLocalOnlySession(session)) && isLocalModeSelected()) {
+    await localSaveAssumptions(input);
+    return;
+  }
   const userId = await requireUserId();
   const { error } = await getSupabase().from('projection_assumptions').upsert(
     {
@@ -327,6 +402,11 @@ export async function saveAssumptions(input: {
 }
 
 export async function saveGoal(input: { id: string; targetUsd: number; targetDate: string | null }): Promise<void> {
+  const session = await getAuthenticatedRemoteSession();
+  if ((!session || isLocalOnlySession(session)) && isLocalModeSelected()) {
+    await localSaveGoal(input);
+    return;
+  }
   const userId = await requireUserId();
   const { error } = await getSupabase().from('net_worth_goals').upsert(
     {

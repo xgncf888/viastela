@@ -1,24 +1,17 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
 
 import { createId } from '@/core/id';
-import { computeLocalDay, currentTimeZone, DEFAULT_DAY_SWITCH } from '@/core/local-day';
-import { beginSave, confirmSave, reconcileServerRows, visibleRecords, type SaveState } from '@/core/save-state';
+import { computeLocalDay, currentTimeZone } from '@/core/local-day';
 import { recentExerciseNames, type RecentExerciseRow, type TrainingSet } from '@/core/training';
-import { RECORD_DELETED, weightSaveOutcome } from '@/core/weight-write';
-import { withLoadTimeout } from '@/data/load-timeout';
-import { readRecordOutbox, removeOutboxTrainingSet, saveOutboxTrainingSet } from '@/data/record-outbox';
+import { removeOutboxTrainingSet, saveOutboxTrainingSet, type OutboxSnapshot } from '@/data/record-outbox';
 import { listRecentExercises, listTrainingSets, softDeleteTrainingSet, upsertTrainingSet } from '@/data/training';
-import { getDaySwitch } from '@/data/profile';
 import { useAuth } from '@/features/auth/AuthProvider';
 import {
-  cancelDeferredDeletes,
-  installDeferredDeleteLifecycle,
-  scheduleDeferredDelete,
-  useDeferredDeleteIds,
-} from '@/features/record/deferred-delete';
-import { showToast } from '@/ui/toast';
+  useOptimisticRecordStore,
+  type OptimisticSaveResult,
+} from '@/features/record/use-optimistic-record-store';
 
-export type TrainingSaveResult = 'saved' | 'retry' | 'deleted';
+export type TrainingSaveResult = OptimisticSaveResult;
 
 type TrainingContextValue = {
   ready: boolean;
@@ -49,117 +42,64 @@ type TrainingContextValue = {
 
 const TrainingContext = createContext<TrainingContextValue | null>(null);
 
+const INITIAL_RECENT_EXERCISES: RecentExerciseRow[] = [];
+const selectTrainingOutbox = (outbox: OutboxSnapshot) => outbox.trainingSets;
+
 export function TrainingProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth();
-  const [saveState, setSaveState] = useState<SaveState<TrainingSet>>({ saved: [], pending: [] });
-  const [failedIds, setFailedIds] = useState<ReadonlySet<string>>(new Set());
-  const [daySwitch, setDaySwitch] = useState(DEFAULT_DAY_SWITCH);
-  const [ready, setReady] = useState(false);
-  const [savingIds, setSavingIds] = useState<ReadonlySet<string>>(new Set());
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshError, setRefreshError] = useState(false);
-  const readyRef = useRef(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [deletedNotice, setDeletedNotice] = useState(false);
-  const [recentRows, setRecentRows] = useState<RecentExerciseRow[]>([]);
   const creating = useRef(false);
-  const inFlight = useRef(new Set<string>());
-  const alive = useRef(new Set<string>());
-  const loadTicket = useRef(0);
-  const confirmedTicket = useRef(new Map<string, number>());
-  const pendingDeleteIds = useDeferredDeleteIds();
 
   const loadSaved = useCallback(async (switchTime: string) => {
     const endDay = computeLocalDay(new Date(), currentTimeZone(), switchTime);
     const [sets, recent] = await Promise.all([listTrainingSets(endDay), listRecentExercises()]);
-    return { sets, recent };
+    return { rows: sets, extra: recent };
   }, []);
 
-  const applyRows = useCallback((rows: TrainingSet[], recent: RecentExerciseRow[], nextSwitch: string, ticket: number) => {
-    const keep = new Set<string>();
-    for (const [id, at] of confirmedTicket.current) {
-      if (at >= ticket) keep.add(id);
-    }
-    for (const row of rows) confirmedTicket.current.delete(row.id);
-    setLoadError(null);
-    setDaySwitch(nextSwitch);
-    setRecentRows(recent);
-    setSaveState((current) => reconcileServerRows(current, rows, keep));
-    setRefreshError(false);
-    setReady(true);
-  }, []);
+  const store = useOptimisticRecordStore<TrainingSet, RecentExerciseRow[]>({
+    scope: 'training',
+    userId: session?.userId ?? null,
+    initialExtra: INITIAL_RECENT_EXERCISES,
+    selectOutboxItems: selectTrainingOutbox,
+    saveOutboxItem: saveOutboxTrainingSet,
+    removeOutboxItem: removeOutboxTrainingSet,
+    loadServerData: loadSaved,
+    upsertServerItem: upsertTrainingSet,
+    softDeleteServerItem: softDeleteTrainingSet,
+  });
+
+  const {
+    ready,
+    loadError,
+    records: sets,
+    pendingItems,
+    extra: recentRows,
+    setExtra: setRecentRows,
+    failedIds,
+    pendingDeleteIds,
+    deletedNotice,
+    savingIds,
+    refreshing,
+    refreshError,
+    daySwitch,
+    inFlightRef,
+    reload,
+    executeOptimisticSave,
+    dismiss,
+    dismissDeletedNotice,
+    scheduleDelete,
+  } = store;
 
   useEffect(() => {
-    readyRef.current = ready;
-  }, [ready]);
-
-  const reload = useCallback(async () => {
-    const ticket = ++loadTicket.current;
-    const background = readyRef.current;
-    if (background) {
-      setRefreshing(true);
-      setRefreshError(false);
-    }
-    try {
-      const loaded = await withLoadTimeout(
-        (async () => {
-          const nextSwitch = await getDaySwitch();
-          const saved = await loadSaved(nextSwitch);
-          return { nextSwitch, ...saved };
-        })(),
-      );
-      if (ticket !== loadTicket.current) return;
-      applyRows(loaded.sets, loaded.recent, loaded.nextSwitch, ticket);
-      setRefreshError(false);
-    } catch {
-      if (ticket !== loadTicket.current) return;
-      if (readyRef.current) setRefreshError(true);
-      else {
-        setLoadError('读取失败');
-        setReady(true);
+    if (sets.length === 0) return;
+    const newest = sets[sets.length - 1];
+    if (!newest) return;
+    setRecentRows((current) => {
+      if (current.some((item) => item.exercise === newest.exercise && item.recordedAt === newest.recordedAt)) {
+        return current;
       }
-    } finally {
-      if (ticket === loadTicket.current) setRefreshing(false);
-    }
-  }, [applyRows, loadSaved]);
-
-  useEffect(() => {
-    if (!session) return undefined;
-    const userId = session.userId;
-    let cancelled = false;
-    void readRecordOutbox(userId).then((outbox) => {
-      if (cancelled || outbox.trainingSets.length === 0) return;
-      for (const item of outbox.trainingSets) alive.current.add(item.id);
-      setSaveState((current) => {
-        let next = current;
-        for (const item of outbox.trainingSets) next = beginSave(next, item);
-        return next;
-      });
-      setFailedIds((current) => {
-        const next = new Set(current);
-        for (const item of outbox.trainingSets) next.add(item.id);
-        return next;
-      });
+      return [{ exercise: newest.exercise, recordedAt: newest.recordedAt }, ...current];
     });
-    const ticket = ++loadTicket.current;
-    void getDaySwitch()
-      .then(async (nextSwitch) => ({ nextSwitch, ...(await loadSaved(nextSwitch)) }))
-      .then(
-        ({ sets: rows, recent, nextSwitch }) => {
-          if (cancelled || ticket !== loadTicket.current) return;
-          applyRows(rows, recent, nextSwitch, ticket);
-          for (const row of rows) void removeOutboxTrainingSet(userId, row.id);
-        },
-        () => {
-          if (cancelled || ticket !== loadTicket.current) return;
-          setLoadError('读取失败');
-          setReady(true);
-        },
-      );
-    return () => {
-      cancelled = true;
-    };
-  }, [applyRows, loadSaved, session]);
+  }, [ setRecentRows, sets ]);
 
   const saveSet = useCallback(
     async (input: {
@@ -168,16 +108,14 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
       weightKg: number | null;
       bandLevel: string | null;
       existingId?: string;
-    }) => {
+    }): Promise<TrainingSaveResult> => {
       if (!input.existingId && creating.current) return 'retry';
       const id = input.existingId ?? createId();
-      if (inFlight.current.has(id)) return 'retry';
+      if (inFlightRef.current.has(id)) return 'retry';
       if (!input.existingId) creating.current = true;
-      const existing = input.existingId ? saveState.pending.find((item) => item.id === input.existingId) : undefined;
+      const existing = input.existingId ? pendingItems.find((item) => item.id === input.existingId) : undefined;
       const recordedAt = existing ? new Date(existing.recordedAt) : new Date();
       const tz = existing?.tz ?? currentTimeZone();
-      const switchTime = daySwitch;
-      const userId = session?.userId ?? '';
       const set: TrainingSet = {
         id,
         exercise: input.exercise,
@@ -186,70 +124,18 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
         bandLevel: input.bandLevel,
         recordedAt: recordedAt.toISOString(),
         tz,
-        localDay: existing?.localDay ?? computeLocalDay(recordedAt, tz, switchTime),
+        localDay: existing?.localDay ?? computeLocalDay(recordedAt, tz, daySwitch),
         updatedAt: new Date().toISOString(),
       };
-      setSaveState((current) => beginSave(current, set));
-      setFailedIds((current) => {
-        const next = new Set(current);
-        next.delete(id);
-        return next;
-      });
-      inFlight.current.add(id);
-      alive.current.add(id);
       if (!input.existingId) creating.current = false;
-      setSavingIds((current) => {
-        const next = new Set(current);
-        next.add(id);
-        return next;
-      });
-      void (async () => {
-        try {
-          await upsertTrainingSet(set);
-          if (userId) void removeOutboxTrainingSet(userId, id);
-          if (!alive.current.has(id)) return;
-          confirmedTicket.current.set(id, loadTicket.current);
-          setSaveState((current) => (current.pending.some((row) => row.id === id) ? confirmSave(current, set) : current));
-          setRecentRows((current) => [{ exercise: set.exercise, recordedAt: set.recordedAt }, ...current]);
-        } catch (error) {
-          confirmedTicket.current.delete(id);
-          if (!alive.current.has(id)) return;
-          if (weightSaveOutcome(error) === RECORD_DELETED) {
-            if (userId) void removeOutboxTrainingSet(userId, id);
-            alive.current.delete(id);
-            setSaveState((current) => ({
-              saved: current.saved.filter((row) => row.id !== id),
-              pending: current.pending.filter((row) => row.id !== id),
-            }));
-            setFailedIds((current) => {
-              const next = new Set(current);
-              next.delete(id);
-              return next;
-            });
-            setDeletedNotice(true);
-            return;
-          }
-          if (userId) void saveOutboxTrainingSet(userId, set);
-          setFailedIds((current) => new Set(current).add(id));
-          showToast({ text: '保存失败，请重试', tone: 'error' });
-        } finally {
-          inFlight.current.delete(id);
-          setSavingIds((current) => {
-            if (!current.has(id)) return current;
-            const next = new Set(current);
-            next.delete(id);
-            return next;
-          });
-        }
-      })();
-      return 'saved';
+      return executeOptimisticSave(set);
     },
-    [daySwitch, saveState.pending, session?.userId],
+    [daySwitch, executeOptimisticSave, inFlightRef, pendingItems],
   );
 
   const retry = useCallback(
     async (id: string) => {
-      const set = saveState.pending.find((item) => item.id === id);
+      const set = pendingItems.find((item) => item.id === id);
       if (!set) return;
       await saveSet({
         exercise: set.exercise,
@@ -259,7 +145,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
         existingId: id,
       });
     },
-    [saveSet, saveState.pending],
+    [pendingItems, saveSet],
   );
 
   useEffect(() => {
@@ -271,67 +157,8 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('online', onOnline);
   }, [failedIds, retry]);
 
-  const dismiss = useCallback((id: string) => {
-    if (session) void removeOutboxTrainingSet(session.userId, id);
-    alive.current.delete(id);
-    confirmedTicket.current.delete(id);
-    setSaveState((current) => ({
-      saved: current.saved,
-      pending: current.pending.filter((row) => row.id !== id),
-    }));
-    setFailedIds((current) => {
-      const next = new Set(current);
-      next.delete(id);
-      return next;
-    });
-  }, [session]);
-
-  const dismissDeletedNotice = useCallback(() => {
-    setDeletedNotice(false);
-  }, []);
-
-  const removeSet = useCallback(
-    async (id: string) => {
-      const isSaved = saveState.saved.some((row) => row.id === id);
-      if (!isSaved) {
-        dismiss(id);
-        return;
-      }
-      try {
-        await softDeleteTrainingSet(id);
-        confirmedTicket.current.delete(id);
-        setSaveState((current) => ({
-          saved: current.saved.filter((row) => row.id !== id),
-          pending: current.pending.filter((row) => row.id !== id),
-        }));
-      } catch (error) {
-        if (weightSaveOutcome(error) === RECORD_DELETED) {
-          setSaveState((current) => ({
-            saved: current.saved.filter((row) => row.id !== id),
-            pending: current.pending.filter((row) => row.id !== id),
-          }));
-          return;
-        }
-        showToast({ text: '删除失败，请重试', tone: 'error' });
-      }
-    },
-    [dismiss, saveState.saved],
-  );
-
-  const removeSetRef = useRef(removeSet);
-  useEffect(() => {
-    removeSetRef.current = removeSet;
-  }, [removeSet]);
-
-  const scheduleDelete = useCallback((id: string) => {
-    scheduleDeferredDelete('training', id, () => removeSetRef.current(id));
-  }, []);
-
-  useEffect(() => installDeferredDeleteLifecycle(), []);
-  useEffect(() => () => cancelDeferredDeletes('training'), []);
-
-  const sets = useMemo(() => visibleRecords(saveState), [saveState]);
   const recentExercises = useMemo(() => recentExerciseNames(recentRows), [recentRows]);
+
   const value = useMemo<TrainingContextValue>(
     () => ({
       ready,
@@ -386,4 +213,3 @@ export function useTraining(): TrainingContextValue {
 export function useOptionalTraining(): TrainingContextValue | null {
   return useContext(TrainingContext);
 }
-

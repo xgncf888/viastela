@@ -8,10 +8,16 @@ import { assetPageKeyset, datedKeyset, instantKeyset, type TimelineCursor } from
 import { requireDeletedIds } from '@/core/weight-write';
 
 import { readAmountMasked } from './amount-mask';
-import { getAuthenticatedRemoteSession, isLocalOnlySession, requireRemoteUserId } from './auth';
+import { getAuthenticatedRemoteSession, isLocalModeSelected, isLocalOnlySession, requireRemoteUserId } from './auth';
 import { getSupabase } from './client';
 import type { Json } from './database.types';
 import { liveRows } from './live-rows';
+import {
+  localListTimelineAccounts,
+  localSaveJournal,
+  localSelectTimeline,
+  localSoftDeleteJournal,
+} from './local-db';
 
 export type TimelineRecord = {
   id: string;
@@ -83,13 +89,20 @@ export async function loadTimelinePage(input: {
 
 export async function listTimelineAccounts(): Promise<TimelineAccountRow[]> {
   const session = await getAuthenticatedRemoteSession();
-  if (!session || isLocalOnlySession(session)) return [];
+  if (!session || isLocalOnlySession(session)) {
+    return isLocalModeSelected() ? localListTimelineAccounts() : [];
+  }
   const { data, error } = await liveRows(getSupabase().from('asset_accounts').select('id, name, currency'));
   if (error) throw error;
   return (data ?? []).map((row) => ({ id: row.id, name: row.name, currency: row.currency }));
 }
 
 export async function saveJournal(entry: JournalWrite): Promise<void> {
+  const session = await getAuthenticatedRemoteSession();
+  if ((!session || isLocalOnlySession(session)) && isLocalModeSelected()) {
+    await localSaveJournal(entry);
+    return;
+  }
   const userId = await requireRemoteUserId();
   const { error } = await getSupabase().from('journal_entries').upsert(
     {
@@ -107,6 +120,11 @@ export async function saveJournal(entry: JournalWrite): Promise<void> {
 }
 
 export async function softDeleteJournal(id: string): Promise<void> {
+  const session = await getAuthenticatedRemoteSession();
+  if ((!session || isLocalOnlySession(session)) && isLocalModeSelected()) {
+    await localSoftDeleteJournal(id);
+    return;
+  }
   await requireRemoteUserId();
   const { data, error } = await getSupabase()
     .from('journal_entries')
@@ -128,7 +146,10 @@ async function selectTimeline(input: {
   keyset: string | null;
 }): Promise<TimelineRecord[]> {
   const session = await getAuthenticatedRemoteSession();
-  if (!session || isLocalOnlySession(session)) return [];
+  if (!session || isLocalOnlySession(session)) {
+    if (!isLocalModeSelected() || input.keyset) return [];
+    return localSelectTimeline({ localDay: input.localDay, kind: input.kind });
+  }
   let query = getSupabase().from('timeline').select('id, kind, occurred_at, local_day, ref_id, payload');
   query = input.localDay === 'null' ? query.is('local_day', null) : query.not('local_day', 'is', null);
   if (input.kind) query = query.eq('kind', input.kind);

@@ -1,9 +1,15 @@
 import { isRecordDeleted, RECORD_DELETED, requireDeletedIds } from '@/core/weight-write';
 import type { WeightRecord } from '@/core/weight-stats';
 
-import { getAuthenticatedRemoteSession, isLocalOnlySession, requireRemoteUserId } from './auth';
+import { getAuthenticatedRemoteSession, isLocalModeSelected, isLocalOnlySession, requireRemoteUserId } from './auth';
 import { getSupabase } from './client';
 import { liveRows } from './live-rows';
+import {
+  localLatestWeightRecord,
+  localListWeightRecords,
+  localSoftDeleteWeightRecord,
+  localUpsertWeightRecord,
+} from './local-db';
 
 export type WeightDayWindow = {
   fromDay: string;
@@ -48,7 +54,9 @@ const columns = 'id, weight_kg, recorded_at, tz, local_day, updated_at' as const
 export async function listWeightRecords(window: WeightDayWindow): Promise<WeightRecord[]> {
   assertWindow(window);
   const session = await getAuthenticatedRemoteSession();
-  if (!session || isLocalOnlySession(session)) return [];
+  if (!session || isLocalOnlySession(session)) {
+    return isLocalModeSelected() ? localListWeightRecords(window) : [];
+  }
   const { data, error } = await liveRows(getSupabase().from('weight_records').select(columns))
     .gte('local_day', window.fromDay)
     .lte('local_day', window.toDay)
@@ -60,7 +68,9 @@ export async function listWeightRecords(window: WeightDayWindow): Promise<Weight
 /** One newest live row, for one-tap reuse outside the chart window. */
 export async function latestWeightRecord(): Promise<WeightRecord | null> {
   const session = await getAuthenticatedRemoteSession();
-  if (!session || isLocalOnlySession(session)) return null;
+  if (!session || isLocalOnlySession(session)) {
+    return isLocalModeSelected() ? localLatestWeightRecord() : null;
+  }
   const { data, error } = await liveRows(getSupabase().from('weight_records').select(columns))
     .order('recorded_at', { ascending: false })
     .limit(1)
@@ -70,6 +80,11 @@ export async function latestWeightRecord(): Promise<WeightRecord | null> {
 }
 
 export async function upsertWeightRecord(record: WeightRecord): Promise<void> {
+  const session = await getAuthenticatedRemoteSession();
+  if ((!session || isLocalOnlySession(session)) && isLocalModeSelected()) {
+    await localUpsertWeightRecord(record);
+    return;
+  }
   const userId = await requireRemoteUserId();
   const { error } = await getSupabase().from('weight_records').upsert(
     {
@@ -91,6 +106,11 @@ export async function upsertWeightRecord(record: WeightRecord): Promise<void> {
 
 /** Plain update. A deleted id raises P0001 and is not rewritten. Zero rows is a failed delete. */
 export async function softDeleteWeightRecord(id: string): Promise<void> {
+  const session = await getAuthenticatedRemoteSession();
+  if ((!session || isLocalOnlySession(session)) && isLocalModeSelected()) {
+    await localSoftDeleteWeightRecord(id);
+    return;
+  }
   await requireRemoteUserId();
   const { data, error } = await getSupabase()
     .from('weight_records')

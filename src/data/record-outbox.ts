@@ -11,6 +11,8 @@ import type { WeightRecord } from '@/core/weight-stats';
 
 import { localStore } from './local-store';
 
+export type { OutboxSnapshot } from '@/core/record-outbox';
+
 const PREFIX = 'viastela.record-outbox.v1.';
 
 export function recordOutboxKey(userId: string): string {
