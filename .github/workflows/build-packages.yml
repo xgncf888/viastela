@@ -82,7 +82,7 @@ jobs:
           path: releases
           merge-multiple: true
         continue-on-error: true
-      - name: Update SHA256SUMS.txt & commit mobile packages to releases/
+      - name: Update SHA256SUMS.txt & optionally sync releases/ on manual dispatch
         run: |
           cd releases
           rm -rf *.app
@@ -92,13 +92,15 @@ jobs:
             sha256sum "${FILES[@]}" > SHA256SUMS.txt
           fi
           cd ..
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add releases/
-          if ! git diff --cached --quiet; then
-            git commit -m "chore(release): update raw Android .apk, iOS .ipa, and macOS .dmg packages [skip ci]"
-            git pull --rebase -X ours origin ${{ github.ref_name }} || true
-            git push origin HEAD:${{ github.ref_name }} || true
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add releases/
+            if ! git diff --cached --quiet; then
+              git commit -m "chore(release): update raw Android .apk, iOS .ipa, and macOS .dmg packages [skip ci]"
+              git pull --rebase -X ours origin ${{ github.ref_name }} || true
+              git push origin HEAD:${{ github.ref_name }} || true
+            fi
           fi
       - name: Publish or Update GitHub Release (`latest`)
         uses: softprops/action-gh-release@v2

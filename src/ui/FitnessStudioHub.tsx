@@ -295,6 +295,12 @@ export function FitnessStudioHub({
           ? bandInput
           : null;
 
+    const prevBest1Rm = allSets
+      .filter((s) => s.exercise === ex && s.weightKg != null)
+      .reduce((best, s) => Math.max(best, Math.round((s.weightKg ?? 0) * (1 + s.reps / 30))), 0);
+    const new1Rm = weightKg != null ? Math.round(weightKg * (1 + reps / 30)) : 0;
+    const isNewPr = new1Rm > 0 && new1Rm > prevBest1Rm;
+
     onSaveSet({
       exercise: ex,
       reps,
@@ -308,13 +314,22 @@ export function FitnessStudioHub({
       deltaMinutes: 5,
       goalId: null,
     });
-    recordPledgeReward(localDay, 'fitness');
+    recordPledgeReward(
+      isNewPr ? `🏆 力量 PR 突破：${ex} (估算1RM ${new1Rm}kg)` : `力量打卡：${ex}`,
+      localDay,
+      isNewPr ? 18 : 10,
+    );
     startRestTimer(90);
     showToast({
-      text: t(
-        `💪 已记录「${ex}」${weightKg ? `${weightKg}kg × ${reps}次` : `${reps}次`} · 已自动开启 90 秒组间休息计时`,
-        `💪 Logged ${ex} (${reps} reps) · 90s rest timer started`,
-      ),
+      text: isNewPr
+        ? t(
+            `🏆 新 PR 突破！「${ex}」估算 1RM 达 ${new1Rm}kg · 心愿金库奖励 +¥18 & 已开启 90s 休息计时`,
+            `🏆 New PR! ${ex} est. 1RM ${new1Rm}kg · Wish Vault +¥18 & 90s rest started`,
+          )
+        : t(
+            `💪 已记录「${ex}」${weightKg ? `${weightKg}kg × ${reps}次` : `${reps}次`} · 心愿金 +¥10 & 90s 休息计时`,
+            `💪 Logged ${ex} (${reps} reps) · +¥10 & 90s rest timer started`,
+          ),
     });
   }
 

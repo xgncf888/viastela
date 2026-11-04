@@ -55,6 +55,7 @@ import {
 } from '@/core/knowledge-graph-corner';
 import { readBookkeepingState } from '@/data/bookkeeping';
 import { recordPledgeReward } from '@/data/life-gamification';
+import { incrementOrAddTimeBlock } from '@/data/time-block-tracker';
 
 import { Text } from './Text';
 import { theme } from './theme';
@@ -2221,14 +2222,21 @@ export function KnowledgeGraphCornerHub({
                         setSrsProgressMap((prev) => ({ ...prev, [activeSrsCard.id]: updated }));
                         setSrsFlipped(false);
                         setSrsCardIdx((idx) => idx + 1);
-                        if (btn.grade === 'easy') {
-                          onLogStudyMinutes?.(`FSRS 闪卡闯关: ${activeSrsCard.nodeTitle}`, 5);
-                          recordPledgeReward(localDay, 'study');
-                        }
+                        const bonusMins = btn.grade === 'easy' ? 5 : btn.grade === 'hard' ? 3 : 1;
+                        onLogStudyMinutes?.(`FSRS 闪卡精修: ${activeSrsCard.nodeTitle}`, bonusMins);
+                        incrementOrAddTimeBlock({
+                          localDay,
+                          category: 'study',
+                          title: `FSRS 闪卡: ${activeSrsCard.nodeTitle}`,
+                          deltaMinutes: bonusMins,
+                          goalId: 'goal-ai-infra',
+                        });
+                        const rewardCny = btn.grade === 'easy' ? 8 : btn.grade === 'hard' ? 5 : 2;
+                        recordPledgeReward(`FSRS 闪卡 (${btn.grade}): ${activeSrsCard.nodeTitle}`, localDay, rewardCny);
                         showToast({
                           text: t(
-                            `🧠 已完成闪卡评级：下次复习间隔 ${updated.intervalDays} 天（记忆稳定度 ${updated.stabilityDays}d）`,
-                            `🧠 Graded! Next review in ${updated.intervalDays}d`,
+                            `🧠 闪卡已评定 (${updated.intervalDays}d 后复习) · 自动累加 +${bonusMins}m 专注学时 & 心愿金 +¥${rewardCny}`,
+                            `🧠 Graded (${updated.intervalDays}d) · Synced +${bonusMins}m study & +¥${rewardCny} Wish Vault`,
                           ),
                         });
                       }}

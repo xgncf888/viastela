@@ -1511,6 +1511,26 @@ export function IsometricStudioStage({
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [lowerWorkspaceTab, setLowerWorkspaceTab] = useState<'matrix' | 'okr' | 'knowledge' | 'split'>('split');
   const [mobileStageMode, setMobileStageMode] = useState<'panoramic' | 'swipe'>('panoramic');
+  const [circadianOverride, setCircadianOverride] = useState<'auto' | 'dawn' | 'noon' | 'dusk' | 'midnight'>('auto');
+  const [focusedIsland, setFocusedIsland] = useState<'all' | LifeZoneKey>('all');
+
+  const resolvedCircadian = (() => {
+    if (circadianOverride !== 'auto') return circadianOverride;
+    const hr = new Date(nowMs).getHours();
+    if (hr >= 5 && hr < 10) return 'dawn';
+    if (hr >= 10 && hr < 16) return 'noon';
+    if (hr >= 16 && hr < 20) return 'dusk';
+    return 'midnight';
+  })();
+
+  const circadianMeta =
+    resolvedCircadian === 'dawn'
+      ? { icon: '🌅', zh: '晨曦微光', en: 'Dawn', glow: 'rgba(251, 146, 60, 0.14)', border: '#fb923c' }
+      : resolvedCircadian === 'noon'
+        ? { icon: '☀️', zh: '正午通透', en: 'Noon', glow: 'rgba(250, 204, 21, 0.12)', border: '#facc15' }
+        : resolvedCircadian === 'dusk'
+          ? { icon: '🌇', zh: '黄昏琥珀', en: 'Dusk', glow: 'rgba(245, 158, 11, 0.16)', border: '#f59e0b' }
+          : { icon: '🌌', zh: '子夜星穹', en: 'Midnight', glow: 'rgba(56, 189, 248, 0.12)', border: '#38bdf8' };
 
   useEffect(() => {
     ensureStageFxKeyframes();
@@ -2386,6 +2406,73 @@ export function IsometricStudioStage({
               );
             })}
           </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="切换昼夜四时辰舞台光影"
+            onPress={() => {
+              const order: ('auto' | 'dawn' | 'noon' | 'dusk' | 'midnight')[] = [
+                'auto',
+                'dawn',
+                'noon',
+                'dusk',
+                'midnight',
+              ];
+              const idx = order.indexOf(circadianOverride);
+              const next = order[(idx + 1) % order.length] ?? 'auto';
+              setCircadianOverride(next);
+              playStageTactileTick('tick');
+            }}
+            style={{
+              height: 24,
+              paddingHorizontal: 8,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: circadianMeta.border,
+              backgroundColor: circadianMeta.glow,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            <Text variant="caption" style={{ fontSize: 10.5, fontWeight: '700', color: pal.ink }}>
+              {`${circadianMeta.icon} ${t(circadianMeta.zh, circadianMeta.en)}${circadianOverride === 'auto' ? '' : ' · 手动'}`}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="切换三岛全景与单岛特写镜头"
+            onPress={() => {
+              const order: ('all' | LifeZoneKey)[] = ['all', 'focus', 'vitality', 'wishes'];
+              const idx = order.indexOf(focusedIsland);
+              const next = order[(idx + 1) % order.length] ?? 'all';
+              setFocusedIsland(next);
+              if (next !== 'all') setInternalZone(next);
+              playStageTactileTick('chime');
+            }}
+            style={{
+              height: 24,
+              paddingHorizontal: 8,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: focusedIsland !== 'all' ? pal.goldAccent : pal.bentoBorder,
+              backgroundColor: focusedIsland !== 'all' ? pal.pillActiveBg : pal.inputBg,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            <Text variant="caption" style={{ fontSize: 10.5, fontWeight: '700', color: focusedIsland !== 'all' ? pal.goldText : pal.sub }}>
+              {focusedIsland === 'all'
+                ? t('🎥 镜头: 三岛全景', '🎥 Cam: All 3 Islands')
+                : focusedIsland === 'focus'
+                  ? t('🎥 特写: 心流书房', '🎥 Cam: Study Close-Up')
+                  : focusedIsland === 'vitality'
+                    ? t('🎥 特写: 活力体态', '🎥 Cam: Vitality Close-Up')
+                    : t('🎥 特写: 星愿金库', '🎥 Cam: Vault Close-Up')}
+            </Text>
+          </Pressable>
         </View>
 
         <View style={styles.studioTaskbar}>

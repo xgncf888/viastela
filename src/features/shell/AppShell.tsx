@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Platform } from 'react-native';
+import { Modal, Platform, Pressable, View } from 'react-native';
 import { router, usePathname } from 'expo-router';
 
 import { brand } from '@/config/brand';
@@ -44,6 +44,7 @@ import {
 } from '@/ui/chrome';
 import { DeletedRecordNotice } from '@/ui/deleted-record';
 import { Text } from '@/ui/Text';
+import { theme } from '@/ui/theme';
 import { useTheme } from '@/ui/ThemeProvider';
 import { showToast, ToastHost } from '@/ui/toast';
 import {
@@ -369,7 +370,7 @@ function runtimeModeOrStandalone(mode: RuntimeHostMode): RuntimeHostMode {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { toggleTheme } = useTheme();
+  const { color, toggleTheme } = useTheme();
   const { locale, toggleLocale, t } = useI18n();
   const layout = useLayoutClass();
   const side = layout !== 'compact';
@@ -377,10 +378,17 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [armed, setArmed] = useState<{ id: TabId; route: TabId } | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [scopeOpen, setScopeOpen] = useState(false);
+  const [studioDrawerOpen, setStudioDrawerOpen] = useState(false);
   const [hostAttached, setHostAttached] = useState(false);
   const current = armed && armed.route === routeTab ? armed.id : routeTab;
   const e2e = isAutomatedWebDriver();
-  const tabBarItems = e2e ? TABS.filter((item) => item.core) : TABS;
+  const mobilePrimaryIds: readonly TabId[] = ['today', 'ledger', 'study', 'assets', 'me'];
+  const mobileStudioIds: readonly TabId[] = ['fitness', 'browser', 'trend', 'timeline'];
+  const tabBarItems = e2e
+    ? TABS.filter((item) => item.core)
+    : TABS.filter((item) => mobilePrimaryIds.includes(item.id));
+  const studioDrawerItems = TABS.filter((item) => mobileStudioIds.includes(item.id));
+  const activeStudioTab = studioDrawerItems.find((item) => item.id === current) ?? null;
 
   const baseManifest = useMemo(
     () =>
@@ -668,11 +676,152 @@ export function AppShell({ children }: { children: ReactNode }) {
                 onPress={() => go(tab)}
               />
             ))}
+            {!e2e ? (
+              <NavItem
+                placement="tab"
+                icon={activeStudioTab ? activeStudioTab.icon : 'trend'}
+                label={
+                  activeStudioTab
+                    ? `✦ ${locale === 'en' ? activeStudioTab.enLabel : activeStudioTab.label}`
+                    : t('✦ 工作室', '✦ Studio')
+                }
+                selected={Boolean(activeStudioTab) || studioDrawerOpen}
+                onPress={() => setStudioDrawerOpen((open) => !open)}
+              />
+            ) : null}
           </TabBar>
         )
       }
     >
       {children}
+      {!side && !e2e && studioDrawerOpen ? (
+        <Modal
+          visible={studioDrawerOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setStudioDrawerOpen(false)}
+        >
+          <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+            <Pressable
+              style={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                bottom: 0,
+                left: 0,
+                backgroundColor: color.overlay,
+              }}
+              onPress={() => setStudioDrawerOpen(false)}
+            />
+            <View
+              style={{
+                backgroundColor: color.card,
+                borderTopLeftRadius: theme.radius.sheet,
+                borderTopRightRadius: theme.radius.sheet,
+                borderTopWidth: theme.border.width,
+                borderColor: color.line,
+                padding: theme.space.md,
+                paddingBottom: theme.space.xl,
+                gap: theme.space.sm,
+              }}
+            >
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text variant="label" style={{ fontWeight: theme.fontWeight.semibold }}>
+                  {t('✦ 星途专业工作室矩阵 · Studio Drawer', '✦ Studio Workbench Drawer')}
+                </Text>
+                <Pressable
+                  onPress={() => setStudioDrawerOpen(false)}
+                  style={{ paddingHorizontal: theme.space.sm, paddingVertical: theme.space.xs }}
+                >
+                  <Text variant="caption" tone="muted">
+                    {t('收起 ✕', 'Close ✕')}
+                  </Text>
+                </Pressable>
+              </View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.sm }}>
+                {studioDrawerItems.map((item) => {
+                  const isSel = current === item.id;
+                  return (
+                    <Pressable
+                      key={item.id}
+                      onPress={() => {
+                        setStudioDrawerOpen(false);
+                        go(item);
+                      }}
+                      style={{
+                        flexGrow: 1,
+                        flexBasis: '45%',
+                        padding: theme.space.sm,
+                        borderRadius: theme.radius.card,
+                        borderWidth: theme.border.width,
+                        borderColor: isSel ? color.accent : color.line,
+                        backgroundColor: isSel ? color.accentSoft : color.surface,
+                        gap: theme.space.xs,
+                      }}
+                    >
+                      <Text
+                        variant="label"
+                        style={{ color: isSel ? color.accent : color.ink, fontWeight: theme.fontWeight.semibold }}
+                      >
+                        {locale === 'en' ? item.enLabel : item.label}
+                      </Text>
+                      <Text variant="caption" tone="muted">
+                        {item.id === 'fitness'
+                          ? t('分化处方 · 1RM · 营养吧台', 'Splits · 1RM · Macros')
+                          : item.id === 'browser'
+                            ? t('7 引擎检索 · 论文摘录转闪卡', '7 Engines · FSRS Clipper')
+                            : item.id === 'trend'
+                              ? t('28D 均重曲线 · 4D 相关性洞察', '28D EMA · 4D Correlations')
+                              : t('跨模块流水台账 · 1m 时间块', 'Full Ledger · 1m Time Blocks')}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <View style={{ flexDirection: 'row', gap: theme.space.sm }}>
+                <Pressable
+                  onPress={() => {
+                    setStudioDrawerOpen(false);
+                    openRecordSheet();
+                  }}
+                  style={{
+                    flex: 1,
+                    paddingVertical: theme.space.sm,
+                    borderRadius: theme.radius.pill,
+                    borderWidth: theme.border.width,
+                    borderColor: color.accent,
+                    backgroundColor: color.accentSoft,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text variant="caption" style={{ color: color.accent, fontWeight: theme.fontWeight.semibold }}>
+                    {t('＋ 快速记录面板 (⌘K)', '＋ Quick Log (⌘K)')}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    setStudioDrawerOpen(false);
+                    setPaletteOpen(true);
+                  }}
+                  style={{
+                    flex: 1,
+                    paddingVertical: theme.space.sm,
+                    borderRadius: theme.radius.pill,
+                    borderWidth: theme.border.width,
+                    borderColor: color.line,
+                    backgroundColor: color.surface,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text variant="caption" style={{ fontWeight: theme.fontWeight.semibold }}>
+                    {t('⌘P 4D 自然语言指令台', '⌘P 4D Omnibar Palette')}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
       <RecordSheet />
       <ShellCommandPaletteBridge
         visible={paletteOpen}
