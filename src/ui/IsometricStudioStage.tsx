@@ -64,6 +64,7 @@ import {
 } from '@/data/time-block-tracker';
 
 import { parseQuickBookkeepingInput } from '@/core/bookkeeping';
+import { parseOmnibarCommand } from '@/core/omnibar';
 import { addLedgerTransaction } from '@/data/bookkeeping';
 
 import { BookkeepingLedgerHub } from './BookkeepingLedgerHub';
@@ -2022,6 +2023,35 @@ export function IsometricStudioStage({
       onQuickJournal();
       return;
     }
+    const omnibarIntent = parseOmnibarCommand(raw);
+    if (omnibarIntent?.kind === 'weight' && onInstantSaveWeight) {
+      onInstantSaveWeight(omnibarIntent.weightKg);
+      const v = recordPledgeReward(`晨重打卡：${omnibarIntent.weightKg}kg`, localDay, 10);
+      setVault(v);
+      setQuickInput('');
+      triggerStageBurst('vitality', `⚖ ${omnibarIntent.weightKg.toFixed(1)}kg · +¥10 ✦`, pal.emeraldAccent, 'reward');
+      showToast({
+        text: t(`✓ ${omnibarIntent.summaryZh} · 心愿金 +¥10`, `✓ ${omnibarIntent.summaryEn} · +¥10`),
+      });
+      return;
+    }
+    if (omnibarIntent?.kind === 'training' && onInstantSaveWorkout) {
+      for (let i = 0; i < omnibarIntent.setsCount; i += 1) {
+        onInstantSaveWorkout({
+          exercise: omnibarIntent.exercise,
+          reps: omnibarIntent.reps,
+          weightKg: omnibarIntent.weightKg,
+        });
+      }
+      const v = recordPledgeReward(`训练打卡：${omnibarIntent.exercise}`, localDay, 15);
+      setVault(v);
+      setQuickInput('');
+      triggerStageBurst('vitality', `🏋️ ${omnibarIntent.exercise} · +¥15 ✦`, pal.emeraldAccent, 'reward');
+      showToast({
+        text: t(`✓ 已记入训练：${omnibarIntent.summaryZh}`, `✓ Logged workout: ${omnibarIntent.summaryEn}`),
+      });
+      return;
+    }
     const minMatch = raw.match(/(\d+)\s*(m|min|分钟)/i);
     const looksLikeMoney =
       !minMatch && (/[¥$元块]|咖啡|拿铁|午饭|晚饭|早饭|外卖|打车|地铁|超市|买菜|工资/.test(raw) || perspective === 'ledger');
@@ -2032,6 +2062,7 @@ export function IsometricStudioStage({
         const v = recordPledgeReward(`记账：${parsed.note} ¥${parsed.amountCny}`, localDay, 10);
         setVault(v);
         setQuickInput('');
+        triggerStageBurst('wishes', `¥${parsed.amountCny} · +¥10 ✦`, pal.goldAccent, 'reward');
         showToast({
           text: t(
             `✓ 已记入账本：${parsed.note} ${parsed.kind === 'expense' ? '-' : '+'}¥${parsed.amountCny.toFixed(2)}`,
@@ -2058,9 +2089,15 @@ export function IsometricStudioStage({
         goalId: 'goal-ai-infra',
       }),
     );
+    onInstantSaveStudy?.({
+      subject: cleanTitle,
+      durationMinutes: mins,
+      note: null,
+    });
     const v = recordPledgeReward(`记录时间块：${cleanTitle} (${mins}分钟)`, localDay);
     setVault(v);
     setQuickInput('');
+    triggerStageBurst('focus', `📖 +${mins}m · +¥${v.config.checkInRewardCny} ✦`, pal.terracottaAccent, 'reward');
     showToast({
       text: t(
         `✓ 已切入时间块：${cleanTitle} (${mins} 分钟) · +¥${v.config.checkInRewardCny}`,
@@ -2356,8 +2393,8 @@ export function IsometricStudioStage({
             onChangeText={setQuickInput}
             onSubmitEditing={onQuickAddTimeNote}
             placeholder={t(
-              '输入「架构精读 45m」切时间块，或「瑞幸拿铁 ¥18」秒记账…',
-              'Type "System Design 45m" or "Latte ¥18" to log…',
+              '输入「72.4kg / 卧推 60kg 8x4 / 架构精读 45m / 瑞幸 ¥18」秒记…',
+              'Type "72.4kg / bench 60kg 8x4 / Study 45m / Latte ¥18"…',
             )}
             placeholderTextColor={pal.muted}
             style={[
@@ -2384,7 +2421,7 @@ export function IsometricStudioStage({
             ]}
           >
             <Text variant="caption" style={[styles.dispatchBtnText, { color: pal.goldText }]}>
-              {t('＋ 切入时间块', '＋ Add Block')}
+              {t('＋ 秒记 / 时间块', '＋ Quick Log')}
             </Text>
           </Pressable>
         </View>
@@ -2393,6 +2430,77 @@ export function IsometricStudioStage({
       {/* Perspective 1: Interactive Spatial Stage + Split Bento Workspace */}
       {perspective === 'diorama' ? (
         <View style={[styles.dioramaStageWrap, { backgroundColor: pal.stageBg }]}>
+          {/* Mobile 3-Island Quick Switcher Strip (Unifies Mac 2.5D Sanctuary with Mobile 1-Tap Ergonomics) */}
+          {isCompactMobile ? (
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 6,
+                paddingHorizontal: 10,
+                paddingTop: 8,
+                paddingBottom: 2,
+              }}
+            >
+              {(
+                [
+                  {
+                    zone: 'focus' as const,
+                    label: t(`📖 心流书房 · P.${stageState.bookPage}`, `📖 Study · P.${stageState.bookPage}`),
+                    accent: pal.terracottaAccent,
+                  },
+                  {
+                    zone: 'vitality' as const,
+                    label: t(
+                      `🏋️ 活力体态 · ${latestWeightKg ? `${latestWeightKg.toFixed(1)}kg` : `x${workoutReps}`}`,
+                      `🏋️ Vitality · ${latestWeightKg ? `${latestWeightKg.toFixed(1)}kg` : `x${workoutReps}`}`,
+                    ),
+                    accent: pal.emeraldAccent,
+                  },
+                  {
+                    zone: 'wishes' as const,
+                    label: t(`✦ 心愿金库 · ¥${vault.wishBalanceCny}`, `✦ Vault · ¥${vault.wishBalanceCny}`),
+                    accent: pal.goldAccent,
+                  },
+                ]
+              ).map((chip) => {
+                const active = selectedZone === chip.zone;
+                return (
+                  <Pressable
+                    key={chip.zone}
+                    accessibilityRole="button"
+                    accessibilityLabel={chip.label}
+                    onPress={() => selectIslandAndSync(chip.zone)}
+                    style={{
+                      flex: 1,
+                      height: 26,
+                      paddingHorizontal: 6,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: active ? chip.accent : pal.bentoBorder,
+                      backgroundColor: active ? pal.pillActiveBg : pal.inputBg,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Text
+                      variant="caption"
+                      numberOfLines={1}
+                      style={{
+                        fontSize: 10.2,
+                        fontWeight: active ? '700' : '500',
+                        color: active ? chip.accent : pal.sub,
+                      }}
+                    >
+                      {chip.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+
           {/* Upper Stage: 3 Directly Interactive Zones (Horizontal Swipe on Compact Mobile, 3-Across on Desktop) */}
           <View style={[styles.stageGridBg, { backgroundColor: pal.stageBg }]}>
             {!isCompactMobile ? (

@@ -46,13 +46,11 @@ import {
   TagChip,
   WorkbenchConsoleCard,
 } from '@/ui/WorkbenchConsole';
-import { CharioteerMobileCockpit } from '@/ui/CharioteerMobileCockpit';
 import { LifeMilestonesOkrHub } from '@/ui/LifeMilestonesOkrHub';
 import { LifeSynergyPlaygroundHub } from '@/ui/LifeSynergyPlaygroundHub';
+import { OneTapSmartFlowCard } from '@/ui/OneTapSmartFlowCard';
 import { TimeBlockMasteryHub } from '@/ui/TimeBlockMasteryHub';
 import { WearableSyncHub } from '@/ui/WearableSyncHub';
-import { computeMonthlyBookkeepingSummary } from '@/core/bookkeeping';
-import { readBookkeepingState } from '@/data/bookkeeping';
 
 function shortWeekday(localDay: string): string {
   return weekdayLabel(localDay).replace('星期', '周');
@@ -90,7 +88,6 @@ export function TodayScreen() {
   const [trainingDetail, setTrainingDetail] = useState(false);
   const [studyOpen, setStudyOpen] = useState(false);
   const [showClassicLedger, setShowClassicLedger] = useState(() => Platform.OS !== 'web');
-  const [forceMobileCockpit, setForceMobileCockpit] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [activeModuleFilter, setActiveModuleFilter] = useState<SpatialModuleFilter>('all');
   const weightGate = useLoadGate(!ready, loadAttempt);
@@ -186,21 +183,13 @@ export function TodayScreen() {
                 <BrandMark />
               </Row>
             ) : (
-              <Row gap="xs" align="center" wrap>
-                <CockpitPillButton
-                  label={forceMobileCockpit ? t('🖥 桌面舱', '🖥 Desktop') : t('📱 移动舱', '📱 Mobile')}
-                  active={forceMobileCockpit}
-                  accessibilityLabel={t('切换移动端 Charioteer 驾驶舱预览', 'Toggle Charioteer mobile cockpit preview')}
-                  onPress={() => setForceMobileCockpit((prev) => !prev)}
-                />
-                <CockpitHeaderBar
-                  mode={hostMode}
-                  hudText={hudSummary}
-                  onOpenRecord={() => openRecordSheet(last?.weightKg)}
-                  onOpenPalette={() => openDesktopBridge('palette')}
-                  onOpenScope={() => openDesktopBridge('scope')}
-                />
-              </Row>
+              <CockpitHeaderBar
+                mode={hostMode}
+                hudText={hudSummary}
+                onOpenRecord={() => openRecordSheet(last?.weightKg)}
+                onOpenPalette={() => openDesktopBridge('palette')}
+                onOpenScope={() => openDesktopBridge('scope')}
+              />
             )
           }
           subtitle={{
@@ -218,73 +207,52 @@ export function TodayScreen() {
         />
 
         <Stack gap="md">
-          {/* Front & Center Interactive Sanctuary on Wide Desktop; Charioteer Mobile Cockpit on Compact/Mobile */}
-          {layout !== 'compact' && !forceMobileCockpit ? (
-            <WorkbenchConsoleCard
-              mode={hostMode}
-              localDay={accounting}
-              latestWeightKg={last?.weightKg ?? null}
-              loggedCount={loggedCount}
-              activeWeightDays={activeWeightDays}
-              trainingSetsCount={trainingToday.length}
-              trainingVolumeKg={trainingVolumeKg}
-              studyMinutes={studyMinutesToday}
-              studyCount={studyToday.length}
-              activeModuleFilter={activeModuleFilter}
-              onSelectModuleFilter={setActiveModuleFilter}
-              onQuickWeight={() => openRecordSheet(last?.weightKg, 'weight')}
-              onQuickTraining={() => openRecordSheet(undefined, 'training')}
-              onQuickStudy={() => openRecordSheet(undefined, 'study')}
-              onQuickJournal={() => openRecordSheet(undefined, 'block')}
-              onOpenScope={() => openDesktopBridge('scope')}
-              onInstantSaveWeight={(kg) => void saveWeight(kg)}
-              onInstantSaveStudy={(input) =>
-                study.saveRecord({
-                  topic: input.subject,
-                  durationMinutes: input.durationMinutes,
-                  note: input.note,
-                })
-              }
-              onInstantSaveWorkout={(input) =>
-                void training.saveSet({
-                  exercise: input.exercise,
-                  reps: input.reps,
-                  weightKg: input.weightKg,
-                  bandLevel: null,
-                })
-              }
-            />
-          ) : (
-            <CharioteerMobileCockpit
-              localDay={accounting}
-              latestWeightKg={last?.weightKg ?? null}
-              hasWeightToday={visibleToday.length > 0}
-              trainingSetsCount={trainingToday.length}
-              trainingVolumeKg={trainingVolumeKg}
-              studyMinutesToday={studyMinutesToday}
-              monthlyExpenseCny={
-                computeMonthlyBookkeepingSummary(readBookkeepingState(), accounting, 'pool')
-                  .totalExpenseCny
-              }
-              monthlyBudgetCny={
-                computeMonthlyBookkeepingSummary(readBookkeepingState(), accounting, 'pool')
-                  .monthlyBudgetCny
-              }
-              onSaveWeight={(kg) => void saveWeight(kg)}
-              onSaveWorkout={(input) => {
-                for (let i = 0; i < input.setsCount; i += 1) {
-                  void training.saveSet({
-                    exercise: input.exercise,
-                    reps: input.reps,
-                    weightKg: input.weightKg,
-                    bandLevel: null,
-                  });
-                }
-              }}
-              onSaveStudy={(input) => void study.saveRecord(input)}
-              onOpenSheet={(kind) => openRecordSheet(last?.weightKg, kind)}
-            />
-          )}
+          {/* Unified Mac & Mobile "今日主场" 2.5D Isometric Sanctuary + 1-Tap Smart Flow Bar */}
+          <OneTapSmartFlowCard
+            localDay={accounting}
+            lastWeightKg={last?.weightKg ?? null}
+            hasWeightToday={visibleToday.length > 0}
+            hasFocusToday={studyToday.length > 0}
+            hasWorkoutToday={trainingToday.length > 0}
+            onOneTapSaveWeight={(kg) => void saveWeight(kg)}
+            onOneTapSaveStudy={(input) => study.saveRecord(input)}
+            onOneTapSaveWorkout={(input) => training.saveSet(input)}
+            onOpenCustomSheet={(kind) => openRecordSheet(last?.weightKg, kind)}
+          />
+          <WorkbenchConsoleCard
+            mode={hostMode}
+            localDay={accounting}
+            latestWeightKg={last?.weightKg ?? null}
+            loggedCount={loggedCount}
+            activeWeightDays={activeWeightDays}
+            trainingSetsCount={trainingToday.length}
+            trainingVolumeKg={trainingVolumeKg}
+            studyMinutes={studyMinutesToday}
+            studyCount={studyToday.length}
+            activeModuleFilter={activeModuleFilter}
+            onSelectModuleFilter={setActiveModuleFilter}
+            onQuickWeight={() => openRecordSheet(last?.weightKg, 'weight')}
+            onQuickTraining={() => openRecordSheet(undefined, 'training')}
+            onQuickStudy={() => openRecordSheet(undefined, 'study')}
+            onQuickJournal={() => openRecordSheet(undefined, 'block')}
+            onOpenScope={() => openDesktopBridge('scope')}
+            onInstantSaveWeight={(kg) => void saveWeight(kg)}
+            onInstantSaveStudy={(input) =>
+              study.saveRecord({
+                topic: input.subject,
+                durationMinutes: input.durationMinutes,
+                note: input.note,
+              })
+            }
+            onInstantSaveWorkout={(input) =>
+              void training.saveSet({
+                exercise: input.exercise,
+                reps: input.reps,
+                weightKg: input.weightKg,
+                bandLevel: null,
+              })
+            }
+          />
 
           <MonthEndNotice timeZone={timeZone} />
 
