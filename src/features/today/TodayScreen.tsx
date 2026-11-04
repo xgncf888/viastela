@@ -49,7 +49,6 @@ import {
 import { CharioteerMobileCockpit } from '@/ui/CharioteerMobileCockpit';
 import { LifeMilestonesOkrHub } from '@/ui/LifeMilestonesOkrHub';
 import { LifeSynergyPlaygroundHub } from '@/ui/LifeSynergyPlaygroundHub';
-import { OneTapSmartFlowCard } from '@/ui/OneTapSmartFlowCard';
 import { TimeBlockMasteryHub } from '@/ui/TimeBlockMasteryHub';
 import { WearableSyncHub } from '@/ui/WearableSyncHub';
 import { computeMonthlyBookkeepingSummary } from '@/core/bookkeeping';
@@ -91,6 +90,7 @@ export function TodayScreen() {
   const [trainingDetail, setTrainingDetail] = useState(false);
   const [studyOpen, setStudyOpen] = useState(false);
   const [showClassicLedger, setShowClassicLedger] = useState(() => Platform.OS !== 'web');
+  const [forceMobileCockpit, setForceMobileCockpit] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [activeModuleFilter, setActiveModuleFilter] = useState<SpatialModuleFilter>('all');
   const weightGate = useLoadGate(!ready, loadAttempt);
@@ -186,13 +186,21 @@ export function TodayScreen() {
                 <BrandMark />
               </Row>
             ) : (
-              <CockpitHeaderBar
-                mode={hostMode}
-                hudText={hudSummary}
-                onOpenRecord={() => openRecordSheet(last?.weightKg)}
-                onOpenPalette={() => openDesktopBridge('palette')}
-                onOpenScope={() => openDesktopBridge('scope')}
-              />
+              <Row gap="xs" align="center" wrap>
+                <CockpitPillButton
+                  label={forceMobileCockpit ? t('🖥 桌面舱', '🖥 Desktop') : t('📱 移动舱', '📱 Mobile')}
+                  active={forceMobileCockpit}
+                  accessibilityLabel={t('切换移动端 Charioteer 驾驶舱预览', 'Toggle Charioteer mobile cockpit preview')}
+                  onPress={() => setForceMobileCockpit((prev) => !prev)}
+                />
+                <CockpitHeaderBar
+                  mode={hostMode}
+                  hudText={hudSummary}
+                  onOpenRecord={() => openRecordSheet(last?.weightKg)}
+                  onOpenPalette={() => openDesktopBridge('palette')}
+                  onOpenScope={() => openDesktopBridge('scope')}
+                />
+              </Row>
             )
           }
           subtitle={{
@@ -210,8 +218,8 @@ export function TodayScreen() {
         />
 
         <Stack gap="md">
-          {/* Front & Center Interactive Sanctuary on Desktop/Web; 1-Tap Bar on Compact Mobile */}
-          {layout === 'expanded' || Platform.OS === 'web' ? (
+          {/* Front & Center Interactive Sanctuary on Wide Desktop; Charioteer Mobile Cockpit on Compact/Mobile */}
+          {layout !== 'compact' && !forceMobileCockpit ? (
             <WorkbenchConsoleCard
               mode={hostMode}
               localDay={accounting}
@@ -247,43 +255,35 @@ export function TodayScreen() {
               }
             />
           ) : (
-            <Stack gap="sm">
-              <CharioteerMobileCockpit
-                localDay={accounting}
-                latestWeightKg={last?.weightKg ?? null}
-                hasWeightToday={visibleToday.length > 0}
-                trainingSetsCount={trainingToday.length}
-                studyMinutesToday={studyMinutesToday}
-                monthlyExpenseCny={
-                  computeMonthlyBookkeepingSummary(readBookkeepingState(), accounting, 'pool')
-                    .totalExpenseCny
+            <CharioteerMobileCockpit
+              localDay={accounting}
+              latestWeightKg={last?.weightKg ?? null}
+              hasWeightToday={visibleToday.length > 0}
+              trainingSetsCount={trainingToday.length}
+              trainingVolumeKg={trainingVolumeKg}
+              studyMinutesToday={studyMinutesToday}
+              monthlyExpenseCny={
+                computeMonthlyBookkeepingSummary(readBookkeepingState(), accounting, 'pool')
+                  .totalExpenseCny
+              }
+              monthlyBudgetCny={
+                computeMonthlyBookkeepingSummary(readBookkeepingState(), accounting, 'pool')
+                  .monthlyBudgetCny
+              }
+              onSaveWeight={(kg) => void saveWeight(kg)}
+              onSaveWorkout={(input) => {
+                for (let i = 0; i < input.setsCount; i += 1) {
+                  void training.saveSet({
+                    exercise: input.exercise,
+                    reps: input.reps,
+                    weightKg: input.weightKg,
+                    bandLevel: null,
+                  });
                 }
-                onSaveWeight={(kg) => void saveWeight(kg)}
-                onSaveWorkout={(input) => {
-                  for (let i = 0; i < input.setsCount; i += 1) {
-                    void training.saveSet({
-                      exercise: input.exercise,
-                      reps: input.reps,
-                      weightKg: input.weightKg,
-                      bandLevel: null,
-                    });
-                  }
-                }}
-                onSaveStudy={(input) => void study.saveRecord(input)}
-                onOpenSheet={(kind) => openRecordSheet(last?.weightKg, kind)}
-              />
-              <OneTapSmartFlowCard
-                localDay={accounting}
-                lastWeightKg={last?.weightKg ?? null}
-                hasWeightToday={visibleToday.length > 0}
-                hasFocusToday={studyToday.length > 0}
-                hasWorkoutToday={trainingToday.length > 0}
-                onOneTapSaveWeight={(kg) => void saveWeight(kg)}
-                onOneTapSaveStudy={(input) => study.saveRecord(input)}
-                onOneTapSaveWorkout={(input) => training.saveSet(input)}
-                onOpenCustomSheet={(kind) => openRecordSheet(last?.weightKg, kind)}
-              />
-            </Stack>
+              }}
+              onSaveStudy={(input) => void study.saveRecord(input)}
+              onOpenSheet={(kind) => openRecordSheet(last?.weightKg, kind)}
+            />
           )}
 
           <MonthEndNotice timeZone={timeZone} />
