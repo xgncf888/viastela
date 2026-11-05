@@ -33,11 +33,16 @@ const timeBlocksStore = createPersistedStore<TimeBlockItem[]>({
   },
 });
 
+const CLEAN_MASTERY_GOALS: MasteryGoal[] = DEFAULT_MASTERY_GOALS.map((g) => ({
+  ...g,
+  priorHours: 0,
+}));
+
 const masteryGoalsStore = createPersistedStore<MasteryGoal[]>({
   key: GOALS_KEY,
-  getDefault: () => [...DEFAULT_MASTERY_GOALS],
+  getDefault: () => [...CLEAN_MASTERY_GOALS],
   normalize: (parsed) => {
-    if (!Array.isArray(parsed) || parsed.length === 0) return [...DEFAULT_MASTERY_GOALS];
+    if (!Array.isArray(parsed) || parsed.length === 0) return [...CLEAN_MASTERY_GOALS];
     return parsed as MasteryGoal[];
   },
 });

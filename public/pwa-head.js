@@ -196,81 +196,62 @@
     };
   }
 
+  function stripSeedRows(db) {
+    if (!db || typeof db !== 'object') return createEmptyDb();
+    const tables = [
+      'weight_records',
+      'training_sets',
+      'study_records',
+      'journal_entries',
+      'asset_accounts',
+      'account_balances',
+      'holdings',
+      'net_worth_goals',
+      'projection_assumptions',
+      'net_worth_snapshots',
+    ];
+    let dirty = false;
+    tables.forEach((t) => {
+      if (Array.isArray(db[t])) {
+        const before = db[t].length;
+        db[t] = db[t].filter((r) => !r || typeof r.id !== 'string' || r.id.indexOf('-seed-') === -1);
+        if (db[t].length !== before) dirty = true;
+      } else {
+        db[t] = [];
+      }
+    });
+    if (!Array.isArray(db.profiles) || db.profiles.length === 0) {
+      db.profiles = [{ user_id: USER_ID, day_switch: '04:00', updated_at: new Date().toISOString() }];
+      dirty = true;
+    }
+    if (dirty) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+      } catch {
+        // Ignore storage errors
+      }
+    }
+    return db;
+  }
+
   function loadDb(urlHint) {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return JSON.parse(raw);
+      if (raw) return stripSeedRows(JSON.parse(raw));
     } catch {
       // Ignore parse errors
     }
     if (!canUseFakeJwtAndSeedData(urlHint)) {
       return createEmptyDb();
     }
-    const now = new Date();
-    function isoDaysAgo(d, h) {
-      const dt = new Date(now.getTime() - d * 86400000);
-      dt.setHours(h || 8, 15, 0, 0);
-      return dt.toISOString();
-    }
-    function dayStr(d) {
-      const dt = new Date(now.getTime() - d * 86400000);
-      const y = dt.getFullYear();
-      const m = String(dt.getMonth() + 1).padStart(2, '0');
-      const day = String(dt.getDate()).padStart(2, '0');
-      return `${y}-${m}-${day}`;
-    }
-    const tz = (typeof Intl !== 'undefined' && Intl.DateTimeFormat().resolvedOptions().timeZone) || 'Asia/Singapore';
-    const seeded = {
-      profiles: [{ user_id: USER_ID, day_switch: '04:00', updated_at: now.toISOString() }],
-      weight_records: [
-        { id: 'w-seed-6', user_id: USER_ID, weight_kg: 73.6, recorded_at: isoDaysAgo(6, 8), tz, local_day: dayStr(6), updated_at: isoDaysAgo(6, 8), deleted_at: null },
-        { id: 'w-seed-5', user_id: USER_ID, weight_kg: 73.4, recorded_at: isoDaysAgo(5, 8), tz, local_day: dayStr(5), updated_at: isoDaysAgo(5, 8), deleted_at: null },
-        { id: 'w-seed-4', user_id: USER_ID, weight_kg: 73.2, recorded_at: isoDaysAgo(4, 8), tz, local_day: dayStr(4), updated_at: isoDaysAgo(4, 8), deleted_at: null },
-        { id: 'w-seed-3', user_id: USER_ID, weight_kg: 73.0, recorded_at: isoDaysAgo(3, 8), tz, local_day: dayStr(3), updated_at: isoDaysAgo(3, 8), deleted_at: null },
-        { id: 'w-seed-2', user_id: USER_ID, weight_kg: 72.8, recorded_at: isoDaysAgo(2, 8), tz, local_day: dayStr(2), updated_at: isoDaysAgo(2, 8), deleted_at: null },
-        { id: 'w-seed-1', user_id: USER_ID, weight_kg: 72.6, recorded_at: isoDaysAgo(1, 8), tz, local_day: dayStr(1), updated_at: isoDaysAgo(1, 8), deleted_at: null },
-        { id: 'w-seed-0', user_id: USER_ID, weight_kg: 72.4, recorded_at: isoDaysAgo(0, 8), tz, local_day: dayStr(0), updated_at: isoDaysAgo(0, 8), deleted_at: null },
-      ],
-      training_sets: [
-        { id: 't-seed-1', user_id: USER_ID, exercise: '哑铃卧推', reps: 10, weight_kg: 32, band_level: null, recorded_at: isoDaysAgo(0, 9), tz, local_day: dayStr(0), updated_at: isoDaysAgo(0, 9), deleted_at: null },
-        { id: 't-seed-2', user_id: USER_ID, exercise: '深蹲', reps: 8, weight_kg: 60, band_level: null, recorded_at: isoDaysAgo(1, 18), tz, local_day: dayStr(1), updated_at: isoDaysAgo(1, 18), deleted_at: null },
-      ],
-      study_records: [
-        { id: 's-seed-1', user_id: USER_ID, topic: 'AI Infra', duration_minutes: 45, note: '多端本地存储与个人工作台', recorded_at: isoDaysAgo(0, 10), tz, local_day: dayStr(0), updated_at: isoDaysAgo(0, 10), deleted_at: null },
-      ],
-      journal_entries: [
-        { id: 'j-seed-1', user_id: USER_ID, body: '开启免登录本地存储模式，所有记录直接保存在本机设备中。', entry_day: dayStr(0), tz, mood: 5, tags: ['本地模式', '工作台'], created_at: isoDaysAgo(0, 11), updated_at: isoDaysAgo(0, 11), deleted_at: null },
-      ],
-      asset_accounts: [
-        { id: 'acc-seed-1', user_id: USER_ID, name: '主现金账户', kind: 'cash', currency: 'USD', created_at: isoDaysAgo(10, 9), updated_at: isoDaysAgo(0, 9), deleted_at: null },
-        { id: 'acc-seed-2', user_id: USER_ID, name: '长线证券账户', kind: 'brokerage', currency: 'USD', created_at: isoDaysAgo(10, 9), updated_at: isoDaysAgo(0, 9), deleted_at: null },
-      ],
-      account_balances: [
-        { id: 'bal-seed-1', user_id: USER_ID, account_id: 'acc-seed-1', amount: 85000, currency: 'USD', units_per_usd: 1, recorded_at: isoDaysAgo(0, 9), tz, local_day: dayStr(0), updated_at: isoDaysAgo(0, 9), deleted_at: null },
-      ],
-      holdings: [
-        { id: 'hold-seed-1', user_id: USER_ID, account_id: 'acc-seed-2', symbol: 'NVDA', quantity: 500, cost_basis_usd: 65000, created_at: isoDaysAgo(5, 9), updated_at: isoDaysAgo(0, 9), deleted_at: null },
-      ],
-      net_worth_goals: [
-        { id: 'goal-seed-1', user_id: USER_ID, target_usd: 500000, target_date: null, updated_at: isoDaysAgo(0, 9) },
-      ],
-      projection_assumptions: [
-        { id: 'assump-seed-1', user_id: USER_ID, start_usd: 155000, start_month: `${dayStr(0).slice(0, 7)}-01`, monthly_net_usd: 4500, return_rates: [0.03, 0.05, 0.07], main_rate_index: 2, updated_at: isoDaysAgo(0, 9) },
-      ],
-      net_worth_snapshots: [
-        { id: 'snap-seed-1', user_id: USER_ID, snapshot_month: `${dayStr(30).slice(0, 7)}-01`, total_usd: 148000, cash_usd: 82000, securities_usd: 66000, updated_at: isoDaysAgo(30, 9) },
-        { id: 'snap-seed-2', user_id: USER_ID, snapshot_month: `${dayStr(0).slice(0, 7)}-01`, total_usd: 155000, cash_usd: 85000, securities_usd: 70000, updated_at: isoDaysAgo(0, 9) },
-      ],
-      asset_events: [],
-      push_subscriptions: [],
-      reminder_settings: [],
-    };
+    const cleanDb = createEmptyDb();
+    cleanDb.profiles = [{ user_id: USER_ID, day_switch: '04:00', updated_at: new Date().toISOString() }];
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(cleanDb));
     } catch {
       // Ignore storage errors
     }
-    return seeded;
+    return cleanDb;
   }
 
   function saveDb(db) {

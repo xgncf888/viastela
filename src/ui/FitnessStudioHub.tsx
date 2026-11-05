@@ -142,19 +142,7 @@ export function FitnessStudioHub({
   const [restRunning, setRestRunning] = useState<boolean>(false);
 
   // Feature 3: Fitness × Nutrition Macros & Calorie Deficit State
-  const [loggedMeals, setLoggedMeals] = useState<LoggedNutritionItem[]>(() => [
-    {
-      id: 'init-meal-1',
-      nameZh: '🥚 水煮蛋 3颗 + 燕麦碗',
-      proteinG: 24,
-      carbsG: 38,
-      fatG: 15,
-      kcal: 385,
-      priceCny: 10,
-      loggedAt: '08:30',
-      syncedToLedger: false,
-    },
-  ]);
+  const [loggedMeals, setLoggedMeals] = useState<LoggedNutritionItem[]>([]);
   const [syncMealToLedger, setSyncMealToLedger] = useState<boolean>(true);
 
   useEffect(() => {

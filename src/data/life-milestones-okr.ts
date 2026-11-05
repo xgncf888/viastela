@@ -32,12 +32,20 @@ const milestonesStore = createPersistedStore<LifeMilestone[]>({
   },
 });
 
+const CLEAN_OKR_OBJECTIVES: OkrObjective[] = DEFAULT_OKR_OBJECTIVES.map((obj) => ({
+  ...obj,
+  keyResults: obj.keyResults.map((kr) => ({
+    ...kr,
+    currentValue: kr.startValue,
+  })),
+}));
+
 const okrStore = createPersistedStore<OkrObjective[]>({
   key: OKR_KEY,
   bus: lifeOkrBus,
-  getDefault: () => [...DEFAULT_OKR_OBJECTIVES],
+  getDefault: () => [...CLEAN_OKR_OBJECTIVES],
   normalize: (parsed) => {
-    if (!Array.isArray(parsed) || parsed.length === 0) return [...DEFAULT_OKR_OBJECTIVES];
+    if (!Array.isArray(parsed) || parsed.length === 0) return [...CLEAN_OKR_OBJECTIVES];
     return parsed as OkrObjective[];
   },
 });

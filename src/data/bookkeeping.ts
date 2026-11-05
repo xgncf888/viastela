@@ -96,33 +96,57 @@ function normalizeLedgerBooks(raw: unknown): LedgerBook[] {
   });
 }
 
+const isJestEnv = typeof process !== 'undefined' && Boolean(process.env?.JEST_WORKER_ID);
+
+function stripDemoBookkeepingSeeds<T extends { id: string }>(items: readonly T[]): T[] {
+  if (isJestTestMode()) return [...items];
+  return items.filter((item) => !item.id.startsWith('tx-seed-') && !item.id.startsWith('chat-seed-'));
+}
+
+function isJestTestMode(): boolean {
+  return isJestEnv;
+}
+
+const CLEAN_RUNTIME_BOOKKEEPING_DEFAULT: BookkeepingState = {
+  ...DEFAULT_BOOKKEEPING_STATE,
+  transactions: [],
+  chatMessages: [],
+  wealthPlan: {
+    ...DEFAULT_WEALTH_PLAN,
+    currentSavedCny: 0,
+  },
+};
+
 const bookkeepingStore = createPersistedStore<BookkeepingState>({
   key: BOOKKEEPING_STORAGE_KEY,
   bus: bookkeepingBus,
-  getDefault: () => DEFAULT_BOOKKEEPING_STATE,
+  getDefault: () => (isJestTestMode() ? DEFAULT_BOOKKEEPING_STATE : CLEAN_RUNTIME_BOOKKEEPING_DEFAULT),
   normalize: (raw) => {
-    if (!raw || typeof raw !== 'object') return DEFAULT_BOOKKEEPING_STATE;
+    const fallback = isJestTestMode() ? DEFAULT_BOOKKEEPING_STATE : CLEAN_RUNTIME_BOOKKEEPING_DEFAULT;
+    if (!raw || typeof raw !== 'object') return fallback;
     const parsed = raw as Partial<BookkeepingState>;
     return {
       monthlyBudgetCny:
         typeof parsed.monthlyBudgetCny === 'number' && parsed.monthlyBudgetCny >= 100
           ? parsed.monthlyBudgetCny
-          : DEFAULT_BOOKKEEPING_STATE.monthlyBudgetCny,
+          : fallback.monthlyBudgetCny,
       currencySymbol:
         typeof parsed.currencySymbol === 'string' && parsed.currencySymbol.trim()
           ? parsed.currencySymbol
           : '¥',
       transactions: Array.isArray(parsed.transactions)
-        ? parsed.transactions.map((tx) => ({
-            ...tx,
-            ledgerId: tx.ledgerId ?? 'ledger-daily',
-          }))
-        : DEFAULT_BOOKKEEPING_STATE.transactions,
+        ? stripDemoBookkeepingSeeds(
+            parsed.transactions.map((tx) => ({
+              ...tx,
+              ledgerId: tx.ledgerId ?? 'ledger-daily',
+            })),
+          )
+        : fallback.transactions,
       recurringRules: Array.isArray(parsed.recurringRules)
         ? parsed.recurringRules
         : [...DEFAULT_RECURRING_RULES],
       wealthPlan: {
-        ...DEFAULT_WEALTH_PLAN,
+        ...fallback.wealthPlan,
         ...(parsed.wealthPlan ?? {}),
       },
       coupleProfile: {
@@ -132,8 +156,8 @@ const bookkeepingStore = createPersistedStore<BookkeepingState>({
       quickPresets: normalizeQuickPresets(parsed.quickPresets),
       ledgerBooks: normalizeLedgerBooks(parsed.ledgerBooks),
       chatMessages: Array.isArray(parsed.chatMessages)
-        ? parsed.chatMessages
-        : [...DEFAULT_COUPLE_CHAT_MESSAGES],
+        ? stripDemoBookkeepingSeeds(parsed.chatMessages)
+        : [...(fallback.chatMessages ?? [])],
       accountInitialBalances:
         parsed.accountInitialBalances && typeof parsed.accountInitialBalances === 'object'
           ? parsed.accountInitialBalances

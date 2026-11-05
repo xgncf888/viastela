@@ -19,12 +19,26 @@ export function subscribeLifeGamificationStore(listener: PersistedStoreListener)
   return gamificationBus.subscribe(listener);
 }
 
+const CLEAN_SANCTUARY_STAGE_STATE: SanctuaryStageState = {
+  ...DEFAULT_SANCTUARY_STAGE_STATE,
+  bookPage: 1,
+  workoutReps: 0,
+};
+
+const CLEAN_PLEDGE_VAULT: PledgeVaultState = {
+  config: { ...DEFAULT_PLEDGE_VAULT.config },
+  wishBalanceCny: 0,
+  penaltyDcaPoolCny: 0,
+  wishes: DEFAULT_PLEDGE_VAULT.wishes.map((w) => ({ ...w, allocatedCny: 0 })),
+  ledger: [],
+};
+
 const sanctuaryStageStore = createPersistedStore<SanctuaryStageState>({
   key: SANCTUARY_STAGE_KEY,
   bus: gamificationBus,
-  getDefault: () => ({ ...DEFAULT_SANCTUARY_STAGE_STATE }),
+  getDefault: () => ({ ...CLEAN_SANCTUARY_STAGE_STATE }),
   normalize: (raw) => {
-    if (!raw || typeof raw !== 'object') return { ...DEFAULT_SANCTUARY_STAGE_STATE };
+    if (!raw || typeof raw !== 'object') return { ...CLEAN_SANCTUARY_STAGE_STATE };
     const parsed = raw as Partial<SanctuaryStageState>;
     const validPose =
       parsed.workoutPose === 'squat' ||
@@ -32,39 +46,39 @@ const sanctuaryStageStore = createPersistedStore<SanctuaryStageState>({
       parsed.workoutPose === 'press' ||
       parsed.workoutPose === 'jump'
         ? parsed.workoutPose
-        : DEFAULT_SANCTUARY_STAGE_STATE.workoutPose;
+        : CLEAN_SANCTUARY_STAGE_STATE.workoutPose;
     return {
       bookTitle:
         typeof parsed.bookTitle === 'string' && parsed.bookTitle.trim()
           ? parsed.bookTitle.trim()
-          : DEFAULT_SANCTUARY_STAGE_STATE.bookTitle,
+          : CLEAN_SANCTUARY_STAGE_STATE.bookTitle,
       bookPage:
         typeof parsed.bookPage === 'number' && Number.isFinite(parsed.bookPage) && parsed.bookPage >= 1
           ? Math.round(parsed.bookPage)
-          : DEFAULT_SANCTUARY_STAGE_STATE.bookPage,
+          : CLEAN_SANCTUARY_STAGE_STATE.bookPage,
       bookTotalPages:
         typeof parsed.bookTotalPages === 'number' &&
         Number.isFinite(parsed.bookTotalPages) &&
         parsed.bookTotalPages >= 10
           ? Math.round(parsed.bookTotalPages)
-          : DEFAULT_SANCTUARY_STAGE_STATE.bookTotalPages,
+          : CLEAN_SANCTUARY_STAGE_STATE.bookTotalPages,
       workoutPose: validPose,
       workoutReps:
         typeof parsed.workoutReps === 'number' &&
         Number.isFinite(parsed.workoutReps) &&
         parsed.workoutReps >= 0
           ? Math.round(parsed.workoutReps)
-          : DEFAULT_SANCTUARY_STAGE_STATE.workoutReps,
+          : CLEAN_SANCTUARY_STAGE_STATE.workoutReps,
       wishTitle:
         typeof parsed.wishTitle === 'string' && parsed.wishTitle.trim()
           ? parsed.wishTitle.trim()
-          : DEFAULT_SANCTUARY_STAGE_STATE.wishTitle,
+          : CLEAN_SANCTUARY_STAGE_STATE.wishTitle,
       wishTargetCny:
         typeof parsed.wishTargetCny === 'number' &&
         Number.isFinite(parsed.wishTargetCny) &&
         parsed.wishTargetCny >= 25
           ? Math.round(parsed.wishTargetCny)
-          : DEFAULT_SANCTUARY_STAGE_STATE.wishTargetCny,
+          : CLEAN_SANCTUARY_STAGE_STATE.wishTargetCny,
     };
   },
 });
@@ -72,25 +86,28 @@ const sanctuaryStageStore = createPersistedStore<SanctuaryStageState>({
 const pledgeVaultStore = createPersistedStore<PledgeVaultState>({
   key: PLEDGE_VAULT_KEY,
   bus: gamificationBus,
-  getDefault: () => DEFAULT_PLEDGE_VAULT,
+  getDefault: () => CLEAN_PLEDGE_VAULT,
   normalize: (raw) => {
-    if (!raw || typeof raw !== 'object') return DEFAULT_PLEDGE_VAULT;
+    if (!raw || typeof raw !== 'object') return CLEAN_PLEDGE_VAULT;
     const parsed = raw as Partial<PledgeVaultState>;
+    const cleanLedger = Array.isArray(parsed.ledger)
+      ? parsed.ledger.filter((entry) => entry && entry.id !== 'pledge-init-1')
+      : [];
     return {
       config: {
-        ...DEFAULT_PLEDGE_VAULT.config,
+        ...CLEAN_PLEDGE_VAULT.config,
         ...(parsed.config ?? {}),
       },
       wishBalanceCny:
         typeof parsed.wishBalanceCny === 'number'
           ? parsed.wishBalanceCny
-          : DEFAULT_PLEDGE_VAULT.wishBalanceCny,
+          : CLEAN_PLEDGE_VAULT.wishBalanceCny,
       penaltyDcaPoolCny:
         typeof parsed.penaltyDcaPoolCny === 'number'
           ? parsed.penaltyDcaPoolCny
-          : DEFAULT_PLEDGE_VAULT.penaltyDcaPoolCny,
-      wishes: Array.isArray(parsed.wishes) ? parsed.wishes : DEFAULT_PLEDGE_VAULT.wishes,
-      ledger: Array.isArray(parsed.ledger) ? parsed.ledger : DEFAULT_PLEDGE_VAULT.ledger,
+          : CLEAN_PLEDGE_VAULT.penaltyDcaPoolCny,
+      wishes: Array.isArray(parsed.wishes) ? parsed.wishes : CLEAN_PLEDGE_VAULT.wishes,
+      ledger: cleanLedger,
     };
   },
 });

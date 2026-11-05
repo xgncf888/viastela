@@ -267,22 +267,19 @@ function buildSelfContainedMobileSanctuaryHtml(displayName, iconB64) {
     try { if (window.localStorage) window.localStorage.setItem(k, JSON.stringify(val)); } catch {}
   }
 
-  let state = loadState('vs_mobile_v2', {
+  let state = loadState('vs_mobile_v3', {
     lang: 'zh',
-    light: false,
-    weight: 72.4,
-    studyMins: 45,
-    pages: 18,
-    vault: 1280,
+    light: true,
+    weight: 0,
+    studyMins: 0,
+    pages: 1,
+    vault: 0,
     pose: 'squat',
-    reps: 12,
-    blocks: [
-      { time: '09:00 – 09:45', title: '深度系统架构精读', mins: 45, color: '#e8924a' },
-      { time: '18:00 – 18:40', title: '力量与核心训练', mins: 40, color: '#34d399' }
-    ],
+    reps: 0,
+    blocks: [],
     okrs: [
-      { id: 'kr1', title: '一万小时精进', pct: 68 },
-      { id: 'kr2', title: '体脂率目标 15%', pct: 75 }
+      { id: 'kr1', title: '一万小时精进', pct: 0 },
+      { id: 'kr2', title: '体脂率目标 15%', pct: 0 }
     ]
   });
 
@@ -407,7 +404,7 @@ function buildSelfContainedMobileSanctuaryHtml(displayName, iconB64) {
     } else {
       showBurst('bookBurst', \`📖 P.\${state.pages} +\${mins}m\`);
     }
-    saveState('vs_mobile_v2', state);
+    saveState('vs_mobile_v3', state);
     renderAll();
   }
 
@@ -427,7 +424,7 @@ function buildSelfContainedMobileSanctuaryHtml(displayName, iconB64) {
     state.pose = p;
     animateAthleteRep();
     playTone(520, 680, 0.08);
-    saveState('vs_mobile_v2', state);
+    saveState('vs_mobile_v3', state);
     renderAll();
   }
 
@@ -441,7 +438,7 @@ function buildSelfContainedMobileSanctuaryHtml(displayName, iconB64) {
     } else {
       showBurst('workBurst', \`⚡ x\${state.reps} (+1)\`);
     }
-    saveState('vs_mobile_v2', state);
+    saveState('vs_mobile_v3', state);
     renderAll();
   }
 
@@ -460,14 +457,14 @@ function buildSelfContainedMobileSanctuaryHtml(displayName, iconB64) {
     state.weight = Math.round((state.weight + delta) * 10) / 10;
     if (delta === 0) state.vault += 25;
     playTone(580, 880, 0.12);
-    saveState('vs_mobile_v2', state);
+    saveState('vs_mobile_v3', state);
     renderAll();
   }
 
   function addHabitWish() {
     state.vault += 25;
     playTone(587, 880, 0.14);
-    saveState('vs_mobile_v2', state);
+    saveState('vs_mobile_v3', state);
     renderAll();
   }
 
@@ -501,19 +498,19 @@ function buildSelfContainedMobileSanctuaryHtml(displayName, iconB64) {
     state.studyMins += d;
     state.vault += 25;
     playTone(587, 880, 0.14);
-    saveState('vs_mobile_v2', state);
+    saveState('vs_mobile_v3', state);
     renderAll();
   }
 
   function toggleTheme() {
     state.light = !state.light;
-    saveState('vs_mobile_v2', state);
+    saveState('vs_mobile_v3', state);
     renderAll();
   }
 
   function toggleLang() {
     state.lang = state.lang === 'zh' ? 'en' : 'zh';
-    saveState('vs_mobile_v2', state);
+    saveState('vs_mobile_v3', state);
     renderAll();
   }
 
@@ -545,7 +542,7 @@ function buildSelfContainedMobileSanctuaryHtml(displayName, iconB64) {
 
     const ol = document.getElementById('okrList');
     ol.innerHTML = state.okrs.map((o, idx) => \`
-      <div class="toy-box" style="align-items:stretch;cursor:pointer" onclick="state.okrs[\${idx}].pct=Math.min(100,state.okrs[\${idx}].pct+5);state.vault+=25;playTone(580,880,0.1);saveState('vs_mobile_v2',state);renderAll()">
+      <div class="toy-box" style="align-items:stretch;cursor:pointer" onclick="state.okrs[\${idx}].pct=Math.min(100,state.okrs[\${idx}].pct+5);state.vault+=25;playTone(580,880,0.1);saveState('vs_mobile_v3',state);renderAll()">
         <div style="display:flex;justify-content:space-between;font-size:11.5px;font-weight:700">
           <span>\${o.title}</span><span style="color:var(--emerald)">\${o.pct}%</span>
         </div>
@@ -565,7 +562,7 @@ function buildSelfContainedMobileSanctuaryHtml(displayName, iconB64) {
           state.studyMins += 45;
           state.vault += 25;
           playTone(580, 880, 0.12);
-          saveState('vs_mobile_v2', state);
+          saveState('vs_mobile_v3', state);
           renderAll();
         };
         hg.appendChild(c);
