@@ -1,0 +1,292 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is([data-theme="dark"] *, [data-theme="obsidian"] *));
+
+/* ============================================================
+ * Unified 5-Platform Dual-Theme Token System (DESIGN.md)
+ * Default: Warm Paper (#FAF9F5)
+ * Selectable: Obsidian Gold (#121318)
+ * ============================================================ */
+:root,
+[data-theme="light"] {
+  --background: #FAF9F5;
+  --sidebar: #FAF9F5;
+  --card: #FFFFFF;
+  --card-foreground: #141413;
+  --popover: #FFFFFF;
+  --popover-foreground: #141413;
+  --secondary: #F5F4ED;
+  --secondary-foreground: #141413;
+  --muted: #F0EEE6;
+  --muted-foreground: #65635D;
+  --text-faint: #73726C;
+  --foreground: #141413;
+  --primary: #D97757;
+  --primary-hover: #C2603F;
+  --primary-foreground: #141413;
+  --accent: #F5ECE5;
+  --accent-foreground: #944A34;
+  --border: #DCDAD3;
+  --border-soft: #E8E6E0;
+  --input: #F5F4ED;
+  --ring: #D97757;
+  --pill: #F0EEE6;
+  --pill-hover: #E8E6E0;
+  --pressed: rgba(38, 36, 31, 0.06);
+  --stage-bg: #F3F1EA;
+  --status-success: #1F5E4B;
+  --status-success-soft: #E5F1EC;
+  --status-warning: #8A5A12;
+  --status-warning-soft: #FBF3E4;
+  --status-danger: #B53333;
+  --status-danger-soft: #F8EEEB;
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 1px 2px rgba(20, 20, 19, 0.04), 0 0 0 1px rgba(20, 20, 19, 0.06);
+  --shadow-md: 0 4px 12px rgba(20, 20, 19, 0.06), 0 0 0 1px rgba(20, 20, 19, 0.07);
+  --shadow-lg: 0 12px 28px rgba(20, 20, 19, 0.10), 0 0 0 1px rgba(20, 20, 19, 0.08);
+  --shadow-card-hover: 0 6px 18px rgba(20, 20, 19, 0.06), 0 0 0 1px rgba(217, 119, 87, 0.32);
+}
+
+[data-theme="dark"],
+[data-theme="obsidian"] {
+  --background: #121318;
+  --sidebar: #121318;
+  --card: #1A1C23;
+  --card-foreground: #F4F3EF;
+  --popover: #1A1C23;
+  --popover-foreground: #F4F3EF;
+  --secondary: #22252F;
+  --secondary-foreground: #F4F3EF;
+  --muted: #22252F;
+  --muted-foreground: #9CA3AF;
+  --text-faint: #6B7280;
+  --foreground: #F4F3EF;
+  --primary: #F5B942;
+  --primary-hover: #E5A93C;
+  --primary-foreground: #121318;
+  --accent: rgba(245, 185, 66, 0.14);
+  --accent-foreground: #FDE68A;
+  --border: rgba(245, 185, 66, 0.22);
+  --border-soft: rgba(255, 255, 255, 0.08);
+  --input: #22252F;
+  --ring: #F5B942;
+  --pill: rgba(245, 185, 66, 0.12);
+  --pill-hover: rgba(245, 185, 66, 0.20);
+  --pressed: rgba(250, 249, 245, 0.08);
+  --stage-bg: #121318;
+  --status-success: #34D399;
+  --status-success-soft: rgba(52, 211, 153, 0.14);
+  --status-warning: #F5B942;
+  --status-warning-soft: rgba(245, 185, 66, 0.14);
+  --status-danger: #F87171;
+  --status-danger-soft: rgba(248, 113, 113, 0.14);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.34), inset 0 0 0 1px rgba(245, 185, 66, 0.16);
+  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.44), inset 0 0 0 1px rgba(245, 185, 66, 0.22);
+  --shadow-lg: 0 14px 36px rgba(0, 0, 0, 0.58), inset 0 0 0 1px rgba(245, 185, 66, 0.28);
+  --shadow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.52), inset 0 0 0 1px rgba(245, 185, 66, 0.44);
+}
+
+@theme inline {
+  --text-2xs: 11px;
+  --text-3xs: 10px;
+  --text-4xs: 9px;
+  --text-5xs: 8px;
+  --color-background: var(--background);
+  --color-sidebar: var(--sidebar);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-border-soft: var(--border-soft);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-stage: var(--stage-bg);
+  --color-status-success: var(--status-success);
+  --color-status-warning: var(--status-warning);
+  --color-status-danger: var(--status-danger);
+  --shadow-xs: var(--shadow-sm);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  body {
+    overflow: hidden;
+  }
+
+  #root {
+    display: flex;
+    flex: 1;
+  }
+
+  code,
+  kbd,
+  pre,
+  samp,
+  .font-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(120, 115, 105, 0.22);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(120, 115, 105, 0.38);
+  }
+}
+
+@layer components {
+  /* Native Desktop Card Surface & Interactive Hover Elevation */
+  [data-slot="card"] {
+    transition:
+      transform 160ms cubic-bezier(0.2, 0, 0, 1),
+      box-shadow 160ms cubic-bezier(0.2, 0, 0, 1),
+      border-color 160ms cubic-bezier(0.2, 0, 0, 1),
+      background-color 160ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    [data-slot="card"][data-interactive="true"]:hover,
+    .vs-card-hoverable:hover {
+      box-shadow: var(--shadow-card-hover) !important;
+      transform: translateY(-1px);
+    }
+
+    [data-slot="list-row"][data-interactive="true"]:hover,
+    [data-slot="timeline-item"]:hover {
+      background-color: var(--pressed);
+      border-radius: 8px;
+    }
+  }
+
+  /* Unified Sidebar Rail & 50ms Tactile Navigation Items */
+  [data-slot="sidebar"] {
+    background-color: var(--sidebar) !important;
+    transition: background-color 160ms cubic-bezier(0.2, 0, 0, 1), border-color 160ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  [data-slot="nav-item"] {
+    position: relative;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    transition:
+      background-color 140ms cubic-bezier(0.2, 0, 0, 1),
+      box-shadow 140ms cubic-bezier(0.2, 0, 0, 1),
+      transform 50ms cubic-bezier(0.2, 0, 0, 1),
+      opacity 140ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  [data-slot="nav-item"]:active {
+    transform: scale(0.985);
+  }
+
+  /* Magpie-style Recessed Segmented Control Track & Pill */
+  [data-slot="segmented-bar"] {
+    background-color: var(--secondary);
+    box-shadow: inset 0 1px 2px rgba(20, 20, 19, 0.04);
+    transition: background-color 150ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  [data-slot="segmented-pill"] {
+    cursor: pointer;
+    user-select: none;
+    transition:
+      background-color 140ms cubic-bezier(0.2, 0, 0, 1),
+      box-shadow 140ms cubic-bezier(0.2, 0, 0, 1),
+      transform 50ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  [data-slot="segmented-pill"]:active {
+    transform: scale(0.98);
+  }
+
+  /* Glassmorphic Mobile Tab Bar & Floating Desktop HUDs */
+  [data-slot="tab-bar"],
+  [data-slot="glass-bar"] {
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+  }
+
+  /* Desktop Native CSS Grid Utilities for KPI & Bento Strips */
+  .vs-bento-grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .vs-bento-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .vs-bento-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  @media (max-width: 960px) {
+    .vs-bento-grid-4 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .vs-bento-grid-3 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 599px) {
+    .vs-bento-grid-4,
+    .vs-bento-grid-3,
+    .vs-bento-grid-2 {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
+import { webSlot } from './dom';
 import { washPressStyle } from './press';
 import { Text } from './Text';
 import { theme as baseTheme } from './theme';
@@ -80,6 +81,7 @@ export function ListRow({
   if (onPress) {
     return (
       <Pressable
+        {...webSlot('list-row', { interactive: 'true' })}
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
         accessibilityState={expanded == null ? undefined : { expanded }}
@@ -95,7 +97,12 @@ export function ListRow({
     );
   }
   return (
-    <View accessible={accessibilityLabel ? true : undefined} accessibilityLabel={accessibilityLabel} style={frame}>
+    <View
+      {...webSlot('list-row')}
+      accessible={accessibilityLabel ? true : undefined}
+      accessibilityLabel={accessibilityLabel}
+      style={frame}
+    >
       {body}
     </View>
   );

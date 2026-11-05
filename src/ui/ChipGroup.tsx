@@ -1,6 +1,7 @@
 import { Children, cloneElement, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { webSlot } from './dom';
 import { Row } from './layout';
 import { theme } from './theme';
 import { useTheme } from './ThemeProvider';
@@ -19,6 +20,7 @@ export function ChipGroup({
   if (segmented) {
     return (
       <View
+        {...webSlot('segmented-bar')}
         style={[
           styles.segmentedBar,
           {

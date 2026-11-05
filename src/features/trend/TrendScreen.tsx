@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
-import { Platform, View } from 'react-native';
+import { Platform } from 'react-native';
 
 import { computeCrossModuleCorrelations } from '@/core/correlation-insights';
 import { computeLocalDay, formatClock, formatMonthDay, weekdayLabel } from '@/core/local-day';
@@ -18,6 +18,7 @@ import { Card } from '@/ui/Card';
 import { weightAxis } from '@/ui/chart-ticks';
 import { useLayoutClass } from '@/ui/chrome';
 import { Content } from '@/ui/Content';
+import { DomGrid, DomSurface } from '@/ui/dom';
 import { isAutomatedWebDriver } from '@/ui/e2e-mode';
 import { EmptyState } from '@/ui/EmptyState';
 import { Callout, Columns, Divider, Row, ScreenHeader, Stack } from '@/ui/layout';
@@ -25,7 +26,6 @@ import { LifeMilestonesOkrHub } from '@/ui/LifeMilestonesOkrHub';
 import { LineChart } from '@/ui/LineChart';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
-import { useTheme } from '@/ui/ThemeProvider';
 import { theme } from '@/ui/theme';
 import { useI18n } from '@/ui/use-i18n';
 import {
@@ -46,7 +46,6 @@ export function TrendScreen() {
   const study = useOptionalStudy();
   const inset = useShellInset();
   const layout = useLayoutClass();
-  const { color } = useTheme();
   const { t } = useI18n();
   const [now, setNow] = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
@@ -255,36 +254,26 @@ export function TrendScreen() {
                     />
                   ) : null}
                 </Row>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.sm }}>
+                <DomGrid columns={3} gap="sm">
                   {correlations.cards.map((card) => (
-                    <View
-                      key={card.id}
-                      style={{
-                        flexGrow: 1,
-                        flexBasis: theme.layout.sidebar,
-                        padding: theme.space.sm,
-                        borderRadius: theme.radius.sm,
-                        borderWidth: theme.border.width,
-                        borderColor: color.lineSoft,
-                        backgroundColor: color.surface,
-                        gap: theme.space.xs,
-                      }}
-                    >
-                      <Row justify="between" align="center" gap="xs">
-                        <Text variant="caption" style={{ fontWeight: theme.fontWeight.semibold }}>
-                          {t(card.titleZh, card.titleEn)}
+                    <DomSurface key={card.id} variant="recessed" interactive>
+                      <Stack gap="xs">
+                        <Row justify="between" align="center" gap="xs">
+                          <Text variant="caption" style={{ fontWeight: theme.fontWeight.semibold }}>
+                            {t(card.titleZh, card.titleEn)}
+                          </Text>
+                          <TagChip
+                            label={card.metricBadge}
+                            tone={card.tone}
+                          />
+                        </Row>
+                        <Text variant="caption" tone="muted">
+                          {t(card.detailZh, card.detailEn)}
                         </Text>
-                        <TagChip
-                          label={card.metricBadge}
-                          tone={card.tone}
-                        />
-                      </Row>
-                      <Text variant="caption" tone="muted">
-                        {t(card.detailZh, card.detailEn)}
-                      </Text>
-                    </View>
+                      </Stack>
+                    </DomSurface>
                   ))}
-                </View>
+                </DomGrid>
               </Stack>
             </Card>
             <LifeMilestonesOkrHub

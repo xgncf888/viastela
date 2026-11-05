@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrandMark } from './BrandMark';
 import { cardSurfaceStyle } from './Card';
+import { webSlot } from './dom';
 import { isAutomatedWebDriver } from './e2e-mode';
 import { layoutClassForWidth, type LayoutClass } from './layout-class';
 import { createNavPress } from './nav-press';
@@ -90,7 +91,7 @@ export function SidebarFrame({
 
   if (e2e) {
     return (
-      <View style={[styles.sidebarBaseline, { width, backgroundColor: color.paperDeep, borderRightColor: color.line }]}>
+      <View style={[styles.sidebarBaseline, { width, backgroundColor: color.paper, borderRightColor: color.line }]}>
         <View style={[styles.brandRowBaseline, { borderBottomColor: color.line }]}>
           <BrandMark />
           <Text variant="title">{title}</Text>
@@ -102,7 +103,10 @@ export function SidebarFrame({
   }
 
   return (
-    <View style={[styles.sidebar, { width, backgroundColor: color.paperDeep, borderRightColor: color.line }]}>
+    <View
+      {...webSlot('sidebar')}
+      style={[styles.sidebar, { width, backgroundColor: color.paper, borderRightColor: color.line }]}
+    >
       <View style={styles.windowBar}>
         <View style={styles.trafficLightReserve} />
         {onOpenPalette ? (
@@ -231,6 +235,7 @@ export function TabBar({ children }: { children: ReactNode }) {
   const { color } = useTheme();
   return (
     <View
+      {...webSlot('tab-bar')}
       style={[
         styles.bar,
         {
@@ -318,6 +323,7 @@ export function NavItem({
 
   return (
     <Pressable
+      {...webSlot('nav-item', { active: selected ? 'true' : undefined, placement })}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ selected }}
@@ -533,7 +539,7 @@ const styles = StyleSheet.create({
   },
   tabs: { flexDirection: 'row', height: theme.layout.tabBar },
   nav: {
-    minHeight: 28,
+    minHeight: 30,
     paddingHorizontal: theme.space.sm,
     alignItems: 'center',
     justifyContent: 'center',
@@ -566,13 +572,13 @@ const styles = StyleSheet.create({
     lineHeight: 13,
   },
   sideIndicator: {
-    width: theme.border.indicator,
+    width: 2.5,
     height: 16,
     borderRadius: theme.radius.pill,
   },
   tabIndicator: {
     width: 18,
-    height: theme.border.indicator,
+    height: 2.5,
     borderRadius: theme.radius.pill,
     marginBottom: 2,
   },

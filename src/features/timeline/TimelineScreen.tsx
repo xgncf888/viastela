@@ -32,6 +32,7 @@ import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
 import { Chip } from '@/ui/Chip';
 import { ChipGroup } from '@/ui/ChipGroup';
+import { DomGrid, DomSurface } from '@/ui/dom';
 import { EmptyState } from '@/ui/EmptyState';
 import { LoadingRegion, type LoadingRegionName } from '@/ui/LoadingRegion';
 import { Divider, Row, ScreenHeader, Stack } from '@/ui/layout';
@@ -268,12 +269,14 @@ export function TimelineScreen() {
           <Button label="写日志" size="mini" onPress={openCreate} />
         </Row>
         {!isAutomatedWebDriver() && ledgerState.transactions.length > 0 ? (
-          <Card>
-            <Row justify="between" align="center" wrap gap="md">
+          <DomGrid columns={4} gap="sm">
+            <DomSurface variant="card" interactive>
               <Stack gap="xs">
                 <Text variant="caption" tone="muted">多账本流水笔数</Text>
                 <Text variant="heading">{`${ledgerState.transactions.length} 笔记录`}</Text>
               </Stack>
+            </DomSurface>
+            <DomSurface variant="card" interactive>
               <Stack gap="xs">
                 <Text variant="caption" tone="muted">累计支出 (CNY)</Text>
                 <MaskedAmount
@@ -285,6 +288,8 @@ export function TimelineScreen() {
                   variant="heading"
                 />
               </Stack>
+            </DomSurface>
+            <DomSurface variant="card" interactive>
               <Stack gap="xs">
                 <Text variant="caption" tone="muted">累计入账 (CNY)</Text>
                 <MaskedAmount
@@ -297,12 +302,14 @@ export function TimelineScreen() {
                   tone="moss"
                 />
               </Stack>
+            </DomSurface>
+            <DomSurface variant="card" interactive>
               <Stack gap="xs">
                 <Text variant="caption" tone="muted">活跃账本与日志</Text>
                 <Text variant="heading">{`${ledgerState.ledgerBooks?.length ?? 0} 账本 · ${visible.length} 日志`}</Text>
               </Stack>
-            </Row>
-          </Card>
+            </DomSurface>
+          </DomGrid>
         ) : null}
         <LoadingRegion
           name={TIMELINE_REGION}

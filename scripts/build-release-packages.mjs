@@ -111,6 +111,9 @@ function main() {
     }
   }
 
+  console.log('3b/5 Building Windows PC Native WebView2 package (viastela-windows.zip)...');
+  execFileSync('node', [path.join(ROOT, 'scripts', 'build-windows-app.mjs')], { cwd: ROOT, env, stdio: 'inherit' });
+
   console.log('4/5 Building mobile packages (iOS .mobileconfig/.ipa & Android .apk)...');
   execFileSync('node', [path.join(ROOT, 'scripts', 'build-ios-ipa.mjs')], { cwd: ROOT, env, stdio: 'inherit' });
   execFileSync('node', [path.join(ROOT, 'scripts', 'build-android-apk.mjs')], { cwd: ROOT, env, stdio: 'inherit' });

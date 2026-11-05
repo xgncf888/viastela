@@ -30,6 +30,7 @@ module.exports = [
       '**/*.app/**',
       'ios/**',
       'android/**',
+      'vite.config.ts',
     ],
   },
   {
@@ -63,7 +64,7 @@ module.exports = [
     },
   },
   {
-    files: ['src/ui/**/*.{ts,tsx}', 'src/config/**/*.ts'],
+    files: ['src/ui/**/*.{ts,tsx}', 'src/config/**/*.ts', 'src/lib/**/*.{ts,tsx}', 'src/main.tsx'],
     rules: {
       'no-restricted-imports': [
         'error',

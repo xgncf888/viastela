@@ -1,5 +1,6 @@
 import { Platform, StyleSheet, View, type ViewStyle } from 'react-native';
 
+import { webSlot } from './dom';
 import { darkColor, theme as baseTheme } from './theme';
 import { useTheme } from './ThemeProvider';
 
@@ -33,10 +34,19 @@ export function cardSurfaceStyle(cardColor: string, lineColor: string): ViewStyl
   };
 }
 
-export function Card({ children }: { children: React.ReactNode }) {
+export function Card({
+  interactive = false,
+  children,
+}: {
+  interactive?: boolean;
+  children: React.ReactNode;
+}) {
   const theme = useTheme();
   return (
-    <View style={[styles.card, cardSurfaceStyle(theme.color.card, theme.color.line)]}>
+    <View
+      {...webSlot('card', { interactive: interactive ? 'true' : undefined })}
+      style={[styles.card, cardSurfaceStyle(theme.color.card, theme.color.line)]}
+    >
       {children}
     </View>
   );

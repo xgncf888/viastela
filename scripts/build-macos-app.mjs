@@ -1213,7 +1213,7 @@ function main() {
   }
 
   // Always rebuild the Expo web bundle (`dist/`) unless SKIP_WEB_EXPORT=1 is explicitly set,
-  // preventing stale `dist/` bundles from being packaged into Viastela.app.
+  // preventing stale `dist/` bundles from being packaged into the macOS .app bundle.
   if (process.env.SKIP_WEB_EXPORT !== '1') {
     console.log('Exporting fresh web bundle (dist/) before packaging macOS app...');
     rmSync(path.join(ROOT, 'dist'), { recursive: true, force: true });

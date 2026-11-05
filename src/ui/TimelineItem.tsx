@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { webSlot } from './dom';
 import { Row } from './layout';
 import { Text } from './Text';
 import { theme } from './theme';
@@ -20,20 +21,20 @@ export function TimelineItem({
 }) {
   const { color } = useTheme();
   return (
-    <View style={styles.rowWrap}>
+    <View {...webSlot('timeline-item')} style={styles.rowWrap}>
       <Row align="center" gap="md" accessibilityLabel={accessibilityLabel}>
-      <View style={[styles.timeBadge, { backgroundColor: color.paperDeep, borderColor: color.lineSoft }]}>
-        <View style={[styles.nodeDot, { backgroundColor: color.accent }]} />
-        <Text variant="caption" tone="muted" style={styles.time}>
-          {time}
-        </Text>
-      </View>
-      <View style={styles.copy}>
-        <Text variant="body" style={styles.title}>
-          {title}
-        </Text>
-        {typeof detail === 'string' ? <Text variant="muted">{detail}</Text> : detail}
-      </View>
+        <View style={[styles.timeBadge, { backgroundColor: color.paperDeep, borderColor: color.lineSoft }]}>
+          <View style={[styles.nodeDot, { backgroundColor: color.accent }]} />
+          <Text variant="caption" tone="muted" style={styles.time}>
+            {time}
+          </Text>
+        </View>
+        <View style={styles.copy}>
+          <Text variant="body" style={styles.title}>
+            {title}
+          </Text>
+          {typeof detail === 'string' ? <Text variant="muted">{detail}</Text> : detail}
+        </View>
       </Row>
     </View>
   );
@@ -41,7 +42,8 @@ export function TimelineItem({
 
 const styles = StyleSheet.create({
   rowWrap: {
-    paddingVertical: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 4,
   },
   timeBadge: {
     minWidth: theme.layout.timeColumn,

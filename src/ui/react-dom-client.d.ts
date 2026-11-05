@@ -4,3 +4,5 @@ declare module 'react-dom/client' {
   export type Root = { render: (node: ReactNode) => void; unmount: () => void };
   export function createRoot(container: Element): Root;
 }
+
+declare module '*.css' {}

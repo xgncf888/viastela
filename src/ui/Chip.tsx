@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { cardSurfaceStyle } from './Card';
+import { webSlot } from './dom';
 import { washPressStyle } from './press';
 import { Text } from './Text';
 import { theme } from './theme';
@@ -26,6 +27,7 @@ export function Chip({
   if (segmented) {
     return (
       <Pressable
+        {...webSlot('segmented-pill', { active: selected ? 'true' : undefined })}
         accessibilityRole="button"
         aria-selected={selected}
         accessibilityState={{ selected }}
@@ -66,6 +68,7 @@ export function Chip({
 
   return (
     <Pressable
+      {...webSlot('chip', { active: selected ? 'true' : undefined })}
       accessibilityRole="button"
       aria-selected={selected}
       accessibilityState={{ selected }}

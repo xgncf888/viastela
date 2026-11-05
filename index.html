@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
+    <title>星途</title>
+    <style id="expo-reset">
+      * {
+        -webkit-tap-highlight-color: transparent;
+      }
+      html,
+      body {
+        height: 100%;
+        background-color: #FAF9F5;
+      }
+      body {
+        overflow: hidden;
+        background-color: #FAF9F5;
+      }
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+        background-color: #FAF9F5;
+      }
+      [data-theme="dark"] html,
+      [data-theme="dark"] body,
+      [data-theme="dark"] #root {
+        background-color: #121318 !important;
+      }
+    </style>
+    <script src="/pwa-head.js"></script>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

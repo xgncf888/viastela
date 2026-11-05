@@ -126,30 +126,28 @@ const RESET_STYLE = `    <style id="expo-reset">
       html,
       body {
         height: 100%;
-        background-color: #F7F4EC;
+        background-color: #FAF9F5;
       }
       /* These styles disable body scrolling if you are using <ScrollView> */
       body {
         overflow: hidden;
-        background-color: #F7F4EC;
+        background-color: #FAF9F5;
       }
       /* These styles make the root element full-height */
       #root {
         display: flex;
         height: 100%;
         flex: 1;
-        background-color: #F7F4EC;
+        background-color: #FAF9F5;
       }
       #root [style*="rgb(242, 242, 242)"] {
-        background-color: #F7F4EC !important;
+        background-color: #FAF9F5 !important;
       }
-      @media (prefers-color-scheme: dark) {
-        html,
-        body,
-        #root,
-        #root [style*="rgb(242, 242, 242)"] {
-          background-color: #141413 !important;
-        }
+      [data-theme="dark"] html,
+      [data-theme="dark"] body,
+      [data-theme="dark"] #root,
+      [data-theme="dark"] #root [style*="rgb(242, 242, 242)"] {
+        background-color: #121318 !important;
       }
     </style>`;
 
