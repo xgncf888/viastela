@@ -124,9 +124,12 @@
     );
   }
 
+  // Only normalize `/index.html` on regular HTTP(S) web origins (not Android WebView AssetLoader or file/app schemes)
   if (typeof window !== 'undefined' && window.location && window.location.pathname) {
+    const proto = window.location.protocol || '';
+    const host = window.location.hostname || '';
     const p = window.location.pathname;
-    if (p === '/index.html' || p.endsWith('/index.html')) {
+    if ((proto === 'http:' || proto === 'https:') && host !== 'appassets.androidplatform.net' && p === '/index.html') {
       try {
         window.history.replaceState(null, '', '/' + (window.location.search || '') + (window.location.hash || ''));
       } catch {}

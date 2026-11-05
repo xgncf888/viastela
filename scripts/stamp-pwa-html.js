@@ -109,7 +109,8 @@ function stripPwaHeadTags(html) {
     .replace(/[ \t]*<link rel="manifest"[^>]*>\n?/g, '')
     .replace(/[ \t]*<link rel="icon"[^>]*>\n?/g, '')
     .replace(/[ \t]*<link rel="apple-touch-icon"[^>]*>\n?/g, '')
-    .replace(/[ \t]*<link rel="apple-touch-startup-image"[^>]*>\n?/g, '');
+    .replace(/[ \t]*<link rel="apple-touch-startup-image"[^>]*>\n?/g, '')
+    .replace(/[ \t]*<script src="\/pwa-head\.js"><\/script>\n?/g, '');
 }
 
 function applyDocumentTitle(html) {
@@ -126,6 +127,7 @@ const RESET_STYLE = `    <style id="expo-reset">
       html,
       body {
         height: 100%;
+        margin: 0;
         background-color: #FAF9F5;
       }
       /* These styles disable body scrolling if you are using <ScrollView> */
@@ -148,6 +150,34 @@ const RESET_STYLE = `    <style id="expo-reset">
       [data-theme="dark"] #root,
       [data-theme="dark"] #root [style*="rgb(242, 242, 242)"] {
         background-color: #121318 !important;
+      }
+      .vs-boot-shell {
+        margin: auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+        color: #1F1E1A;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .vs-boot-ring {
+        width: 34px;
+        height: 34px;
+        border-radius: 999px;
+        border: 2.5px solid rgba(184, 136, 42, 0.22);
+        border-top-color: #B8882A;
+        animation: vsBootSpin 0.72s linear infinite;
+      }
+      .vs-boot-title {
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 2px;
+        color: #7A5A1A;
+      }
+      @keyframes vsBootSpin {
+        to { transform: rotate(360deg); }
       }
     </style>`;
 
@@ -183,10 +213,22 @@ ${pwaHeadTags()}
     <!-- Use static rendering with Expo Router to support running without JavaScript. -->
     <noscript> You need to enable JavaScript to run this app. </noscript>
     <!-- The root element for your Expo app. -->
-    <div id="root"></div>
+    <div id="root">
+      <div class="vs-boot-shell" aria-hidden="true">
+        <div class="vs-boot-ring"></div>
+        <div class="vs-boot-title">星途</div>
+      </div>
+    </div>
   </body>
 </html>
 `;
+}
+
+function writeManifestFile(targetPath) {
+  const manifestJson = `${JSON.stringify(pwaManifest, null, 2)}\n`;
+  if (!fs.existsSync(targetPath) || fs.readFileSync(targetPath, 'utf8') !== manifestJson) {
+    fs.writeFileSync(targetPath, manifestJson);
+  }
 }
 
 function preparePwaPublicFiles() {
@@ -195,11 +237,17 @@ function preparePwaPublicFiles() {
   if (!fs.existsSync(htmlPath) || fs.readFileSync(htmlPath, 'utf8') !== html) {
     fs.writeFileSync(htmlPath, html);
   }
+  writeManifestFile(path.resolve('public/manifest.webmanifest'));
   const worker = path.resolve('public/sw.js');
   if (exportingWeb() && fs.existsSync(worker)) stampCacheName(worker);
 }
 
 function stampExportedWeb() {
+  writeManifestFile(path.resolve('public/manifest.webmanifest'));
+  const distDir = path.resolve('dist');
+  if (fs.existsSync(distDir)) {
+    writeManifestFile(path.resolve('dist/manifest.webmanifest'));
+  }
   const htmlPath = path.resolve('dist/index.html');
   const html = fs.readFileSync(htmlPath, 'utf8');
   const stamped = applyDocumentTitle(stampHtml(html));

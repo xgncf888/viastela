@@ -38,6 +38,13 @@ const UNITLESS_CSS_PROPS = new Set([
   'zoom',
 ]);
 
+function unwrapAnimatedValue(value: unknown): unknown {
+  if (value && typeof value === 'object' && '_value' in (value as Record<string, unknown>)) {
+    return (value as { _value: unknown })._value;
+  }
+  return value;
+}
+
 export function flattenAndNormalizeStyle(input: unknown): CSSProperties {
   const raw: Record<string, unknown> = {};
   const walk = (item: unknown) => {
@@ -71,7 +78,8 @@ export function flattenAndNormalizeStyle(input: unknown): CSSProperties {
       const parts: string[] = [];
       for (const t of value) {
         if (t && typeof t === 'object') {
-          for (const [tk, tv] of Object.entries(t as Record<string, unknown>)) {
+          for (const [tk, tvRaw] of Object.entries(t as Record<string, unknown>)) {
+            const tv = unwrapAnimatedValue(tvRaw);
             if (tk === 'scale' || tk === 'scaleX' || tk === 'scaleY') {
               parts.push(`${tk}(${String(tv)})`);
             } else if (tk.startsWith('translate')) {
@@ -115,7 +123,8 @@ export function flattenAndNormalizeStyle(input: unknown): CSSProperties {
   return out as CSSProperties;
 }
 
-function normalizeCssValue(key: string, value: unknown): unknown {
+function normalizeCssValue(key: string, rawValue: unknown): unknown {
+  const value = unwrapAnimatedValue(rawValue);
   if (typeof value === 'number' && !UNITLESS_CSS_PROPS.has(key)) {
     return `${value}px`;
   }
@@ -214,6 +223,20 @@ export const StyleSheet = {
   },
   flatten: flattenAndNormalizeStyle,
   hairlineWidth: 1,
+  absoluteFill: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  absoluteFillObject: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
 };
 
 export interface LayoutChangeEvent {
@@ -692,19 +715,42 @@ export const Share = {
 };
 
 class AnimatedValue {
-  _value: number;
-  constructor(v: number) {
+  _value: number | string;
+  constructor(v: number | string) {
     this._value = v;
   }
-  setValue(v: number) {
+  setValue(v: number | string) {
     this._value = v;
   }
+  interpolate(config: {
+    inputRange: readonly number[];
+    outputRange: readonly (number | string)[];
+  }): AnimatedValue {
+    const first = config?.outputRange?.[0] ?? 0;
+    return new AnimatedValue(first);
+  }
+  stopAnimation(cb?: (value: number) => void) {
+    cb?.(typeof this._value === 'number' ? this._value : 0);
+  }
+  addListener(_cb: (state: { value: number }) => void): string {
+    return '0';
+  }
+  removeListener(_id: string) {}
+  removeAllListeners() {}
 }
 
 export const Easing = {
-  inOut: (fn: unknown) => fn,
+  inOut: <T,>(fn: T): T => fn,
+  in: <T,>(fn: T): T => fn,
+  out: <T,>(fn: T): T => fn,
   ease: (t: number) => t,
   linear: (t: number) => t,
+  quad: (t: number) => t * t,
+  cubic: (t: number) => t * t * t,
+  sin: (t: number) => t,
+  circle: (t: number) => t,
+  exp: (t: number) => t,
+  bezier: (_x1: number, _y1: number, _x2: number, _y2: number) => (t: number) => t,
 };
 
 export const Animated = {
@@ -720,8 +766,32 @@ export const Animated = {
       reset() {},
     };
   },
+  spring(_val: unknown, _cfg: unknown) {
+    return {
+      start(cb?: (res: { finished: boolean }) => void) {
+        cb?.({ finished: true });
+      },
+      stop() {},
+      reset() {},
+    };
+  },
   sequence(_steps: unknown[]) {
-    return { start() {}, stop() {}, reset() {} };
+    return {
+      start(cb?: (res: { finished: boolean }) => void) {
+        cb?.({ finished: true });
+      },
+      stop() {},
+      reset() {},
+    };
+  },
+  parallel(_steps: unknown[]) {
+    return {
+      start(cb?: (res: { finished: boolean }) => void) {
+        cb?.({ finished: true });
+      },
+      stop() {},
+      reset() {},
+    };
   },
   loop(_anim: unknown) {
     return { start() {}, stop() {}, reset() {} };

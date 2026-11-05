@@ -107,13 +107,23 @@ function AppRouter() {
     return <Redirect href="/account/deleted" />;
   }
   if (!session) {
-    if (pathname === '/login') {
-      return <LoginScreen />;
+    if (pathname !== '/login') {
+      return (
+        <>
+          <Redirect href="/login" />
+          <LoginScreen />
+        </>
+      );
     }
-    return <Redirect href="/login" />;
+    return <LoginScreen />;
   }
   if (pathname === '/login') {
-    return <Redirect href="/" />;
+    return (
+      <>
+        <Redirect href="/" />
+        <AuthenticatedWorkspace pathname="/" />
+      </>
+    );
   }
   if (pathname === '/account/delete') {
     return <DeleteAccountScreen />;

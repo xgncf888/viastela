@@ -13,10 +13,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [ready, setReady] = useState(false);
 
-  useEffect(() => subscribeAuth((next) => {
-    setSession(next);
-    setReady(true);
-  }), []);
+  useEffect(() => {
+    const fallbackTimer = setTimeout(() => {
+      setReady(true);
+    }, 2500);
+    const unsub = subscribeAuth((next) => {
+      clearTimeout(fallbackTimer);
+      setSession(next);
+      setReady(true);
+    });
+    return () => {
+      clearTimeout(fallbackTimer);
+      unsub();
+    };
+  }, []);
 
   const value = useMemo(() => ({ ready, session }), [ready, session]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,4 +1,4 @@
-import { createElement, useEffect, useState } from 'react';
+import { createElement, useEffect, useMemo, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -60,6 +60,7 @@ import {
   readMasteryGoals,
   readTimeBlocks,
   removeTimeBlock,
+  subscribeTimeBlockStore,
   writeActiveTimer,
 } from '@/data/time-block-tracker';
 
@@ -70,6 +71,7 @@ import { addLedgerTransaction } from '@/data/bookkeeping';
 import { BookkeepingLedgerHub } from './BookkeepingLedgerHub';
 import { ISLAND_3D_DATA_URI } from './island-assets';
 import { KnowledgeGraphCornerHub } from './KnowledgeGraphCornerHub';
+import { TimePricingHub } from './TimePricingHub';
 import { useI18n } from './use-i18n';
 
 import { Text } from './Text';
@@ -77,7 +79,7 @@ import { theme } from './theme';
 import { useTheme } from './ThemeProvider';
 import { showToast } from './toast';
 
-export type SanctuaryPerspective = 'diorama' | 'ledger' | 'daycycle' | 'summary';
+export type SanctuaryPerspective = 'diorama' | 'ledger' | 'timeprice' | 'daycycle' | 'summary';
 export type LifeZoneKey = 'focus' | 'vitality' | 'wishes';
 export type SpatialModuleFilter = 'all' | 'focus' | 'vitality' | 'wishes';
 export type WorkoutPoseId = 'squat' | 'pushup' | 'press' | 'jump';
@@ -1397,18 +1399,25 @@ export function IsometricStudioStage({
       setObjectives(readOkrObjectives());
       setHabits(readDailyHabits());
     });
-    const poll = setInterval(() => {
+    const u3 = subscribeTimeBlockStore(() => {
       setTimeBlocks(readTimeBlocks());
       setMasteryGoals(readMasteryGoals());
       setTimer(readActiveTimer());
-      setNowMs(Date.now());
-    }, 1000);
+    });
     return () => {
       u1();
       u2();
-      clearInterval(poll);
+      u3();
     };
   }, []);
+
+  useEffect(() => {
+    if (!timer.isRunning) return undefined;
+    const poll = setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+    return () => clearInterval(poll);
+  }, [timer.isRunning]);
 
   const pal = isDark
     ? {
@@ -1485,36 +1494,41 @@ export function IsometricStudioStage({
       : 0;
   const habitsDoneToday = habits.filter((h) => h.completedDays.includes(localDay)).length;
 
-  const allKrs = objectives.flatMap((obj) =>
-    obj.keyResults.map((kr) => ({
-      objectiveId: obj.id,
-      objectiveTitle: obj.title,
-      kr,
-      pct: computeKrProgressPct(kr),
-    })),
+  const allKrs = useMemo(
+    () =>
+      objectives.flatMap((obj) =>
+        obj.keyResults.map((kr) => ({
+          objectiveId: obj.id,
+          objectiveTitle: obj.title,
+          kr,
+          pct: computeKrProgressPct(kr),
+        })),
+      ),
+    [objectives],
   );
   const visibleKrs = allKrs.slice(okrPage * 4, okrPage * 4 + 4);
 
-  const habitCountByDay = new Map<string, number>();
-  habits.forEach((h) => {
-    h.completedDays.forEach((d) => {
-      habitCountByDay.set(d, (habitCountByDay.get(d) ?? 0) + 1);
+  const heatmap = useMemo(() => {
+    const habitCountByDay = new Map<string, number>();
+    habits.forEach((h) => {
+      h.completedDays.forEach((d) => {
+        habitCountByDay.set(d, (habitCountByDay.get(d) ?? 0) + 1);
+      });
     });
-  });
-  const studyMinutesByDay = new Map<string, number>();
-  timeBlocks.forEach((b) => {
-    studyMinutesByDay.set(b.localDay, (studyMinutesByDay.get(b.localDay) ?? 0) + b.durationMinutes);
-  });
-  const weightDaysSet = new Set<string>([localDay]);
-
-  const heatmap = buildLifeHeatmapGrid({
-    endDay: localDay,
-    totalDays: 182,
-    weightDays: weightDaysSet,
-    trainingCountByDay: new Map([[localDay, trainingSetsCount]]),
-    studyMinutesByDay,
-    habitCountByDay,
-  });
+    const studyMinutesByDay = new Map<string, number>();
+    timeBlocks.forEach((b) => {
+      studyMinutesByDay.set(b.localDay, (studyMinutesByDay.get(b.localDay) ?? 0) + b.durationMinutes);
+    });
+    const weightDaysSet = new Set<string>([localDay]);
+    return buildLifeHeatmapGrid({
+      endDay: localDay,
+      totalDays: 182,
+      weightDays: weightDaysSet,
+      trainingCountByDay: new Map([[localDay, trainingSetsCount]]),
+      studyMinutesByDay,
+      habitCountByDay,
+    });
+  }, [habits, timeBlocks, localDay, trainingSetsCount]);
 
   function optionAHeatCellColor(cell: HeatmapCell, idx: number): string {
     if (heatmapFilter === 'focus' && cell.studyMinutes === 0 && idx % 5 !== 0) {
@@ -2233,6 +2247,7 @@ export function IsometricStudioStage({
               [
                 { id: 'diorama', label: t('全景', 'Stage') },
                 { id: 'ledger', label: t('¥ 记账', '¥ Ledger') },
+                { id: 'timeprice', label: t('⏳ 时薪定价', '⏳ Time Price') },
                 { id: 'daycycle', label: t('24H 节律', '24H Cycle') },
                 { id: 'summary', label: t('五维精要', 'Summary') },
               ] as const
@@ -4196,6 +4211,17 @@ export function IsometricStudioStage({
       {perspective === 'ledger' ? (
         <View style={{ padding: 12 }}>
           <BookkeepingLedgerHub localDay={localDay} />
+        </View>
+      ) : null}
+
+      {/* Perspective 1C: Dedicated Time Pricing & Real Hourly Rate Engine */}
+      {perspective === 'timeprice' ? (
+        <View style={{ padding: 12 }}>
+          <TimePricingHub
+            localDay={localDay}
+            onJumpToLedger={() => setPerspective('ledger')}
+            onJumpToDayCycle={() => setPerspective('daycycle')}
+          />
         </View>
       ) : null}
 

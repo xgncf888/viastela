@@ -6,11 +6,21 @@ import {
   type TimeBlockItem,
 } from '@/core/time-block-tracker';
 
-import { createPersistedStore } from './persisted-store';
+import {
+  createPersistedStore,
+  createPersistedStoreBus,
+  type PersistedStoreListener,
+} from './persisted-store';
 
 const BLOCKS_KEY = 'viastela.timeblocks.v1';
 const GOALS_KEY = 'viastela.mastery_goals.v1';
 const TIMER_KEY = 'viastela.active_timer.v1';
+
+const timeBlockBus = createPersistedStoreBus();
+
+export function subscribeTimeBlockStore(listener: PersistedStoreListener): () => void {
+  return timeBlockBus.subscribe(listener);
+}
 
 const DEFAULT_TIMER: ActiveTimerSession = {
   isRunning: false,
@@ -23,6 +33,7 @@ const DEFAULT_TIMER: ActiveTimerSession = {
 
 const timeBlocksStore = createPersistedStore<TimeBlockItem[]>({
   key: BLOCKS_KEY,
+  bus: timeBlockBus,
   getDefault: () => [],
   normalize: (parsed) => {
     if (!Array.isArray(parsed)) return [];
@@ -40,6 +51,7 @@ const CLEAN_MASTERY_GOALS: MasteryGoal[] = DEFAULT_MASTERY_GOALS.map((g) => ({
 
 const masteryGoalsStore = createPersistedStore<MasteryGoal[]>({
   key: GOALS_KEY,
+  bus: timeBlockBus,
   getDefault: () => [...CLEAN_MASTERY_GOALS],
   normalize: (parsed) => {
     if (!Array.isArray(parsed) || parsed.length === 0) return [...CLEAN_MASTERY_GOALS];
@@ -49,6 +61,7 @@ const masteryGoalsStore = createPersistedStore<MasteryGoal[]>({
 
 const activeTimerStore = createPersistedStore<ActiveTimerSession>({
   key: TIMER_KEY,
+  bus: timeBlockBus,
   getDefault: () => DEFAULT_TIMER,
   normalize: (parsed) => {
     if (!parsed || typeof parsed !== 'object') return DEFAULT_TIMER;

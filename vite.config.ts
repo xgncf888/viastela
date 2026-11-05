@@ -71,7 +71,21 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       emptyOutDir: true,
-      chunkSizeWarningLimit: 3000,
+      cssCodeSplit: false,
+      modulePreload: false,
+      chunkSizeWarningLimit: 2500,
+      rollupOptions: {
+        output: {
+          entryFileNames: 'assets/index.js',
+          chunkFileNames: 'assets/[name].js',
+          assetFileNames: (assetInfo) => {
+            if (assetInfo.name && assetInfo.name.endsWith('.css')) {
+              return 'assets/index.css';
+            }
+            return 'assets/[name][extname]';
+          },
+        },
+      },
     },
     server: {
       port: 4173,

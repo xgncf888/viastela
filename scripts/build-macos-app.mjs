@@ -390,6 +390,7 @@ const LOCAL_STANDALONE_BRIDGE_JS = `
   function ensureLocalSession() {
     try {
       if (localStorage.getItem('viastela.desktop.signed_out') === '1') return;
+      localStorage.setItem('viastela.local_mode', '1');
       if (localStorage.getItem(SESSION_KEY)) return;
       var nowSec = Math.floor(Date.now() / 1000);
       var payload = btoa(JSON.stringify({
@@ -573,13 +574,11 @@ const LOCAL_STANDALONE_BRIDGE_JS = `
   window.fetch = function(input, init) {
     var urlStr = typeof input === 'string' ? input : (input && input.url ? input.url : String(input));
     if (urlStr.indexOf('127.0.0.1:54321') !== -1) {
-      return origFetch(input, init).catch(function() {
-        var urlObj = new URL(urlStr);
-        var method = (init && init.method) || (input && input.method) || 'GET';
-        var bodyText = init && typeof init.body === 'string' ? init.body : '';
-        var headers = (init && init.headers) || {};
-        return handleLocalRest(urlObj, method.toUpperCase(), bodyText, headers);
-      });
+      var urlObj = new URL(urlStr);
+      var method = (init && init.method) || (input && input.method) || 'GET';
+      var bodyText = init && typeof init.body === 'string' ? init.body : '';
+      var headers = (init && init.headers) || {};
+      return Promise.resolve(handleLocalRest(urlObj, method.toUpperCase(), bodyText, headers));
     }
     return origFetch(input, init);
   };
@@ -836,7 +835,13 @@ class BundleSchemeHandler: NSObject, WKURLSchemeHandler {
         var fileURL = webRoot.appendingPathComponent(relPath)
         var isDir: ObjCBool = false
         if !FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir) || isDir.boolValue {
-            fileURL = webRoot.appendingPathComponent("index.html")
+            if relPath.hasPrefix("assets/index-") && relPath.hasSuffix(".js") {
+                fileURL = webRoot.appendingPathComponent("assets/index.js")
+            } else if relPath.hasPrefix("assets/index-") && relPath.hasSuffix(".css") {
+                fileURL = webRoot.appendingPathComponent("assets/index.css")
+            } else {
+                fileURL = webRoot.appendingPathComponent("index.html")
+            }
         }
 
         guard let data = try? Data(contentsOf: fileURL) else {
@@ -946,24 +951,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     }
 
     func loadAppBundle() {
-        let cacheTypes: Set<String> = [
-            WKWebsiteDataTypeDiskCache,
-            WKWebsiteDataTypeMemoryCache,
-            WKWebsiteDataTypeOfflineWebApplicationCache,
-            WKWebsiteDataTypeServiceWorkerRegistrations
-        ]
-        WKWebsiteDataStore.default().removeData(ofTypes: cacheTypes, modifiedSince: .distantPast) { [weak self] in
-            guard let self = self else { return }
-            let ts = Int(Date().timeIntervalSince1970)
-            if Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "web") != nil {
-                var req = URLRequest(url: URL(string: "app://localhost/?v=\\(ts)")!)
-                req.cachePolicy = .reloadIgnoringLocalCacheData
-                self.webView.load(req)
-            } else {
-                var req = URLRequest(url: URL(string: "http://127.0.0.1:4173/?v=\\(ts)")!)
-                req.cachePolicy = .reloadIgnoringLocalCacheData
-                self.webView.load(req)
-            }
+        let ts = Int(Date().timeIntervalSince1970)
+        if Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "web") != nil {
+            var req = URLRequest(url: URL(string: "app://localhost/?shell=native&v=\\(ts)")!)
+            req.cachePolicy = .reloadIgnoringLocalCacheData
+            self.webView.load(req)
+        } else {
+            var req = URLRequest(url: URL(string: "http://127.0.0.1:4173/?shell=native&v=\\(ts)")!)
+            req.cachePolicy = .reloadIgnoringLocalCacheData
+            self.webView.load(req)
         }
     }
 

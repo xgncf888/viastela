@@ -4,8 +4,10 @@ import { router } from 'expo-router';
 
 import { createId } from '@/core/id';
 import { parseOmnibarCommand, type OmnibarIntent } from '@/core/omnibar';
+import { computeExpenseLifeHours } from '@/core/time-pricing';
 import { addLedgerTransaction } from '@/data/bookkeeping';
 import { recordPledgeReward } from '@/data/life-gamification';
+import { readEffectiveTimePricing } from '@/data/time-pricing';
 import { openRecordSheet, type RecordSheetKind } from '@/features/record/record-sheet-store';
 
 import { cardSurfaceStyle } from './Card';
@@ -156,6 +158,13 @@ export function CharioteerMobileCockpit({
   const budgetUsedPct =
     monthlyBudgetCny > 0 ? Math.min(100, Math.round((monthlyExpenseCny / monthlyBudgetCny) * 100)) : 0;
   const quickWeightVal = latestWeightKg ? Number(latestWeightKg.toFixed(1)) : 65.0;
+  const timePricing = readEffectiveTimePricing();
+  const monthlyExpenseLifeHours = computeExpenseLifeHours(
+    monthlyExpenseCny,
+    timePricing.breakdown.trueNetHourlyCny,
+  );
+  const studyValueTodayCny =
+    Math.round(((studyMinutesToday / 60) * timePricing.breakdown.focusCompoundHourlyCny) * 10) / 10;
 
   const showBody = scope === 'all' || scope === 'body';
   const showLedger = scope === 'all' || scope === 'ledger';
@@ -596,8 +605,8 @@ export function CharioteerMobileCockpit({
                 <View style={styles.metricLine2}>
                   <Text variant="caption" tone="muted">
                     {t(
-                      `本月预算已用 ${budgetUsedPct}% · 剩余可用 ¥${Math.round(remainingBudgetCny)}`,
-                      `${budgetUsedPct}% used · ¥${Math.round(remainingBudgetCny)} remaining`,
+                      `本月已用 ${budgetUsedPct}% · 剩余 ¥${Math.round(remainingBudgetCny)}${timePricing.breakdown.trueNetHourlyCny > 0 ? ` · 折合 ${monthlyExpenseLifeHours.totalHours.toFixed(1)}h 生命工时` : ''}`,
+                      `${budgetUsedPct}% used · ¥${Math.round(remainingBudgetCny)} left`,
                     )}
                   </Text>
                 </View>
@@ -691,7 +700,10 @@ export function CharioteerMobileCockpit({
                 <View style={styles.metricLine2}>
                   <Text variant="caption" tone="muted">
                     {studyMinutesToday > 0
-                      ? t(`今日已专注 ${studyMinutesToday} 分钟 · 保持心智复利`, `${studyMinutesToday}m logged today`)
+                      ? t(
+                          `今日已专注 ${studyMinutesToday} 分钟${studyValueTodayCny > 0 ? ` · 复利价值 +¥${studyValueTodayCny}` : ' · 保持心智复利'}`,
+                          `${studyMinutesToday}m logged today`,
+                        )
                       : t('今日尚未记录专注 · 满 30m 触发心愿金奖励', 'Log 30m+ focus to earn wish reward')}
                   </Text>
                 </View>

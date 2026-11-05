@@ -23,6 +23,7 @@ const result = spawnSync(
     '--',
     '.',
     ':!src/config/brand.ts',
+    ':!public/manifest.webmanifest',
     ':!DECISIONS.md',
     ':!DESIGN.md',
     ':!docs/email-otp-hosted.md',

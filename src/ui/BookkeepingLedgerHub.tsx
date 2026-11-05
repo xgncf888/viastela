@@ -73,7 +73,9 @@ import {
   updateRecurringLedgerRule,
   updateWealthPlanConfig,
 } from '@/data/bookkeeping';
+import { computeExpenseLifeHours, evaluateBuyTimeDecision } from '@/core/time-pricing';
 import { recordPledgeReward } from '@/data/life-gamification';
+import { readEffectiveTimePricing, subscribeTimePricingStore } from '@/data/time-pricing';
 
 import { Text } from './Text';
 import { theme } from './theme';
@@ -656,11 +658,16 @@ export function BookkeepingLedgerHub({
   const [regretHabitMode, setRegretHabitMode] = useState(true);
   const [lastGachaPrize, setLastGachaPrize] = useState<CoupleGachaPrize | null>(null);
   const [showThermalReceipt, setShowThermalReceipt] = useState(false);
+  const [timePricing, setTimePricing] = useState(() => readEffectiveTimePricing());
 
   useEffect(() => {
     ensureRangeSliderCss();
     const unsubStore = subscribeBookkeepingStore(() => {
       setState(readBookkeepingState());
+      setTimePricing(readEffectiveTimePricing());
+    });
+    const unsubPricing = subscribeTimePricingStore(() => {
+      setTimePricing(readEffectiveTimePricing());
     });
     const unsubRealtime = connectCoupleRealtimeRoom(
       state.coupleProfile.roomCode || 'LOVE-88',
@@ -694,6 +701,7 @@ export function BookkeepingLedgerHub({
     }
     return () => {
       unsubStore();
+      unsubPricing();
       unsubRealtime();
     };
   }, [localDay, state.coupleProfile.roomCode]);
@@ -3790,6 +3798,21 @@ export function BookkeepingLedgerHub({
                         isMonthlyHabit: regretHabitMode,
                       }).headlineZh
                     }
+                  </Text>
+                  <Text variant="caption" style={{ color: pal.goldText, fontSize: 10.5, fontFamily: theme.fontFamily.mono }}>
+                    {(() => {
+                      const activeAmt = evaluateAmountExpression(amountInput) || Math.max(25, summary.totalExpenseCny || financialHealth.latteFactorCny || 120);
+                      const lifeHrs = computeExpenseLifeHours(activeAmt, timePricing.breakdown.trueNetHourlyCny);
+                      const buyEv = evaluateBuyTimeDecision({
+                        costCny: 38,
+                        savedMinutes: 45,
+                        trueNetHourlyCny: timePricing.breakdown.trueNetHourlyCny,
+                        focusCompoundHourlyCny: timePricing.breakdown.focusCompoundHourlyCny,
+                      });
+                      return timePricing.breakdown.trueNetHourlyCny > 0
+                        ? `⏳ 生命工时等价：¥${activeAmt.toFixed(0)} = ${lifeHrs.labelZh}（按真实净时薪 ¥${timePricing.breakdown.trueNetHourlyCny.toFixed(1)}/h） · 打车省45m花¥38：${buyEv.verdictZh}`
+                        : '⏳ 时间定价联动：在顶部「⏳ 时薪定价」或记账本配置月薪后，每笔消费将自动换算为真实生命工时';
+                    })()}
                   </Text>
                 </View>
               </View>

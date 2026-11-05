@@ -1,6 +1,10 @@
 import type { Session } from '@supabase/supabase-js';
 
-import { isSupabaseConfigured, saveCustomSupabaseEnv } from '@/config/env';
+import {
+  isPlaceholderLocalSupabaseUrl,
+  isSupabaseConfigured,
+  saveCustomSupabaseEnv,
+} from '@/config/env';
 
 import { getSupabase, resetSupabaseClient } from './client';
 import { currentOrigin, oauthRedirectTo, type OAuthProvider } from './oauth';
@@ -38,6 +42,8 @@ export function isLocalModeSelected(): boolean {
       localStorage.getItem('viastela.desktop.signed_out') !== '1' &&
       typeof window !== 'undefined' &&
       (window.location?.search?.includes('shell=native') ||
+        window.location?.protocol === 'app:' ||
+        window.location?.protocol === 'file:' ||
         (window.navigator as { standalone?: boolean })?.standalone === true)
     ) {
       localStorage.setItem(LOCAL_MODE_STORAGE_KEY, '1');
@@ -78,6 +84,9 @@ function clearLocalModeFlag(): void {
 export async function getAuthenticatedRemoteSession(): Promise<AuthSession | null> {
   if (!isSupabaseConfigured()) return null;
   if (activeAuthSession !== undefined && isLocalOnlySession(activeAuthSession)) {
+    return null;
+  }
+  if (isLocalModeSelected() && isPlaceholderLocalSupabaseUrl()) {
     return null;
   }
   try {
@@ -133,6 +142,19 @@ export function subscribeAuth(listener: (session: AuthSession | null) => void): 
     return () => {
       localModeListeners.delete(emit);
     };
+  }
+
+  // Zero-latency fast path when using the default placeholder URL (127.0.0.1:54321):
+  // avoids instantiating Supabase GoTrue or making unreachable localhost network calls in browsers.
+  if (isPlaceholderLocalSupabaseUrl()) {
+    emit(isLocalModeSelected() ? buildLocalAuthSession() : null);
+    return () => {
+      localModeListeners.delete(emit);
+    };
+  }
+
+  if (isLocalModeSelected()) {
+    emit(buildLocalAuthSession());
   }
 
   const supabase = getSupabase();

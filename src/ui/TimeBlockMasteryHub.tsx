@@ -26,6 +26,10 @@ import {
   type TimeBlockItem,
 } from '@/core/time-block-tracker';
 import {
+  computeDailyTimeValueLedger,
+  computeFocusSessionValue,
+} from '@/core/time-pricing';
+import {
   addMasteryGoal,
   addTimeBlock,
   readActiveTimer,
@@ -35,6 +39,11 @@ import {
   removeTimeBlock,
   writeActiveTimer,
 } from '@/data/time-block-tracker';
+import {
+  readEffectiveTimePricing,
+  subscribeTimePricingStore,
+  writeTimePricingConfig,
+} from '@/data/time-pricing';
 
 import { useI18n } from './use-i18n';
 
@@ -75,6 +84,13 @@ export function TimeBlockMasteryHub({
   const [blocks, setBlocks] = useState<TimeBlockItem[]>(readTimeBlocks);
   const [goals, setGoals] = useState<MasteryGoal[]>(readMasteryGoals);
   const [timer, setTimer] = useState<ActiveTimerSession>(readActiveTimer);
+  const [timePricing, setTimePricing] = useState(() => readEffectiveTimePricing());
+
+  useEffect(() => {
+    return subscribeTimePricingStore(() => {
+      setTimePricing(readEffectiveTimePricing());
+    });
+  }, []);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [selectedHour, setSelectedHour] = useState<number | null>(9);
   const [compact24h, setCompact24h] = useState(true);
@@ -397,6 +413,17 @@ export function TimeBlockMasteryHub({
 
   const todayBlocks = blocks.filter((b) => b.localDay === localDay);
   const totalTrackedMinsToday = todayBlocks.reduce((sum, b) => sum + b.durationMinutes, 0);
+  const liveTimerValue = computeFocusSessionValue(
+    elapsedSeconds,
+    timer.category,
+    timePricing.breakdown,
+  );
+  const dailyValueLedger = computeDailyTimeValueLedger(
+    todayBlocks,
+    timePricing.breakdown,
+    elapsedSeconds,
+    timer.category,
+  );
   const hourMatrix = build24HourMatrix(todayBlocks);
   const visibleHourRows = compact24h
     ? hourMatrix.filter((row) => row.hour >= 6 || row.occupiedMinutes > 0)
@@ -424,6 +451,12 @@ export function TimeBlockMasteryHub({
               }
               tone={timer.isRunning ? 'exec' : 'owner'}
             />
+            {timePricing.breakdown.trueNetHourlyCny > 0 ? (
+              <TagChip
+                label={`⏳ 今日创造价值 +¥${dailyValueLedger.totalValueCreatedCny.toFixed(1)} · 真实时薪 ¥${timePricing.breakdown.trueNetHourlyCny.toFixed(0)}/h`}
+                tone="exec"
+              />
+            ) : null}
           </Row>
           <Row gap="xs" align="center" wrap>
             <CockpitPillButton
@@ -446,6 +479,47 @@ export function TimeBlockMasteryHub({
 
         <Divider />
 
+        {/* 0. Cross-Module 24H Time-Value Ledger Strip (今日时间价值账单) */}
+        <View
+          style={[
+            styles.subPanel,
+            { backgroundColor: color.surface, borderColor: color.line },
+          ]}
+        >
+          <Row justify="between" align="center" gap="sm" wrap>
+            <Row gap="xs" align="center" wrap>
+              <TagChip
+                label={
+                  timePricing.breakdown.trueNetHourlyCny > 0
+                    ? `⏳ 真实净时薪 ¥${timePricing.breakdown.trueNetHourlyCny.toFixed(1)}/h · 深度复利 ¥${timePricing.breakdown.focusCompoundHourlyCny.toFixed(1)}/h`
+                    : '⏳ 24H 时间定价账单'
+                }
+                tone={timePricing.breakdown.trueNetHourlyCny > 0 ? 'exec' : 'pod'}
+              />
+              <Text variant="caption" tone="muted">
+                {dailyValueLedger.headlineZh}
+              </Text>
+            </Row>
+            <Row gap="xs" align="center" wrap>
+              <Text variant="caption" tone="muted">
+                {t('快速设定税后月薪:', 'Quick Salary:')}
+              </Text>
+              {[15000, 25000, 40000].map((sal) => (
+                <CockpitPillButton
+                  key={sal}
+                  label={`¥${sal / 1000}k`}
+                  active={timePricing.config.monthlyNetIncomeCny === sal}
+                  accessibilityLabel={`快速设定税后月薪为 ${sal} 元以启用时间计价`}
+                  onPress={() => {
+                    writeTimePricingConfig({ monthlyNetIncomeCny: sal });
+                    showToast({ text: `已启用时间计价：税后月薪 ¥${sal.toLocaleString()}` });
+                  }}
+                />
+              ))}
+            </Row>
+          </Row>
+        </View>
+
         {/* 1. Live Focus & Workout Timer Tracker */}
         <View
           style={[
@@ -461,6 +535,12 @@ export function TimeBlockMasteryHub({
                   label={timer.isRunning ? 'LIVE TIMER · 正在计时' : 'FOCUS & WORKOUT TRACKER'}
                   tone={timer.isRunning ? 'exec' : 'pod'}
                 />
+                {timePricing.breakdown.trueNetHourlyCny > 0 ? (
+                  <TagChip
+                    label={`💎 本次专注创造 +¥${liveTimerValue.valueCny.toFixed(2)} (${liveTimerValue.rateLabelZh} ¥${liveTimerValue.appliedHourlyCny.toFixed(0)}/h)`}
+                    tone="exec"
+                  />
+                ) : null}
                 <Text variant="caption" tone="muted">
                   计时结束后自动按真实起止分钟切入下方 24 小时时间轴，并同步累加至 10,000 小时目标
                 </Text>
