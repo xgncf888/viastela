@@ -1,5 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run export:web",
+  "outputDirectory": "dist",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "headers": [
     {
@@ -21,7 +23,7 @@
       "headers": [{ "key": "Content-Type", "value": "image/png" }]
     },
     {
-      "source": "/_expo/static/(.*)",
+      "source": "/assets/(.*)",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
     },
     {

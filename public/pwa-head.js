@@ -111,34 +111,25 @@
     if (typeof window === 'undefined' || !window.location) return false;
     const proto = window.location.protocol || '';
     const host = window.location.hostname || '';
+    const search = window.location.search || '';
+    const isStandaloneWebClip =
+      Boolean(window.navigator && window.navigator.standalone === true) ||
+      search.indexOf('shell=native') !== -1;
     return (
       proto === 'app:' ||
       proto === 'file:' ||
       proto === 'viastela-local:' ||
-      host === 'appassets.androidplatform.net'
+      host === 'appassets.androidplatform.net' ||
+      isStandaloneWebClip
     );
   }
 
-  // Normalize /index.html to / BEFORE Expo Router boots so mobile APK/IPA WebViews never hit an unmatched route white screen!
   if (typeof window !== 'undefined' && window.location && window.location.pathname) {
     const p = window.location.pathname;
     if (p === '/index.html' || p.endsWith('/index.html')) {
       try {
         window.history.replaceState(null, '', '/' + (window.location.search || '') + (window.location.hash || ''));
       } catch {}
-    }
-  }
-
-  if (isNativePackagedShell() && typeof window !== 'undefined') {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then((regs) => {
-        regs.forEach((r) => r.unregister());
-      }).catch(() => {});
-    }
-    if ('caches' in window) {
-      caches.keys().then((keys) => {
-        keys.forEach((k) => caches.delete(k));
-      }).catch(() => {});
     }
   }
 
@@ -168,8 +159,17 @@
 
   function isLocalModeEnabled() {
     try {
-      if (typeof localStorage !== 'undefined' && localStorage.getItem(LOCAL_MODE_KEY) === '1') {
-        return true;
+      if (typeof localStorage !== 'undefined') {
+        if (localStorage.getItem(LOCAL_MODE_KEY) === '1') return true;
+        if (
+          localStorage.getItem(SIGNED_OUT_KEY) !== '1' &&
+          typeof window !== 'undefined' &&
+          ((window.navigator && window.navigator.standalone === true) ||
+            (window.location && (window.location.search || '').indexOf('shell=native') !== -1))
+        ) {
+          localStorage.setItem(LOCAL_MODE_KEY, '1');
+          return true;
+        }
       }
     } catch {
       // Ignore storage errors

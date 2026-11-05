@@ -579,11 +579,10 @@ function buildSelfContainedMobileSanctuaryHtml(displayName, iconB64) {
 }
 
 function buildMobileConfig(displayName) {
-  const icon512Path = path.join(ROOT, 'public', 'icons', 'icon-512.png');
   const icon180Path = path.join(ROOT, 'public', 'icons', 'apple-touch-icon.png');
-  const iconB64 = readFileSync(existsSync(icon512Path) ? icon512Path : icon180Path).toString('base64');
-  const htmlB64 = Buffer.from(buildSelfContainedMobileSanctuaryHtml(displayName, iconB64), 'utf8').toString('base64');
-  const appUrl = process.env.VIASTELA_WEB_URL || `data:text/html;charset=utf-8;base64,${htmlB64}`;
+  const icon512Path = path.join(ROOT, 'public', 'icons', 'icon-512.png');
+  const iconB64 = readFileSync(existsSync(icon180Path) ? icon180Path : icon512Path).toString('base64');
+  const appUrl = process.env.VIASTELA_WEB_URL || 'https://viastela.vercel.app/?shell=native';
   const mobileConfig = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -592,7 +591,7 @@ function buildMobileConfig(displayName) {
   <array>
     <dict>
       <key>FullScreen</key>
-      <false/>
+      <true/>
       <key>Icon</key>
       <data>${iconB64}</data>
       <key>IgnoreManifestScope</key>
@@ -602,17 +601,17 @@ function buildMobileConfig(displayName) {
       <key>Label</key>
       <string>${displayName}</string>
       <key>PayloadDescription</key>
-      <string>Installs ${displayName} Black-Gold Sanctuary onto the iOS Home Screen</string>
+      <string>Installs ${displayName} Full-Screen Native Sanctuary (v1.0.0) onto the iOS/iPadOS Home Screen</string>
       <key>PayloadDisplayName</key>
-      <string>${displayName} Sanctuary</string>
+      <string>${displayName}</string>
       <key>PayloadIdentifier</key>
-      <string>app.viastela.webclip.v3</string>
+      <string>com.viastela.studio.webclip.v7</string>
       <key>PayloadType</key>
       <string>com.apple.webClip.managed</string>
       <key>PayloadUUID</key>
-      <string>8A9D547E-3B2F-4E91-9A11-7C64E8120019</string>
+      <string>8A9D547E-3B2F-4E91-9A11-7C64E8120817</string>
       <key>PayloadVersion</key>
-      <integer>3</integer>
+      <integer>1</integer>
       <key>Precomposed</key>
       <true/>
       <key>URL</key>
@@ -620,27 +619,39 @@ function buildMobileConfig(displayName) {
     </dict>
   </array>
   <key>PayloadDescription</key>
-  <string>${displayName} iOS Direct Home Screen Installer (Black-Gold Astrolabe v3 · Full-Bleed Zero-Border Icon)</string>
+  <string>${displayName} · iOS/iPadOS 全屏独立客户端描述文件 (v1.0.0 · 暖纸与黑金双模 · 零局域网依赖)</string>
   <key>PayloadDisplayName</key>
-  <string>${displayName} (${displayName} 星途工作台)</string>
+  <string>${displayName} · 星途工作台 (iOS/iPadOS)</string>
   <key>PayloadIdentifier</key>
-  <string>app.viastela.profile</string>
+  <string>com.viastela.studio.profile</string>
   <key>PayloadOrganization</key>
-  <string>${displayName}</string>
+  <string>${displayName} Studio</string>
   <key>PayloadRemovalDisallowed</key>
   <false/>
   <key>PayloadType</key>
   <string>Configuration</string>
   <key>PayloadUUID</key>
-  <string>8A9D547E-3B2F-4E91-9A11-7C64E8120018</string>
+  <string>8A9D547E-3B2F-4E91-9A11-7C64E8120811</string>
   <key>PayloadVersion</key>
-  <integer>3</integer>
+  <integer>1</integer>
 </dict>
 </plist>
 `;
+  if (mobileConfig.includes('data:text/html')) {
+    throw new Error('[Release Gate Failed] iOS .mobileconfig must NEVER use data:text/html!');
+  }
+  if (
+    !mobileConfig.includes('<key>FullScreen</key>\n      <true/>') ||
+    !mobileConfig.includes('<key>PayloadVersion</key>\n      <integer>1</integer>')
+  ) {
+    throw new Error('[Release Gate Failed] iOS .mobileconfig must use FullScreen=true and PayloadVersion=1!');
+  }
   const outPath = path.join(RELEASES_DIR, 'viastela-ios.mobileconfig');
   writeFileSync(outPath, mobileConfig, 'utf8');
-  console.log(`Built iOS direct installer profile (Black-Gold icon + self-contained zero-404 app): ${outPath}`);
+  try {
+    writeFileSync(path.resolve(ROOT, '..', 'viastela-ios.mobileconfig'), mobileConfig, 'utf8');
+  } catch {}
+  console.log(`Built iOS direct installer profile (PayloadVersion=1 + FullScreen=true): ${outPath}`);
 }
 
 function repackageExistingIpaWithLatestDist(displayName, ipaPath) {

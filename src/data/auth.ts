@@ -33,7 +33,17 @@ export function isLocalOnlySession(session: AuthSession | null): boolean {
 export function isLocalModeSelected(): boolean {
   try {
     if (typeof localStorage === 'undefined') return false;
-    return localStorage.getItem(LOCAL_MODE_STORAGE_KEY) === '1';
+    if (localStorage.getItem(LOCAL_MODE_STORAGE_KEY) === '1') return true;
+    if (
+      localStorage.getItem('viastela.desktop.signed_out') !== '1' &&
+      typeof window !== 'undefined' &&
+      (window.location?.search?.includes('shell=native') ||
+        (window.navigator as { standalone?: boolean })?.standalone === true)
+    ) {
+      localStorage.setItem(LOCAL_MODE_STORAGE_KEY, '1');
+      return true;
+    }
+    return false;
   } catch {
     return false;
   }
