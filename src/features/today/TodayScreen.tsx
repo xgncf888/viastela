@@ -28,6 +28,7 @@ import { Card } from '@/ui/Card';
 import { useLayoutClass } from '@/ui/chrome';
 import { Content } from '@/ui/Content';
 import { isAutomatedWebDriver } from '@/ui/e2e-mode';
+import { crayonboxUri, CRAYON_TODAY_EMPTY } from '@/ui/crayonbox';
 import { EmptyState } from '@/ui/EmptyState';
 import { Divider, Row, ScreenHeader, Stack } from '@/ui/layout';
 import { LifeMilestonesOkrHub } from '@/ui/LifeMilestonesOkrHub';
@@ -211,6 +212,7 @@ export function TodayScreen() {
                       <EmptyState
                         title="今天还没有记录"
                         description="再记会带上上次的体重，点保存后才会写入。"
+                        illustration={{ uri: crayonboxUri(CRAYON_TODAY_EMPTY) }}
                         action={
                           <Button
                             label={`再记 ${formatKg(last.weightKg)} kg`}
@@ -598,6 +600,7 @@ export function TodayScreen() {
                         <EmptyState
                           title="今天还没有记录"
                           description="再记会带上上次的体重，点保存后才会写入。"
+                          illustration={{ uri: crayonboxUri(CRAYON_TODAY_EMPTY) }}
                           action={
                             <Button
                               label={`再记 ${formatKg(last.weightKg)} kg`}

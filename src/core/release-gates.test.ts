@@ -71,6 +71,7 @@ describe('5-platform architecture & packaging release gates', () => {
       '/favicon.svg',
       '/icons/icon-192.png',
       '/islands/focus.png',
+      '/crayonbox/01-inventor-boy.webp',
       '/assets/index.js',
       '/.well-known/assetlinks.json',
     ]) {

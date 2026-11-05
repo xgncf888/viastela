@@ -101,6 +101,32 @@ test('EmptyState has no default copy: it shows exactly the title and description
   expect(both.textContent).toBe('还没有账户先添加一个账户。');
 });
 
+test('EmptyState shows an illustration above the title when one is given', () => {
+  class FakeImage {
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    decode(): Promise<void> {
+      return Promise.resolve();
+    }
+    set src(_value: string) {
+      this.onload?.();
+    }
+  }
+  (globalThis as { Image?: unknown }).Image = FakeImage;
+  const view = mount(
+    createElement(EmptyState, {
+      title: '今天还没有记录',
+      description: '再记会带上上次的体重，点保存后才会写入。',
+      illustration: { uri: '/crayonbox/01-inventor-boy.webp' },
+    }),
+  );
+  const html = markup(view);
+  expect(view.textContent).toContain('今天还没有记录');
+  expect(view.textContent).toContain('再记会带上上次的体重，点保存后才会写入。');
+  expect(html).toContain('src="/crayonbox/01-inventor-boy.webp"');
+  expect(html.indexOf('今天还没有记录')).toBeGreaterThan(html.indexOf('01-inventor-boy.webp'));
+});
+
 test('EmptyState title is required by the type', () => {
   // Never called; tsc checks the line below.
   const typeOnly = () =>

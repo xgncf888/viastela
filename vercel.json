@@ -4,7 +4,7 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/((?!manifest\\.webmanifest$|sw\\.js$|pwa-head\\.js$|version\\.json$|charioteer-plugin\\.json$|favicon\\.ico$|favicon\\.svg$|icons/|islands/|assets/|fonts/|\\.well-known/).*)",
+      "source": "/((?!manifest\\.webmanifest$|sw\\.js$|pwa-head\\.js$|version\\.json$|charioteer-plugin\\.json$|favicon\\.ico$|favicon\\.svg$|icons/|islands/|crayonbox/|assets/|fonts/|\\.well-known/).*)",
       "destination": "/index.html"
     }
   ],

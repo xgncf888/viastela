@@ -11,7 +11,7 @@
  * - [G-DATA-1]  Zero demo/mock seed injection in `public/pwa-head.js` & `scripts/build-macos-app.mjs`
  * - [G-WEB-1]   `scripts/stamp-pwa-html.js` must strip `crossorigin`, deduplicate `/pwa-head.js`, and emit `manifest.webmanifest`
  * - [G-WEB-2]   `public/manifest.webmanifest` must be tracked (not gitignored) & valid JSON; `vercel.json` SPA rewrite
- *               must exclude all static files (`manifest.webmanifest`, `sw.js`, `pwa-head.js`, `icons/`, `islands/`, `assets/`, `.well-known/`)
+ *               must exclude all static files (`manifest.webmanifest`, `sw.js`, `pwa-head.js`, `icons/`, `islands/`, `crayonbox/`, `assets/`, `.well-known/`)
  * - [G-PERF-1]  No inline `data:image/png;base64` > 10 KB in `src/` (static images must live in `public/`)
  * - [G-IOS-1]   `releases/viastela-ios.mobileconfig` must have `PayloadVersion = 1` (never > 1)
  * - [G-IOS-2]   `releases/viastela-ios.mobileconfig` must have `FullScreen = true`, valid `https://` URL (no `data:text/html`), and size < 350 KB
@@ -117,6 +117,7 @@ export function runPlatformGates(rootDir = ROOT) {
         '/favicon.svg',
         '/icons/icon-192.png',
         '/islands/focus.png',
+        '/crayonbox/01-inventor-boy.webp',
         '/assets/index.js',
         '/.well-known/assetlinks.json',
       ]) {

@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View, type ImageSourcePropType } from 'react-native';
 
 import { Stack } from './layout';
 import { Text } from './Text';
@@ -9,13 +9,26 @@ export function EmptyState({
   title,
   description,
   action,
+  illustration,
 }: {
   title: string;
   description?: string;
   action?: React.ReactNode;
+  /** Optional crayon (or other) image shown above the title. URI sources work on web and in the webview shells. */
+  illustration?: ImageSourcePropType;
 }) {
   return (
     <View style={styles.wrap}>
+      {illustration ? (
+        <Image
+          source={illustration}
+          resizeMode="contain"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={styles.illustration}
+          testID="empty-illustration"
+        />
+      ) : null}
       <Stack gap="xs">
         <Text variant="body" style={styles.title}>
           {title}
@@ -31,6 +44,10 @@ const styles = StyleSheet.create({
   wrap: {
     gap: theme.space.md,
     paddingVertical: theme.space.md,
+  },
+  illustration: {
+    width: theme.layout.illustration,
+    height: theme.layout.illustration,
   },
   title: { fontWeight: theme.fontWeight.medium },
 });

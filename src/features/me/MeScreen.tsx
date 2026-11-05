@@ -39,6 +39,7 @@ import {
   writeTimeBlocks,
 } from '@/data/time-block-tracker';
 import { useAuth } from '@/features/auth/AuthProvider';
+import { AvatarPicker } from '@/features/me/AvatarPicker';
 import { homeScreenInstallHint } from '@/features/me/home-screen-hint';
 import { RemindersCard } from '@/features/me/RemindersCard';
 import { useShellInset } from '@/features/shell/AppShell';
@@ -285,6 +286,7 @@ export function MeScreen() {
   return (
     <Screen>
       <Content width="wide" inset={inset}>
+        <AvatarPicker />
         <ScreenHeader kicker="我的" title={brand.displayName} />
         <Card>
           <Stack gap="md">

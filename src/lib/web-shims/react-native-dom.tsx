@@ -307,6 +307,61 @@ export function View(props: ViewProps) {
   );
 }
 
+function imageUri(source: unknown): string | undefined {
+  if (Array.isArray(source)) {
+    for (const item of source) {
+      const uri = imageUri(item);
+      if (uri) return uri;
+    }
+    return undefined;
+  }
+  if (typeof source === 'string' && source.length > 0) return source;
+  if (source && typeof source === 'object' && 'uri' in source) {
+    const uri = (source as { uri?: unknown }).uri;
+    if (typeof uri === 'string' && uri.length > 0) return uri;
+  }
+  return undefined;
+}
+
+/** Web stand-in for React Native `Image`. URI sources only; Metro `require()` ids are native. */
+export function Image({
+  source,
+  style,
+  resizeMode = 'cover',
+  accessibilityLabel,
+  alt,
+  testID,
+  ...rest
+}: {
+  source?: unknown;
+  style?: unknown;
+  resizeMode?: 'cover' | 'contain' | 'stretch' | 'repeat' | 'center';
+  alt?: string;
+  testID?: string;
+} & AccessibilityProps) {
+  const hidden =
+    rest.accessibilityElementsHidden === true ||
+    rest.importantForAccessibility === 'no-hide-descendants' ||
+    rest['aria-hidden'] === true;
+  const fit =
+    resizeMode === 'contain'
+      ? 'contain'
+      : resizeMode === 'stretch'
+        ? 'fill'
+        : resizeMode === 'center' || resizeMode === 'repeat'
+          ? 'none'
+          : 'cover';
+  return (
+    <img
+      src={imageUri(source)}
+      alt={hidden ? '' : (alt ?? accessibilityLabel ?? '')}
+      style={flattenAndNormalizeStyle([{ display: 'block', objectFit: fit }, style])}
+      {...buildDataAttrs(undefined, testID)}
+      {...(hidden ? { 'aria-hidden': 'true' as const } : buildAriaAttrs({ ...rest, accessibilityLabel }))}
+    />
+  );
+}
+
 export interface TextProps extends AccessibilityProps {
   style?: unknown;
   children?: ReactNode;

@@ -249,6 +249,10 @@ export const theme = {
     mark: 22,
     maskWidth: 64,
     timeColumn: 44,
+    /** Crayon empty-state illustration, inside the 96–128 range. */
+    illustration: 112,
+    /** Circular profile portrait. */
+    avatar: 72,
   },
 } as const;
 
