@@ -13,30 +13,57 @@
       html,
       body {
         height: 100%;
-        background-color: #F7F4EC;
+        margin: 0;
+        background-color: #FAF9F5;
       }
       /* These styles disable body scrolling if you are using <ScrollView> */
       body {
         overflow: hidden;
-        background-color: #F7F4EC;
+        background-color: #FAF9F5;
       }
       /* These styles make the root element full-height */
       #root {
         display: flex;
         height: 100%;
         flex: 1;
-        background-color: #F7F4EC;
+        background-color: #FAF9F5;
       }
       #root [style*="rgb(242, 242, 242)"] {
-        background-color: #F7F4EC !important;
+        background-color: #FAF9F5 !important;
       }
-      @media (prefers-color-scheme: dark) {
-        html,
-        body,
-        #root,
-        #root [style*="rgb(242, 242, 242)"] {
-          background-color: #141413 !important;
-        }
+      [data-theme="dark"] html,
+      [data-theme="dark"] body,
+      [data-theme="dark"] #root,
+      [data-theme="dark"] #root [style*="rgb(242, 242, 242)"] {
+        background-color: #121318 !important;
+      }
+      .vs-boot-shell {
+        margin: auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+        color: #1F1E1A;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .vs-boot-ring {
+        width: 34px;
+        height: 34px;
+        border-radius: 999px;
+        border: 2.5px solid rgba(184, 136, 42, 0.22);
+        border-top-color: #B8882A;
+        animation: vsBootSpin 0.72s linear infinite;
+      }
+      .vs-boot-title {
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 2px;
+        color: #7A5A1A;
+      }
+      @keyframes vsBootSpin {
+        to { transform: rotate(360deg); }
       }
     </style>
     <meta name="theme-color" content="#FAF9F5" media="(prefers-color-scheme: light)" />
@@ -75,6 +102,11 @@
     <!-- Use static rendering with Expo Router to support running without JavaScript. -->
     <noscript> You need to enable JavaScript to run this app. </noscript>
     <!-- The root element for your Expo app. -->
-    <div id="root"></div>
+    <div id="root">
+      <div class="vs-boot-shell" aria-hidden="true">
+        <div class="vs-boot-ring"></div>
+        <div class="vs-boot-title">星途</div>
+      </div>
+    </div>
   </body>
 </html>

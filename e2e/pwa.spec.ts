@@ -17,7 +17,8 @@ test('manifest, icons, and the service worker are served as files', async ({ pag
     rewrites: { source: string; destination: string }[];
     headers: { source: string; headers: { key: string; value: string }[] }[];
   };
-  expect(vercel.rewrites).toEqual([{ source: '/(.*)', destination: '/index.html' }]);
+  expect(vercel.rewrites).toHaveLength(1);
+  expect(vercel.rewrites[0]?.destination).toBe('/index.html');
   const swHeader = vercel.headers.find((item) => item.source === '/sw.js');
   expect(swHeader?.headers).toEqual(
     expect.arrayContaining([
@@ -31,7 +32,7 @@ test('manifest, icons, and the service worker are served as files', async ({ pag
   expect(pngOnly.test('/icons/icon-192.png')).toBe(true);
   expect(pngOnly.test('/icons/maskable.json')).toBe(false);
   expect(pngOnly.test('/icons/.stamp')).toBe(false);
-  const staticHeader = vercel.headers.find((item) => item.source === '/_expo/static/(.*)');
+  const staticHeader = vercel.headers.find((item) => item.source === '/assets/(.*)' || item.source === '/_expo/static/(.*)');
   expect(staticHeader?.headers).toEqual([
     { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
   ]);

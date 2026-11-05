@@ -55,6 +55,21 @@ export function isLocalModeSelected(): boolean {
   }
 }
 
+function hasStoredNonLocalSupabaseToken(): boolean {
+  try {
+    if (typeof localStorage === 'undefined') return false;
+    const raw = localStorage.getItem('sb-127-auth-token');
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as { user?: { id?: string; email?: string } } | null;
+    const uid = parsed?.user?.id;
+    const email = parsed?.user?.email;
+    if (!uid) return false;
+    return uid !== LOCAL_OFFLINE_USER_ID && email !== LOCAL_OFFLINE_EMAIL;
+  } catch {
+    return false;
+  }
+}
+
 function buildLocalAuthSession(): AuthSession {
   const win = globalThis as unknown as {
     __VIASTELA_ENTER_LOCAL_MODE__?: () => AuthSession;
@@ -86,7 +101,7 @@ export async function getAuthenticatedRemoteSession(): Promise<AuthSession | nul
   if (activeAuthSession !== undefined && isLocalOnlySession(activeAuthSession)) {
     return null;
   }
-  if (isLocalModeSelected() && isPlaceholderLocalSupabaseUrl()) {
+  if (isLocalModeSelected() && isPlaceholderLocalSupabaseUrl() && !hasStoredNonLocalSupabaseToken()) {
     return null;
   }
   try {
@@ -144,16 +159,18 @@ export function subscribeAuth(listener: (session: AuthSession | null) => void): 
     };
   }
 
-  // Zero-latency fast path when using the default placeholder URL (127.0.0.1:54321):
-  // avoids instantiating Supabase GoTrue or making unreachable localhost network calls in browsers.
-  if (isPlaceholderLocalSupabaseUrl()) {
+  // Zero-latency fast path when using the default placeholder URL (127.0.0.1:54321)
+  // AND no non-local session token is stored in localStorage:
+  // avoids instantiating Supabase GoTrue or making unreachable localhost network calls in browsers,
+  // while still honoring Playwright E2E `signIn(page)` tokens in localStorage.
+  if (isPlaceholderLocalSupabaseUrl() && !hasStoredNonLocalSupabaseToken()) {
     emit(isLocalModeSelected() ? buildLocalAuthSession() : null);
     return () => {
       localModeListeners.delete(emit);
     };
   }
 
-  if (isLocalModeSelected()) {
+  if (isLocalModeSelected() && !hasStoredNonLocalSupabaseToken()) {
     emit(buildLocalAuthSession());
   }
 

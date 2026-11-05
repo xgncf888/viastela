@@ -38,6 +38,30 @@ import { ThemeProvider } from '@/ui/ThemeProvider';
 
 captureOAuthFailure();
 
+function isKnownAppRoute(pathname: string): boolean {
+  if (
+    pathname === '/' ||
+    pathname === '/index' ||
+    pathname === '/login' ||
+    pathname === '/privacy' ||
+    pathname === '/account/deleted' ||
+    pathname === '/account/delete'
+  ) {
+    return true;
+  }
+  return (
+    pathname.startsWith('/ledger') ||
+    pathname.startsWith('/study') ||
+    pathname.startsWith('/browser') ||
+    pathname.startsWith('/fitness') ||
+    pathname.startsWith('/assets') ||
+    pathname.startsWith('/trend') ||
+    pathname.startsWith('/timeline') ||
+    pathname.startsWith('/me') ||
+    pathname.startsWith('/reminders')
+  );
+}
+
 function NotFoundView() {
   return (
     <Screen edges={documentEdges}>
@@ -94,6 +118,10 @@ function AppRouter() {
   const { ready, session } = useAuth();
   const deleted = useAccountDeletedFlag();
   const pathname = usePathname();
+
+  if (!isKnownAppRoute(pathname)) {
+    return <NotFoundView />;
+  }
 
   if (!ready) return <BootScreen />;
 

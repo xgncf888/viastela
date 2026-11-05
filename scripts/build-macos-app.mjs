@@ -1253,16 +1253,6 @@ function main() {
         // Ignore if parent target is not writable in CI.
       }
     }
-    try {
-      const pubIconsDir = path.join(ROOT, 'public', 'icons');
-      if (existsSync(pubIconsDir)) {
-        execFileSync('sips', ['-z', '180', '180', fullBleedSrc, '--out', path.join(pubIconsDir, 'apple-touch-icon.png')], { stdio: 'ignore' });
-        execFileSync('sips', ['-z', '512', '512', fullBleedSrc, '--out', path.join(pubIconsDir, 'icon-512.png')], { stdio: 'ignore' });
-        execFileSync('sips', ['-z', '512', '512', fullBleedSrc, '--out', path.join(pubIconsDir, 'icon-maskable-512.png')], { stdio: 'ignore' });
-        execFileSync('sips', ['-z', '192', '192', fullBleedSrc, '--out', path.join(pubIconsDir, 'icon-192.png')], { stdio: 'ignore' });
-        execFileSync('sips', ['-z', '192', '192', fullBleedSrc, '--out', path.join(pubIconsDir, 'icon-maskable-192.png')], { stdio: 'ignore' });
-      }
-    } catch {}
     writeFileSync(swiftFile, SWIFT_SOURCE, 'utf8');
     execFileSync('swiftc', ['-O', swiftFile, '-framework', 'Cocoa', '-framework', 'WebKit', '-o', binPath], {
       stdio: 'inherit',
