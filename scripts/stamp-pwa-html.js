@@ -152,7 +152,9 @@ const RESET_STYLE = `    <style id="expo-reset">
     </style>`;
 
 function stampHtml(html) {
-  let next = html.replace('<html lang="en">', '<html lang="zh-Hans">');
+  let next = html
+    .replace('<html lang="en">', '<html lang="zh-Hans">')
+    .replace(/\s+crossorigin(?:="[^"]*")?/g, '');
   if (!next.includes('viewport-fit=cover')) {
     next = next.replace(
       'width=device-width, initial-scale=1, shrink-to-fit=no',

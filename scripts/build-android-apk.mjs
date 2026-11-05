@@ -203,6 +203,27 @@ function buildZipAlignedAndV2SignedApk(entries, keyPem, certDer, spkiDer) {
   return Buffer.concat([beforeCentralDir, apkSigningBlock, centralDir, finalEocd]);
 }
 
+function patchAndroidClassesDexCacheDir(dexPath, newDirName = 'www-v8') {
+  if (!existsSync(dexPath) || Buffer.byteLength(newDirName, 'utf8') !== 6) return;
+  const buf = Buffer.from(readFileSync(dexPath));
+  let idx = buf.indexOf(Buffer.from('www-v1', 'utf8'));
+  if (idx === -1) idx = buf.indexOf(Buffer.from('www-v2', 'utf8'));
+  if (idx === -1) return;
+  Buffer.from(newDirName, 'utf8').copy(buf, idx);
+  const sha1 = createHash('sha1').update(buf.subarray(32)).digest();
+  sha1.copy(buf, 12);
+  const MOD_ADLER = 65521;
+  let a = 1;
+  let b = 0;
+  for (let i = 12; i < buf.length; i++) {
+    a = (a + buf[i]) % MOD_ADLER;
+    b = (b + a) % MOD_ADLER;
+  }
+  const adler = ((b << 16) | a) >>> 0;
+  buf.writeUInt32LE(adler, 8);
+  writeFileSync(dexPath, buf);
+}
+
 function repackageExistingApkWithLatestWebBundleAndIcon(apkPath) {
   const webZip = path.join(RELEASES_DIR, 'viastela-web-pwa.zip');
   const icon512 = path.join(ROOT, 'public', 'icons', 'icon-512.png');
@@ -214,6 +235,7 @@ function repackageExistingApkWithLatestWebBundleAndIcon(apkPath) {
     mkdirSync(unpackDir, { recursive: true });
     execFileSync('unzip', ['-q', apkPath, '-d', unpackDir]);
     rmSync(path.join(unpackDir, 'META-INF'), { recursive: true, force: true });
+    patchAndroidClassesDexCacheDir(path.join(unpackDir, 'classes.dex'), 'www-v8');
 
     // Inject latest web bundle
     const webBundleDest = path.join(unpackDir, 'assets', 'webbundle.bin');
