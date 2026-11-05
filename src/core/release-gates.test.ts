@@ -17,6 +17,19 @@ describe('5-platform architecture & packaging release gates', () => {
     expect(viteSrc).not.toContain("'react-native': 'react-native-web'");
   });
 
+  it('enforces complete Animated/Easing/StyleSheet/AsyncStorage web shims to prevent module-init white screens', () => {
+    const rnDomSrc = readFileSync(`${rootDir}/src/lib/web-shims/react-native-dom.tsx`, 'utf8');
+    expect(rnDomSrc).toContain('interpolate(');
+    expect(rnDomSrc).toContain('unwrapAnimatedValue');
+    expect(rnDomSrc).toContain('quad:');
+    expect(rnDomSrc).toContain('cubic:');
+    expect(rnDomSrc).toContain('absoluteFillObject:');
+
+    const asyncStorageSrc = readFileSync(`${rootDir}/src/lib/web-shims/async-storage.ts`, 'utf8');
+    expect(asyncStorageSrc).toContain('getAllKeys');
+    expect(asyncStorageSrc).toContain('multiRemove');
+  });
+
   it('enforces zero demo/mock seed data in pwa-head.js and build-macos-app.mjs', () => {
     for (const rel of ['public/pwa-head.js', 'scripts/build-macos-app.mjs']) {
       const src = readFileSync(`${rootDir}/${rel}`, 'utf8');
@@ -25,6 +38,50 @@ describe('5-platform architecture & packaging release gates', () => {
       expect(src).not.toContain('hold-seed-1');
       expect(src).toContain('stripSeedRows');
     }
+  });
+
+  it('enforces tracked valid manifest.webmanifest, non-greedy vercel.json SPA rewrite, and externalized island PNGs', () => {
+    const gitignore = readFileSync(`${rootDir}/.gitignore`, 'utf8');
+    expect(gitignore).not.toContain('manifest.webmanifest');
+
+    const manifestPath = `${rootDir}/public/manifest.webmanifest`;
+    expect(existsSync(manifestPath)).toBe(true);
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+      name?: string;
+      short_name?: string;
+      start_url?: string;
+      icons?: unknown[];
+    };
+    expect(manifest.short_name).toBe('星途');
+    expect(manifest.start_url).toBe('/');
+    expect(Array.isArray(manifest.icons) && manifest.icons.length).toBeGreaterThanOrEqual(4);
+
+    const vercel = JSON.parse(readFileSync(`${rootDir}/vercel.json`, 'utf8')) as {
+      rewrites?: { source: string; destination: string }[];
+    };
+    const sourcePattern = vercel.rewrites?.[0]?.source ?? '';
+    expect(sourcePattern).not.toBe('/(.*)');
+    const re = new RegExp(`^${sourcePattern}$`);
+    for (const staticPath of [
+      '/manifest.webmanifest',
+      '/sw.js',
+      '/pwa-head.js',
+      '/version.json',
+      '/favicon.ico',
+      '/favicon.svg',
+      '/icons/icon-192.png',
+      '/islands/focus.png',
+      '/assets/index.js',
+      '/.well-known/assetlinks.json',
+    ]) {
+      expect(re.test(staticPath)).toBe(false);
+    }
+    for (const spaPath of ['/', '/login', '/today', '/assets', '/trend', '/timeline', '/me']) {
+      expect(re.test(spaPath)).toBe(true);
+    }
+
+    const islandSrc = readFileSync(`${rootDir}/src/ui/island-assets.ts`, 'utf8');
+    expect(islandSrc).not.toContain('data:image/png;base64,');
   });
 
   it('enforces valid iOS .mobileconfig (PayloadVersion=1, FullScreen=true, HTTPS URL, compact icon)', () => {
