@@ -1,7 +1,9 @@
 #!/bin/sh
 set -eu
 
-echo "pre-push: typecheck, lint, and unit tests"
+echo "pre-push: typecheck, lint, brand check, platform release gates, and unit tests"
 npm run typecheck
 npm run lint
-npm test
+npm run check:brand
+npm run check:gates
+npm test -- --watchAll=false
