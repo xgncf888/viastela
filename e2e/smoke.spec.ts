@@ -24,32 +24,52 @@ test('signed-in user retains their own session after page reload', async ({ page
   await expect(page.getByText('今日').first()).toBeVisible();
   await page.getByRole('button', { name: '我的' }).click();
   await expect(page.getByText('yifeng@example.com')).toBeVisible();
-  await expect(page.getByText('本地离线存储（免登录模式 · 数据保存在本机）')).toHaveCount(0);
+  await expect(page.getByText('未登录 · 数据仅存本机')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '退出本地模式' })).toHaveCount(0);
 });
 
-test('local mode sends zero *.supabase.co/rest requests', async ({ page }) => {
-  const restRequests: string[] = [];
-  page.on('request', (req) => {
-    const url = req.url();
-    if (/\.supabase\.co\/rest/i.test(url) || url.includes('/rest/v1/')) {
-      restRequests.push(url);
-    }
+test('production build hides both entries, leaves fetch native, and ignores a bad stored config', async ({ page }) => {
+  const secret = ['sb', 'secret', 'a'.repeat(24)].join('_');
+  const remote: string[] = [];
+  page.on('request', (request) => {
+    const url = request.url();
+    if (url.includes('evil.example') || url.includes('.supabase.co') || url.includes(':54321')) remote.push(url);
   });
-
-  await page.addInitScript(() => {
-    localStorage.setItem('viastela.custom_supabase_url', 'https://example-project.supabase.co');
-    localStorage.setItem('viastela.custom_supabase_anon_key', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test.anon');
-  });
-
+  await page.addInitScript((key) => {
+    localStorage.setItem('viastela.custom_supabase_url', 'http://evil.example');
+    localStorage.setItem('viastela.custom_supabase_anon_key', key);
+  }, secret);
   await page.goto('/');
   await expect(page).toHaveURL(/\/login$/);
-  await page.getByRole('button', { name: '免登录直接进入（仅本地存储）' }).click();
-  await expect(page.getByText('今日').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: '先不登录，直接用' })).toHaveCount(0);
+  await expect(page.getByText('数据只存在这台设备上，不会同步。清除浏览器数据或卸载后无法恢复。')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '配置云端 Supabase 地址与 Key' })).toHaveCount(0);
+  await expect(page.getByLabel('SUPABASE URL')).toHaveCount(0);
+  await expect(page.getByLabel('SUPABASE ANON KEY')).toHaveCount(0);
+  await expect(page.getByText('日记与资产')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '发送验证码' })).toBeVisible();
+  const fetchText = await page.evaluate(() => Function.prototype.toString.call(window.fetch));
+  expect(fetchText).toContain('[native code]');
+  expect(remote).toEqual([]);
+  const head = await (await page.request.get('/pwa-head.js')).text();
+  expect(head).not.toContain('handleLocalRest');
+  expect(head).not.toContain('window.fetch =');
+  expect(head).not.toContain('00000000-0000-4000-8000-000000000001');
+});
 
-  await page.getByRole('button', { name: '趋势' }).click();
+test('an iOS standalone home-screen session stays on the cloud account', async ({ page }) => {
+  await page.addInitScript((stored) => {
+    Object.defineProperty(window.navigator, 'standalone', { configurable: true, get: () => true });
+    localStorage.setItem('sb-127-auth-token', JSON.stringify(stored));
+    localStorage.setItem('viastela.local_mode', '1');
+  }, authSession({ email: 'yifeng@example.com' }));
+  await installApi(page, { weights: [] });
+  await page.goto('/');
+  await expect(page.getByText('今日').first()).toBeVisible();
   await page.getByRole('button', { name: '我的' }).click();
-  await expect(page.getByText('本地离线存储（免登录模式 · 数据保存在本机）')).toBeVisible();
-  expect(restRequests).toEqual([]);
+  await expect(page.getByText('yifeng@example.com')).toBeVisible();
+  await expect(page.getByText('未登录 · 数据仅存本机')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '退出本地模式' })).toHaveCount(0);
 });
 
 test('web build shows the email login screen', async ({ page }) => {

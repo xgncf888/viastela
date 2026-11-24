@@ -35,6 +35,7 @@ import { Content } from '@/ui/Content';
 import { EmptyState } from '@/ui/EmptyState';
 import { documentEdges, Screen } from '@/ui/Screen';
 import { ThemeProvider } from '@/ui/ThemeProvider';
+import { ToastHost } from '@/ui/toast';
 
 captureOAuthFailure();
 
@@ -103,19 +104,11 @@ function AuthenticatedWorkspace({ pathname }: { pathname: string }) {
     return <NotFoundView />;
   }
 
-  return (
-    <WeightProvider>
-      <TrainingProvider>
-        <StudyProvider>
-          <AppShell>{screen}</AppShell>
-        </StudyProvider>
-      </TrainingProvider>
-    </WeightProvider>
-  );
+  return <AppShell>{screen}</AppShell>;
 }
 
 function AppRouter() {
-  const { ready, session } = useAuth();
+  const { ready, session, needsReauth } = useAuth();
   const deleted = useAccountDeletedFlag();
   const pathname = usePathname();
 
@@ -146,6 +139,7 @@ function AppRouter() {
     return <LoginScreen />;
   }
   if (pathname === '/login') {
+    if (needsReauth) return <LoginScreen />;
     return (
       <>
         <Redirect href="/" />
@@ -168,11 +162,18 @@ export function ViteRootApp() {
     <SafeAreaProvider>
       <ThemeProvider>
         <AuthProvider>
-          <AppFrame>
-            <AppUpdatePrompt>
-              <AppRouter />
-            </AppUpdatePrompt>
-          </AppFrame>
+          <WeightProvider>
+            <TrainingProvider>
+              <StudyProvider>
+                <AppFrame>
+                  <AppUpdatePrompt>
+                    <AppRouter />
+                  </AppUpdatePrompt>
+                  <ToastHost />
+                </AppFrame>
+              </StudyProvider>
+            </TrainingProvider>
+          </WeightProvider>
         </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>

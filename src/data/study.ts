@@ -1,7 +1,7 @@
 import type { RecentTopicRow, StudyRecord } from '@/core/study';
 import { isRecordDeleted, RECORD_DELETED, requireDeletedIds } from '@/core/weight-write';
 
-import { getAuthenticatedRemoteSession, isLocalModeSelected, isLocalOnlySession, requireRemoteUserId } from './auth';
+import { getAuthenticatedRemoteSession, isLocalModeSelected, isLocalOnlySession, NOT_SIGNED_IN, requireRemoteUserId } from './auth';
 import { getSupabase } from './client';
 import { liveRows } from './live-rows';
 import {
@@ -65,10 +65,11 @@ export async function listRecentTopics(): Promise<RecentTopicRow[]> {
 
 export async function upsertStudyRecord(record: StudyRecord): Promise<void> {
   const session = await getAuthenticatedRemoteSession();
-  if ((!session || isLocalOnlySession(session)) && isLocalModeSelected()) {
+  if (isLocalModeSelected() && (!session || isLocalOnlySession(session))) {
     await localUpsertStudyRecord(record);
     return;
   }
+  if (!session || isLocalOnlySession(session)) throw new Error(NOT_SIGNED_IN);
   const userId = await requireRemoteUserId();
   const { error } = await getSupabase().from('study_records').upsert(
     {

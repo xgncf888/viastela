@@ -4,6 +4,7 @@ import {
   readCustomSupabaseConfig,
   saveCustomSupabaseEnv,
 } from '@/config/env';
+import { isLocalModeSelected } from '@/data/auth';
 import {
   type BookkeepingState,
   type CoupleChatMessage,
@@ -195,9 +196,10 @@ export function getCoupleSyncStatus(): {
   };
 }
 
-export function saveCoupleCloudRelayConfig(url: string, anonKey: string): void {
-  saveCustomSupabaseEnv(url, anonKey);
-  emitChange();
+export function saveCoupleCloudRelayConfig(url: string, anonKey: string): boolean {
+  const saved = saveCustomSupabaseEnv(url, anonKey);
+  if (saved) emitChange();
+  return saved;
 }
 
 export function connectCoupleRealtimeRoom(
@@ -232,7 +234,7 @@ export function connectCoupleRealtimeRoom(
   if (
     isSupabaseConfigured() &&
     !isPlaceholderLocalSupabaseUrl() &&
-    (typeof localStorage === 'undefined' || localStorage.getItem('viastela.local_mode') !== '1')
+    !isLocalModeSelected()
   ) {
     try {
       const sb = getSupabase();

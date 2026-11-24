@@ -38,7 +38,7 @@ jest.mock('@/features/auth/AuthProvider', () => {
     userId: '11111111-1111-4111-8111-111111111111',
     email: 'reader@example.com',
   };
-  return { useAuth: () => ({ ready: true, session }) };
+  return { useAuth: () => ({ ready: true, session, needsReauth: false, holdApp: false, requestLogin: () => undefined }) };
 });
 
 jest.mock('@/features/shell/AppShell', () => ({

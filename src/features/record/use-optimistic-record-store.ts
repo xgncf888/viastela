@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_DAY_SWITCH } from '@/core/local-day';
 import { beginSave, confirmSave, reconcileServerRows, visibleRecords, type SaveState } from '@/core/save-state';
 import { RECORD_DELETED, weightSaveOutcome } from '@/core/weight-write';
+import { isSignedOutError, noteSessionExpired } from '@/data/auth';
 import { withLoadTimeout } from '@/data/load-timeout';
 import { getDaySwitch } from '@/data/profile';
 import { readRecordOutbox, type OutboxSnapshot } from '@/data/record-outbox';
@@ -119,7 +120,17 @@ export function useOptimisticRecordStore<T extends IdentifiableRecord, TExtra>(
     }
   }, [applyLoaded, loadServerData]);
 
+  const loadedForUser = useRef<string | null>(null);
+
   useEffect(() => {
+    if (loadedForUser.current !== userId) {
+      const previous = loadedForUser.current;
+      loadedForUser.current = userId;
+      if (previous && userId && previous !== userId) {
+        confirmedTicket.current.clear();
+        setSaveState((current) => ({ saved: [], pending: current.pending }));
+      }
+    }
     if (!userId) return undefined;
     let cancelled = false;
     void readRecordOutbox(userId).then((outbox) => {
@@ -202,6 +213,11 @@ export function useOptimisticRecordStore<T extends IdentifiableRecord, TExtra>(
               return next;
             });
             setDeletedNotice(true);
+            return;
+          }
+          if (isSignedOutError(error)) {
+            setFailedIds((current) => new Set(current).add(id));
+            noteSessionExpired();
             return;
           }
           if (currentUserId) void saveOutboxItem(currentUserId, item);

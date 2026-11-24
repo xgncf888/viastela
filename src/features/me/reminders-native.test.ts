@@ -61,6 +61,9 @@ jest.mock('@/features/shell/AppShell', () => ({
 
 jest.mock('@/data/auth', () => ({
   signOut: async () => undefined,
+  isLocalOnlySession: () => false,
+  leaveLocalMode: async () => undefined,
+  clearLocalModeData: async () => undefined,
 }));
 
 jest.mock('@/ui/toast', () => ({

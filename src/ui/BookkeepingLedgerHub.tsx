@@ -1963,38 +1963,55 @@ export function BookkeepingLedgerHub({
             <Text variant="caption" style={{ color: pal.muted, fontSize: 10 }}>
               {syncStatus.isCloudRealtime
                 ? t('当前状态：已连接跨设备云端 Realtime 通道（异地双机秒级直连）', 'Status: Cloud Realtime Connected')
-                : t('当前状态：本机双窗口 Broadcast 同步（填写 Supabase URL 与 Anon Key 即可开启异地双手机实时直连）：', 'Status: Local Broadcast (Enter Supabase URL & Key for cross-device cloud sync):')}
+                : __DEV__
+                  ? t(
+                      '当前状态：本机双窗口 Broadcast 同步（填写 Supabase URL 与 Anon Key 即可开启异地双手机实时直连）：',
+                      'Status: Local Broadcast (Enter Supabase URL & Key for cross-device cloud sync):',
+                    )
+                  : t('当前状态：本机双窗口 Broadcast 同步', 'Status: Local Broadcast')}
             </Text>
-            <TextInput
-              value={cloudUrlDraft}
-              onChangeText={setCloudUrlDraft}
-              placeholder="https://xxxx.supabase.co"
-              placeholderTextColor={pal.muted}
-              style={[styles.smartInput, { height: 28, minWidth: 170, fontSize: 10.5, backgroundColor: pal.inputBg, borderColor: pal.border, color: pal.ink }]}
-            />
-            <TextInput
-              value={cloudKeyDraft}
-              onChangeText={setCloudKeyDraft}
-              placeholder="Supabase Public Anon Key"
-              placeholderTextColor={pal.muted}
-              style={[styles.smartInput, { height: 28, minWidth: 170, fontSize: 10.5, backgroundColor: pal.inputBg, borderColor: pal.border, color: pal.ink }]}
-            />
-            <Pressable
-              onPress={() => {
-                saveCoupleCloudRelayConfig(cloudUrlDraft, cloudKeyDraft);
-                setSyncStatus(getCoupleSyncStatus());
-                showToast({
-                  text: cloudUrlDraft.trim()
-                    ? t('已保存云端联机配置，已切换至跨设备实时同步模式', 'Saved cloud relay config')
-                    : t('已切回本机离线同步模式', 'Switched to local mode'),
-                });
-              }}
-              style={[styles.microBtn, { height: 28, justifyContent: 'center', backgroundColor: pal.pillBg, borderColor: pal.emerald }]}
-            >
-              <Text variant="caption" style={{ color: pal.emerald, fontSize: 10, fontWeight: '700' }}>
-                {t('保存云端配置', 'Save Cloud Relay')}
-              </Text>
-            </Pressable>
+            {__DEV__ ? (
+              <>
+                <TextInput
+                  value={cloudUrlDraft}
+                  onChangeText={setCloudUrlDraft}
+                  placeholder="https://xxxx.supabase.co"
+                  placeholderTextColor={pal.muted}
+                  autoCapitalize="none"
+                  style={[styles.smartInput, { height: 28, minWidth: 170, fontSize: 10.5, backgroundColor: pal.inputBg, borderColor: pal.border, color: pal.ink }]}
+                />
+                <TextInput
+                  value={cloudKeyDraft}
+                  onChangeText={setCloudKeyDraft}
+                  placeholder="Supabase Public Anon Key"
+                  placeholderTextColor={pal.muted}
+                  autoCapitalize="none"
+                  secureTextEntry
+                  style={[styles.smartInput, { height: 28, minWidth: 170, fontSize: 10.5, backgroundColor: pal.inputBg, borderColor: pal.border, color: pal.ink }]}
+                />
+                <Pressable
+                  onPress={() => {
+                    const saved = saveCoupleCloudRelayConfig(cloudUrlDraft, cloudKeyDraft);
+                    if (!saved) {
+                      showToast({
+                        text: t('云端地址或公钥无效，没有保存', 'Cloud URL or key was not saved'),
+                        tone: 'error',
+                      });
+                      return;
+                    }
+                    setSyncStatus(getCoupleSyncStatus());
+                    showToast({
+                      text: t('已保存云端联机配置，已切换至跨设备实时同步模式', 'Saved cloud relay config'),
+                    });
+                  }}
+                  style={[styles.microBtn, { height: 28, justifyContent: 'center', backgroundColor: pal.pillBg, borderColor: pal.emerald }]}
+                >
+                  <Text variant="caption" style={{ color: pal.emerald, fontSize: 10, fontWeight: '700' }}>
+                    {t('保存云端配置', 'Save Cloud Relay')}
+                  </Text>
+                </Pressable>
+              </>
+            ) : null}
           </View>
         </View>
       ) : null}

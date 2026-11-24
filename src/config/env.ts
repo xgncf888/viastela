@@ -1,7 +1,7 @@
-const CUSTOM_URL_KEY = 'viastela.custom_supabase_url';
-const CUSTOM_ANON_KEY = 'viastela.custom_supabase_anon_key';
+import { validateSupabaseConfig } from '@/core/supabase-config';
 
 function readCustomEnv(key: string): string | null {
+  if (!__DEV__) return null;
   try {
     if (typeof localStorage === 'undefined') return null;
     const val = localStorage.getItem(key)?.trim();
@@ -11,24 +11,37 @@ function readCustomEnv(key: string): string | null {
   }
 }
 
-export function saveCustomSupabaseEnv(url: string, anonKey: string): void {
-  if (typeof localStorage === 'undefined') return;
-  const cleanUrl = url.trim();
-  const cleanKey = anonKey.trim();
-  if (cleanUrl && cleanKey) {
-    localStorage.setItem(CUSTOM_URL_KEY, cleanUrl);
-    localStorage.setItem(CUSTOM_ANON_KEY, cleanKey);
-  } else {
-    localStorage.removeItem(CUSTOM_URL_KEY);
-    localStorage.removeItem(CUSTOM_ANON_KEY);
-  }
+/** Raw saved fields for the dev form, including values the client must ignore. */
+export function readStoredSupabaseDraft(): { url: string; anonKey: string } {
+  if (!__DEV__) return { url: '', anonKey: '' };
+  return {
+    url: readCustomEnv('viastela.custom_supabase_url') ?? '',
+    anonKey: readCustomEnv('viastela.custom_supabase_anon_key') ?? '',
+  };
 }
 
+/**
+ * Valid dev-only override. Production builds and invalid stored values are ignored
+ * and are not deleted.
+ */
 export function readCustomSupabaseConfig(): { url: string; anonKey: string } | null {
-  const url = readCustomEnv(CUSTOM_URL_KEY);
-  const anonKey = readCustomEnv(CUSTOM_ANON_KEY);
+  if (!__DEV__) return null;
+  const url = readCustomEnv('viastela.custom_supabase_url');
+  const anonKey = readCustomEnv('viastela.custom_supabase_anon_key');
   if (!url || !anonKey) return null;
-  return { url, anonKey };
+  const verdict = validateSupabaseConfig(url, anonKey);
+  if (!verdict.ok) return null;
+  return { url: verdict.url, anonKey: verdict.anonKey };
+}
+
+/** Persists a validated dev override. Invalid input is left untouched. */
+export function saveCustomSupabaseEnv(url: string, anonKey: string): boolean {
+  if (!__DEV__ || typeof localStorage === 'undefined') return false;
+  const verdict = validateSupabaseConfig(url, anonKey);
+  if (!verdict.ok) return false;
+  localStorage.setItem('viastela.custom_supabase_url', verdict.url);
+  localStorage.setItem('viastela.custom_supabase_anon_key', verdict.anonKey);
+  return true;
 }
 
 export function isPlaceholderLocalSupabaseUrl(): boolean {
@@ -67,4 +80,11 @@ export function requireSupabaseEnv(): { url: string; anonKey: string } {
     throw new Error('Supabase is not configured');
   }
   return { url, anonKey };
+}
+
+export function configuredSupabaseUrl(): string {
+  const custom = readCustomSupabaseConfig();
+  if (custom) return custom.url;
+  const url = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
+  return url ? url : 'http://127.0.0.1:54321';
 }

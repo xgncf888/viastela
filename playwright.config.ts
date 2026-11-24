@@ -43,10 +43,18 @@ export default defineConfig({
   projects: screenshots
     ? screenshotProjects
     : [{ testIgnore: /screenshots\.spec\.ts$/ }],
-  webServer: {
-    command: 'node scripts/serve-web.mjs',
-    url: 'http://127.0.0.1:4173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
-  },
+  webServer: [
+    {
+      command: 'node scripts/serve-web.mjs',
+      url: 'http://127.0.0.1:4173',
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+    },
+    {
+      command: 'npx vite --port 4174 --strictPort --host 127.0.0.1',
+      url: 'http://127.0.0.1:4174',
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+    },
+  ],
 });
