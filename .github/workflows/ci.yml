@@ -23,6 +23,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - run: npm ci --dry-run
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
