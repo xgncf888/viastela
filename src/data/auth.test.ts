@@ -17,7 +17,10 @@ import { createMemoryLocalStore, setLocalStoreForTests } from './local-store';
 import { clearQuoteCache, readCachedQuotes, writeCachedQuotes, cachedQuote } from './quoteCache';
 
 declare const process: { cwd(): string; env: Record<string, string | undefined> };
-declare function require(id: 'fs'): { readFileSync(file: string, encoding: 'utf8'): string };
+declare function require(id: 'fs'): {
+  readFileSync(file: string, encoding: 'utf8'): string;
+  existsSync(file: string): boolean;
+};
 declare function require(id: 'path'): { join(...parts: string[]): string };
 
 function installLocalStorage(): void {
@@ -182,21 +185,17 @@ test('leaving local mode keeps records until an explicit clear', async () => {
   expect(localStorage.getItem('sb-127-auth-token')).toBeNull();
 });
 
-test('pwa-head.js and the macOS shell do not ship a fake session or fetch interceptor', () => {
+test('the macOS shell does not ship a fake session or fetch interceptor', () => {
   const fs = require('fs');
   const path = require('path');
-  const head = fs.readFileSync(path.join(process.cwd(), 'public/pwa-head.js'), 'utf8');
   const macos = fs.readFileSync(path.join(process.cwd(), 'scripts/build-macos-app.mjs'), 'utf8');
   const auth = fs.readFileSync(path.join(process.cwd(), 'src/data/auth.ts'), 'utf8');
-  for (const source of [head, macos]) {
-    expect(source).not.toContain('isLocalModeEnabled');
-    expect(source).not.toContain('installLocalStandaloneBackend');
-    expect(source).not.toContain('handleLocalRest');
-    expect(source).not.toContain('__VIASTELA_ENTER_LOCAL_MODE__');
-    expect(source).not.toContain('00000000-0000-4000-8000-000000000001');
-  }
-  expect(head).not.toContain('window.fetch');
-  expect(head).not.toContain('navigator.standalone');
+  expect(fs.existsSync(path.join(process.cwd(), 'public/pwa-head.js'))).toBe(false);
+  expect(macos).not.toContain('isLocalModeEnabled');
+  expect(macos).not.toContain('installLocalStandaloneBackend');
+  expect(macos).not.toContain('handleLocalRest');
+  expect(macos).not.toContain('__VIASTELA_ENTER_LOCAL_MODE__');
+  expect(macos).not.toContain('00000000-0000-4000-8000-000000000001');
   expect(auth).not.toContain('sb-127-auth-token');
   expect(auth).not.toContain('navigator.standalone');
   expect(auth).toContain('hasStoredRemoteSession');

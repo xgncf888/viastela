@@ -8,8 +8,9 @@
  * - [G-SHIM-1]  `react-native-dom.tsx` must implement `AnimatedValue.interpolate`, `Easing.quad/inOut`,
  *               `StyleSheet.absoluteFillObject`, and `unwrapAnimatedValue`; `async-storage.ts` must implement
  *               `getAllKeys` & `multiRemove` (prevents top-level module evaluation white screens)
- * - [G-DATA-1]  Zero demo/mock seed injection in `public/pwa-head.js` & `scripts/build-macos-app.mjs`
- * - [G-WEB-1]   `scripts/stamp-pwa-html.js` must strip `crossorigin`, deduplicate `/pwa-head.js`, and emit `manifest.webmanifest`
+ * - [G-DATA-1]  Zero demo/mock seed injection in `scripts/build-macos-app.mjs`
+ * - [G-WEB-1]   `scripts/stamp-pwa-html.js` must strip `crossorigin` and emit `manifest.webmanifest`.
+ *               `dist/index.html` must not reference `pwa-head.js`, and `dist/pwa-head.js` must not exist.
  * - [G-WEB-2]   `public/manifest.webmanifest` must be tracked (not gitignored) & valid JSON; `vercel.json` SPA rewrite
  *               must exclude all static files (`manifest.webmanifest`, `sw.js`, `pwa-head.js`, `icons/`, `islands/`, `crayonbox/`, `assets/`, `.well-known/`)
  * - [G-PERF-1]  No inline `data:image/png;base64` > 10 KB in `src/` (static images must live in `public/`)
@@ -55,8 +56,8 @@ export function runPlatformGates(rootDir = ROOT) {
     }
   }
 
-  // 3. G-DATA-1: No w-seed-* / acc-seed-* demo data injection in pwa-head.js or build-macos-app.mjs
-  for (const rel of ['public/pwa-head.js', 'scripts/build-macos-app.mjs']) {
+  // 3. G-DATA-1: No w-seed-* / acc-seed-* demo data injection in the macOS shell
+  for (const rel of ['scripts/build-macos-app.mjs']) {
     const p = path.join(rootDir, rel);
     if (existsSync(p)) {
       const src = readFileSync(p, 'utf8');
@@ -133,12 +134,16 @@ export function runPlatformGates(rootDir = ROOT) {
     }
   }
 
+  const distHeadPath = path.join(rootDir, 'dist', 'pwa-head.js');
+  if (existsSync(distHeadPath)) {
+    errors.push('[G-WEB-1] dist/pwa-head.js must not be emitted.');
+  }
   const distHtmlPath = path.join(rootDir, 'dist', 'index.html');
   if (existsSync(distHtmlPath)) {
     const distHtml = readFileSync(distHtmlPath, 'utf8');
     const pwaHeadCount = (distHtml.match(/pwa-head\.js/g) || []).length;
-    if (pwaHeadCount !== 1) {
-      errors.push(`[G-WEB-1] dist/index.html must include /pwa-head.js exactly once (found ${pwaHeadCount}).`);
+    if (pwaHeadCount !== 0) {
+      errors.push(`[G-WEB-1] dist/index.html must not reference /pwa-head.js (found ${pwaHeadCount}).`);
     }
   }
 

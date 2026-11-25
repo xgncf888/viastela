@@ -157,7 +157,7 @@ test('manifest, icons, and the service worker are served as files', async ({ pag
   expect(html).toContain(`<meta name="apple-mobile-web-app-title" content="${brand.webName}" />`);
   expect(linkHrefs(html, 'icon')).toEqual([pwaIcons.svg, pwaIcons.ico]);
   expect(linkHrefs(html, 'apple-touch-icon')).toEqual([pwaIcons.appleTouch]);
-  expect(html.match(/src="\/pwa-head.js"/g)).toHaveLength(1);
+  expect(html.match(/src="\/pwa-head.js"/g) ?? []).toHaveLength(0);
 
   await page.goto('/');
   await expect(page.getByText('用邮箱登录')).toBeVisible();

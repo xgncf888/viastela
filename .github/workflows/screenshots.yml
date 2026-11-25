@@ -44,6 +44,7 @@ jobs:
           # Same placeholder URL and Supabase public local-demo anon key as ci.yml; every API is mocked.
           EXPO_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
           EXPO_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+      - run: npm run check:gates
       - name: Screenshots
         run: |
           if find e2e/__screenshots__ -name '*.png' 2>/dev/null | grep -q .; then

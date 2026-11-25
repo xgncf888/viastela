@@ -30,14 +30,13 @@ describe('5-platform architecture & packaging release gates', () => {
     expect(asyncStorageSrc).toContain('multiRemove');
   });
 
-  it('enforces zero demo/mock seed data in pwa-head.js and build-macos-app.mjs', () => {
-    for (const rel of ['public/pwa-head.js', 'scripts/build-macos-app.mjs']) {
-      const src = readFileSync(`${rootDir}/${rel}`, 'utf8');
-      expect(src).not.toContain('w-seed-6');
-      expect(src).not.toContain('acc-seed-1');
-      expect(src).not.toContain('hold-seed-1');
-      expect(src).toContain('stripSeedRows');
-    }
+  it('enforces zero demo/mock seed data in build-macos-app.mjs', () => {
+    const src = readFileSync(`${rootDir}/scripts/build-macos-app.mjs`, 'utf8');
+    expect(src).not.toContain('w-seed-6');
+    expect(src).not.toContain('acc-seed-1');
+    expect(src).not.toContain('hold-seed-1');
+    expect(src).toContain('stripSeedRows');
+    expect(existsSync(`${rootDir}/public/pwa-head.js`)).toBe(false);
   });
 
   it('enforces tracked valid manifest.webmanifest, non-greedy vercel.json SPA rewrite, and externalized island PNGs', () => {
@@ -104,5 +103,14 @@ describe('5-platform architecture & packaging release gates', () => {
 
     const stampSrc = readFileSync(`${rootDir}/scripts/stamp-pwa-html.js`, 'utf8');
     expect(stampSrc).toContain('crossorigin');
+    expect(stampSrc).not.toContain('src="/pwa-head.js"');
+
+    const gates = readFileSync(`${rootDir}/scripts/check-release-gates.mjs`, 'utf8');
+    expect(gates).toContain('dist/pwa-head.js must not be emitted');
+    expect(gates).toContain('must not reference /pwa-head.js');
+    if (existsSync(`${rootDir}/dist/index.html`)) {
+      expect(existsSync(`${rootDir}/dist/pwa-head.js`)).toBe(false);
+      expect(readFileSync(`${rootDir}/dist/index.html`, 'utf8').match(/pwa-head\.js/g) ?? []).toHaveLength(0);
+    }
   });
 });

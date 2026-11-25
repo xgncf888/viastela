@@ -51,10 +51,12 @@ test('production build hides both entries, leaves fetch native, and ignores a ba
   const fetchText = await page.evaluate(() => Function.prototype.toString.call(window.fetch));
   expect(fetchText).toContain('[native code]');
   expect(remote).toEqual([]);
-  const head = await (await page.request.get('/pwa-head.js')).text();
-  expect(head).not.toContain('handleLocalRest');
-  expect(head).not.toContain('window.fetch =');
-  expect(head).not.toContain('00000000-0000-4000-8000-000000000001');
+  const headBody = await (await page.request.get('/pwa-head.js')).text();
+  expect(headBody).not.toContain('initPwaHead');
+  expect(headBody).not.toContain('handleLocalRest');
+  expect(headBody).not.toContain('window.fetch =');
+  const html = await (await page.request.get('/')).text();
+  expect(html.match(/pwa-head\.js/g) ?? []).toHaveLength(0);
 });
 
 test('an iOS standalone home-screen session stays on the cloud account', async ({ page }) => {
