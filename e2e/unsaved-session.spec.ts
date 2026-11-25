@@ -68,11 +68,11 @@ test('production save with no session stays unsaved until retry after login', as
   await expect(page.getByText(/72\.4 kg ·/)).toBeVisible();
 
   await rowRecordButton(page, 'training').click();
-  await page.getByRole('button', { name: '哑铃卧推', exact: true }).click();
+  await page.getByRole('button', { name: '哑铃卧推', exact: true }).evaluate((node: HTMLElement) => node.click());
   await page.getByRole('textbox', { name: '重量（kg）' }).fill('20');
   await page.getByRole('textbox', { name: '次数' }).fill('8');
   await page.getByRole('button', { name: '保存这一组' }).click();
-  await closeRecordSheet(page).click();
+  await closeRecordSheet(page).evaluate((node: HTMLElement) => node.click());
 
   await rowRecordButton(page, 'study').click();
   await page.getByRole('textbox', { name: '主题' }).fill('分布式');

@@ -302,10 +302,18 @@ export function LoginScreen() {
               {showProviders ? (
                 <>
                   {providerNotice ? (
-                    <Stack gap="sm">
-                      <Callout message={providerNotice} tone="danger" />
-                      <Button label="关闭" variant="ghost" onPress={dismissProviderFailure} />
-                    </Stack>
+                    <Callout
+                      message={providerNotice}
+                      tone="danger"
+                      action={
+                        <Button
+                          label="知道了"
+                          accessibilityLabel="关闭提示"
+                          variant="ghost"
+                          onPress={dismissProviderFailure}
+                        />
+                      }
+                    />
                   ) : null}
                   <Button
                     label="使用 Google 登录"

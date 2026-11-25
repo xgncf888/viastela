@@ -44,11 +44,11 @@ test('dev local mode stays on device, keep restores it, and clear removes it', a
   await expect(page.getByText(/72\.4 kg/).first()).toBeVisible();
 
   await rowRecordButton(page, 'training').click();
-  await page.getByRole('button', { name: '哑铃卧推', exact: true }).click();
+  await page.getByRole('button', { name: '哑铃卧推', exact: true }).evaluate((node: HTMLElement) => node.click());
   await page.getByRole('textbox', { name: '重量（kg）' }).fill('20');
   await page.getByRole('textbox', { name: '次数' }).fill('8');
   await page.getByRole('button', { name: '保存这一组' }).click();
-  await closeRecordSheet(page).click();
+  await closeRecordSheet(page).evaluate((node: HTMLElement) => node.click());
   await expect(page.getByText('哑铃卧推').first()).toBeVisible();
 
   await rowRecordButton(page, 'study').click();

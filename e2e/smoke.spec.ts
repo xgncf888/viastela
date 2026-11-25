@@ -139,7 +139,10 @@ test('a failed provider return keeps the email and clears the error from the URL
   });
   await page.goto('/?error=access_denied');
   const banner = page.getByRole('alert');
-  await expect(banner).toHaveText('登录没有完成，请重试');
+  await expect(banner).toHaveCount(1);
+  await expect(banner.getByText('登录没有完成，请重试', { exact: true })).toBeVisible();
+  await expect(banner.getByRole('button', { name: '关闭提示' })).toBeVisible();
+  await expect(banner.getByText('知道了', { exact: true })).toBeVisible();
   await expect(banner).toHaveCSS('background-color', 'rgb(248, 238, 235)');
   const bannerBox = await banner.boundingBox();
   const googleBox = await page.getByRole('button', { name: '使用 Google 登录' }).boundingBox();
@@ -152,7 +155,8 @@ test('a failed provider return shows the alert once and a reload drops it', asyn
   await page.goto('/?error=access_denied');
   const banner = page.getByRole('alert');
   await expect(banner).toHaveCount(1);
-  await expect(banner).toHaveText('登录没有完成，请重试');
+  await expect(banner.getByText('登录没有完成，请重试', { exact: true })).toBeVisible();
+  await expect(banner.getByRole('button', { name: '关闭提示' })).toBeVisible();
   await expect.poll(() => new URL(page.url()).searchParams.has('error')).toBe(false);
   await page.reload();
   await expect(page.getByRole('heading', { name: brand.displayName })).toBeVisible();
@@ -172,7 +176,9 @@ test('email sign-in after a provider failure shows no error after sign-out', asy
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(authSession()) });
   });
   await page.goto('/?error=access_denied');
-  await expect(page.getByRole('alert')).toHaveText('登录没有完成，请重试');
+  await expect(page.getByRole('alert')).toHaveCount(1);
+  await expect(page.getByRole('alert').getByText('登录没有完成，请重试', { exact: true })).toBeVisible();
+  await expect(page.getByRole('alert').getByRole('button', { name: '关闭提示' })).toBeVisible();
   await page.getByRole('textbox', { name: '邮箱' }).fill('yifeng@example.com');
   await page.getByRole('button', { name: '发送验证码' }).click();
   await expect.poll(() => otpBodies[0]).toMatchObject({ email: 'yifeng@example.com', create_user: true });
