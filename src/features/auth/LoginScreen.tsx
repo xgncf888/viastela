@@ -130,6 +130,11 @@ export function LoginScreen() {
             : null
           : notice.decision.message;
 
+  function dismissProviderFailure() {
+    clearOAuthFailureMessage();
+    setProviderNotice(null);
+  }
+
   function onEmailChange(value: string) {
     setEmail(value);
     rememberEmail(value);
@@ -153,16 +158,14 @@ export function LoginScreen() {
   }
 
   async function runProvider(next: OAuthProvider) {
+    dismissProviderFailure();
     if (!configured) {
       setProviderNotice(notConfiguredMessage);
       return;
     }
     setProvider(next);
-    setProviderNotice(null);
     try {
       await signInWithProvider(next);
-      clearOAuthFailureMessage();
-      setProviderNotice(null);
     } catch (providerError) {
       setProviderNotice(providerFailureMessage(providerError));
       setProvider(null);
@@ -180,6 +183,7 @@ export function LoginScreen() {
       return;
     }
     if (sending.current) return;
+    dismissProviderFailure();
     sending.current = true;
     setAction('send');
     setNotice(null);
@@ -297,7 +301,12 @@ export function LoginScreen() {
             <Stack gap="md">
               {showProviders ? (
                 <>
-                  {providerNotice ? <Callout message={providerNotice} tone="danger" /> : null}
+                  {providerNotice ? (
+                    <Stack gap="sm">
+                      <Callout message={providerNotice} tone="danger" />
+                      <Button label="关闭" variant="ghost" onPress={dismissProviderFailure} />
+                    </Stack>
+                  ) : null}
                   <Button
                     label="使用 Google 登录"
                     variant="secondary"

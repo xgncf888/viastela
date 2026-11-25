@@ -21,8 +21,9 @@ export function currentOrigin(): string | null {
 const providerFailureText = '登录没有完成，请重试';
 
 /**
- * Holds a failed provider return only until the login screen copies it into state.
- * The screen clears this after display and again when sign-in succeeds.
+ * Holds a failed provider return so a remounted login screen can still read it.
+ * Cleared when the person dismisses the notice, starts sign-in again, or signs in.
+ * Mounting the screen does not clear it.
  */
 let oauthFailureMessage: string | null = null;
 

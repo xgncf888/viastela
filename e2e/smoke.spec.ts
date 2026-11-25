@@ -148,6 +148,17 @@ test('a failed provider return keeps the email and clears the error from the URL
   await expect.poll(() => new URL(page.url()).searchParams.has('error')).toBe(false);
 });
 
+test('a failed provider return shows the alert once and a reload drops it', async ({ page }) => {
+  await page.goto('/?error=access_denied');
+  const banner = page.getByRole('alert');
+  await expect(banner).toHaveCount(1);
+  await expect(banner).toHaveText('登录没有完成，请重试');
+  await expect.poll(() => new URL(page.url()).searchParams.has('error')).toBe(false);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: brand.displayName })).toBeVisible();
+  await expect(page.getByText('登录没有完成，请重试')).toHaveCount(0);
+});
+
 test('email sign-in after a provider failure shows no error after sign-out', async ({ page }) => {
   const otpBodies: Record<string, unknown>[] = [];
   const verifyBodies: Record<string, unknown>[] = [];
