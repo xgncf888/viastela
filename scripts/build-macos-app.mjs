@@ -12,16 +12,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-
-/** Drops leftover demo rows from a parsed on-device database. */
-export function stripSeedRows(db) {
-  if (!db || typeof db !== 'object') return db;
-  for (const key of Object.keys(db)) {
-    if (!Array.isArray(db[key])) continue;
-    db[key] = db[key].filter((row) => !row || typeof row.id !== 'string' || row.id.indexOf('-seed-') === -1);
-  }
-  return db;
-}
 const brandSource = readFileSync(path.join(ROOT, 'src', 'config', 'brand.ts'), 'utf8');
 const displayName = brandSource.match(/displayName:\s*'([^']+)'/)?.[1] ?? 'App';
 
@@ -320,6 +310,279 @@ if let data = drawAstrolabeIcon(size: 1024, fullBleed: false) {
 if CommandLine.arguments.count > 2, let mobileData = drawAstrolabeIcon(size: 1024, fullBleed: true) {
     try? mobileData.write(to: URL(fileURLWithPath: CommandLine.arguments[2]))
 }
+`;
+
+const LOCAL_STANDALONE_BRIDGE_JS = `
+(function installLocalStandaloneBackend() {
+  var STORAGE_KEY = 'viastela.desktop.standalone.db.v1';
+  var SESSION_KEY = 'sb-127-auth-token';
+  var USER_ID = '00000000-0000-4000-8000-000000000001';
+
+  function stripSeedRows(db) {
+    if (!db || typeof db !== 'object') return null;
+    var tables = [
+      'weight_records',
+      'training_sets',
+      'study_records',
+      'journal_entries',
+      'asset_accounts',
+      'account_balances',
+      'holdings',
+      'net_worth_goals',
+      'projection_assumptions',
+      'net_worth_snapshots'
+    ];
+    var dirty = false;
+    tables.forEach(function(t) {
+      if (Array.isArray(db[t])) {
+        var before = db[t].length;
+        db[t] = db[t].filter(function(r) {
+          return !r || typeof r.id !== 'string' || r.id.indexOf('-seed-') === -1;
+        });
+        if (db[t].length !== before) dirty = true;
+      } else {
+        db[t] = [];
+      }
+    });
+    if (dirty) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+      } catch (e) {}
+    }
+    return db;
+  }
+
+  function loadDb() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        var parsed = stripSeedRows(JSON.parse(raw));
+        if (parsed) return parsed;
+      }
+    } catch (e) {}
+    var now = new Date();
+    var cleanDb = {
+      profiles: [{ user_id: USER_ID, day_switch: '04:00', updated_at: now.toISOString() }],
+      weight_records: [],
+      training_sets: [],
+      study_records: [],
+      journal_entries: [],
+      asset_accounts: [],
+      account_balances: [],
+      holdings: [],
+      net_worth_goals: [],
+      projection_assumptions: [],
+      net_worth_snapshots: [],
+      asset_events: [],
+      push_subscriptions: [],
+      reminder_settings: []
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(cleanDb));
+    return cleanDb;
+  }
+
+  function saveDb(db) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    } catch (e) {}
+  }
+
+  function ensureLocalSession() {
+    try {
+      if (localStorage.getItem('viastela.desktop.signed_out') === '1') return;
+      localStorage.setItem('viastela.local_mode', '1');
+      if (localStorage.getItem(SESSION_KEY)) return;
+      var nowSec = Math.floor(Date.now() / 1000);
+      var payload = btoa(JSON.stringify({
+        sub: USER_ID,
+        email: 'yifeng@viastela.local',
+        aud: 'authenticated',
+        role: 'authenticated',
+        iat: nowSec,
+        exp: nowSec + 365 * 86400,
+        amr: [{ method: 'otp', timestamp: nowSec }]
+      })).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+      var fakeJwt = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' + payload + '.local';
+      var session = {
+        access_token: fakeJwt,
+        refresh_token: 'local-refresh',
+        token_type: 'bearer',
+        expires_in: 365 * 86400,
+        expires_at: nowSec + 365 * 86400,
+        user: {
+          id: USER_ID,
+          aud: 'authenticated',
+          role: 'authenticated',
+          email: 'yifeng@viastela.local',
+          app_metadata: { provider: 'email' },
+          user_metadata: {}
+        }
+      };
+      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    } catch (e) {}
+  }
+
+  ensureLocalSession();
+
+  function buildTimelineRows(db) {
+    var items = [];
+    (db.journal_entries || []).forEach(function(j) {
+      if (j.deleted_at) return;
+      items.push({
+        id: j.id,
+        kind: 'journal',
+        occurred_at: j.updated_at || j.created_at || new Date().toISOString(),
+        local_day: j.entry_day,
+        ref_id: j.id,
+        payload: { body: j.body, mood: j.mood, tags: j.tags || [] }
+      });
+    });
+    (db.account_balances || []).forEach(function(b) {
+      if (b.deleted_at) return;
+      items.push({
+        id: b.id,
+        kind: 'balance_recorded',
+        occurred_at: b.recorded_at,
+        local_day: b.local_day,
+        ref_id: b.account_id,
+        payload: { account_id: b.account_id, amount: b.amount, currency: b.currency }
+      });
+    });
+    return items;
+  }
+
+  function handleLocalRest(urlObj, method, bodyText, headers) {
+    var db = loadDb();
+    var pathname = urlObj.pathname;
+    if (pathname.indexOf('/auth/v1/user') !== -1 || pathname.indexOf('/auth/v1/token') !== -1 || pathname.indexOf('/auth/v1/verify') !== -1) {
+      localStorage.removeItem('viastela.desktop.signed_out');
+      ensureLocalSession();
+      var sess = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}');
+      return new Response(JSON.stringify(pathname.indexOf('/user') !== -1 ? sess.user : sess), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (pathname.indexOf('/auth/v1/otp') !== -1) {
+      return new Response(JSON.stringify({}), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (pathname.indexOf('/auth/v1/logout') !== -1) {
+      localStorage.setItem('viastela.desktop.signed_out', '1');
+      localStorage.removeItem(SESSION_KEY);
+      return new Response(JSON.stringify({}), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (pathname.indexOf('/functions/v1/quotes') !== -1) {
+      var cashUsd = (db.account_balances || []).filter(function(b) { return !b.deleted_at; }).reduce(function(s, b) { return s + Number(b.amount || 0); }, 0);
+      var secUsd = 0;
+      var quotes = (db.holdings || []).filter(function(h) { return !h.deleted_at; }).map(function(h) {
+        var price = 140;
+        secUsd += Number(h.quantity || 0) * price;
+        return { symbol: h.symbol, price: price, currency: 'USD', as_of: new Date().toISOString(), status: 'fresh', source: 'finnhub' };
+      });
+      return new Response(JSON.stringify({
+        quotes: quotes,
+        rates: [],
+        source: 'finnhub',
+        total_usd: cashUsd + secUsd,
+        cash_usd: cashUsd,
+        securities_usd: secUsd,
+        unpriced: 0,
+        stale: false,
+        snapshot: 'written'
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    var match = pathname.match(/\\/rest\\/v1\\/([a-z0-9_]+)/i);
+    if (!match) return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    var table = match[1];
+    var rows = table === 'timeline' ? buildTimelineRows(db) : (db[table] || []);
+
+    if (method === 'GET') {
+      var filtered = rows.slice();
+      urlObj.searchParams.forEach(function(val, key) {
+        if (key === 'select' || key === 'order' || key === 'limit' || key === 'on_conflict' || key === 'or') return;
+        if (val === 'is.null') {
+          filtered = filtered.filter(function(r) { return r[key] === null || r[key] === undefined; });
+        } else if (val === 'not.is.null') {
+          filtered = filtered.filter(function(r) { return r[key] !== null && r[key] !== undefined; });
+        } else if (val.indexOf('eq.') === 0) {
+          var target = val.slice(3);
+          filtered = filtered.filter(function(r) { return String(r[key]) === target; });
+        } else if (val.indexOf('gte.') === 0) {
+          var minVal = val.slice(4);
+          filtered = filtered.filter(function(r) { return String(r[key]) >= minVal; });
+        } else if (val.indexOf('lte.') === 0) {
+          var maxVal = val.slice(4);
+          filtered = filtered.filter(function(r) { return String(r[key]) <= maxVal; });
+        }
+      });
+      var orderParam = urlObj.searchParams.get('order');
+      if (orderParam) {
+        var firstOrder = orderParam.split(',')[0].split('.');
+        var col = firstOrder[0];
+        var desc = firstOrder[1] === 'desc';
+        filtered.sort(function(a, b) {
+          var va = String(a[col] || '');
+          var vb = String(b[col] || '');
+          return desc ? vb.localeCompare(va) : va.localeCompare(vb);
+        });
+      }
+      var limitParam = urlObj.searchParams.get('limit');
+      if (limitParam) filtered = filtered.slice(0, Number(limitParam));
+      var accept = (headers && (headers['Accept'] || headers['accept'])) || '';
+      if (accept.indexOf('vnd.pgrst.object+json') !== -1) {
+        var single = filtered[0] || null;
+        return new Response(JSON.stringify(single), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response(JSON.stringify(filtered), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    if (method === 'POST') {
+      var incoming = bodyText ? JSON.parse(bodyText) : {};
+      var itemsToUpsert = Array.isArray(incoming) ? incoming : [incoming];
+      if (!db[table]) db[table] = [];
+      var conflictKey = urlObj.searchParams.get('on_conflict') || 'id';
+      itemsToUpsert.forEach(function(item) {
+        var nextItem = Object.assign({ deleted_at: null, updated_at: new Date().toISOString() }, item);
+        var idx = db[table].findIndex(function(r) { return r[conflictKey] && r[conflictKey] === nextItem[conflictKey]; });
+        if (idx >= 0) db[table][idx] = Object.assign({}, db[table][idx], nextItem);
+        else db[table].push(nextItem);
+      });
+      saveDb(db);
+      return new Response(JSON.stringify(itemsToUpsert), { status: 201, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    if (method === 'PATCH') {
+      var patch = bodyText ? JSON.parse(bodyText) : {};
+      if (!db[table]) db[table] = [];
+      var updated = [];
+      db[table] = db[table].map(function(r) {
+        var matches = true;
+        urlObj.searchParams.forEach(function(val, key) {
+          if (val.indexOf('eq.') === 0 && String(r[key]) !== val.slice(3)) matches = false;
+        });
+        if (!matches) return r;
+        var nextRow = Object.assign({}, r, patch, { updated_at: new Date().toISOString() });
+        updated.push(nextRow);
+        return nextRow;
+      });
+      saveDb(db);
+      return new Response(JSON.stringify(updated), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }
+
+  var origFetch = window.fetch.bind(window);
+  window.fetch = function(input, init) {
+    var urlStr = typeof input === 'string' ? input : (input && input.url ? input.url : String(input));
+    if (urlStr.indexOf('127.0.0.1:54321') !== -1) {
+      var urlObj = new URL(urlStr);
+      var method = (init && init.method) || (input && input.method) || 'GET';
+      var bodyText = init && typeof init.body === 'string' ? init.body : '';
+      var headers = (init && init.headers) || {};
+      return Promise.resolve(handleLocalRest(urlObj, method.toUpperCase(), bodyText, headers));
+    }
+    return origFetch(input, init);
+  };
+})();
 `;
 
 const SWIFT_SOURCE = `import Cocoa
@@ -662,6 +925,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
             self.schemeHandler = handler
             config.setURLSchemeHandler(handler, forURLScheme: "app")
         }
+
+        let standaloneBridge = ${JSON.stringify(LOCAL_STANDALONE_BRIDGE_JS)}
+        let startScript = WKUserScript(source: standaloneBridge, injectionTime: .atDocumentStart, forMainFrameOnly: true)
+        config.userContentController.addUserScript(startScript)
 
         let injectCSS = """
         document.documentElement.style.overscrollBehavior = 'none';

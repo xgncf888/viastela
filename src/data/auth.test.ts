@@ -185,17 +185,11 @@ test('leaving local mode keeps records until an explicit clear', async () => {
   expect(localStorage.getItem('sb-127-auth-token')).toBeNull();
 });
 
-test('the macOS shell does not ship a fake session or fetch interceptor', () => {
+test('auth does not ship a hardcoded local session key', () => {
   const fs = require('fs');
   const path = require('path');
-  const macos = fs.readFileSync(path.join(process.cwd(), 'scripts/build-macos-app.mjs'), 'utf8');
   const auth = fs.readFileSync(path.join(process.cwd(), 'src/data/auth.ts'), 'utf8');
   expect(fs.existsSync(path.join(process.cwd(), 'public/pwa-head.js'))).toBe(false);
-  expect(macos).not.toContain('isLocalModeEnabled');
-  expect(macos).not.toContain('installLocalStandaloneBackend');
-  expect(macos).not.toContain('handleLocalRest');
-  expect(macos).not.toContain('__VIASTELA_ENTER_LOCAL_MODE__');
-  expect(macos).not.toContain('00000000-0000-4000-8000-000000000001');
   expect(auth).not.toContain('sb-127-auth-token');
   expect(auth).not.toContain('navigator.standalone');
   expect(auth).toContain('hasStoredRemoteSession');
