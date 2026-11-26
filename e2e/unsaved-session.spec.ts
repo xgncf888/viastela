@@ -204,3 +204,57 @@ test('an expired unsaved row is dropped when a different account signs in', asyn
   await expect(page.getByRole('button', { name: '重试', exact: true })).toHaveCount(0);
   expect(writes).toEqual([]);
 });
+
+test('same-account OAuth return reloads and drops the unsaved row without writing', async ({ page }) => {
+  const writes: string[] = [];
+  let authorizeCalls = 0;
+  const session = authSession();
+  await page.addInitScript((stored) => {
+    localStorage.setItem('sb-127-auth-token', JSON.stringify(stored));
+  }, session);
+  await installApi(page, {
+    weights: [],
+    onWrite: async (route) => {
+      writes.push(route.request().postData() ?? '');
+      await route.fulfill({
+        status: 201,
+        headers: { 'access-control-allow-origin': '*', 'content-type': 'application/json' },
+        body: '[]',
+      });
+    },
+  });
+  await page.route('**/auth/v1/authorize**', async (route) => {
+    authorizeCalls += 1;
+    await route.abort('aborted');
+  });
+
+  await page.goto('/');
+  await waitForTodayLoaded(page);
+  await page.evaluate(() => localStorage.removeItem('sb-127-auth-token'));
+
+  await recordButton(page).click();
+  await page.getByRole('textbox', { name: '体重（kg）' }).fill('72.4');
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+  await expect(page.getByText(/72\.4 kg ·/)).toBeVisible();
+  await expect(page.getByText('未保存 ·', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '重试', exact: true })).toBeVisible();
+  await expect(page.getByText('登录已过期，记录还没保存')).toBeVisible();
+  expect(writes).toEqual([]);
+
+  await page.getByRole('button', { name: '重新登录', exact: true }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await page.getByRole('button', { name: '使用 Google 登录' }).click();
+  await expect(page.getByRole('heading', { name: '还有 1 条记录没保存' })).toBeVisible();
+  expect(authorizeCalls).toBe(0);
+
+  await page.getByRole('button', { name: '去登录', exact: true }).click();
+  await expect.poll(() => authorizeCalls).toBe(1);
+
+  await page.goto('/');
+  await waitForTodayLoaded(page);
+  await expect(page.getByText('未保存 ·', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '重试', exact: true })).toHaveCount(0);
+  await expect(page.getByText('登录已过期，记录还没保存')).toHaveCount(0);
+  await expect(page.getByText(/72\.4 kg ·/)).toHaveCount(0);
+  expect(writes).toEqual([]);
+});
