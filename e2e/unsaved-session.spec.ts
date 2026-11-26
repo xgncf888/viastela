@@ -141,3 +141,66 @@ test('production save with no session stays unsaved until retry after login', as
   await expect(page.getByText(/72\.4 kg ·/)).toHaveCount(1);
   await expect(page.getByText('未保存 ·', { exact: true })).toHaveCount(0);
 });
+
+test('an expired unsaved row is dropped when a different account signs in', async ({ page }) => {
+  const writes: string[] = [];
+  const userA = '11111111-1111-4111-8111-111111111111';
+  const userB = '22222222-2222-4222-8222-222222222222';
+  let session = authSession({ userId: userA, email: 'a@example.com' });
+  await page.addInitScript((stored) => {
+    localStorage.setItem('sb-127-auth-token', JSON.stringify(stored));
+  }, session);
+  await installApi(page, {
+    weights: [],
+    onWrite: async (route) => {
+      writes.push(route.request().postData() ?? '');
+      await route.fulfill({
+        status: 201,
+        headers: { 'access-control-allow-origin': '*', 'content-type': 'application/json' },
+        body: '[]',
+      });
+    },
+  });
+  await page.route('**/auth/v1/user**', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(session.user) });
+  });
+  await page.route('**/auth/v1/token**', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(session) });
+  });
+  await page.route('**/auth/v1/logout**', async (route) => {
+    await route.fulfill({ status: 204, body: '' });
+  });
+  await page.route('**/auth/v1/otp**', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+  await page.route('**/auth/v1/verify**', async (route) => {
+    session = authSession({ userId: userB, email: 'b@example.com' });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(session) });
+  });
+
+  await page.goto('/');
+  await waitForTodayLoaded(page);
+  await page.evaluate(() => localStorage.removeItem('sb-127-auth-token'));
+
+  await recordButton(page).click();
+  await page.getByRole('textbox', { name: '体重（kg）' }).fill('72.4');
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+  await expect(page.getByText(/72\.4 kg ·/)).toBeVisible();
+  await expect(page.getByText('未保存 ·', { exact: true })).toBeVisible();
+  await expect(page.getByText('登录已过期，记录还没保存')).toBeVisible();
+  expect(writes).toEqual([]);
+
+  await page.getByRole('button', { name: '我的' }).click();
+  await page.getByRole('button', { name: '退出登录' }).click();
+  await expect(page).toHaveURL(/\/login$/);
+
+  await page.getByRole('textbox', { name: '邮箱' }).fill('b@example.com');
+  await page.getByRole('button', { name: '发送验证码' }).click();
+  await page.getByRole('textbox', { name: '验证码', exact: true }).fill('123456');
+  await waitForTodayLoaded(page);
+  await expect(page.getByText(/72\.4 kg ·/)).toHaveCount(0);
+  await expect(page.getByText('未保存 ·', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('登录已过期，记录还没保存')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '重试', exact: true })).toHaveCount(0);
+  expect(writes).toEqual([]);
+});
