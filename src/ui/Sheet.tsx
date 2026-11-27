@@ -42,6 +42,11 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
   },
   card: {
+    // The web shim's View is position:static. An absoluteFill sibling paints
+    // above static content and steals pointer events, so the card must be a
+    // positioned layer above the backdrop.
+    position: 'relative',
+    zIndex: 1,
     width: '100%',
     maxWidth: baseTheme.layout.content,
     borderTopLeftRadius: baseTheme.radius.sheet,
