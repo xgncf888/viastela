@@ -715,6 +715,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             />
             <View
               style={{
+                // Same stacking fix as Sheet: the absolute backdrop paints above a static sibling.
+                position: 'relative',
+                zIndex: 1,
                 backgroundColor: color.card,
                 borderTopLeftRadius: theme.radius.sheet,
                 borderTopRightRadius: theme.radius.sheet,
