@@ -65,6 +65,55 @@
       @keyframes vsBootSpin {
         to { transform: rotate(360deg); }
       }
+        * {
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+        }
+        [role="button"] {
+          cursor: pointer;
+          user-select: none;
+          -webkit-user-select: none;
+          transition: background-color 140ms cubic-bezier(0.2, 0, 0, 1),
+                      border-color 140ms cubic-bezier(0.2, 0, 0, 1),
+                      box-shadow 180ms cubic-bezier(0.2, 0, 0, 1),
+                      transform 140ms cubic-bezier(0.2, 0, 0, 1),
+                      opacity 140ms cubic-bezier(0.2, 0, 0, 1);
+        }
+        [role="button"]:active:not([aria-disabled="true"]) {
+          transform: scale(0.985);
+        }
+        @keyframes vsSheetSpringIn {
+          from {
+            opacity: 0;
+            transform: translateY(8px) scale(0.985);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+        @keyframes studioPulseDash {
+          to {
+            stroke-dashoffset: -48;
+          }
+        }
+        svg path[stroke-dasharray] {
+          animation: studioPulseDash 1.4s linear infinite;
+        }
+        ::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+          background: rgba(120, 115, 105, 0.22);
+          border-radius: 999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: rgba(120, 115, 105, 0.38);
+        }
     </style>
     <meta name="theme-color" content="#FAF9F5" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#121318" media="(prefers-color-scheme: dark)" />
@@ -96,7 +145,6 @@
     <link rel="apple-touch-startup-image" href="/icons/apple-splash-1620x2160.png" media="screen and (device-width: 810px) and (device-height: 1080px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
     <link rel="apple-touch-startup-image" href="/icons/apple-splash-1536x2048.png" media="screen and (device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
     <link rel="apple-touch-startup-image" href="/icons/apple-splash-1488x2266.png" media="screen and (device-width: 744px) and (device-height: 1133px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
-    <script src="/pwa-head.js"></script>
   </head>
   <body>
     <!-- Use static rendering with Expo Router to support running without JavaScript. -->

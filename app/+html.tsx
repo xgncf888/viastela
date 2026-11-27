@@ -30,7 +30,6 @@ export default function Root({ children }: PropsWithChildren) {
             media={splashMedia(splash)}
           />
         ))}
-        <script src="/pwa-head.js" />
         <ScrollViewStyleReset />
       </head>
       <body>{children}</body>

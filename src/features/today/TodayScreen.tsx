@@ -14,7 +14,9 @@ import {
 import { studyDaySummary, studyDetail, studyRecordsOnDay, type StudyRecord } from '@/core/study';
 import { formatTrainingLoad, trainingDaySummary, trainingSetsOnDay, type TrainingSet } from '@/core/training';
 import { formatKg, latestRecord, recordsOnDay, type WeightRecord } from '@/core/weight-stats';
+import { unsavedRecordCount, SESSION_EXPIRED_ACTION, SESSION_EXPIRED_BANNER } from '@/core/unsaved-login-copy';
 import { useRefreshOnFocus } from '@/data/refresh-on-focus';
+import { useAuth } from '@/features/auth/AuthProvider';
 import { openRecordSheet } from '@/features/record/record-sheet-store';
 import { MonthEndNotice } from '@/features/today/MonthEndNotice';
 import { useShellInset } from '@/features/shell/AppShell';
@@ -23,6 +25,7 @@ import { useTraining } from '@/features/training/TrainingProvider';
 import { averageCaption, excludePending, todayReadout, weighInLabel, weightColumnPhase } from '@/features/weight/weight-copy';
 import { useWeight } from '@/features/weight/WeightProvider';
 import { BrandMark } from '@/ui/BrandMark';
+import { Banner } from '@/ui/Banner';
 import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
 import { useLayoutClass } from '@/ui/chrome';
@@ -65,6 +68,7 @@ function nightLine(daySwitch: string, t?: (zh: string, en: string) => string): s
 }
 
 export function TodayScreen() {
+  const { needsReauth, requestLogin } = useAuth();
   const {
     ready,
     loadError,
@@ -131,6 +135,13 @@ export function TodayScreen() {
       ? '今天的学习'
       : t('今天的学习', "Today's Study");
   const allLogged = visibleToday.length > 0 && trainingToday.length > 0 && studyToday.length > 0;
+  const expiredBanner =
+    needsReauth && unsavedRecordCount([failedIds, training.failedIds, study.failedIds]) > 0 ? (
+      <Banner
+        message={SESSION_EXPIRED_BANNER}
+        action={<Button label={SESSION_EXPIRED_ACTION} variant="secondary" onPress={requestLogin} />}
+      />
+    ) : null;
   const loggedCount =
     (visibleToday.length > 0 ? 1 : 0) + (trainingToday.length > 0 ? 1 : 0) + (studyToday.length > 0 ? 1 : 0);
 
@@ -138,6 +149,7 @@ export function TodayScreen() {
     return (
       <Screen>
         <Content width="wide" inset={inset}>
+          {expiredBanner}
           <ScreenHeader
             kicker="今日"
             title={`${formatMonthDay(accounting)} ${shortWeekday(accounting)}`}
@@ -409,6 +421,7 @@ export function TodayScreen() {
   return (
     <Screen>
       <Content width="wide" inset={inset}>
+        {expiredBanner}
         <ScreenHeader
           kicker={t('今日', 'Today')}
           title={`${formatMonthDay(accounting)} ${shortWeekday(accounting)}`}

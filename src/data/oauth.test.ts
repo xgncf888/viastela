@@ -54,6 +54,16 @@ test('a failed provider return in the query is remembered until the login screen
   });
 });
 
+test('a remounted login screen still reads the provider failure', () => {
+  withLocation('https://app.example/?error=access_denied', (href) => {
+    expect(captureOAuthFailure()).toBe('登录没有完成，请重试');
+    expect(new URL(href()).search).toBe('');
+    expect(captureOAuthFailure()).toBe('登录没有完成，请重试');
+    clearOAuthFailureMessage();
+    expect(captureOAuthFailure()).toBeNull();
+  });
+});
+
 test('a failed provider return in the URL hash is detected and removed', () => {
   withLocation('https://app.example/#error=access_denied&error_code=access_denied', (href) => {
     expect(oauthFailedOnReturn()).toBe(true);

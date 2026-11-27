@@ -46,7 +46,7 @@ import { DeletedRecordNotice } from '@/ui/deleted-record';
 import { Text } from '@/ui/Text';
 import { theme } from '@/ui/theme';
 import { useTheme } from '@/ui/ThemeProvider';
-import { showToast, ToastHost } from '@/ui/toast';
+import { showToast } from '@/ui/toast';
 import {
   WorkbenchCommandPalette,
   WorkbenchScopeModal,
@@ -812,7 +812,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         onCopyManifest={() => void copyPluginManifest()}
       />
       <ShellDeletedRecordBanner />
-      <ToastHost />
     </ShellFrame>
   );
 }

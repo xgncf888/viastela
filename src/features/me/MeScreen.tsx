@@ -14,7 +14,7 @@ import {
   parsePersonalDataBackup,
 } from '@/core/data-export';
 import { computeLocalDay } from '@/core/local-day';
-import { signOut } from '@/data/auth';
+import { clearLocalModeData, isLocalOnlySession, leaveLocalMode, signOut } from '@/data/auth';
 import { readBookkeepingState, writeBookkeepingState } from '@/data/bookkeeping';
 import {
   readPledgeVault,
@@ -50,6 +50,7 @@ import { useWeight } from '@/features/weight/WeightProvider';
 import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
 import { Content } from '@/ui/Content';
+import { Dialog } from '@/ui/Dialog';
 import { isAutomatedWebDriver } from '@/ui/e2e-mode';
 import { layoutClassForWidth } from '@/ui/layout-class';
 import { Field, ScreenHeader, Stack } from '@/ui/layout';
@@ -89,9 +90,12 @@ export function MeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [confirmLeaveLocal, setConfirmLeaveLocal] = useState(false);
+  const [confirmClearLocal, setConfirmClearLocal] = useState(false);
   const [showRestoreBox, setShowRestoreBox] = useState(false);
   const [restoreJsonText, setRestoreJsonText] = useState('');
   const value = draft ?? daySwitch;
+  const localAccount = isLocalOnlySession(session);
   const hint = installHint();
   const e2e = isAutomatedWebDriver();
 
@@ -293,11 +297,7 @@ export function MeScreen() {
             <Text variant="heading">账户与记账偏好</Text>
             <Field
               label="邮箱"
-              value={
-                session?.email === 'local@device.offline'
-                  ? '本地离线存储（免登录模式 · 数据保存在本机）'
-                  : (session?.email ?? '未登录')
-              }
+              value={localAccount ? '未登录 · 数据仅存本机' : (session?.email ?? '未登录')}
             />
             <Field
               label="当前时区"
@@ -319,17 +319,82 @@ export function MeScreen() {
         {Platform.OS === 'web' ? <RemindersCard /> : null}
         <Button label="隐私政策" variant="ghost" onPress={() => router.push('/privacy')} />
         <Stack gap="lg">
-          <Button
-            label="退出登录"
-            variant="secondary"
-            loading={signingOut}
-            onPress={() => {
-              setSigningOut(true);
-              void signOut().finally(() => setSigningOut(false));
-            }}
-          />
-          <Button label="删除账号" variant="ghost" tone="danger" onPress={() => router.push('/account/delete')} />
+          {__DEV__ && localAccount ? (
+            <Button label="退出本地模式" variant="secondary" onPress={() => setConfirmLeaveLocal(true)} />
+          ) : (
+            <>
+              <Button
+                label="退出登录"
+                variant="secondary"
+                loading={signingOut}
+                onPress={() => {
+                  setSigningOut(true);
+                  void signOut().finally(() => setSigningOut(false));
+                }}
+              />
+              <Button label="删除账号" variant="ghost" tone="danger" onPress={() => router.push('/account/delete')} />
+            </>
+          )}
         </Stack>
+        {__DEV__ && localAccount ? (
+          <>
+            <Dialog
+              visible={confirmLeaveLocal && !confirmClearLocal}
+              title="退出本地模式？"
+              body="你的记录目前只存在这台设备上。"
+              onClose={() => setConfirmLeaveLocal(false)}
+            >
+              <Button
+                label="保留在本机"
+                fill
+                onPress={() => {
+                  setConfirmLeaveLocal(false);
+                  void leaveLocalMode();
+                }}
+              />
+              <Button
+                label="清除本机数据"
+                variant="ghost"
+                tone="danger"
+                onPress={() => setConfirmClearLocal(true)}
+              />
+              <Button label="取消" variant="ghost" onPress={() => setConfirmLeaveLocal(false)} />
+            </Dialog>
+            <Dialog
+              visible={confirmClearLocal}
+              title="清除这台设备上的数据？"
+              body="体重、训练和学习记录会从这台设备上删除，无法恢复。需要的话，请先导出 JSON 备份。"
+              onClose={() => {
+                setConfirmClearLocal(false);
+                setConfirmLeaveLocal(false);
+              }}
+            >
+              <Button label="导出备份" variant="secondary" fill onPress={() => void onExportBackup()} />
+              <Button
+                label="取消"
+                variant="ghost"
+                onPress={() => {
+                  setConfirmClearLocal(false);
+                  setConfirmLeaveLocal(false);
+                }}
+              />
+              <Button
+                label="清除"
+                variant="danger"
+                fill
+                loading={signingOut}
+                onPress={() => {
+                  setSigningOut(true);
+                  void clearLocalModeData()
+                    .then(() => {
+                      showToast({ text: '本机数据已清除' });
+                    })
+                    .finally(() => setSigningOut(false));
+                }}
+              />
+            </Dialog>
+          </>
+        ) : null}
 
         {!e2e ? (
           <>

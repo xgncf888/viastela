@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { DEFAULT_DAY_SWITCH } from '@/core/local-day';
+import { LOCAL_OFFLINE_USER_ID } from '@/core/local-session';
 import { beginSave, confirmSave, reconcileServerRows, visibleRecords, type SaveState } from '@/core/save-state';
 import { RECORD_DELETED, weightSaveOutcome } from '@/core/weight-write';
+import { isLocalModeSelected, isSignedOutError, noteSessionExpired, requireRemoteUserId } from '@/data/auth';
 import { withLoadTimeout } from '@/data/load-timeout';
 import { getDaySwitch } from '@/data/profile';
 import { readRecordOutbox, type OutboxSnapshot } from '@/data/record-outbox';
@@ -69,6 +71,9 @@ export function useOptimisticRecordStore<T extends IdentifiableRecord, TExtra>(
   const alive = useRef(new Set<string>());
   const loadTicket = useRef(0);
   const confirmedTicket = useRef(new Map<string, number>());
+  const ownerById = useRef(new Map<string, string>());
+  const voidedIds = useRef(new Set<string>());
+  const lastValidUserId = useRef<string | null>(null);
   const pendingDeleteIds = useDeferredDeleteIds();
 
   const applyLoaded = useCallback((rows: T[], nextExtra: TExtra, nextSwitch: string, ticket: number) => {
@@ -120,12 +125,31 @@ export function useOptimisticRecordStore<T extends IdentifiableRecord, TExtra>(
   }, [applyLoaded, loadServerData]);
 
   useEffect(() => {
+    if (userId) {
+      const previous = lastValidUserId.current;
+      if (previous && previous !== userId) {
+        for (const id of ownerById.current.keys()) voidedIds.current.add(id);
+        for (const id of alive.current) voidedIds.current.add(id);
+        alive.current.clear();
+        inFlight.current.clear();
+        confirmedTicket.current.clear();
+        ownerById.current.clear();
+        setSaveState({ saved: [], pending: [] });
+        setFailedIds(new Set());
+        setSavingIds(new Set());
+        setDeletedNotice(false);
+      }
+      lastValidUserId.current = userId;
+    }
     if (!userId) return undefined;
     let cancelled = false;
     void readRecordOutbox(userId).then((outbox) => {
       const items = selectOutboxItems(outbox);
       if (cancelled || items.length === 0) return;
-      for (const item of items) alive.current.add(item.id);
+      for (const item of items) {
+        alive.current.add(item.id);
+        if (!ownerById.current.has(item.id)) ownerById.current.set(item.id, userId);
+      }
       setSaveState((current) => {
         let next = current;
         for (const item of items) next = beginSave(next, item);
@@ -161,6 +185,26 @@ export function useOptimisticRecordStore<T extends IdentifiableRecord, TExtra>(
     async (item: T): Promise<OptimisticSaveResult> => {
       const { id } = item;
       if (inFlight.current.has(id)) return 'retry';
+      const dropUnowned = () => {
+        alive.current.delete(id);
+        confirmedTicket.current.delete(id);
+        ownerById.current.delete(id);
+        voidedIds.current.add(id);
+        setSaveState((current) => ({
+          saved: current.saved.filter((row) => row.id !== id),
+          pending: current.pending.filter((row) => row.id !== id),
+        }));
+        setFailedIds((current) => {
+          if (!current.has(id)) return current;
+          const next = new Set(current);
+          next.delete(id);
+          return next;
+        });
+      };
+      if (voidedIds.current.has(id)) {
+        dropUnowned();
+        return 'saved';
+      }
       setSaveState((current) => beginSave(current, item));
       setFailedIds((current) => {
         const next = new Set(current);
@@ -176,8 +220,22 @@ export function useOptimisticRecordStore<T extends IdentifiableRecord, TExtra>(
       });
       const currentSwitch = daySwitch;
       const currentUserId = userId ?? '';
+      const boundOwner = userId ?? lastValidUserId.current;
+      if (boundOwner && !ownerById.current.has(id)) ownerById.current.set(id, boundOwner);
       void (async () => {
         try {
+          let liveUserId: string;
+          try {
+            liveUserId = await requireRemoteUserId();
+          } catch (error) {
+            if (!(isSignedOutError(error) && isLocalModeSelected())) throw error;
+            liveUserId = LOCAL_OFFLINE_USER_ID;
+          }
+          const owner = ownerById.current.get(id);
+          if (voidedIds.current.has(id) || !owner || liveUserId !== owner) {
+            dropUnowned();
+            return;
+          }
           await upsertServerItem(item);
           if (currentUserId) void removeOutboxItem(currentUserId, id);
           if (!alive.current.has(id)) return;
@@ -204,6 +262,11 @@ export function useOptimisticRecordStore<T extends IdentifiableRecord, TExtra>(
             setDeletedNotice(true);
             return;
           }
+          if (isSignedOutError(error)) {
+            setFailedIds((current) => new Set(current).add(id));
+            noteSessionExpired();
+            return;
+          }
           if (currentUserId) void saveOutboxItem(currentUserId, item);
           setFailedIds((current) => new Set(current).add(id));
           showToast({ text: '保存失败，请重试', tone: 'error' });
@@ -227,6 +290,7 @@ export function useOptimisticRecordStore<T extends IdentifiableRecord, TExtra>(
       if (userId) void removeOutboxItem(userId, id);
       alive.current.delete(id);
       confirmedTicket.current.delete(id);
+      ownerById.current.delete(id);
       setSaveState((current) => ({
         saved: current.saved,
         pending: current.pending.filter((row) => row.id !== id),

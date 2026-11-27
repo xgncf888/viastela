@@ -24,32 +24,54 @@ test('signed-in user retains their own session after page reload', async ({ page
   await expect(page.getByText('今日').first()).toBeVisible();
   await page.getByRole('button', { name: '我的' }).click();
   await expect(page.getByText('yifeng@example.com')).toBeVisible();
-  await expect(page.getByText('本地离线存储（免登录模式 · 数据保存在本机）')).toHaveCount(0);
+  await expect(page.getByText('未登录 · 数据仅存本机')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '退出本地模式' })).toHaveCount(0);
 });
 
-test('local mode sends zero *.supabase.co/rest requests', async ({ page }) => {
-  const restRequests: string[] = [];
-  page.on('request', (req) => {
-    const url = req.url();
-    if (/\.supabase\.co\/rest/i.test(url) || url.includes('/rest/v1/')) {
-      restRequests.push(url);
-    }
+test('production build hides both entries, leaves fetch native, and ignores a bad stored config', async ({ page }) => {
+  const secret = ['sb', 'secret', 'a'.repeat(24)].join('_');
+  const remote: string[] = [];
+  page.on('request', (request) => {
+    const url = request.url();
+    if (url.includes('evil.example') || url.includes('.supabase.co') || url.includes(':54321')) remote.push(url);
   });
-
-  await page.addInitScript(() => {
-    localStorage.setItem('viastela.custom_supabase_url', 'https://example-project.supabase.co');
-    localStorage.setItem('viastela.custom_supabase_anon_key', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test.anon');
-  });
-
+  await page.addInitScript((key) => {
+    localStorage.setItem('viastela.custom_supabase_url', 'http://evil.example');
+    localStorage.setItem('viastela.custom_supabase_anon_key', key);
+  }, secret);
   await page.goto('/');
   await expect(page).toHaveURL(/\/login$/);
-  await page.getByRole('button', { name: '免登录直接进入（仅本地存储）' }).click();
-  await expect(page.getByText('今日').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: '先不登录，直接用' })).toHaveCount(0);
+  await expect(page.getByText('数据只存在这台设备上，不会同步。清除浏览器数据或卸载后无法恢复。')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '配置云端 Supabase 地址与 Key' })).toHaveCount(0);
+  await expect(page.getByLabel('SUPABASE URL')).toHaveCount(0);
+  await expect(page.getByLabel('SUPABASE ANON KEY')).toHaveCount(0);
+  await expect(page.getByText('日记与资产')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '发送验证码' })).toBeVisible();
+  const fetchText = await page.evaluate(() => Function.prototype.toString.call(window.fetch));
+  expect(fetchText).toContain('[native code]');
+  expect(remote).toEqual([]);
+  const headBody = await (await page.request.get('/pwa-head.js')).text();
+  expect(headBody).not.toContain('initPwaHead');
+  expect(headBody).not.toContain('handleLocalRest');
+  expect(headBody).not.toContain('window.fetch =');
+  const html = await (await page.request.get('/')).text();
+  expect(html.match(/pwa-head\.js/g) ?? []).toHaveLength(0);
+});
 
-  await page.getByRole('button', { name: '趋势' }).click();
+test('an iOS standalone home-screen session stays on the cloud account', async ({ page }) => {
+  await page.addInitScript((stored) => {
+    Object.defineProperty(window.navigator, 'standalone', { configurable: true, get: () => true });
+    localStorage.setItem('sb-127-auth-token', JSON.stringify(stored));
+    localStorage.setItem('viastela.local_mode', '1');
+  }, authSession({ email: 'yifeng@example.com' }));
+  await installApi(page, { weights: [] });
+  await page.goto('/');
+  await expect(page.getByText('今日').first()).toBeVisible();
   await page.getByRole('button', { name: '我的' }).click();
-  await expect(page.getByText('本地离线存储（免登录模式 · 数据保存在本机）')).toBeVisible();
-  expect(restRequests).toEqual([]);
+  await expect(page.getByText('yifeng@example.com')).toBeVisible();
+  await expect(page.getByText('未登录 · 数据仅存本机')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '退出本地模式' })).toHaveCount(0);
 });
 
 test('web build shows the email login screen', async ({ page }) => {
@@ -119,13 +141,28 @@ test('a failed provider return keeps the email and clears the error from the URL
   });
   await page.goto('/?error=access_denied');
   const banner = page.getByRole('alert');
-  await expect(banner).toHaveText('登录没有完成，请重试');
+  await expect(banner).toHaveCount(1);
+  await expect(banner.getByText('登录没有完成，请重试', { exact: true })).toBeVisible();
+  await expect(banner.getByRole('button', { name: '关闭提示' })).toBeVisible();
+  await expect(banner.getByText('知道了', { exact: true })).toBeVisible();
   await expect(banner).toHaveCSS('background-color', 'rgb(248, 238, 235)');
   const bannerBox = await banner.boundingBox();
   const googleBox = await page.getByRole('button', { name: '使用 Google 登录' }).boundingBox();
   expect(bannerBox && googleBox && bannerBox.y + bannerBox.height).toBeLessThanOrEqual(googleBox.y);
   await expect(page.getByLabel('邮箱')).toHaveValue('yifeng@example.com');
   await expect.poll(() => new URL(page.url()).searchParams.has('error')).toBe(false);
+});
+
+test('a failed provider return shows the alert once and a reload drops it', async ({ page }) => {
+  await page.goto('/?error=access_denied');
+  const banner = page.getByRole('alert');
+  await expect(banner).toHaveCount(1);
+  await expect(banner.getByText('登录没有完成，请重试', { exact: true })).toBeVisible();
+  await expect(banner.getByRole('button', { name: '关闭提示' })).toBeVisible();
+  await expect.poll(() => new URL(page.url()).searchParams.has('error')).toBe(false);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: brand.displayName })).toBeVisible();
+  await expect(page.getByText('登录没有完成，请重试')).toHaveCount(0);
 });
 
 test('email sign-in after a provider failure shows no error after sign-out', async ({ page }) => {
@@ -141,7 +178,9 @@ test('email sign-in after a provider failure shows no error after sign-out', asy
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(authSession()) });
   });
   await page.goto('/?error=access_denied');
-  await expect(page.getByRole('alert')).toHaveText('登录没有完成，请重试');
+  await expect(page.getByRole('alert')).toHaveCount(1);
+  await expect(page.getByRole('alert').getByText('登录没有完成，请重试', { exact: true })).toBeVisible();
+  await expect(page.getByRole('alert').getByRole('button', { name: '关闭提示' })).toBeVisible();
   await page.getByRole('textbox', { name: '邮箱' }).fill('yifeng@example.com');
   await page.getByRole('button', { name: '发送验证码' }).click();
   await expect.poll(() => otpBodies[0]).toMatchObject({ email: 'yifeng@example.com', create_user: true });

@@ -17,6 +17,7 @@ export function TextField({
   autoCapitalize = 'none',
   autoComplete,
   autoFocus = false,
+  secureTextEntry = false,
   error,
   helper,
 }: {
@@ -31,6 +32,8 @@ export function TextField({
   autoCapitalize?: 'none' | 'sentences';
   autoComplete?: 'email' | 'one-time-code' | 'off';
   autoFocus?: boolean;
+  /** Masks the value. Use for keys and other secrets. */
+  secureTextEntry?: boolean;
   error?: string | null;
   helper?: string;
 }) {
@@ -81,6 +84,7 @@ export function TextField({
         autoCorrect={false}
         autoComplete={autoComplete}
         autoFocus={autoFocus}
+        secureTextEntry={secureTextEntry}
         selectionColor={theme.color.accent}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}

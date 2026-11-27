@@ -1,7 +1,7 @@
 import { isRecordDeleted, RECORD_DELETED, requireDeletedIds } from '@/core/weight-write';
 import type { WeightRecord } from '@/core/weight-stats';
 
-import { getAuthenticatedRemoteSession, isLocalModeSelected, isLocalOnlySession, requireRemoteUserId } from './auth';
+import { getAuthenticatedRemoteSession, isLocalModeSelected, isLocalOnlySession, NOT_SIGNED_IN, requireRemoteUserId } from './auth';
 import { getSupabase } from './client';
 import { liveRows } from './live-rows';
 import {
@@ -81,10 +81,11 @@ export async function latestWeightRecord(): Promise<WeightRecord | null> {
 
 export async function upsertWeightRecord(record: WeightRecord): Promise<void> {
   const session = await getAuthenticatedRemoteSession();
-  if ((!session || isLocalOnlySession(session)) && isLocalModeSelected()) {
+  if (isLocalModeSelected() && (!session || isLocalOnlySession(session))) {
     await localUpsertWeightRecord(record);
     return;
   }
+  if (!session || isLocalOnlySession(session)) throw new Error(NOT_SIGNED_IN);
   const userId = await requireRemoteUserId();
   const { error } = await getSupabase().from('weight_records').upsert(
     {

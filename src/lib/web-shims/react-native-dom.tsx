@@ -601,6 +601,7 @@ export interface TextInputProps extends AccessibilityProps {
   autoCapitalize?: string;
   autoCorrect?: boolean;
   autoComplete?: string;
+  secureTextEntry?: boolean;
   multiline?: boolean;
   editable?: boolean;
   autoFocus?: boolean;
@@ -617,6 +618,7 @@ export function TextInput(props: TextInputProps) {
     editable = true,
     autoFocus = false,
     maxLength,
+    secureTextEntry = false,
     style,
     ...rest
   } = props;
@@ -636,6 +638,7 @@ export function TextInput(props: TextInputProps) {
         disabled={editable === false}
         autoFocus={autoFocus}
         maxLength={maxLength}
+        autoComplete={secureTextEntry ? 'off' : undefined}
         style={normalizedStyle}
         onChange={(e) => onChangeText?.(e.target.value)}
         {...buildAriaAttrs(rest)}
@@ -649,6 +652,8 @@ export function TextInput(props: TextInputProps) {
       disabled={editable === false}
       autoFocus={autoFocus}
       maxLength={maxLength}
+      type={secureTextEntry ? 'password' : 'text'}
+      autoComplete={secureTextEntry ? 'off' : undefined}
       style={normalizedStyle}
       onChange={(e) => onChangeText?.(e.target.value)}
       {...buildAriaAttrs(rest)}

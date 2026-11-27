@@ -13,4 +13,5 @@ module.exports = {
   transform: {
     '^.+\\.tsx?$': ['ts-jest', { diagnostics: false }],
   },
+  setupFiles: ['<rootDir>/jest.setup.cjs'],
 };

@@ -193,3 +193,7 @@ export function useWeight(): WeightContextValue {
   if (!value) throw new Error('useWeight must be used inside WeightProvider');
   return value;
 }
+
+export function useOptionalWeight(): WeightContextValue | null {
+  return useContext(WeightContext);
+}

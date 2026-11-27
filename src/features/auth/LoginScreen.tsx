@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { Platform } from 'react-native';
 
 import { brand } from '@/config/brand';
-import { isSupabaseConfigured, readCustomSupabaseConfig } from '@/config/env';
+import { isSupabaseConfigured, readStoredSupabaseDraft } from '@/config/env';
 import {
   OTP_RESEND_SECONDS,
   classifyOtpFailure,
@@ -19,7 +19,9 @@ import {
   remainingSeconds,
   type OtpFailureDecision,
 } from '@/core/email-otp';
+import { OAUTH_UNSAVED_BODY, OAUTH_UNSAVED_CANCEL, OAUTH_UNSAVED_PROCEED, unsavedOAuthTitle, unsavedRecordCount } from '@/core/unsaved-login-copy';
 import { showProviderSignIn } from '@/core/provider-sign-in';
+import { validateSupabaseConfig } from '@/core/supabase-config';
 import {
   applyCustomSupabaseConfig,
   enterLocalMode,
@@ -33,11 +35,15 @@ import { Button } from '@/ui/Button';
 import { Card } from '@/ui/Card';
 import { CodeInput } from '@/ui/CodeInput';
 import { Content } from '@/ui/Content';
+import { Dialog } from '@/ui/Dialog';
 import { Callout, LabeledDivider, ScreenHeader, Stack } from '@/ui/layout';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { TextField } from '@/ui/TextField';
 import { showToast } from '@/ui/toast';
+import { useOptionalStudy } from '@/features/study/StudyProvider';
+import { useOptionalTraining } from '@/features/training/TrainingProvider';
+import { useOptionalWeight } from '@/features/weight/WeightProvider';
 
 const savedEmailKey = 'login-email';
 const notConfiguredMessage = '尚未配置 Supabase';
@@ -79,16 +85,32 @@ export function LoginScreen() {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [action, setAction] = useState<'send' | 'verify' | null>(null);
   const [provider, setProvider] = useState<OAuthProvider | null>(null);
+  const storedSupabase = __DEV__ ? readStoredSupabaseDraft() : { url: '', anonKey: '' };
+  const storedVerdict =
+    storedSupabase.url || storedSupabase.anonKey
+      ? validateSupabaseConfig(storedSupabase.url, storedSupabase.anonKey)
+      : null;
   const [showCloudConfig, setShowCloudConfig] = useState(false);
-  const [customUrl, setCustomUrl] = useState(() => readCustomSupabaseConfig()?.url ?? '');
-  const [customKey, setCustomKey] = useState(() => readCustomSupabaseConfig()?.anonKey ?? '');
+  const [customUrl, setCustomUrl] = useState(storedSupabase.url);
+  const [customKey, setCustomKey] = useState(storedSupabase.anonKey);
+  const [urlError, setUrlError] = useState<string | null>(
+    storedVerdict && !storedVerdict.ok ? storedVerdict.urlError : null,
+  );
+  const [keyError, setKeyError] = useState<string | null>(
+    storedVerdict && !storedVerdict.ok ? storedVerdict.keyError : null,
+  );
+  const [pendingProvider, setPendingProvider] = useState<OAuthProvider | null>(null);
+  const weight = useOptionalWeight();
+  const training = useOptionalTraining();
+  const study = useOptionalStudy();
+  const unsavedCount = unsavedRecordCount([
+    weight?.failedIds ?? new Set<string>(),
+    training?.failedIds ?? new Set<string>(),
+    study?.failedIds ?? new Set<string>(),
+  ]);
   const verifying = useRef(false);
   const sending = useRef(false);
   const busy = action !== null || provider !== null;
-
-  useEffect(() => {
-    clearOAuthFailureMessage();
-  }, []);
 
   useEffect(() => {
     if (sentAtMs === null) return undefined;
@@ -108,6 +130,11 @@ export function LoginScreen() {
             : null
           : notice.decision.message;
 
+  function dismissProviderFailure() {
+    clearOAuthFailureMessage();
+    setProviderNotice(null);
+  }
+
   function onEmailChange(value: string) {
     setEmail(value);
     rememberEmail(value);
@@ -123,16 +150,22 @@ export function LoginScreen() {
   }
 
   async function startProvider(next: OAuthProvider) {
+    if (unsavedCount > 0) {
+      setPendingProvider(next);
+      return;
+    }
+    await runProvider(next);
+  }
+
+  async function runProvider(next: OAuthProvider) {
+    dismissProviderFailure();
     if (!configured) {
       setProviderNotice(notConfiguredMessage);
       return;
     }
     setProvider(next);
-    setProviderNotice(null);
     try {
       await signInWithProvider(next);
-      clearOAuthFailureMessage();
-      setProviderNotice(null);
     } catch (providerError) {
       setProviderNotice(providerFailureMessage(providerError));
       setProvider(null);
@@ -150,6 +183,7 @@ export function LoginScreen() {
       return;
     }
     if (sending.current) return;
+    dismissProviderFailure();
     sending.current = true;
     setAction('send');
     setNotice(null);
@@ -224,16 +258,26 @@ export function LoginScreen() {
 
   function onEnterLocalOnly() {
     enterLocalMode();
-    showToast({ text: '已进入本地离线存储模式' });
     router.replace('/');
   }
 
   function onSaveCloudConfig() {
-    applyCustomSupabaseConfig(customUrl, customKey);
+    const verdict = validateSupabaseConfig(customUrl, customKey);
+    if (!verdict.ok) {
+      setUrlError(verdict.urlError);
+      setKeyError(verdict.keyError);
+      return;
+    }
+    const saved = applyCustomSupabaseConfig(verdict.url, verdict.anonKey);
+    if (!saved) {
+      setUrlError('只接受 https 地址');
+      setKeyError('只接受 sb_publishable_ 或 anon 公钥');
+      return;
+    }
+    setUrlError(null);
+    setKeyError(null);
     setShowCloudConfig(false);
-    showToast({
-      text: customUrl.trim() && customKey.trim() ? '已保存云端 Supabase 配置' : '已恢复默认配置',
-    });
+    showToast({ text: '已保存云端 Supabase 配置' });
   }
 
   return (
@@ -257,7 +301,20 @@ export function LoginScreen() {
             <Stack gap="md">
               {showProviders ? (
                 <>
-                  {providerNotice ? <Callout message={providerNotice} tone="danger" /> : null}
+                  {providerNotice ? (
+                    <Callout
+                      message={providerNotice}
+                      tone="danger"
+                      action={
+                        <Button
+                          label="知道了"
+                          accessibilityLabel="关闭提示"
+                          variant="ghost"
+                          onPress={dismissProviderFailure}
+                        />
+                      }
+                    />
+                  ) : null}
                   <Button
                     label="使用 Google 登录"
                     variant="secondary"
@@ -335,22 +392,13 @@ export function LoginScreen() {
             </Stack>
           )}
         </Card>
-        <Card>
+        {__DEV__ ? (
           <Stack gap="sm">
-            <Text variant="heading">免登录 · 本地存储模式</Text>
-            <Text variant="muted">
-              无需配置云端或登录账号，所有体重、训练、学习、日记与资产数据直接保存在当前设备本地，随时可导出 JSON 备份。
-            </Text>
-            <Button
-              label="免登录直接进入（仅本地存储）"
-              variant="secondary"
-              fill
-              onPress={onEnterLocalOnly}
-            />
+            <Button label="先不登录，直接用" variant="ghost" onPress={onEnterLocalOnly} />
+            <Text variant="muted">数据只存在这台设备上，不会同步。清除浏览器数据或卸载后无法恢复。</Text>
             <Button
               label={showCloudConfig ? '收起云端连接配置' : '配置云端 Supabase 地址与 Key'}
               variant="ghost"
-              fill
               onPress={() => setShowCloudConfig((prev) => !prev)}
             />
             {showCloudConfig ? (
@@ -358,23 +406,50 @@ export function LoginScreen() {
                 <TextField
                   label="SUPABASE URL"
                   value={customUrl}
-                  onChangeText={setCustomUrl}
+                  onChangeText={(next) => {
+                    setCustomUrl(next);
+                    setUrlError(null);
+                  }}
                   placeholder="https://your-project.supabase.co"
                   autoCapitalize="none"
+                  error={urlError}
                 />
                 <TextField
                   label="SUPABASE ANON KEY"
                   value={customKey}
-                  onChangeText={setCustomKey}
-                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+                  onChangeText={(next) => {
+                    setCustomKey(next);
+                    setKeyError(null);
+                  }}
+                  placeholder="sb_publishable_…"
                   autoCapitalize="none"
+                  secureTextEntry
+                  error={keyError}
                 />
-                <Button label="保存云端配置" fill onPress={onSaveCloudConfig} />
+                <Button label="保存云端配置" variant="secondary" fill onPress={onSaveCloudConfig} />
               </Stack>
             ) : null}
           </Stack>
-        </Card>
+        ) : null}
         <Button label="隐私政策" variant="ghost" fill onPress={() => router.push('/privacy')} />
+        <Dialog
+          visible={pendingProvider !== null}
+          title={unsavedOAuthTitle(unsavedCount)}
+          body={OAUTH_UNSAVED_BODY}
+          onClose={() => setPendingProvider(null)}
+        >
+          <Button
+            label={OAUTH_UNSAVED_PROCEED}
+            variant="ghost"
+            tone="danger"
+            onPress={() => {
+              const next = pendingProvider;
+              setPendingProvider(null);
+              if (next) void runProvider(next);
+            }}
+          />
+          <Button label={OAUTH_UNSAVED_CANCEL} variant="secondary" onPress={() => setPendingProvider(null)} />
+        </Dialog>
       </Content>
     </Screen>
   );
